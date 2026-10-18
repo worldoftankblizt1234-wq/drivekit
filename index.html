@@ -148,7 +148,7 @@ button { cursor: pointer; }
 </head>
 <body>
 
-<!-- LOADING SCREEN (Đã đổi Slogan) -->
+<!-- LOADING SCREEN -->
 <div class="loading-screen" id="loadingScreen">
   <div class="spinner"></div>
   <div class="loading-text">
@@ -157,7 +157,7 @@ button { cursor: pointer; }
   </div>
 </div>
 
-<!-- AUTH SCREEN (Đã đổi Slogan) -->
+<!-- AUTH SCREEN -->
 <div class="auth-screen hidden" id="authScreen">
   <div class="auth-box">
     <h2 id="authTitle">DriveKit 🚌</h2>
@@ -178,22 +178,18 @@ button { cursor: pointer; }
 <!-- MAIN MAP & UI -->
 <div id="appUI" class="hidden">
   
-  <!-- Bấm vào bản đồ (vùng trống) để đóng bảng -->
   <div id="map" onclick="closeDirections()"></div>
 
-  <!-- Thanh Search Trên Cùng -->
   <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
     <i class="fas fa-search"></i>
     <input type="text" id="topSearchInput" placeholder="Tìm địa điểm..." readonly />
     <i class="fas fa-times search-clear-btn hidden" id="searchClearBtn" onclick="event.stopPropagation(); clearTopSearch()"></i>
   </div>
   
-  <!-- Icon Menu & Định vị & Chỉ đường & Lớp bản đồ -->
   <button class="fab-menu" id="mainMenuBtn" onclick="openMenu()"><i class="fas fa-bars"></i></button>
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
   <button class="fab-layers" onclick="toggleLayerMenu()"><i class="fas fa-layer-group"></i></button>
   
-  <!-- Menu chọn lớp -->
   <div class="layer-menu" id="layerMenu">
     <button class="layer-option active" onclick="changeLayer('trackasia', this)"><i class="fas fa-map"></i> TrackAsia (Mặc định)</button>
     <button class="layer-option" onclick="changeLayer('mapbox', this)"><i class="fas fa-map-marked-alt"></i> Mapbox</button>
@@ -203,7 +199,6 @@ button { cursor: pointer; }
 
   <button class="fab-directions" id="mainDirBtn" onclick="openDirections()"><i class="fas fa-directions"></i></button>
 
-  <!-- Bảng Chỉ Đường -->
   <div class="dir-sheet" id="dirSheet">
     <div class="dir-handle"></div>
     <div class="input-group" style="margin-top: 10px;">
@@ -222,10 +217,8 @@ button { cursor: pointer; }
     </button>
   </div>
 
-  <!-- Gợi ý tìm kiếm -->
   <div class="suggestions-box" id="suggestionsBox"></div>
 
-  <!-- HUD Khi đang chạy -->
   <div class="hidden" id="hud">
     <div class="hud-top">
       <div class="hud-stat"><span class="label">Còn lại</span><span class="value" id="hudRemainDist">—</span></div>
@@ -249,7 +242,6 @@ button { cursor: pointer; }
   </div>
 </div>
 
-<!-- HISTORY MODAL -->
 <div class="history-modal hidden" id="historyModal">
   <div class="history-header">
     <h2>Lịch sử chuyến đi</h2>
@@ -298,6 +290,7 @@ let searchContext = 'view';
 let currentMapLayer = null;
 let initialCenter = [21.0285, 105.8542]; // Mặc định Hà Nội
 let initialZoom = 17; // Mức zoom mặc định (17 là đủ chi tiết)
+let lastSnapIndex = 0; // Dùng cho Snap to Road
 
 // --- VOICE STATE ---
 let voiceEnabled = true;
@@ -830,21 +823,41 @@ function updateUserMarkerOnMap(pos, heading) {
   let displayLat = pos.lat;
   let displayLng = pos.lng;
 
+  // NẾU ĐANG CÓ LỘ TRÌNH, SNAP VÀO ĐƯỜNG
   if (currentRouteCoords && currentRouteCoords.length > 0) {
     let minDist = Infinity;
-    let closestPoint = null;
+    let closestIndex = lastSnapIndex;
     
-    currentRouteCoords.forEach(coord => {
+    const startScan = Math.max(0, lastSnapIndex - 10);
+    const endScan = Math.min(currentRouteCoords.length, lastSnapIndex + 150);
+    
+    for (let i = startScan; i < endScan; i++) {
+      const coord = currentRouteCoords[i];
       const d = calcDist(pos.lat, pos.lng, coord[0], coord[1]);
       if (d < minDist) {
         minDist = d;
-        closestPoint = coord;
+        closestIndex = i;
       }
-    });
+    }
     
-    if (closestPoint && minDist < 50) {
-      displayLat = closestPoint[0];
-      displayLng = closestPoint[1];
+    if (minDist < 30 && currentRouteCoords[closestIndex]) {
+      displayLat = currentRouteCoords[closestIndex][0];
+      displayLng = currentRouteCoords[closestIndex][1];
+      
+      // XÓA ĐOẠN ĐƯỜNG ĐÃ ĐI
+      if (closestIndex > lastSnapIndex) {
+        lastSnapIndex = closestIndex;
+        
+        if (currentRouteLayer) {
+          const remainingCoords = currentRouteCoords.slice(lastSnapIndex);
+          if (remainingCoords.length > 1) {
+            currentRouteLayer.setLatLngs(remainingCoords);
+          } else {
+            map.removeLayer(currentRouteLayer);
+            currentRouteLayer = null;
+          }
+        }
+      }
     }
   }
 
@@ -899,6 +912,7 @@ async function startRouteFromSheet() {
     const r = data.routes[0];
     voiceRouteSteps = r.legs[0].steps || [];
     voiceStepIndex = 0;
+    lastSnapIndex = 0; // Reset biến snap
     
     currentRouteCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
@@ -965,13 +979,19 @@ function startVoice() {
   document.getElementById('hudBtnVoice').classList.add('active');
   voiceCheckTimer = setInterval(() => {
     if (!lastUserPos || !voiceRouteSteps) return;
-    const step = voiceRouteSteps[voiceStepIndex];
-    if (!step) return;
     
-    const d = calcDist(lastUserPos.lat, lastUserPos.lng, step.maneuver.location[1], step.maneuver.location[0]);
-    if (d < 50) {
-      speak(step.maneuver.instruction);
-      voiceStepIndex++;
+    // Chỉ kiểm tra 3 bước tiếp theo để tránh nhảy cóc
+    for (let i = voiceStepIndex; i < Math.min(voiceRouteSteps.length, voiceStepIndex + 3); i++) {
+      const step = voiceRouteSteps[i];
+      if (!step || !step.maneuver || !step.maneuver.location) continue;
+      
+      const d = calcDist(lastUserPos.lat, lastUserPos.lng, step.maneuver.location[1], step.maneuver.location[0]);
+      
+      if (d < 50) {
+        speak(step.maneuver.instruction);
+        voiceStepIndex = i + 1;
+        break;
+      }
     }
   }, 3000);
 }
