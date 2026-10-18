@@ -12,15 +12,11 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 
-<!-- Leaflet cơ bản -->
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<!-- TrackAsia GL JS & Leaflet Binding -->
 <script src="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js"></script>
 <link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
 
-<!-- Bật vConsole nếu có ?debug=1 -->
 <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
 <script>
   if (window.location.search.includes('debug=1')) {
@@ -107,6 +103,9 @@ button { cursor: pointer; }
 .leaflet-popup-tip { background: #1e293b !important; }
 .leaflet-popup-content { margin: 12px 14px !important; }
 .custom-touch-marker { z-index: 1000 !important; }
+
+/* CSS CHO MŨI TÊN USER */
+.user-arrow-icon { transition: transform 0.3s linear; }
 
 /* AUTH SCREEN & HISTORY MODAL */
 .auth-screen { position: fixed; inset: 0; z-index: 3000; background: var(--bg); display: flex; flex-direction: column; justify-content: center; padding: 24px; }
@@ -258,9 +257,11 @@ let currentUser = null;
 let startPoint = null;
 let endPoint = null;
 let userMarker = null;
+let gpsCircle = null;
 let currentRouteLayer = null;
 let watchId = null;
 let lastUserPos = null;
+let lastHeading = 0;
 let isSearchingFor = 'end'; 
 
 // --- VOICE STATE ---
@@ -375,7 +376,7 @@ function logout() { signOut(auth); closeMenu(); }
 function initMap() {
   if (map) return;
   
-  map = L.map('map', { center: [21.0285, 105.8542], zoom: 13, zoomControl: false });
+  map = L.map('map', { center: [21.0285, 105.8542], zoom: 13, zoomControl: false, rotate: true, bearing: 0 });
   
   const trackasiaStyleUrl = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
   try {
@@ -385,9 +386,6 @@ function initMap() {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
   }
 
-  // ==========================================
-  // XỬ LÝ CHẠM & NHẤN GIỮ (GOOGLE MAPS STYLE)
-  // ==========================================
   let pressTimer = null;
   let touchMarker = null; 
   let startX = 0, startY = 0;
@@ -405,12 +403,8 @@ function initMap() {
   const mapContainer = map.getContainer();
   mapContainer.style.touchAction = 'none'; 
 
-  // Hàm xóa chấm đỏ và popup
   function clearTouchMarker() {
-    if (touchMarker) { 
-      map.removeLayer(touchMarker); 
-      touchMarker = null; 
-    }
+    if (touchMarker) { map.removeLayer(touchMarker); touchMarker = null; }
     map.closePopup();
   }
 
@@ -526,7 +520,6 @@ function initMap() {
   }
 }
 
-// Xử lý khi bấm "Tới chỗ này" -> Xóa popup tạm ngay lập tức
 window.goToLongPressLocation = function(lat, lng, name) {
   endPoint = { lat, lng, name };
   
@@ -534,7 +527,6 @@ window.goToLongPressLocation = function(lat, lng, name) {
   document.getElementById('topSearchInput').value = name;
   document.getElementById('btnClearEnd').classList.remove('hidden');
   
-  // Xóa chấm đỏ và popup tạm
   if (map) map.closePopup();
   map.eachLayer(layer => {
     if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
@@ -542,10 +534,6 @@ window.goToLongPressLocation = function(lat, lng, name) {
     }
   });
 
-  if (userMarker) map.removeLayer(userMarker);
-  const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;"></div>', iconSize: [24,24] });
-  userMarker = L.marker([lat, lng], { icon }).addTo(map);
-  
   openDirections();
   if (!startPoint) refreshGPS();
 };
@@ -565,7 +553,6 @@ function openMenu() { document.getElementById('historyModal').classList.remove('
 function closeMenu() { document.getElementById('historyModal').classList.add('hidden'); }
 function openSearchMode() { openDirections(); setTimeout(() => activateSearch('end'), 300); }
 
-// Xử lý nút X xóa input
 window.clearPoint = function(type) {
   if (type === 'start') {
     startPoint = null;
@@ -643,10 +630,6 @@ function selectLocation(lat, lng, name) {
   document.getElementById('topSearchInput').value = name;
   document.getElementById('topSearchInput').readOnly = true;
   closeSearch();
-  
-  if (userMarker) map.removeLayer(userMarker);
-  const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;"></div>', iconSize: [24,24] });
-  userMarker = L.marker([lat, lng], { icon }).addTo(map);
   map.setView([lat, lng], 16);
 }
 
@@ -661,15 +644,50 @@ function refreshGPS() {
     document.getElementById('dirInputStart').value = 'Vị trí của tôi (GPS)';
     document.getElementById('btnClearStart').classList.remove('hidden');
     
-    lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+    lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+    lastHeading = pos.coords.heading || 0;
+    map.setView([pos.coords.latitude, pos.coords.longitude], 16);
     
-    if (userMarker) map.removeLayer(userMarker);
-    const icon = L.divIcon({ html: '<div style="width:20px;height:20px;border-radius:50%;background:#3b82f6;border:3px solid white;box-shadow:0 0 10px rgba(59,130,246,0.5);"></div>', iconSize: [20,20] });
-    userMarker = L.marker([pos.coords.latitude, pos.coords.longitude], { icon }).addTo(map);
+    updateUserMarkerOnMap(lastUserPos, lastHeading);
   }, (err) => {
     if (btn) btn.classList.remove('loading');
   });
+}
+
+// ==========================================
+// GPS TRACKING & MARKER UPDATE
+// ==========================================
+function updateUserMarkerOnMap(pos, heading) {
+  // 1. Cập nhật vòng tròn sai số GPS (Accuracy Circle)
+  if (gpsCircle) map.removeLayer(gpsCircle);
+  gpsCircle = L.circle([pos.lat, pos.lng], {
+    radius: pos.accuracy || 10,
+    color: '#10b981',
+    fillColor: '#10b981',
+    fillOpacity: 0.15,
+    weight: 1,
+    className: 'gps-accuracy-circle'
+  }).addTo(map);
+
+  // 2. Cập nhật Marker (Mũi tên hoặc chấm tròn)
+  const svgIcon = `
+    <div class="user-arrow-icon" style="transform: rotate(${heading || 0}deg); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Mũi tên chỉ hướng -->
+        <path d="M12 2L22 20L12 16L2 20L12 2Z" fill="#10b981" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+    </div>
+  `;
+  
+  const userIcon = L.divIcon({
+    html: svgIcon,
+    className: '',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
+  });
+
+  if (userMarker) map.removeLayer(userMarker);
+  userMarker = L.marker([pos.lat, pos.lng], { icon: userIcon }).addTo(map);
 }
 
 // ==========================================
@@ -680,7 +698,7 @@ async function startRouteFromSheet() {
   
   closeDirections();
   
-  // Ẩn các nút UI bên ngoài (chỉ khi dẫn đường)
+  // Ẩn UI ngoài
   document.getElementById('searchBar').classList.add('hidden');
   document.getElementById('mainMenuBtn').classList.add('hidden');
   document.getElementById('mainLocateBtn').classList.add('hidden');
@@ -704,8 +722,14 @@ async function startRouteFromSheet() {
     voiceStepIndex = 0;
     
     const routeCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    
+    // Vẽ đường chính
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
-    currentRouteLayer = L.polyline(routeCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
+    currentRouteLayer = L.polyline(routeCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+    
+    // Đặt điểm A và B
+    if (userMarker) map.removeLayer(userMarker);
+    
     map.fitBounds(L.latLngBounds(routeCoords), { padding: [50, 50] });
     
     document.getElementById('hudRemainDist').textContent = (r.distance/1000).toFixed(1) + ' km';
@@ -718,7 +742,6 @@ async function startRouteFromSheet() {
     
   } catch (e) {
     alert('Lỗi lấy đường: ' + e.message);
-    // Nếu lỗi thì hiện lại các nút UI
     document.getElementById('hud').classList.add('hidden');
     document.getElementById('searchBar').classList.remove('hidden');
     document.getElementById('mainMenuBtn').classList.remove('hidden');
@@ -730,9 +753,24 @@ async function startRouteFromSheet() {
 function startWatching() {
   if (watchId) navigator.geolocation.clearWatch(watchId);
   watchId = navigator.geolocation.watchPosition(pos => {
-    lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, speed: pos.coords.speed || 0 };
+    lastUserPos = { 
+      lat: pos.coords.latitude, 
+      lng: pos.coords.longitude, 
+      speed: pos.coords.speed || 0,
+      accuracy: pos.coords.accuracy || 10,
+      heading: pos.coords.heading || lastHeading
+    };
+    lastHeading = lastUserPos.heading;
+    
+    // Cập nhật tốc độ (km/h)
     document.getElementById('hudSpeed').textContent = Math.round(lastUserPos.speed * 3.6) + ' km/h';
-    if (map) map.panTo([lastUserPos.lat, lastUserPos.lng], { animate: true });
+    
+    // Vẽ mũi tên và vòng tròn
+    updateUserMarkerOnMap(lastUserPos, lastHeading);
+    
+    // Bay theo user
+    if (map) map.panTo([lastUserPos.lat, lastUserPos.lng], { animate: true, duration: 0.5 });
+    
   }, null, { enableHighAccuracy: true });
 }
 
