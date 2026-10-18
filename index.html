@@ -39,11 +39,35 @@ button, input { font-family: inherit; outline: none; border: none; }
 button { cursor: pointer; }
 .hidden { display: none !important; }
 
-/* MAP */
+/* MAP & LEAFLET CONTROLS */
 #map { position: fixed; inset: 0; z-index: 1; background: var(--bg); }
 .leaflet-container { font-family: var(--font-main) !important; }
 .leaflet-control-attribution { font-size: 9px !important; background: rgba(15,23,42,0.7) !important; color: #94a3b8 !important; }
 .leaflet-control-attribution a { color: #60a5fa !important; }
+
+/* MENU ĐỔI LỚP BẢN ĐỒ (LAYERS CONTROL) */
+.leaflet-control-layers {
+  border-radius: 12px !important;
+  border: 1px solid var(--border) !important;
+  background: var(--card) !important;
+  color: var(--text) !important;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.4) !important;
+  margin-left: 16px !important;
+  margin-bottom: 20px !important;
+}
+.leaflet-control-layers-toggle {
+  width: 44px !important; height: 44px !important;
+  background-size: 22px 22px !important;
+}
+.leaflet-control-layers-expanded {
+  padding: 10px 14px !important;
+  background: var(--card) !important;
+}
+.leaflet-control-layers label {
+  font-size: 0.9rem !important; font-weight: 600 !important;
+  color: var(--text) !important;
+  margin-bottom: 4px;
+}
 
 /* HUD KHI ĐANG DẪN ĐƯỜNG */
 .hud-top { position: fixed; top: 0; left: 0; right: 0; z-index: 500; padding: calc(10px + var(--safe-top)) 12px 10px; display: flex; gap: 8px; pointer-events: none; }
@@ -270,7 +294,7 @@ let currentRouteCoords = [];
 let watchId = null;
 let lastUserPos = null;
 let lastHeading = 0;
-let searchContext = 'view'; // 'view' (chỉ xem trước), 'start', 'end'
+let searchContext = 'view';
 
 // --- VOICE STATE ---
 let voiceEnabled = true;
@@ -384,15 +408,42 @@ function logout() { signOut(auth); closeMenu(); }
 function initMap() {
   if (map) return;
   
+  // 1. Khởi tạo bản đồ
   map = L.map('map', { center: [21.0285, 105.8542], zoom: 13, zoomControl: false });
   
+  // 2. Định nghĩa các lớp bản đồ nền (Base Layers)
+  // Esri Satellite (Lớp Vệ tinh - dùng làm nền)
+  const satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    attribution: '© Esri'
+  });
+
+  // Để dùng TrackAsia GL JS làm 1 lớp thay vì đè hoàn toàn, ta đưa nó vào Overlays
+  let trackasiaLayer;
   const trackasiaStyleUrl = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
   try {
-    L.trackasiaGL({ style: trackasiaStyleUrl }).addTo(map);
-  } catch (error) {
-    console.error('❌ Lỗi tải TrackAsia GL:', error);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+    trackasiaLayer = L.trackasiaGL({ style: trackasiaStyleUrl });
+  } catch (e) {
+    console.error('Lỗi TrackAsia', e);
   }
+
+  // 3. Tạo control Layers (Nút chọn lớp ở góc dưới trái)
+  const baseMaps = {
+    "🛰️ Vệ tinh (Esri)": satLayer
+  };
+  const overlayMaps = {
+    "🇻🇳 TrackAsia (Mặc định)": trackasiaLayer
+  };
+
+  // Thêm nền mặc định (Vệ tinh)
+  satLayer.addTo(map);
+  
+  // Thêm TrackAsia lên trên (Mặc định bật)
+  if (trackasiaLayer) trackasiaLayer.addTo(map);
+
+  // Bật bảng chọn lớp ở góc dưới trái
+  L.control.layers(baseMaps, overlayMaps, { position: 'bottomleft', collapsed: true }).addTo(map);
+
 
   // ==========================================
   // XỬ LÝ CHẠM & NHẤN GIỮ
@@ -566,10 +617,9 @@ function escapeHtml(text) {
 
 function centerToLocation() {
   if (lastUserPos) {
-    // BAY MƯỢT VÀ ZOOM TỚI VỊ TRÍ
     map.flyTo([lastUserPos.lat, lastUserPos.lng], 18, {
       animate: true,
-      duration: 1.5 // 1.5 giây
+      duration: 1.5
     });
   } else {
     refreshGPS();
