@@ -39,35 +39,11 @@ button, input { font-family: inherit; outline: none; border: none; }
 button { cursor: pointer; }
 .hidden { display: none !important; }
 
-/* MAP & LEAFLET CONTROLS */
+/* MAP */
 #map { position: fixed; inset: 0; z-index: 1; background: var(--bg); }
 .leaflet-container { font-family: var(--font-main) !important; }
 .leaflet-control-attribution { font-size: 9px !important; background: rgba(15,23,42,0.7) !important; color: #94a3b8 !important; }
 .leaflet-control-attribution a { color: #60a5fa !important; }
-
-/* MENU ĐỔI LỚP BẢN ĐỒ (LAYERS CONTROL) */
-.leaflet-control-layers {
-  border-radius: 12px !important;
-  border: 1px solid var(--border) !important;
-  background: var(--card) !important;
-  color: var(--text) !important;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.4) !important;
-  margin-left: 16px !important;
-  margin-bottom: 20px !important;
-}
-.leaflet-control-layers-toggle {
-  width: 44px !important; height: 44px !important;
-  background-size: 22px 22px !important;
-}
-.leaflet-control-layers-expanded {
-  padding: 10px 14px !important;
-  background: var(--card) !important;
-}
-.leaflet-control-layers label {
-  font-size: 0.9rem !important; font-weight: 600 !important;
-  color: var(--text) !important;
-  margin-bottom: 4px;
-}
 
 /* HUD KHI ĐANG DẪN ĐƯỜNG */
 .hud-top { position: fixed; top: 0; left: 0; right: 0; z-index: 500; padding: calc(10px + var(--safe-top)) 12px 10px; display: flex; gap: 8px; pointer-events: none; }
@@ -98,12 +74,20 @@ button { cursor: pointer; }
 .search-clear-btn { color: var(--text-muted); font-size: 1rem; padding: 4px 8px; cursor: pointer; }
 .search-clear-btn:active { color: white; }
 
-/* NÚT MENU & NÚT CHỈ ĐƯỜNG */
+/* NÚT MENU & NÚT CHỈ ĐƯỜNG & NÚT LỚP */
 .fab-menu { position: fixed; top: calc(16px + var(--safe-top)); right: 16px; z-index: 1000; width: 42px; height: 42px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
 .fab-directions { position: fixed; bottom: calc(20px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 6px 20px rgba(59,130,246,0.4); }
 .fab-locate { position: fixed; bottom: calc(20px + var(--safe-bottom)); left: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
 .fab-locate.loading { color: var(--primary); animation: spin 1s linear infinite; }
+.fab-layers { position: fixed; bottom: calc(80px + var(--safe-bottom)); left: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
 @keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* MENU CHỌN LỚP BẢN ĐỒ */
+.layer-menu { position: fixed; bottom: calc(140px + var(--safe-bottom)); left: 16px; z-index: 1000; background: var(--card); border-radius: 12px; padding: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); border: 1px solid var(--border); display: none; flex-direction: column; gap: 4px; }
+.layer-menu.show { display: flex; }
+.layer-option { padding: 10px 16px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 10px; cursor: pointer; background: transparent; border: none; text-align: left; }
+.layer-option:active { background: var(--card-2); }
+.layer-option.active { background: rgba(59,130,246,0.2); color: var(--primary); }
 
 /* BẢNG CHỈ ĐƯỜNG DƯỚI CÙNG */
 .dir-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1500; background: var(--card); border-top-left-radius: 20px; border-top-right-radius: 20px; padding: 12px 16px calc(12px + var(--safe-bottom)); transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 -10px 30px rgba(0,0,0,0.5); }
@@ -191,19 +175,29 @@ button { cursor: pointer; }
   <!-- Bấm vào bản đồ (vùng trống) để đóng bảng -->
   <div id="map" onclick="closeDirections()"></div>
 
-  <!-- Thanh Search Trên Cùng (Chỉ xem trước) -->
+  <!-- Thanh Search Trên Cùng -->
   <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
     <i class="fas fa-search"></i>
     <input type="text" id="topSearchInput" placeholder="Tìm địa điểm..." readonly />
     <i class="fas fa-times search-clear-btn hidden" id="searchClearBtn" onclick="event.stopPropagation(); clearTopSearch()"></i>
   </div>
   
-  <!-- Icon Menu & Định vị & Chỉ đường -->
+  <!-- Icon Menu & Định vị & Chỉ đường & Lớp bản đồ -->
   <button class="fab-menu" id="mainMenuBtn" onclick="openMenu()"><i class="fas fa-bars"></i></button>
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
+  <button class="fab-layers" onclick="toggleLayerMenu()"><i class="fas fa-layer-group"></i></button>
+  
+  <!-- Menu chọn lớp -->
+  <div class="layer-menu" id="layerMenu">
+    <button class="layer-option active" onclick="changeLayer('trackasia', this)"><i class="fas fa-map"></i> TrackAsia (Mặc định)</button>
+    <button class="layer-option" onclick="changeLayer('mapbox', this)"><i class="fas fa-map-marked-alt"></i> Mapbox</button>
+    <button class="layer-option" onclick="changeLayer('thunderforest', this)"><i class="fas fa-tree"></i> Thunderforest</button>
+    <button class="layer-option" onclick="changeLayer('satellite', this)"><i class="fas fa-satellite"></i> Vệ tinh (Esri)</button>
+  </div>
+
   <button class="fab-directions" id="mainDirBtn" onclick="openDirections()"><i class="fas fa-directions"></i></button>
 
-  <!-- Bảng Chỉ Đường (Lập lộ trình) -->
+  <!-- Bảng Chỉ Đường -->
   <div class="dir-sheet" id="dirSheet">
     <div class="dir-handle"></div>
     <div class="input-group" style="margin-top: 10px;">
@@ -294,7 +288,8 @@ let currentRouteCoords = [];
 let watchId = null;
 let lastUserPos = null;
 let lastHeading = 0;
-let searchContext = 'view';
+let searchContext = 'view'; 
+let currentMapLayer = null;
 
 // --- VOICE STATE ---
 let voiceEnabled = true;
@@ -395,7 +390,7 @@ onAuthStateChanged(auth, (user) => {
     refreshGPS(); 
   } else {
     currentUser = null;
-    document.getElementById('authScreen').classList.remove('hidden');
+    document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('appUI').classList.add('hidden');
   }
 });
@@ -408,42 +403,10 @@ function logout() { signOut(auth); closeMenu(); }
 function initMap() {
   if (map) return;
   
-  // 1. Khởi tạo bản đồ
   map = L.map('map', { center: [21.0285, 105.8542], zoom: 13, zoomControl: false });
   
-  // 2. Định nghĩa các lớp bản đồ nền (Base Layers)
-  // Esri Satellite (Lớp Vệ tinh - dùng làm nền)
-  const satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 19,
-    attribution: '© Esri'
-  });
-
-  // Để dùng TrackAsia GL JS làm 1 lớp thay vì đè hoàn toàn, ta đưa nó vào Overlays
-  let trackasiaLayer;
-  const trackasiaStyleUrl = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
-  try {
-    trackasiaLayer = L.trackasiaGL({ style: trackasiaStyleUrl });
-  } catch (e) {
-    console.error('Lỗi TrackAsia', e);
-  }
-
-  // 3. Tạo control Layers (Nút chọn lớp ở góc dưới trái)
-  const baseMaps = {
-    "🛰️ Vệ tinh (Esri)": satLayer
-  };
-  const overlayMaps = {
-    "🇻🇳 TrackAsia (Mặc định)": trackasiaLayer
-  };
-
-  // Thêm nền mặc định (Vệ tinh)
-  satLayer.addTo(map);
-  
-  // Thêm TrackAsia lên trên (Mặc định bật)
-  if (trackasiaLayer) trackasiaLayer.addTo(map);
-
-  // Bật bảng chọn lớp ở góc dưới trái
-  L.control.layers(baseMaps, overlayMaps, { position: 'bottomleft', collapsed: true }).addTo(map);
-
+  // Khởi tạo lớp TrackAsia ban đầu
+  changeLayer('trackasia', document.querySelector('.layer-option.active'));
 
   // ==========================================
   // XỬ LÝ CHẠM & NHẤN GIỮ
@@ -593,6 +556,44 @@ function initMap() {
   }
 }
 
+// XỬ LÝ ĐỔI LỚP
+function toggleLayerMenu() {
+  document.getElementById('layerMenu').classList.toggle('show');
+}
+
+function changeLayer(type, btn) {
+  // Xóa lớp cũ
+  if (currentMapLayer) {
+    map.removeLayer(currentMapLayer);
+    currentMapLayer = null;
+  }
+  
+  // Cập nhật UI
+  document.querySelectorAll('.layer-option').forEach(el => el.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.getElementById('layerMenu').classList.remove('show');
+
+  // Thêm lớp mới
+  if (type === 'trackasia') {
+    const trackasiaStyleUrl = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
+    try {
+      currentMapLayer = L.trackasiaGL({ style: trackasiaStyleUrl }).addTo(map);
+    } catch (error) {
+      console.error('Lỗi TrackAsia', error);
+      currentMapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    }
+  } 
+  else if (type === 'mapbox') {
+    currentMapLayer = L.tileLayer(`${WORKER_URL}/mapbox-tiles/{z}/{x}/{y}`, { maxZoom: 19, tileSize: 512, zoomOffset: -1 }).addTo(map);
+  } 
+  else if (type === 'thunderforest') {
+    currentMapLayer = L.tileLayer(`${WORKER_URL}/tf-tiles/{z}/{x}/{y}`, { maxZoom: 19 }).addTo(map);
+  } 
+  else if (type === 'satellite') {
+    currentMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
+  }
+}
+
 window.goToLongPressLocation = function(lat, lng, name) {
   endPoint = { lat, lng, name };
   document.getElementById('dirInputEnd').value = name;
@@ -617,10 +618,7 @@ function escapeHtml(text) {
 
 function centerToLocation() {
   if (lastUserPos) {
-    map.flyTo([lastUserPos.lat, lastUserPos.lng], 18, {
-      animate: true,
-      duration: 1.5
-    });
+    map.flyTo([lastUserPos.lat, lastUserPos.lng], 18, { animate: true, duration: 1.5 });
   } else {
     refreshGPS();
   }
@@ -728,7 +726,6 @@ function selectLocation(lat, lng, name) {
   document.getElementById('topSearchInput').readOnly = true;
   document.getElementById('searchClearBtn').classList.remove('hidden');
   closeSearch();
-  
   map.flyTo([lat, lng], 16, { animate: true, duration: 1 });
 
   map.eachLayer(layer => {
@@ -828,6 +825,8 @@ async function startRouteFromSheet() {
   document.getElementById('mainMenuBtn').classList.add('hidden');
   document.getElementById('mainLocateBtn').classList.add('hidden');
   document.getElementById('mainDirBtn').classList.add('hidden');
+  document.getElementById('layerMenu').classList.remove('show');
+  document.querySelector('.fab-layers').classList.add('hidden');
 
   document.getElementById('hud').classList.remove('hidden');
   
@@ -866,6 +865,7 @@ async function startRouteFromSheet() {
     document.getElementById('mainMenuBtn').classList.remove('hidden');
     document.getElementById('mainLocateBtn').classList.remove('hidden');
     document.getElementById('mainDirBtn').classList.remove('hidden');
+    document.querySelector('.fab-layers').classList.remove('hidden');
   }
 }
 
@@ -1009,6 +1009,8 @@ window.stopRoute = stopRoute;
 window.openMenu = openMenu;
 window.closeMenu = closeMenu;
 window.logout = logout;
+window.toggleLayerMenu = toggleLayerMenu;
+window.changeLayer = changeLayer;
 
 </script>
 </body>
