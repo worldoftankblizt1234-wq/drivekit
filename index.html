@@ -77,6 +77,12 @@ button { cursor: pointer; }
 .fab-directions { position: fixed; bottom: calc(30px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 6px 24px rgba(59,130,246,0.5); transition: 0.2s; }
 .fab-directions:active { transform: scale(0.92); }
 
+/* LOCATE ME BUTTON */
+.fab-locate { position: fixed; bottom: calc(30px + var(--safe-bottom)); left: 16px; z-index: 1000; width: 56px; height: 56px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; box-shadow: 0 4px 20px rgba(0,0,0,0.4); transition: 0.2s; }
+.fab-locate:active { transform: scale(0.92); }
+.fab-locate.loading { color: var(--primary); animation: spin 1s linear infinite; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
 /* DIRECTION SHEET */
 .dir-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1500; background: var(--card); border-top-left-radius: 24px; border-top-right-radius: 24px; padding: 16px 16px calc(16px + var(--safe-bottom)); transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 -10px 40px rgba(0,0,0,0.6); }
 .dir-sheet.open { transform: translateY(0); }
@@ -117,7 +123,6 @@ button { cursor: pointer; }
 
 .loading-screen { position: fixed; inset: 0; z-index: 5000; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 20px; }
 .spinner { width: 50px; height: 50px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
-@keyframes spin { 100% { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -172,6 +177,11 @@ button { cursor: pointer; }
   <!-- Icon Chỉ đường -->
   <button class="fab-directions" onclick="openDirections()">
     <i class="fas fa-directions"></i>
+  </button>
+
+  <!-- Nút Locate Me (Mới thêm) -->
+  <button class="fab-locate" id="btnLocateMe" onclick="centerToLocation()">
+    <i class="fas fa-location-arrow"></i>
   </button>
 
   <!-- Directions Sheet -->
@@ -249,7 +259,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f'; 
+// SỬ DỤNG WORKER CHUNG
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 
 // --- STATE ---
@@ -258,7 +268,7 @@ let currentUser = null;
 let startPoint = null;
 let endPoint = null;
 let userMarker = null;
-let currentRoute = null;
+let currentRouteLayer = null;
 let watchId = null;
 let lastUserPos = null;
 let isSearchingFor = 'end'; 
@@ -378,24 +388,19 @@ function logout() {
 }
 
 // ==========================================
-// MAP & UI LOGIC (ĐÃ FIX TRACKASIA)
+// MAP & UI LOGIC
 // ==========================================
 function initMap() {
   if (map) return;
   
-  // Khởi tạo Leaflet map cơ bản
   map = L.map('map', { center: [21.0285, 105.8542], zoom: 13, zoomControl: false });
   
-  // SỬ DỤNG TRACKASIA GL JS (Vector Tiles) - CÁCH CHUẨN THEO TÀI LIỆU
-  // URL style JSON chính thức cho giao diện Streets V2 [citation:16][citation:17]
-  const trackasiaStyleUrl = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
+  // SỬ DỤNG WORKER ĐỂ ẨN KEY TRACKASIA
+  const trackasiaStyleUrl = `${WORKER_URL}/trackasia-tiles/styles/v2/streets.json`;
   
   try {
-    const gl = L.trackasiaGL({
-      style: trackasiaStyleUrl
-    }).addTo(map);
-    
-    console.log('✅ TrackAsia GL Layer added successfully');
+    const gl = L.trackasiaGL({ style: trackasiaStyleUrl }).addTo(map);
+    console.log('✅ TrackAsia GL Layer added successfully via Worker');
   } catch (error) {
     console.error('❌ Lỗi khởi tạo TrackAsia GL:', error);
   }
@@ -405,6 +410,14 @@ function initMap() {
       reverseGeocode(e.latlng.lat, e.latlng.lng);
     }
   });
+}
+
+function centerToLocation() {
+  if (lastUserPos) {
+    map.setView([lastUserPos.lat, lastUserPos.lng], 16);
+  } else {
+    refreshGPS();
+  }
 }
 
 function openDirections() { document.getElementById('dirSheet').classList.add('open'); }
@@ -448,7 +461,8 @@ async function doSearch(query) {
   box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang tìm...</div>';
 
   try {
-    const res = await fetch(`https://maps.track-asia.com/api/v2/place/textsearch/json?key=${TRACKASIA_KEY}&query=${encodeURIComponent(query)}&new_admin=true`);
+    // Gọi qua Worker (để giấu key TrackAsia)
+    const res = await fetch(`${WORKER_URL}/trackasia-search?query=${encodeURIComponent(query)}`);
     const data = await res.json();
     
     if (data.status === 'OK' && data.results?.length) {
@@ -501,17 +515,31 @@ function selectLocation(lat, lng, name) {
 
 function refreshGPS() {
   if (!navigator.geolocation) return;
+  const btn = document.getElementById('btnLocateMe');
+  if (btn) btn.classList.add('loading');
+  
   navigator.geolocation.getCurrentPosition(pos => {
+    if (btn) btn.classList.remove('loading');
     startPoint = { lat: pos.coords.latitude, lng: pos.coords.longitude, name: 'Vị trí của tôi' };
     document.getElementById('dirInputStart').value = 'Vị trí của tôi (GPS)';
+    
+    // Cập nhật vị trí
+    lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+    
+    // Hiển thị chấm xanh GPS
+    if (userMarker) map.removeLayer(userMarker);
+    const icon = L.divIcon({ html: '<div style="width:20px;height:20px;border-radius:50%;background:#3b82f6;border:3px solid white;box-shadow:0 0 10px rgba(59,130,246,0.5);"></div>', iconSize: [20,20] });
+    userMarker = L.marker([pos.coords.latitude, pos.coords.longitude], { icon }).addTo(map);
   }, (err) => {
+    if (btn) btn.classList.remove('loading');
     console.warn('Lỗi GPS:', err);
+    alert('Không thể lấy vị trí. Vui lòng bật GPS!');
   });
 }
 
 // ==========================================
-// ROUTING & VOICE
+// ROUTING & VOICE (SỬ DỤNG WORKER CŨ)
 // ==========================================
 async function startRouteFromSheet() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
@@ -519,22 +547,36 @@ async function startRouteFromSheet() {
   closeDirections();
   document.getElementById('hud').classList.remove('hidden');
   
-  const coords = `${startPoint.lng},${startPoint.lat};${endPoint.lng},${endPoint.lat}`;
-  const url = `${WORKER_URL}/mapbox-route?coords=${coords}&steps=true&language=vi`;
+  // GỌI ĐÚNG CHUẨN WORKER CỦA BẠN: ?from=lng,lat&to=lng,lat
+  const fromStr = `${startPoint.lng},${startPoint.lat}`;
+  const toStr = `${endPoint.lng},${endPoint.lat}`;
+  const url = `${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}`;
   
   try {
     const res = await fetch(url);
     const data = await res.json();
-    if (data.code !== 'Ok') throw new Error('Không tìm thấy đường');
+    
+    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+      throw new Error(data.message || 'Không tìm thấy đường đi');
+    }
     
     const r = data.routes[0];
-    voiceRouteSteps = r.legs.flatMap(l => l.steps);
+    
+    // Mapbox trả về steps nằm trong legs[0]
+    voiceRouteSteps = r.legs[0].steps || [];
     voiceStepIndex = 0;
     
+    // Vẽ đường
     const routeCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-    L.polyline(routeCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
+    
+    if (currentRouteLayer) {
+      map.removeLayer(currentRouteLayer);
+    }
+    
+    currentRouteLayer = L.polyline(routeCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
     map.fitBounds(L.latLngBounds(routeCoords), { padding: [50, 50] });
     
+    // Cập nhật HUD
     document.getElementById('hudRemainDist').textContent = (r.distance/1000).toFixed(1) + ' km';
     document.getElementById('hudRemainTime').textContent = Math.round(r.duration/60) + ' phút';
     document.getElementById('hudNextStopName').textContent = endPoint.name;
@@ -653,6 +695,7 @@ window.openSearchMode = openSearchMode;
 window.openDirections = openDirections;
 window.activateSearch = activateSearch;
 window.refreshGPS = refreshGPS;
+window.centerToLocation = centerToLocation;
 window.startRouteFromSheet = startRouteFromSheet;
 window.stopRoute = stopRoute;
 window.openMenu = openMenu;
