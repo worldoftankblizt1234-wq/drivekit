@@ -15,7 +15,7 @@
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js"></script>
 <link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
-<script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
+<script src="https://unpkg.com/leaflet-trackasia-gl@0.0.21/leaflet-trackasia-gl.js"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
 <script>
@@ -148,7 +148,7 @@ button { cursor: pointer; }
 <!-- LOADING SCREEN -->
 <div class="loading-screen" id="loadingScreen">
   <div class="spinner"></div>
-  <p>Đang tải DriveKit...</p>
+  <p>Đang khởi tạo GPS...</p>
 </div>
 
 <!-- AUTH SCREEN -->
@@ -172,22 +172,18 @@ button { cursor: pointer; }
 <!-- MAIN MAP & UI -->
 <div id="appUI" class="hidden">
   
-  <!-- Bấm vào bản đồ (vùng trống) để đóng bảng -->
   <div id="map" onclick="closeDirections()"></div>
 
-  <!-- Thanh Search Trên Cùng -->
   <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
     <i class="fas fa-search"></i>
     <input type="text" id="topSearchInput" placeholder="Tìm địa điểm..." readonly />
     <i class="fas fa-times search-clear-btn hidden" id="searchClearBtn" onclick="event.stopPropagation(); clearTopSearch()"></i>
   </div>
   
-  <!-- Icon Menu & Định vị & Chỉ đường & Lớp bản đồ -->
   <button class="fab-menu" id="mainMenuBtn" onclick="openMenu()"><i class="fas fa-bars"></i></button>
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
   <button class="fab-layers" onclick="toggleLayerMenu()"><i class="fas fa-layer-group"></i></button>
   
-  <!-- Menu chọn lớp -->
   <div class="layer-menu" id="layerMenu">
     <button class="layer-option active" onclick="changeLayer('trackasia', this)"><i class="fas fa-map"></i> TrackAsia (Mặc định)</button>
     <button class="layer-option" onclick="changeLayer('mapbox', this)"><i class="fas fa-map-marked-alt"></i> Mapbox</button>
@@ -197,7 +193,6 @@ button { cursor: pointer; }
 
   <button class="fab-directions" id="mainDirBtn" onclick="openDirections()"><i class="fas fa-directions"></i></button>
 
-  <!-- Bảng Chỉ Đường -->
   <div class="dir-sheet" id="dirSheet">
     <div class="dir-handle"></div>
     <div class="input-group" style="margin-top: 10px;">
@@ -216,10 +211,8 @@ button { cursor: pointer; }
     </button>
   </div>
 
-  <!-- Gợi ý tìm kiếm -->
   <div class="suggestions-box" id="suggestionsBox"></div>
 
-  <!-- HUD Khi đang chạy -->
   <div class="hidden" id="hud">
     <div class="hud-top">
       <div class="hud-stat"><span class="label">Còn lại</span><span class="value" id="hudRemainDist">—</span></div>
@@ -243,7 +236,6 @@ button { cursor: pointer; }
   </div>
 </div>
 
-<!-- HISTORY MODAL -->
 <div class="history-modal hidden" id="historyModal">
   <div class="history-header">
     <h2>Lịch sử chuyến đi</h2>
@@ -290,6 +282,8 @@ let lastUserPos = null;
 let lastHeading = 0;
 let searchContext = 'view'; 
 let currentMapLayer = null;
+let initialCenter = [21.0285, 105.8542]; // Mặc định Hà Nội
+let initialZoom = 17; // Mức zoom mặc định (17 là đủ chi tiết)
 
 // --- VOICE STATE ---
 let voiceEnabled = true;
@@ -378,22 +372,56 @@ document.getElementById('btnGoogleAuth').addEventListener('click', async () => {
 });
 
 onAuthStateChanged(auth, (user) => {
-  document.getElementById('loadingScreen').classList.add('hidden');
   if (user) {
     currentUser = user;
     document.getElementById('authScreen').classList.add('hidden');
-    document.getElementById('appUI').classList.remove('hidden');
-    authError.style.display = 'none';
-    document.getElementById('authEmail').value = '';
-    document.getElementById('authPassword').value = '';
-    initMap();
-    refreshGPS(); 
+    
+    // Cố gắng lấy GPS TRƯỚC KHI khởi tạo map để có tọa độ chính xác
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          // Lấy được GPS thì lưu lại
+          initialCenter = [pos.coords.latitude, pos.coords.longitude];
+          lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+          lastHeading = pos.coords.heading || 0;
+          
+          // Khởi tạo map
+          finishAuthInit();
+        },
+        (err) => {
+          // Lỗi GPS (không cho phép, mất sóng) thì vẫn khởi tạo map ở Hà Nội
+          console.warn('Không lấy được GPS, dùng Hà Nội', err);
+          finishAuthInit();
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+    } else {
+      finishAuthInit();
+    }
   } else {
     currentUser = null;
-    document.getElementById('authScreen').classList.add('hidden');
+    document.getElementById('authScreen').classList.remove('hidden');
     document.getElementById('appUI').classList.add('hidden');
+    document.getElementById('loadingScreen').classList.add('hidden');
   }
 });
+
+function finishAuthInit() {
+  document.getElementById('loadingScreen').classList.add('hidden');
+  document.getElementById('appUI').classList.remove('hidden');
+  initMap();
+  
+  if (lastUserPos) {
+    // Nếu đã có GPS, cập nhật điểm bắt đầu
+    startPoint = { lat: lastUserPos.lat, lng: lastUserPos.lng, name: 'Vị trí của tôi' };
+    document.getElementById('dirInputStart').value = 'Vị trí của tôi (GPS)';
+    document.getElementById('btnClearStart').classList.remove('hidden');
+    updateUserMarkerOnMap(lastUserPos, lastHeading);
+  } else {
+    // Nếu không có GPS, chạy hàm lấy GPS (lúc này sẽ có hiệu ứng bay)
+    refreshGPS();
+  }
+}
 
 function logout() { signOut(auth); closeMenu(); }
 
@@ -403,9 +431,13 @@ function logout() { signOut(auth); closeMenu(); }
 function initMap() {
   if (map) return;
   
-  map = L.map('map', { center: [21.0285, 105.8542], zoom: 13, zoomControl: false });
+  // KHỞI TẠO BẢN ĐỒ TẠI VỊ TRÍ GPS ĐÃ LẤY ĐƯỢC (HOẶC HÀ NỘI NẾU LỖI)
+  map = L.map('map', { 
+    center: initialCenter, 
+    zoom: initialZoom, 
+    zoomControl: false 
+  });
   
-  // Khởi tạo lớp TrackAsia ban đầu
   changeLayer('trackasia', document.querySelector('.layer-option.active'));
 
   // ==========================================
@@ -556,24 +588,20 @@ function initMap() {
   }
 }
 
-// XỬ LÝ ĐỔI LỚP
 function toggleLayerMenu() {
   document.getElementById('layerMenu').classList.toggle('show');
 }
 
 function changeLayer(type, btn) {
-  // Xóa lớp cũ
   if (currentMapLayer) {
     map.removeLayer(currentMapLayer);
     currentMapLayer = null;
   }
   
-  // Cập nhật UI
   document.querySelectorAll('.layer-option').forEach(el => el.classList.remove('active'));
   if (btn) btn.classList.add('active');
   document.getElementById('layerMenu').classList.remove('show');
 
-  // Thêm lớp mới
   if (type === 'trackasia') {
     const trackasiaStyleUrl = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
     try {
@@ -616,9 +644,13 @@ function escapeHtml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
+// NÚT LOCATE ME (CÓ HIỆU ỨNG BAY)
 function centerToLocation() {
   if (lastUserPos) {
-    map.flyTo([lastUserPos.lat, lastUserPos.lng], 18, { animate: true, duration: 1.5 });
+    map.flyTo([lastUserPos.lat, lastUserPos.lng], 18, {
+      animate: true,
+      duration: 1.5
+    });
   } else {
     refreshGPS();
   }
@@ -726,6 +758,7 @@ function selectLocation(lat, lng, name) {
   document.getElementById('topSearchInput').readOnly = true;
   document.getElementById('searchClearBtn').classList.remove('hidden');
   closeSearch();
+  
   map.flyTo([lat, lng], 16, { animate: true, duration: 1 });
 
   map.eachLayer(layer => {
