@@ -167,7 +167,7 @@ button { cursor: pointer; }
   <!-- Bấm vào bản đồ (vùng trống) để đóng bảng -->
   <div id="map" onclick="closeDirections()"></div>
 
-  <!-- Thanh Search Trên Cùng (Bấm vào để tìm kiếm xem trước) -->
+  <!-- Thanh Search Trên Cùng (Chỉ xem trước) -->
   <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
     <i class="fas fa-search"></i>
     <input type="text" id="topSearchInput" placeholder="Tìm địa điểm..." readonly />
@@ -179,19 +179,17 @@ button { cursor: pointer; }
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
   <button class="fab-directions" id="mainDirBtn" onclick="openDirections()"><i class="fas fa-directions"></i></button>
 
-  <!-- Bảng Chỉ Đường (Dùng để chọn A-B) -->
+  <!-- Bảng Chỉ Đường (Lập lộ trình) -->
   <div class="dir-sheet" id="dirSheet">
     <div class="dir-handle"></div>
     <div class="input-group" style="margin-top: 10px;">
       <div class="dot start"></div>
-      <!-- Bấm vào đây sẽ kích hoạt chế độ chọn Điểm đi -->
       <input type="text" id="dirInputStart" placeholder="Điểm đi (Mặc định GPS)" readonly onclick="activateSearch('start')" />
       <button class="btn-clear-input hidden" id="btnClearStart" onclick="clearPoint('start')"><i class="fas fa-times"></i></button>
       <button onclick="refreshGPS()"><i class="fas fa-location-arrow" style="color:var(--primary); font-size: 1rem;"></i></button>
     </div>
     <div class="input-group">
       <div class="dot end"></div>
-      <!-- Bấm vào đây sẽ kích hoạt chế độ chọn Điểm đến -->
       <input type="text" id="dirInputEnd" placeholder="Điểm đến" readonly onclick="activateSearch('end')" />
       <button class="btn-clear-input hidden" id="btnClearEnd" onclick="clearPoint('end')"><i class="fas fa-times"></i></button>
     </div>
@@ -272,7 +270,7 @@ let currentRouteCoords = [];
 let watchId = null;
 let lastUserPos = null;
 let lastHeading = 0;
-let searchContext = 'view'; // 'view' (chỉ tìm xem trước), 'start', 'end'
+let searchContext = 'view'; // 'view' (chỉ xem trước), 'start', 'end'
 
 // --- VOICE STATE ---
 let voiceEnabled = true;
@@ -531,7 +529,6 @@ function initMap() {
 }
 
 window.goToLongPressLocation = function(lat, lng, name) {
-  // Nếu bấm từ ngoài bản đồ, mặc định nó là chọn Điểm đến
   endPoint = { lat, lng, name };
   document.getElementById('dirInputEnd').value = name;
   document.getElementById('topSearchInput').value = name;
@@ -545,7 +542,7 @@ window.goToLongPressLocation = function(lat, lng, name) {
     }
   });
 
-  openDirections(); // Bung bảng lên để chuẩn bị đi
+  openDirections();
   if (!startPoint) refreshGPS();
 };
 
@@ -558,7 +555,6 @@ function centerToLocation() {
   else refreshGPS();
 }
 
-// Xóa text trên thanh search
 window.clearTopSearch = function() {
   document.getElementById('topSearchInput').value = '';
   document.getElementById('searchClearBtn').classList.add('hidden');
@@ -570,7 +566,6 @@ window.clearTopSearch = function() {
   });
 };
 
-// Hàm mở/đóng bảng
 function openDirections() { 
   document.getElementById('dirSheet').classList.add('open'); 
   document.getElementById('dirSheet').style.transform = ''; 
@@ -578,8 +573,6 @@ function openDirections() {
 function closeDirections() { 
   document.getElementById('dirSheet').classList.remove('open'); 
   document.getElementById('dirSheet').style.transform = '';
-  
-  // CHỈ ẩn gợi ý nếu không phải đang tìm kiếm từ thanh top
   if (searchContext !== 'view') {
     document.getElementById('suggestionsBox').classList.remove('show'); 
   }
@@ -601,14 +594,9 @@ window.clearPoint = function(type) {
   }
 };
 
-// Hàm kích hoạt tìm kiếm (từ thanh top hoặc từ bảng dưới)
 function activateSearch(type) {
   searchContext = type;
-  
-  // Nếu bấm từ bảng dưới (chọn Điểm đi/Đến) thì bung bảng dưới lên
-  if (type !== 'view') {
-    document.getElementById('dirSheet').classList.add('open');
-  }
+  if (type !== 'view') document.getElementById('dirSheet').classList.add('open');
 
   const box = document.getElementById('suggestionsBox');
   box.classList.add('show');
@@ -671,7 +659,6 @@ function selectLocation(lat, lng, name) {
   closeSearch();
   map.setView([lat, lng], 16);
 
-  // Xóa marker cũ
   map.eachLayer(layer => {
     if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
        map.removeLayer(layer);
@@ -679,7 +666,6 @@ function selectLocation(lat, lng, name) {
   });
 
   if (searchContext === 'view') {
-    // CHỈ XEM TRƯỚC (Từ thanh top): Vẽ marker đỏ, không đưa vào bảng dưới
     const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
     L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
   } else if (searchContext === 'start') {
@@ -714,14 +700,10 @@ function refreshGPS() {
   });
 }
 
-// ==========================================
-// GPS TRACKING & SNAP TO ROAD
-// ==========================================
 function updateUserMarkerOnMap(pos, heading) {
   let displayLat = pos.lat;
   let displayLng = pos.lng;
 
-  // NẾU ĐANG CÓ LỘ TRÌNH, SNAP VÀO ĐƯỜNG
   if (currentRouteCoords && currentRouteCoords.length > 0) {
     let minDist = Infinity;
     let closestPoint = null;
@@ -764,9 +746,6 @@ function updateUserMarkerOnMap(pos, heading) {
   userMarker = L.marker([displayLat, displayLng], { icon: userIcon }).addTo(map);
 }
 
-// ==========================================
-// ROUTING & VOICE
-// ==========================================
 async function startRouteFromSheet() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
   
@@ -875,9 +854,6 @@ function calcDist(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// ==========================================
-// TÍNH NĂNG VUỐT BẢNG XUỐNG ĐỂ ĐÓNG
-// ==========================================
 let sheetTouchStartY = 0;
 const dirSheet = document.getElementById('dirSheet');
 
@@ -907,9 +883,6 @@ dirSheet.addEventListener('touchend', (e) => {
   sheetTouchStartY = 0;
 });
 
-// ==========================================
-// HISTORY (FIREBASE)
-// ==========================================
 async function saveHistory(start, end, distance) {
   if (!currentUser) return;
   const historyRef = ref(db, `users/${currentUser.uid}/history`);
