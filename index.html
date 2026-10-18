@@ -13,6 +13,12 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- vConsole để debug trên điện thoại -->
+<script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
+<script>
+  // Khởi tạo vConsole
+  window.vConsole = new window.VConsole();
+</script>
 
 <style>
 /* CSS TỐI ƯU CHO MOBILE APP */
@@ -67,7 +73,7 @@ button { cursor: pointer; }
 .fab-directions { position: fixed; bottom: calc(30px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 6px 24px rgba(59,130,246,0.5); transition: 0.2s; }
 .fab-directions:active { transform: scale(0.92); }
 
-/* DIRECTION SHEET (Bảng chọn điểm đi/đến) */
+/* DIRECTION SHEET */
 .dir-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1500; background: var(--card); border-top-left-radius: 24px; border-top-right-radius: 24px; padding: 16px 16px calc(16px + var(--safe-bottom)); transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 -10px 40px rgba(0,0,0,0.6); }
 .dir-sheet.open { transform: translateY(0); }
 .dir-handle { width: 40px; height: 4px; background: var(--border); border-radius: 4px; margin: 0 auto 16px; }
@@ -144,7 +150,7 @@ button { cursor: pointer; }
   </div>
 </div>
 
-<!-- MAIN MAP & UI (Chỉ hiện khi đã login) -->
+<!-- MAIN MAP & UI -->
 <div id="appUI" class="hidden">
   <div id="map"></div>
 
@@ -154,12 +160,12 @@ button { cursor: pointer; }
     <input type="text" id="topSearchInput" placeholder="Tìm địa điểm..." readonly />
   </div>
   
-  <!-- Icon Menu (Lịch sử, Đăng xuất) -->
+  <!-- Icon Menu -->
   <button class="fab-menu" onclick="openMenu()">
     <i class="fas fa-bars"></i>
   </button>
 
-  <!-- Icon Chỉ đường (Mở Sheet A-B) -->
+  <!-- Icon Chỉ đường -->
   <button class="fab-directions" onclick="openDirections()">
     <i class="fas fa-directions"></i>
   </button>
@@ -251,7 +257,7 @@ let userMarker = null;
 let currentRoute = null;
 let watchId = null;
 let lastUserPos = null;
-let isSearchingFor = 'end'; // 'start' hoặc 'end'
+let isSearchingFor = 'end'; 
 
 // --- VOICE STATE ---
 let voiceEnabled = true;
@@ -373,7 +379,20 @@ function logout() {
 function initMap() {
   if (map) return;
   map = L.map('map', { center: [21.0285, 105.8542], zoom: 13, zoomControl: false });
-  L.tileLayer(`https://maps.track-asia.com/styles/v2/streets-raster/{z}/{x}/{y}.png?key=${TRACKASIA_KEY}`, { maxZoom: 22 }).addTo(map);
+  
+  // SỬA LẠI URL TRACKASIA CHUẨN (Có subdomains)
+  const trackasiaUrl = `https://maps.track-asia.com/styles/v2/streets-raster/{z}/{x}/{y}.png?key=${TRACKASIA_KEY}`;
+  const tileLayer = L.tileLayer(trackasiaUrl, { 
+    maxZoom: 22, 
+    subdomains: 'abcd',
+    crossOrigin: true
+  });
+  
+  tileLayer.on('tileerror', function(error) {
+    console.error('Lỗi tải Tile TrackAsia:', error);
+  });
+
+  tileLayer.addTo(map);
   
   map.on('click', (e) => {
     if (document.getElementById('dirSheet').classList.contains('open') && !document.getElementById('suggestionsBox').classList.contains('show')) {
@@ -439,6 +458,7 @@ async function doSearch(query) {
       box.innerHTML = '<div class="sug-item">Không tìm thấy kết quả</div>';
     }
   } catch (e) {
+    console.error('Lỗi tìm kiếm TrackAsia:', e);
     box.innerHTML = '<div class="sug-item" style="color:red">Lỗi tìm kiếm</div>';
   }
 }
@@ -479,6 +499,8 @@ function refreshGPS() {
     startPoint = { lat: pos.coords.latitude, lng: pos.coords.longitude, name: 'Vị trí của tôi' };
     document.getElementById('dirInputStart').value = 'Vị trí của tôi (GPS)';
     map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+  }, (err) => {
+    console.warn('Lỗi GPS:', err);
   });
 }
 
@@ -517,6 +539,7 @@ async function startRouteFromSheet() {
     saveHistory(startPoint, endPoint, r.distance);
     
   } catch (e) {
+    console.error('Lỗi lấy đường:', e);
     alert('Lỗi lấy đường: ' + e.message);
     document.getElementById('hud').classList.add('hidden');
   }
@@ -614,6 +637,7 @@ async function loadHistory() {
       list.innerHTML = '<div style="text-align:center; color:var(--text-muted);">Chưa có chuyến đi nào.</div>';
     }
   } catch (e) {
+    console.error('Lỗi tải lịch sử:', e);
     list.innerHTML = 'Lỗi tải lịch sử.';
   }
 }
