@@ -164,10 +164,10 @@ button { cursor: pointer; }
 <!-- MAIN MAP & UI -->
 <div id="appUI" class="hidden">
   
-  <!-- Map Container -->
+  <!-- Bấm vào bản đồ (vùng trống) để đóng bảng -->
   <div id="map" onclick="closeDirections()"></div>
 
-  <!-- Thanh Search Trên Cùng -->
+  <!-- Thanh Search Trên Cùng (Bấm vào để tìm kiếm xem trước) -->
   <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
     <i class="fas fa-search"></i>
     <input type="text" id="topSearchInput" placeholder="Tìm địa điểm..." readonly />
@@ -179,17 +179,19 @@ button { cursor: pointer; }
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
   <button class="fab-directions" id="mainDirBtn" onclick="openDirections()"><i class="fas fa-directions"></i></button>
 
-  <!-- Bảng Chỉ Đường -->
+  <!-- Bảng Chỉ Đường (Dùng để chọn A-B) -->
   <div class="dir-sheet" id="dirSheet">
     <div class="dir-handle"></div>
     <div class="input-group" style="margin-top: 10px;">
       <div class="dot start"></div>
+      <!-- Bấm vào đây sẽ kích hoạt chế độ chọn Điểm đi -->
       <input type="text" id="dirInputStart" placeholder="Điểm đi (Mặc định GPS)" readonly onclick="activateSearch('start')" />
       <button class="btn-clear-input hidden" id="btnClearStart" onclick="clearPoint('start')"><i class="fas fa-times"></i></button>
       <button onclick="refreshGPS()"><i class="fas fa-location-arrow" style="color:var(--primary); font-size: 1rem;"></i></button>
     </div>
     <div class="input-group">
       <div class="dot end"></div>
+      <!-- Bấm vào đây sẽ kích hoạt chế độ chọn Điểm đến -->
       <input type="text" id="dirInputEnd" placeholder="Điểm đến" readonly onclick="activateSearch('end')" />
       <button class="btn-clear-input hidden" id="btnClearEnd" onclick="clearPoint('end')"><i class="fas fa-times"></i></button>
     </div>
@@ -270,8 +272,7 @@ let currentRouteCoords = [];
 let watchId = null;
 let lastUserPos = null;
 let lastHeading = 0;
-let searchContext = 'view';
-let activeTouchMarker = null; // Biến quản lý marker chấm đỏ duy nhất
+let searchContext = 'view'; // 'view' (chỉ tìm xem trước), 'start', 'end'
 
 // --- VOICE STATE ---
 let voiceEnabled = true;
@@ -396,6 +397,7 @@ function initMap() {
   }
 
   let pressTimer = null;
+  let touchMarker = null; 
   let startX = 0, startY = 0;
   let isDragging = false;
 
@@ -411,18 +413,14 @@ function initMap() {
   const mapContainer = map.getContainer();
   mapContainer.style.touchAction = 'none'; 
 
-  function clearActiveMarker() {
-    if (activeTouchMarker) { 
-      map.removeLayer(activeTouchMarker); 
-      activeTouchMarker = null; 
-    }
+  function clearTouchMarker() {
+    if (touchMarker) { map.removeLayer(touchMarker); touchMarker = null; }
     map.closePopup();
   }
 
   function startPress(e) {
-    if (document.getElementById('suggestionsBox').classList.contains('show')) {
-      document.getElementById('suggestionsBox').classList.remove('show');
-    }
+    if (document.getElementById('dirSheet').classList.contains('open') || 
+        document.getElementById('suggestionsBox').classList.contains('show')) return;
 
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -485,23 +483,23 @@ function initMap() {
   mapContainer.addEventListener('mouseleave', cancelPress);
   mapContainer.addEventListener('touchcancel', cancelPress);
 
-  map.on('dragstart', () => { clearActiveMarker(); });
-  map.on('zoomstart', () => { clearActiveMarker(); });
+  map.on('dragstart', () => { clearTouchMarker(); });
+  map.on('zoomstart', () => { clearTouchMarker(); });
 
   async function showLocationPopup(latlng) {
-    clearActiveMarker(); 
+    clearTouchMarker(); 
     
     const icon = L.divIcon({ 
       html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', 
       iconSize: [24,24],
       className: 'custom-touch-marker'
     });
-    activeTouchMarker = L.marker(latlng, { icon }).addTo(map);
+    touchMarker = L.marker(latlng, { icon }).addTo(map);
 
     const popupContent = document.createElement('div');
     popupContent.innerHTML = `<div style="text-align:center; padding:5px; color:#fff;"><i class="fas fa-spinner fa-spin"></i> Đang lấy địa chỉ...</div>`;
     
-    activeTouchMarker.bindPopup(popupContent, { 
+    touchMarker.bindPopup(popupContent, { 
       autoClose: false,
       closeOnClick: false 
     }).openPopup();
@@ -517,7 +515,7 @@ function initMap() {
 
     const displayName = name || `Tọa độ: ${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
 
-    if (!activeTouchMarker) return;
+    if (!touchMarker) return;
 
     popupContent.innerHTML = `
       <div style="min-width: 180px;">
@@ -528,43 +526,27 @@ function initMap() {
         </button>
       </div>
     `;
-    activeTouchMarker.setPopupContent(popupContent).openPopup();
+    touchMarker.setPopupContent(popupContent).openPopup();
   }
 }
 
 window.goToLongPressLocation = function(lat, lng, name) {
-  if (searchContext === 'view') {
-    if (map) map.closePopup();
-    
-    // Vẽ marker xem trước
-    if (activeTouchMarker) map.removeLayer(activeTouchMarker);
-    const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
-    activeTouchMarker = L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
-    
-    map.setView([lat, lng], 16);
-    document.getElementById('topSearchInput').value = name;
-    document.getElementById('searchClearBtn').classList.remove('hidden');
-    return; 
-  }
-
-  if (searchContext === 'start') {
-    startPoint = { lat, lng, name };
-    document.getElementById('dirInputStart').value = name;
-    document.getElementById('btnClearStart').classList.remove('hidden');
-  } else {
-    endPoint = { lat, lng, name };
-    document.getElementById('dirInputEnd').value = name;
-    document.getElementById('btnClearEnd').classList.remove('hidden');
-  }
-  
+  // Nếu bấm từ ngoài bản đồ, mặc định nó là chọn Điểm đến
+  endPoint = { lat, lng, name };
+  document.getElementById('dirInputEnd').value = name;
   document.getElementById('topSearchInput').value = name;
+  document.getElementById('btnClearEnd').classList.remove('hidden');
   document.getElementById('searchClearBtn').classList.remove('hidden');
   
   if (map) map.closePopup();
-  if (activeTouchMarker) { map.removeLayer(activeTouchMarker); activeTouchMarker = null; }
+  map.eachLayer(layer => {
+    if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
+       map.removeLayer(layer);
+    }
+  });
 
-  openDirections();
-  if (searchContext === 'start' && !startPoint) refreshGPS();
+  openDirections(); // Bung bảng lên để chuẩn bị đi
+  if (!startPoint) refreshGPS();
 };
 
 function escapeHtml(text) {
@@ -576,12 +558,19 @@ function centerToLocation() {
   else refreshGPS();
 }
 
+// Xóa text trên thanh search
 window.clearTopSearch = function() {
   document.getElementById('topSearchInput').value = '';
   document.getElementById('searchClearBtn').classList.add('hidden');
   clearPoint('end');
+  map.eachLayer(layer => {
+    if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
+       map.removeLayer(layer);
+    }
+  });
 };
 
+// Hàm mở/đóng bảng
 function openDirections() { 
   document.getElementById('dirSheet').classList.add('open'); 
   document.getElementById('dirSheet').style.transform = ''; 
@@ -589,7 +578,11 @@ function openDirections() {
 function closeDirections() { 
   document.getElementById('dirSheet').classList.remove('open'); 
   document.getElementById('dirSheet').style.transform = '';
-  document.getElementById('suggestionsBox').classList.remove('show'); 
+  
+  // CHỈ ẩn gợi ý nếu không phải đang tìm kiếm từ thanh top
+  if (searchContext !== 'view') {
+    document.getElementById('suggestionsBox').classList.remove('show'); 
+  }
 }
 function openMenu() { document.getElementById('historyModal').classList.remove('hidden'); loadHistory(); }
 function closeMenu() { document.getElementById('historyModal').classList.add('hidden'); }
@@ -608,9 +601,11 @@ window.clearPoint = function(type) {
   }
 };
 
+// Hàm kích hoạt tìm kiếm (từ thanh top hoặc từ bảng dưới)
 function activateSearch(type) {
   searchContext = type;
   
+  // Nếu bấm từ bảng dưới (chọn Điểm đi/Đến) thì bung bảng dưới lên
   if (type !== 'view') {
     document.getElementById('dirSheet').classList.add('open');
   }
@@ -676,11 +671,17 @@ function selectLocation(lat, lng, name) {
   closeSearch();
   map.setView([lat, lng], 16);
 
-  if (activeTouchMarker) { map.removeLayer(activeTouchMarker); activeTouchMarker = null; }
+  // Xóa marker cũ
+  map.eachLayer(layer => {
+    if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
+       map.removeLayer(layer);
+    }
+  });
 
   if (searchContext === 'view') {
+    // CHỈ XEM TRƯỚC (Từ thanh top): Vẽ marker đỏ, không đưa vào bảng dưới
     const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
-    activeTouchMarker = L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
+    L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
   } else if (searchContext === 'start') {
     startPoint = { lat, lng, name };
     document.getElementById('dirInputStart').value = name;
@@ -720,6 +721,7 @@ function updateUserMarkerOnMap(pos, heading) {
   let displayLat = pos.lat;
   let displayLng = pos.lng;
 
+  // NẾU ĐANG CÓ LỘ TRÌNH, SNAP VÀO ĐƯỜNG
   if (currentRouteCoords && currentRouteCoords.length > 0) {
     let minDist = Infinity;
     let closestPoint = null;
@@ -791,7 +793,7 @@ async function startRouteFromSheet() {
     voiceRouteSteps = r.legs[0].steps || [];
     voiceStepIndex = 0;
     
-    currentRouteCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]); 
+    currentRouteCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
     currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
     
@@ -942,9 +944,8 @@ async function loadHistory() {
   } catch (e) { list.innerHTML = 'Lỗi tải lịch sử.'; }
 }
 
-window.activateSearch = activateSearch;
 window.openDirections = openDirections;
-window.clearTopSearch = clearTopSearch;
+window.activateSearch = activateSearch;
 window.refreshGPS = refreshGPS;
 window.centerToLocation = centerToLocation;
 window.startRouteFromSheet = startRouteFromSheet;
