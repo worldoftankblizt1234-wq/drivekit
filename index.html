@@ -12,11 +12,15 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 
+<!-- Leaflet & TrackAsia GL JS -->
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- vConsole để debug trên điện thoại -->
+<script src="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js"></script>
+<link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
+
+<!-- vConsole để debug -->
 <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
 <script>
-  // Khởi tạo vConsole
   window.vConsole = new window.VConsole();
 </script>
 
@@ -374,25 +378,27 @@ function logout() {
 }
 
 // ==========================================
-// MAP & UI LOGIC
+// MAP & UI LOGIC (ĐÃ FIX TRACKASIA)
 // ==========================================
 function initMap() {
   if (map) return;
+  
+  // Khởi tạo Leaflet map cơ bản
   map = L.map('map', { center: [21.0285, 105.8542], zoom: 13, zoomControl: false });
   
-  // SỬA LẠI URL TRACKASIA CHUẨN (Có subdomains)
-  const trackasiaUrl = `https://maps.track-asia.com/styles/v2/streets-raster/{z}/{x}/{y}.png?key=${TRACKASIA_KEY}`;
-  const tileLayer = L.tileLayer(trackasiaUrl, { 
-    maxZoom: 22, 
-    subdomains: 'abcd',
-    crossOrigin: true
-  });
+  // SỬ DỤNG TRACKASIA GL JS (Vector Tiles) - CÁCH CHUẨN THEO TÀI LIỆU
+  // URL style JSON chính thức cho giao diện Streets V2 [citation:16][citation:17]
+  const trackasiaStyleUrl = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
   
-  tileLayer.on('tileerror', function(error) {
-    console.error('Lỗi tải Tile TrackAsia:', error);
-  });
-
-  tileLayer.addTo(map);
+  try {
+    const gl = L.trackasiaGL({
+      style: trackasiaStyleUrl
+    }).addTo(map);
+    
+    console.log('✅ TrackAsia GL Layer added successfully');
+  } catch (error) {
+    console.error('❌ Lỗi khởi tạo TrackAsia GL:', error);
+  }
   
   map.on('click', (e) => {
     if (document.getElementById('dirSheet').classList.contains('open') && !document.getElementById('suggestionsBox').classList.contains('show')) {
