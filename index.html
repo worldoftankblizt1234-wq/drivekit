@@ -394,10 +394,14 @@ function initMap() {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
   }
 
+  // ==========================================
+  // XỬ LÝ CHẠM & NHẤN GIỮ
+  // ==========================================
   let pressTimer = null;
   let touchMarker = null; 
   let startX = 0, startY = 0;
   let isDragging = false;
+  let isMouseDown = false;
 
   const pressIndicator = document.createElement('div');
   pressIndicator.style.cssText = `
@@ -417,13 +421,14 @@ function initMap() {
   }
 
   function startPress(e) {
-    if (document.getElementById('dirSheet').classList.contains('open') || 
-        document.getElementById('suggestionsBox').classList.contains('show')) return;
+    if (document.getElementById('dirSheet').classList.contains('open')) return;
+    if (document.getElementById('suggestionsBox').classList.contains('show')) closeSearch();
 
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     startX = clientX; startY = clientY;
     isDragging = false;
+    isMouseDown = true;
 
     function checkMove(moveEvent) {
       const moveX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
@@ -447,25 +452,29 @@ function initMap() {
     pressIndicator.style.transform = 'translate(-50%, -50%) scale(1)';
     pressIndicator.style.opacity = '1';
 
+    const isMobile = e.type === 'touchstart';
+    const delay = isMobile ? 400 : 300; 
+
     pressTimer = setTimeout(() => {
       if (isDragging) return;
       cancelPress(); 
       if (navigator.vibrate) navigator.vibrate(50);
       showLocationPopup(latlng);
-    }, 500); 
+    }, delay); 
   }
 
   function endPress(e) {
     clearTimeout(pressTimer);
     cancelPress();
     
-    if (!isDragging) {
+    if (!isDragging && isMouseDown) {
       const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
       const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
       const rect = mapContainer.getBoundingClientRect();
       const latlng = mapContainer.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
       showLocationPopup(latlng);
     }
+    isMouseDown = false;
   }
 
   function cancelPress() {
@@ -483,6 +492,11 @@ function initMap() {
 
   map.on('dragstart', () => { clearTouchMarker(); });
   map.on('zoomstart', () => { clearTouchMarker(); });
+
+  mapContainer.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    closeDirections();
+  });
 
   async function showLocationPopup(latlng) {
     clearTouchMarker(); 
@@ -551,8 +565,15 @@ function escapeHtml(text) {
 }
 
 function centerToLocation() {
-  if (lastUserPos) map.setView([lastUserPos.lat, lastUserPos.lng], 16);
-  else refreshGPS();
+  if (lastUserPos) {
+    // BAY MƯỢT VÀ ZOOM TỚI VỊ TRÍ
+    map.flyTo([lastUserPos.lat, lastUserPos.lng], 18, {
+      animate: true,
+      duration: 1.5 // 1.5 giây
+    });
+  } else {
+    refreshGPS();
+  }
 }
 
 window.clearTopSearch = function() {
@@ -657,7 +678,8 @@ function selectLocation(lat, lng, name) {
   document.getElementById('topSearchInput').readOnly = true;
   document.getElementById('searchClearBtn').classList.remove('hidden');
   closeSearch();
-  map.setView([lat, lng], 16);
+  
+  map.flyTo([lat, lng], 16, { animate: true, duration: 1 });
 
   map.eachLayer(layer => {
     if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
@@ -692,7 +714,8 @@ function refreshGPS() {
     
     lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
     lastHeading = pos.coords.heading || 0;
-    map.setView([pos.coords.latitude, pos.coords.longitude], 16);
+    
+    map.flyTo([pos.coords.latitude, pos.coords.longitude], 16, { animate: true, duration: 1.5 });
     
     updateUserMarkerOnMap(lastUserPos, lastHeading);
   }, (err) => {
@@ -855,24 +878,27 @@ function calcDist(lat1, lng1, lat2, lng2) {
 }
 
 let sheetTouchStartY = 0;
+let isSwiping = false;
 const dirSheet = document.getElementById('dirSheet');
 
 dirSheet.addEventListener('touchstart', (e) => {
-  if (e.target.closest('.dir-handle')) {
+  if (e.target.closest('.dir-handle') || e.target.closest('.dir-header')) {
     sheetTouchStartY = e.touches[0].clientY;
+    isSwiping = true;
+    dirSheet.style.transition = 'none';
   }
 }, { passive: true });
 
 dirSheet.addEventListener('touchmove', (e) => {
-  if (sheetTouchStartY === 0) return;
+  if (!isSwiping) return;
   const deltaY = e.touches[0].clientY - sheetTouchStartY;
   if (deltaY > 0) {
-    dirSheet.style.transition = 'none';
     dirSheet.style.transform = `translateY(${deltaY}px)`;
   }
 }, { passive: true });
 
 dirSheet.addEventListener('touchend', (e) => {
+  if (!isSwiping) return;
   const deltaY = e.changedTouches[0].clientY - sheetTouchStartY;
   dirSheet.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
   if (deltaY > 80) {
@@ -880,7 +906,14 @@ dirSheet.addEventListener('touchend', (e) => {
   } else {
     dirSheet.style.transform = 'translateY(0)';
   }
+  isSwiping = false;
   sheetTouchStartY = 0;
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' || e.key === 'Esc') {
+    closeDirections();
+  }
 });
 
 async function saveHistory(start, end, distance) {
