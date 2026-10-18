@@ -12,11 +12,15 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 
+<!-- Leaflet cơ bản -->
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- TrackAsia GL JS & Leaflet Binding -->
 <script src="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js"></script>
 <link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
 
+<!-- Bật vConsole nếu có ?debug=1 -->
 <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
 <script>
   if (window.location.search.includes('debug=1')) {
@@ -80,7 +84,7 @@ button { cursor: pointer; }
 /* BẢNG CHỈ ĐƯỜNG DƯỚI CÙNG */
 .dir-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1500; background: var(--card); border-top-left-radius: 20px; border-top-right-radius: 20px; padding: 12px 16px calc(12px + var(--safe-bottom)); transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 -10px 30px rgba(0,0,0,0.5); }
 .dir-sheet.open { transform: translateY(0); }
-.dir-handle { width: 36px; height: 4px; background: var(--border); border-radius: 4px; margin: 0 auto 12px; }
+.dir-handle { width: 36px; height: 4px; background: var(--border); border-radius: 4px; margin: 0 auto 12px; cursor: grab; }
 .input-group { display: flex; align-items: center; gap: 10px; background: var(--bg-2); padding: 10px 12px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--border); }
 .input-group .dot { width: 8px; height: 8px; border-radius: 50%; }
 .input-group .dot.start { background: var(--success); }
@@ -159,7 +163,9 @@ button { cursor: pointer; }
 
 <!-- MAIN MAP & UI -->
 <div id="appUI" class="hidden">
-  <div id="map"></div>
+  
+  <!-- Thêm onclick để đóng bảng khi bấm ra ngoài -->
+  <div id="map" onclick="closeDirections()"></div>
 
   <!-- Thanh Search Trên Cùng -->
   <div class="floating-search" id="searchBar" onclick="openSearchMode()">
@@ -172,14 +178,8 @@ button { cursor: pointer; }
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
   <button class="fab-directions" id="mainDirBtn" onclick="openDirections()"><i class="fas fa-directions"></i></button>
 
-  <!-- Bảng Chỉ Đường (Nút X nằm BÊN TRONG bảng, nổi lên trên) -->
-  <div class="dir-sheet" id="dirSheet" onclick="event.stopPropagation();">
-    
-    <!-- NÚT X ĐÓNG BẢNG -->
-    <button onclick="event.stopPropagation(); closeDirections();" style="position: absolute; top: 12px; right: 16px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text-muted); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; z-index: 9999; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-      <i class="fas fa-times"></i>
-    </button>
-
+  <!-- Bảng Chỉ Đường -->
+  <div class="dir-sheet" id="dirSheet">
     <div class="dir-handle"></div>
     <div class="input-group" style="margin-top: 10px;">
       <div class="dot start"></div>
@@ -516,7 +516,7 @@ function initMap() {
     popupContent.innerHTML = `
       <div style="min-width: 180px;">
         <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: #fff;">${displayName}</div>
-        <button onclick="goToLongPressLocation(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" 
+        <button onclick="event.stopPropagation(); goToLongPressLocation(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" 
                 style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
           <i class="fas fa-location-arrow"></i> Tới chỗ này
         </button>
@@ -553,12 +553,15 @@ function centerToLocation() {
   else refreshGPS();
 }
 
+// Hàm mở/đóng bảng
 function openDirections() { 
   document.getElementById('dirSheet').classList.add('open'); 
+  document.getElementById('dirSheet').style.transform = ''; // Reset transform vuốt
 }
 function closeDirections() { 
   document.getElementById('dirSheet').classList.remove('open'); 
-  document.getElementById('suggestionsBox').classList.remove('show');
+  document.getElementById('dirSheet').style.transform = '';
+  document.getElementById('suggestionsBox').classList.remove('show'); 
 }
 function openMenu() { document.getElementById('historyModal').classList.remove('hidden'); loadHistory(); }
 function closeMenu() { document.getElementById('historyModal').classList.add('hidden'); }
@@ -803,6 +806,38 @@ function calcDist(lat1, lng1, lat2, lng2) {
   const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
+
+// ==========================================
+// TÍNH NĂNG VUỐT BẢNG XUỐNG ĐỂ ĐÓNG
+// ==========================================
+let sheetTouchStartY = 0;
+const dirSheet = document.getElementById('dirSheet');
+
+dirSheet.addEventListener('touchstart', (e) => {
+  if (e.target.closest('.dir-handle')) {
+    sheetTouchStartY = e.touches[0].clientY;
+  }
+}, { passive: true });
+
+dirSheet.addEventListener('touchmove', (e) => {
+  if (sheetTouchStartY === 0) return;
+  const deltaY = e.touches[0].clientY - sheetTouchStartY;
+  if (deltaY > 0) {
+    dirSheet.style.transition = 'none';
+    dirSheet.style.transform = `translateY(${deltaY}px)`;
+  }
+}, { passive: true });
+
+dirSheet.addEventListener('touchend', (e) => {
+  const deltaY = e.changedTouches[0].clientY - sheetTouchStartY;
+  dirSheet.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+  if (deltaY > 80) {
+    closeDirections();
+  } else {
+    dirSheet.style.transform = 'translateY(0)';
+  }
+  sheetTouchStartY = 0;
+});
 
 // ==========================================
 // HISTORY (FIREBASE)
