@@ -417,8 +417,10 @@ function initMap() {
   }
 
   function startPress(e) {
-    if (document.getElementById('dirSheet').classList.contains('open') || 
-        document.getElementById('suggestionsBox').classList.contains('show')) return;
+    // Nếu bảng gợi ý đang mở, đóng nó lại khi bắt đầu chạm map
+    if (document.getElementById('suggestionsBox').classList.contains('show')) {
+      document.getElementById('suggestionsBox').classList.remove('show');
+    }
 
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
