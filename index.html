@@ -388,7 +388,7 @@ function logout() {
 }
 
 // ==========================================
-// MAP & UI LOGIC (BAO GỒM NHẤN GIỮ 2S)
+// MAP & UI LOGIC (FIX NHẤN GIỮ 2S)
 // ==========================================
 function initMap() {
   if (map) return;
@@ -405,12 +405,12 @@ function initMap() {
   }
 
   // ==========================================
-  // TÍNH NĂNG NHẤN GIỮ 2S ĐỂ HIỆN POPUP
+  // FIX: TÍNH NĂNG NHẤN GIỮ 2S
   // ==========================================
   let pressTimer = null;
   let touchMarker = null;
+  let startX = 0, startY = 0;
 
-  // Tạo vòng tròn đếm ngược
   const pressIndicator = document.createElement('div');
   pressIndicator.style.cssText = `
     position: fixed; width: 40px; height: 40px; border-radius: 50%;
@@ -420,16 +420,35 @@ function initMap() {
   `;
   document.body.appendChild(pressIndicator);
 
+  const mapContainer = map.getContainer();
+  // Tắt touch mặc định để không xung đột
+  mapContainer.style.touchAction = 'none'; 
+
   function startPress(e) {
-    // Bỏ qua nếu đang mở bảng chỉ đường hoặc đang gõ tìm kiếm
     if (document.getElementById('dirSheet').classList.contains('open') || 
         document.getElementById('suggestionsBox').classList.contains('show')) return;
 
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     
-    // Tính tọa độ lat/lng
-    const latlng = map.containerPointToLatLng([clientX - map.getContainer().getBoundingClientRect().left, clientY - map.getContainer().getBoundingClientRect().top]);
+    startX = clientX;
+    startY = clientY;
+
+    function checkMove(moveEvent) {
+      const moveX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const moveY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      if (Math.abs(moveX - startX) > 10 || Math.abs(moveY - startY) > 10) {
+        cancelPress();
+        mapContainer.removeEventListener('touchmove', checkMove);
+        mapContainer.removeEventListener('mousemove', checkMove);
+      }
+    }
+    
+    mapContainer.addEventListener('touchmove', checkMove);
+    mapContainer.addEventListener('mousemove', checkMove);
+
+    const rect = mapContainer.getBoundingClientRect();
+    const latlng = map.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
 
     pressIndicator.style.left = clientX + 'px';
     pressIndicator.style.top = clientY + 'px';
@@ -437,10 +456,10 @@ function initMap() {
     pressIndicator.style.opacity = '1';
 
     pressTimer = setTimeout(() => {
-      pressIndicator.style.opacity = '0';
-      if (navigator.vibrate) navigator.vibrate(50); // Rung
+      cancelPress(); 
+      if (navigator.vibrate) navigator.vibrate(50);
       showLongPressPopup(latlng);
-    }, 2000); // 2 giây
+    }, 2000);
   }
 
   function cancelPress() {
@@ -449,13 +468,12 @@ function initMap() {
     pressIndicator.style.opacity = '0';
   }
 
-  map.on('mousedown', startPress);
-  map.on('touchstart', startPress);
-  map.on('mouseup', cancelPress);
-  map.on('touchend', cancelPress);
-  map.on('mouseout', cancelPress);
-  map.on('dragstart', cancelPress);
-  map.on('zoomstart', cancelPress);
+  mapContainer.addEventListener('mousedown', startPress);
+  mapContainer.addEventListener('touchstart', startPress, { passive: true });
+  mapContainer.addEventListener('mouseup', cancelPress);
+  mapContainer.addEventListener('touchend', cancelPress);
+  mapContainer.addEventListener('mouseleave', cancelPress);
+  mapContainer.addEventListener('touchcancel', cancelPress);
 
   async function showLongPressPopup(latlng) {
     if (touchMarker) map.removeLayer(touchMarker);
