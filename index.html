@@ -12,11 +12,15 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 
+<!-- Leaflet cơ bản -->
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- TrackAsia GL JS & Leaflet Binding -->
 <script src="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js"></script>
 <link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
 
+<!-- Bật vConsole nếu có ?debug=1 -->
 <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
 <script>
   if (window.location.search.includes('debug=1')) {
@@ -174,8 +178,13 @@ button { cursor: pointer; }
 
   <!-- Bảng Chỉ Đường -->
   <div class="dir-sheet" id="dirSheet">
+    <!-- NÚT X ĐÓNG BẢNG -->
+    <button onclick="closeDirections()" style="position: absolute; top: 12px; right: 16px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text-muted); width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; cursor: pointer;">
+      <i class="fas fa-times"></i>
+    </button>
+
     <div class="dir-handle"></div>
-    <div class="input-group">
+    <div class="input-group" style="margin-top: 10px;">
       <div class="dot start"></div>
       <input type="text" id="dirInputStart" placeholder="Điểm đi (Mặc định GPS)" readonly onclick="activateSearch('start')" />
       <button class="btn-clear-input hidden" id="btnClearStart" onclick="clearPoint('start')"><i class="fas fa-times"></i></button>
@@ -376,7 +385,7 @@ function logout() { signOut(auth); closeMenu(); }
 function initMap() {
   if (map) return;
   
-  map = L.map('map', { center: [21.0285, 105.8542], zoom: 13, zoomControl: false, rotate: true, bearing: 0 });
+  map = L.map('map', { center: [21.0285, 105.8542], zoom: 13, zoomControl: false });
   
   const trackasiaStyleUrl = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
   try {
@@ -591,28 +600,62 @@ async function doSearch(query) {
   const box = document.getElementById('suggestionsBox');
   box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang tìm...</div>';
 
+  let results = [];
+
+  // 1. THỬ TRACKASIA (Qua Worker)
   try {
     const res = await fetch(`${WORKER_URL}/trackasia-search?query=${encodeURIComponent(query)}`);
     const data = await res.json();
-    const results = data.results || data.predictions || [];
     
-    if (results.length > 0) {
-      box.innerHTML = '';
-      results.slice(0, 5).forEach(r => {
-        const div = document.createElement('div');
-        div.className = 'sug-item';
-        const name = r.formatted_address || r.name || r.description || 'Không tên';
-        const lat = r.geometry?.location?.lat || r.lat;
-        const lng = r.geometry?.location?.lng || r.lng || r.lon;
-        div.innerHTML = `<i class="fas fa-map-marker-alt"></i><div>${name}</div>`;
-        div.onclick = () => selectLocation(lat, lng, name);
-        box.appendChild(div);
-      });
+    if (data.message && data.message.includes('Access denied')) {
+      console.warn('TrackAsia bị Access Denied, chuyển sang Nominatim...');
     } else {
-      box.innerHTML = '<div class="sug-item">Không tìm thấy kết quả</div>';
+      const trackasiaResults = data.results || data.predictions || [];
+      if (trackasiaResults.length > 0) {
+        results = trackasiaResults.map(r => ({
+          name: r.formatted_address || r.name || r.description || 'Không tên',
+          lat: r.geometry?.location?.lat || r.lat,
+          lng: r.geometry?.location?.lng || r.lng || r.lon
+        }));
+      }
     }
   } catch (e) {
-    box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Lỗi kết nối</div>';
+    console.warn('Lỗi gọi TrackAsia:', e);
+  }
+
+  // 2. NẾU TRACKASIA KHÔNG CÓ KẾT QUẢ -> GỌI NOMINATIM (Fallback)
+  if (results.length === 0) {
+    console.log('Đang dùng Fallback: Nominatim...');
+    try {
+      const nomiRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&countrycodes=vn&accept-language=vi`, {
+        headers: { 'User-Agent': 'DriveKit/1.0' }
+      });
+      const nomiData = await nomiRes.json();
+      
+      if (nomiData && nomiData.length > 0) {
+        results = nomiData.map(r => ({
+          name: r.display_name,
+          lat: parseFloat(r.lat),
+          lng: parseFloat(r.lon)
+        }));
+      }
+    } catch (e) {
+      console.error('Lỗi gọi Nominatim:', e);
+    }
+  }
+
+  // 3. HIỂN THỊ KẾT QUẢ
+  if (results.length > 0) {
+    box.innerHTML = '';
+    results.slice(0, 5).forEach(r => {
+      const div = document.createElement('div');
+      div.className = 'sug-item';
+      div.innerHTML = `<i class="fas fa-map-marker-alt"></i><div>${r.name}</div>`;
+      div.onclick = () => selectLocation(r.lat, r.lng, r.name);
+      box.appendChild(div);
+    });
+  } else {
+    box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Không tìm thấy địa điểm. Vui lòng thử lại.</div>';
   }
 }
 
@@ -658,7 +701,6 @@ function refreshGPS() {
 // GPS TRACKING & MARKER UPDATE
 // ==========================================
 function updateUserMarkerOnMap(pos, heading) {
-  // 1. Cập nhật vòng tròn sai số GPS (Accuracy Circle)
   if (gpsCircle) map.removeLayer(gpsCircle);
   gpsCircle = L.circle([pos.lat, pos.lng], {
     radius: pos.accuracy || 10,
@@ -669,22 +711,15 @@ function updateUserMarkerOnMap(pos, heading) {
     className: 'gps-accuracy-circle'
   }).addTo(map);
 
-  // 2. Cập nhật Marker (Mũi tên hoặc chấm tròn)
   const svgIcon = `
     <div class="user-arrow-icon" style="transform: rotate(${heading || 0}deg); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Mũi tên chỉ hướng -->
         <path d="M12 2L22 20L12 16L2 20L12 2Z" fill="#10b981" stroke="white" stroke-width="2" stroke-linejoin="round"/>
       </svg>
     </div>
   `;
   
-  const userIcon = L.divIcon({
-    html: svgIcon,
-    className: '',
-    iconSize: [32, 32],
-    iconAnchor: [16, 16]
-  });
+  const userIcon = L.divIcon({ html: svgIcon, className: '', iconSize: [32, 32], iconAnchor: [16, 16] });
 
   if (userMarker) map.removeLayer(userMarker);
   userMarker = L.marker([pos.lat, pos.lng], { icon: userIcon }).addTo(map);
@@ -698,13 +733,11 @@ async function startRouteFromSheet() {
   
   closeDirections();
   
-  // Ẩn UI ngoài
   document.getElementById('searchBar').classList.add('hidden');
   document.getElementById('mainMenuBtn').classList.add('hidden');
   document.getElementById('mainLocateBtn').classList.add('hidden');
   document.getElementById('mainDirBtn').classList.add('hidden');
 
-  // Hiện HUD
   document.getElementById('hud').classList.remove('hidden');
   
   const fromStr = `${startPoint.lng},${startPoint.lat}`;
@@ -722,13 +755,8 @@ async function startRouteFromSheet() {
     voiceStepIndex = 0;
     
     const routeCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-    
-    // Vẽ đường chính
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
     currentRouteLayer = L.polyline(routeCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
-    
-    // Đặt điểm A và B
-    if (userMarker) map.removeLayer(userMarker);
     
     map.fitBounds(L.latLngBounds(routeCoords), { padding: [50, 50] });
     
@@ -762,13 +790,9 @@ function startWatching() {
     };
     lastHeading = lastUserPos.heading;
     
-    // Cập nhật tốc độ (km/h)
     document.getElementById('hudSpeed').textContent = Math.round(lastUserPos.speed * 3.6) + ' km/h';
     
-    // Vẽ mũi tên và vòng tròn
     updateUserMarkerOnMap(lastUserPos, lastHeading);
-    
-    // Bay theo user
     if (map) map.panTo([lastUserPos.lat, lastUserPos.lng], { animate: true, duration: 0.5 });
     
   }, null, { enableHighAccuracy: true });
