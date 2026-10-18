@@ -12,15 +12,11 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 
-<!-- Leaflet cơ bản -->
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<!-- TrackAsia GL JS & Leaflet Binding -->
 <script src="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js"></script>
 <link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
 
-<!-- Bật vConsole nếu có ?debug=1 -->
 <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
 <script>
   if (window.location.search.includes('debug=1')) {
@@ -75,7 +71,7 @@ button { cursor: pointer; }
 .floating-search i.fa-search { color: var(--primary); font-size: 1.1rem; }
 
 /* NÚT X TRÊN THANH SEARCH */
-.search-clear-btn { color: var(--text-muted); font-size: 1rem; padding: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.search-clear-btn { color: var(--text-muted); font-size: 1rem; padding: 4px 8px; cursor: pointer; }
 .search-clear-btn:active { color: white; }
 
 /* NÚT MENU & NÚT CHỈ ĐƯỜNG */
@@ -171,10 +167,10 @@ button { cursor: pointer; }
   <!-- Thêm onclick để đóng bảng khi bấm ra ngoài -->
   <div id="map" onclick="closeDirections()"></div>
 
-  <!-- Thanh Search Trên Cùng (Đã thêm nút X) -->
-  <div class="floating-search" id="searchBar">
-    <i class="fas fa-search" onclick="openSearchMode()"></i>
-    <input type="text" id="topSearchInput" placeholder="Tìm địa điểm..." readonly onclick="openSearchMode()" />
+  <!-- Thanh Search Trên Cùng (Đã fix click) -->
+  <div class="floating-search" id="searchBar" onclick="openSearchMode(event)">
+    <i class="fas fa-search"></i>
+    <input type="text" id="topSearchInput" placeholder="Tìm địa điểm..." readonly />
     <i class="fas fa-times search-clear-btn hidden" id="searchClearBtn" onclick="event.stopPropagation(); clearTopSearch()"></i>
   </div>
   
@@ -579,7 +575,15 @@ function closeDirections() {
 }
 function openMenu() { document.getElementById('historyModal').classList.remove('hidden'); loadHistory(); }
 function closeMenu() { document.getElementById('historyModal').classList.add('hidden'); }
-function openSearchMode() { openDirections(); setTimeout(() => activateSearch('end'), 300); }
+
+// Hàm mở chế độ tìm kiếm (được gọi từ onclick của thanh search)
+function openSearchMode(event) { 
+  // Nếu người dùng bấm vào nút X thì không làm gì cả (đã chặn ở HTML)
+  if (event && event.target.id === 'searchClearBtn') return;
+
+  openDirections(); 
+  setTimeout(() => activateSearch('end'), 300); 
+}
 
 window.clearPoint = function(type) {
   if (type === 'start') {
