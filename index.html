@@ -91,6 +91,10 @@ button { cursor: pointer; }
 .input-group .dot.end { background: var(--danger); }
 .input-group input { flex: 1; background: transparent; color: var(--text); font-size: 0.9rem; font-weight: 600; pointer-events: none; }
 
+/* NÚT X XÓA ĐIỂM ĐI/ĐẾN */
+.btn-clear-input { width: 28px; height: 28px; border-radius: 50%; background: transparent; color: var(--text-muted); font-size: 0.9rem; display: flex; align-items: center; justify-content: center; }
+.btn-clear-input:active { background: var(--border); color: white; }
+
 /* GỢI Ý TÌM KIẾM */
 .suggestions-box { position: fixed; top: 70px; left: 16px; right: 16px; z-index: 1200; background: var(--card-2); border-radius: 12px; max-height: 300px; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid var(--border); display: none; }
 .suggestions-box.show { display: block; }
@@ -158,13 +162,13 @@ button { cursor: pointer; }
 <div id="appUI" class="hidden">
   <div id="map"></div>
 
-  <!-- Thanh Search Trên Cùng (Sẽ bị ẩn khi dẫn đường) -->
+  <!-- Thanh Search Trên Cùng -->
   <div class="floating-search" id="searchBar" onclick="openSearchMode()">
     <i class="fas fa-search"></i>
     <input type="text" id="topSearchInput" placeholder="Tìm địa điểm..." readonly />
   </div>
   
-  <!-- Icon Menu & Định vị & Chỉ đường (Sẽ bị ẩn khi dẫn đường) -->
+  <!-- Icon Menu & Định vị & Chỉ đường -->
   <button class="fab-menu" id="mainMenuBtn" onclick="openMenu()"><i class="fas fa-bars"></i></button>
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
   <button class="fab-directions" id="mainDirBtn" onclick="openDirections()"><i class="fas fa-directions"></i></button>
@@ -175,11 +179,13 @@ button { cursor: pointer; }
     <div class="input-group">
       <div class="dot start"></div>
       <input type="text" id="dirInputStart" placeholder="Điểm đi (Mặc định GPS)" readonly onclick="activateSearch('start')" />
+      <button class="btn-clear-input hidden" id="btnClearStart" onclick="clearPoint('start')"><i class="fas fa-times"></i></button>
       <button onclick="refreshGPS()"><i class="fas fa-location-arrow" style="color:var(--primary); font-size: 1rem;"></i></button>
     </div>
     <div class="input-group">
       <div class="dot end"></div>
       <input type="text" id="dirInputEnd" placeholder="Điểm đến" readonly onclick="activateSearch('end')" />
+      <button class="btn-clear-input hidden" id="btnClearEnd" onclick="clearPoint('end')"><i class="fas fa-times"></i></button>
     </div>
     <button class="btn-auth btn-email" style="margin-top:6px; margin-bottom:0;" onclick="startRouteFromSheet()">
       <i class="fas fa-play"></i> Bắt đầu dẫn đường
@@ -364,7 +370,7 @@ onAuthStateChanged(auth, (user) => {
 function logout() { signOut(auth); closeMenu(); }
 
 // ==========================================
-// MAP & UI LOGIC (GOOGLE MAPS STYLE)
+// MAP & UI LOGIC
 // ==========================================
 function initMap() {
   if (map) return;
@@ -379,6 +385,9 @@ function initMap() {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
   }
 
+  // ==========================================
+  // XỬ LÝ CHẠM & NHẤN GIỮ (GOOGLE MAPS STYLE)
+  // ==========================================
   let pressTimer = null;
   let touchMarker = null; 
   let startX = 0, startY = 0;
@@ -396,8 +405,12 @@ function initMap() {
   const mapContainer = map.getContainer();
   mapContainer.style.touchAction = 'none'; 
 
+  // Hàm xóa chấm đỏ và popup
   function clearTouchMarker() {
-    if (touchMarker) { map.removeLayer(touchMarker); touchMarker = null; }
+    if (touchMarker) { 
+      map.removeLayer(touchMarker); 
+      touchMarker = null; 
+    }
     map.closePopup();
   }
 
@@ -513,14 +526,22 @@ function initMap() {
   }
 }
 
+// Xử lý khi bấm "Tới chỗ này" -> Xóa popup tạm ngay lập tức
 window.goToLongPressLocation = function(lat, lng, name) {
   endPoint = { lat, lng, name };
   
   document.getElementById('dirInputEnd').value = name;
   document.getElementById('topSearchInput').value = name;
+  document.getElementById('btnClearEnd').classList.remove('hidden');
   
+  // Xóa chấm đỏ và popup tạm
   if (map) map.closePopup();
-  
+  map.eachLayer(layer => {
+    if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
+       map.removeLayer(layer);
+    }
+  });
+
   if (userMarker) map.removeLayer(userMarker);
   const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;"></div>', iconSize: [24,24] });
   userMarker = L.marker([lat, lng], { icon }).addTo(map);
@@ -543,6 +564,20 @@ function closeDirections() { document.getElementById('dirSheet').classList.remov
 function openMenu() { document.getElementById('historyModal').classList.remove('hidden'); loadHistory(); }
 function closeMenu() { document.getElementById('historyModal').classList.add('hidden'); }
 function openSearchMode() { openDirections(); setTimeout(() => activateSearch('end'), 300); }
+
+// Xử lý nút X xóa input
+window.clearPoint = function(type) {
+  if (type === 'start') {
+    startPoint = null;
+    document.getElementById('dirInputStart').value = '';
+    document.getElementById('btnClearStart').classList.add('hidden');
+  } else {
+    endPoint = null;
+    document.getElementById('dirInputEnd').value = '';
+    document.getElementById('btnClearEnd').classList.add('hidden');
+    document.getElementById('topSearchInput').value = '';
+  }
+};
 
 function activateSearch(type) {
   isSearchingFor = type;
@@ -598,9 +633,11 @@ function selectLocation(lat, lng, name) {
   if (isSearchingFor === 'start') {
     startPoint = { lat, lng, name };
     document.getElementById('dirInputStart').value = name;
+    document.getElementById('btnClearStart').classList.remove('hidden');
   } else {
     endPoint = { lat, lng, name };
     document.getElementById('dirInputEnd').value = name;
+    document.getElementById('btnClearEnd').classList.remove('hidden');
   }
   
   document.getElementById('topSearchInput').value = name;
@@ -622,6 +659,8 @@ function refreshGPS() {
     if (btn) btn.classList.remove('loading');
     startPoint = { lat: pos.coords.latitude, lng: pos.coords.longitude, name: 'Vị trí của tôi' };
     document.getElementById('dirInputStart').value = 'Vị trí của tôi (GPS)';
+    document.getElementById('btnClearStart').classList.remove('hidden');
+    
     lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     map.setView([pos.coords.latitude, pos.coords.longitude], 15);
     
@@ -641,7 +680,7 @@ async function startRouteFromSheet() {
   
   closeDirections();
   
-  // Ẩn các nút UI bên ngoài
+  // Ẩn các nút UI bên ngoài (chỉ khi dẫn đường)
   document.getElementById('searchBar').classList.add('hidden');
   document.getElementById('mainMenuBtn').classList.add('hidden');
   document.getElementById('mainLocateBtn').classList.add('hidden');
