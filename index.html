@@ -193,7 +193,7 @@ button { cursor: pointer; }
       <input type="text" id="dirInputEnd" placeholder="Điểm đến" readonly onclick="activateSearch('end')" />
       <button class="btn-clear-input hidden" id="btnClearEnd" onclick="clearPoint('end')"><i class="fas fa-times"></i></button>
     </div>
-    <!-- NÚT BẮT ĐẦU DẪN ĐƯỜNG (ĐÃ SỬA ĐỂ GỌI HÀM) -->
+    <!-- NÚT BẮT ĐẦU DẪN ĐƯỜNG -->
     <button class="btn-auth btn-email" style="margin-top:6px; margin-bottom:0;" onclick="startRouteFromSheet()">
       <i class="fas fa-play"></i> Bắt đầu dẫn đường
     </button>
@@ -271,7 +271,8 @@ let currentRouteCoords = [];
 let watchId = null;
 let lastUserPos = null;
 let lastHeading = 0;
-let searchContext = 'view'; // 'view', 'start', 'end'
+let searchContext = 'view';
+let activeTouchMarker = null; // Biến quản lý marker chấm đỏ duy nhất
 
 // --- VOICE STATE ---
 let voiceEnabled = true;
@@ -396,7 +397,6 @@ function initMap() {
   }
 
   let pressTimer = null;
-  let touchMarker = null; 
   let startX = 0, startY = 0;
   let isDragging = false;
 
@@ -412,13 +412,15 @@ function initMap() {
   const mapContainer = map.getContainer();
   mapContainer.style.touchAction = 'none'; 
 
-  function clearTouchMarker() {
-    if (touchMarker) { map.removeLayer(touchMarker); touchMarker = null; }
+  function clearActiveMarker() {
+    if (activeTouchMarker) { 
+      map.removeLayer(activeTouchMarker); 
+      activeTouchMarker = null; 
+    }
     map.closePopup();
   }
 
   function startPress(e) {
-    // Nếu bảng gợi ý đang mở, đóng nó lại khi bắt đầu chạm map
     if (document.getElementById('suggestionsBox').classList.contains('show')) {
       document.getElementById('suggestionsBox').classList.remove('show');
     }
@@ -466,7 +468,7 @@ function initMap() {
       const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
       const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
       const rect = mapContainer.getBoundingClientRect();
-      const latlng = map.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
+      const latlng = mapContainer.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
       showLocationPopup(latlng);
     }
   }
@@ -484,23 +486,23 @@ function initMap() {
   mapContainer.addEventListener('mouseleave', cancelPress);
   mapContainer.addEventListener('touchcancel', cancelPress);
 
-  map.on('dragstart', () => { clearTouchMarker(); });
-  map.on('zoomstart', () => { clearTouchMarker(); });
+  map.on('dragstart', () => { clearActiveMarker(); });
+  map.on('zoomstart', () => { clearActiveMarker(); });
 
   async function showLocationPopup(latlng) {
-    clearTouchMarker(); 
+    clearActiveMarker(); 
     
     const icon = L.divIcon({ 
       html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', 
       iconSize: [24,24],
       className: 'custom-touch-marker'
     });
-    touchMarker = L.marker(latlng, { icon }).addTo(map);
+    activeTouchMarker = L.marker(latlng, { icon }).addTo(map);
 
     const popupContent = document.createElement('div');
     popupContent.innerHTML = `<div style="text-align:center; padding:5px; color:#fff;"><i class="fas fa-spinner fa-spin"></i> Đang lấy địa chỉ...</div>`;
     
-    touchMarker.bindPopup(popupContent, { 
+    activeTouchMarker.bindPopup(popupContent, { 
       autoClose: false,
       closeOnClick: false 
     }).openPopup();
@@ -516,7 +518,7 @@ function initMap() {
 
     const displayName = name || `Tọa độ: ${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
 
-    if (!touchMarker) return;
+    if (!activeTouchMarker) return;
 
     popupContent.innerHTML = `
       <div style="min-width: 180px;">
@@ -527,20 +529,19 @@ function initMap() {
         </button>
       </div>
     `;
-    touchMarker.setPopupContent(popupContent).openPopup();
+    activeTouchMarker.setPopupContent(popupContent).openPopup();
   }
 }
 
 window.goToLongPressLocation = function(lat, lng, name) {
   if (searchContext === 'view') {
     if (map) map.closePopup();
-    map.eachLayer(layer => {
-      if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
-         map.removeLayer(layer);
-      }
-    });
-    const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;"></div>', iconSize: [24,24] });
-    L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
+    
+    // Vẽ marker xem trước
+    if (activeTouchMarker) map.removeLayer(activeTouchMarker);
+    const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
+    activeTouchMarker = L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
+    
     map.setView([lat, lng], 16);
     document.getElementById('topSearchInput').value = name;
     document.getElementById('searchClearBtn').classList.remove('hidden');
@@ -561,11 +562,7 @@ window.goToLongPressLocation = function(lat, lng, name) {
   document.getElementById('searchClearBtn').classList.remove('hidden');
   
   if (map) map.closePopup();
-  map.eachLayer(layer => {
-    if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
-       map.removeLayer(layer);
-    }
-  });
+  if (activeTouchMarker) { map.removeLayer(activeTouchMarker); activeTouchMarker = null; }
 
   openDirections();
   if (searchContext === 'start' && !startPoint) refreshGPS();
@@ -680,15 +677,11 @@ function selectLocation(lat, lng, name) {
   closeSearch();
   map.setView([lat, lng], 16);
 
-  map.eachLayer(layer => {
-    if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
-       map.removeLayer(layer);
-    }
-  });
+  if (activeTouchMarker) { map.removeLayer(activeTouchMarker); activeTouchMarker = null; }
 
   if (searchContext === 'view') {
     const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
-    L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
+    activeTouchMarker = L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
   } else if (searchContext === 'start') {
     startPoint = { lat, lng, name };
     document.getElementById('dirInputStart').value = name;
