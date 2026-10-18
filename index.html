@@ -12,8 +12,13 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 
-<!-- Leaflet -->
+<!-- Leaflet cơ bản -->
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- TrackAsia GL JS & Leaflet Binding (BẮT BUỘC ĐỂ HIỂN THỊ VECTOR TILES) -->
+<script src="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js"></script>
+<link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
 
 <!-- vConsole để debug -->
 <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
@@ -73,7 +78,6 @@ button { cursor: pointer; }
 .fab-directions { position: fixed; bottom: calc(30px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 6px 24px rgba(59,130,246,0.5); transition: 0.2s; }
 .fab-directions:active { transform: scale(0.92); }
 
-/* NÚT LOCATE ME MỚI */
 .fab-locate { position: fixed; bottom: calc(30px + var(--safe-bottom)); left: 16px; z-index: 1000; width: 56px; height: 56px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; box-shadow: 0 4px 20px rgba(0,0,0,0.4); transition: 0.2s; }
 .fab-locate:active { transform: scale(0.92); }
 .fab-locate.loading { color: var(--primary); animation: spin 1s linear infinite; }
@@ -175,7 +179,7 @@ button { cursor: pointer; }
     <i class="fas fa-directions"></i>
   </button>
 
-  <!-- Nút Locate Me Mới -->
+  <!-- Nút Locate Me -->
   <button class="fab-locate" id="btnLocateMe" onclick="centerToLocation()">
     <i class="fas fa-location-arrow"></i>
   </button>
@@ -255,7 +259,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-// DÙNG WORKER CŨ CỦA BẠN
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f'; 
 
@@ -385,26 +388,28 @@ function logout() {
 }
 
 // ==========================================
-// MAP & UI LOGIC
+// MAP & UI LOGIC (FIX TRACKASIA CHUẨN)
 // ==========================================
 function initMap() {
   if (map) return;
   
+  // Khởi tạo Leaflet map
   map = L.map('map', { center: [21.0285, 105.8542], zoom: 13, zoomControl: false });
   
-  // SỬ DỤNG RASTER TILE CỦA TRACKASIA (GỌI TRỰC TIẾP ĐỂ TRÁNH LỖI WORKER)
-  const trackasiaUrl = `https://maps.track-asia.com/tiles/v1/style-streets/{z}/{x}/{y}.png?key=${TRACKASIA_KEY}`;
+  // SỬ DỤNG TRACKASIA GL (VECTOR TILES) - ĐÚNG CHUẨN TÀI LIỆU
+  const trackasiaStyleUrl = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
   
-  const tileLayer = L.tileLayer(trackasiaUrl, { 
-    maxZoom: 22,
-    crossOrigin: true
-  });
-  
-  tileLayer.on('tileerror', function(error) {
-    console.warn('⚠️ Lỗi tải Tile TrackAsia, kiểm tra lại Key hoặc Domain.');
-  });
-
-  tileLayer.addTo(map);
+  try {
+    // Sử dụng plugin trackasia-gl-leaflet để render Vector Tiles
+    L.trackasiaGL({
+      style: trackasiaStyleUrl
+    }).addTo(map);
+    console.log('✅ TrackAsia Vector Tiles loaded');
+  } catch (error) {
+    console.error('❌ Lỗi tải TrackAsia GL:', error);
+    // Fallback sang OSM nếu TrackAsia lỗi
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  }
   
   map.on('click', (e) => {
     if (document.getElementById('dirSheet').classList.contains('open') && !document.getElementById('suggestionsBox').classList.contains('show')) {
@@ -462,7 +467,6 @@ async function doSearch(query) {
   box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang tìm...</div>';
 
   try {
-    // Gọi qua Worker (để giấu key TrackAsia)
     const res = await fetch(`${WORKER_URL}/trackasia-search?query=${encodeURIComponent(query)}`);
     const data = await res.json();
     
@@ -524,11 +528,9 @@ function refreshGPS() {
     startPoint = { lat: pos.coords.latitude, lng: pos.coords.longitude, name: 'Vị trí của tôi' };
     document.getElementById('dirInputStart').value = 'Vị trí của tôi (GPS)';
     
-    // Cập nhật vị trí
     lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     map.setView([pos.coords.latitude, pos.coords.longitude], 15);
     
-    // Hiển thị chấm xanh GPS
     if (userMarker) map.removeLayer(userMarker);
     const icon = L.divIcon({ html: '<div style="width:20px;height:20px;border-radius:50%;background:#3b82f6;border:3px solid white;box-shadow:0 0 10px rgba(59,130,246,0.5);"></div>', iconSize: [20,20] });
     userMarker = L.marker([pos.coords.latitude, pos.coords.longitude], { icon }).addTo(map);
@@ -540,7 +542,7 @@ function refreshGPS() {
 }
 
 // ==========================================
-// ROUTING & VOICE (SỬ DỤNG WORKER CŨ)
+// ROUTING & VOICE
 // ==========================================
 async function startRouteFromSheet() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
@@ -548,7 +550,6 @@ async function startRouteFromSheet() {
   closeDirections();
   document.getElementById('hud').classList.remove('hidden');
   
-  // GỌI ĐÚNG CHUẨN WORKER CỦA BẠN: ?from=lng,lat&to=lng,lat
   const fromStr = `${startPoint.lng},${startPoint.lat}`;
   const toStr = `${endPoint.lng},${endPoint.lat}`;
   const url = `${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}`;
@@ -562,12 +563,9 @@ async function startRouteFromSheet() {
     }
     
     const r = data.routes[0];
-    
-    // Mapbox trả về steps nằm trong legs[0]
     voiceRouteSteps = r.legs[0].steps || [];
     voiceStepIndex = 0;
     
-    // Vẽ đường
     const routeCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
     
     if (currentRouteLayer) {
@@ -577,7 +575,6 @@ async function startRouteFromSheet() {
     currentRouteLayer = L.polyline(routeCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
     map.fitBounds(L.latLngBounds(routeCoords), { padding: [50, 50] });
     
-    // Cập nhật HUD
     document.getElementById('hudRemainDist').textContent = (r.distance/1000).toFixed(1) + ' km';
     document.getElementById('hudRemainTime').textContent = Math.round(r.duration/60) + ' phút';
     document.getElementById('hudNextStopName').textContent = endPoint.name;
