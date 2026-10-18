@@ -20,10 +20,12 @@
 <link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
 
-<!-- vConsole để debug -->
+<!-- Bật vConsole nếu có ?debug=1 -->
 <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
 <script>
-  window.vConsole = new window.VConsole();
+  if (window.location.search.includes('debug=1')) {
+    window.vConsole = new window.VConsole();
+  }
 </script>
 
 <style>
@@ -46,7 +48,6 @@ button { cursor: pointer; }
 .leaflet-container { font-family: var(--font-main) !important; }
 .leaflet-control-attribution { font-size: 9px !important; background: rgba(15,23,42,0.7) !important; color: #94a3b8 !important; }
 .leaflet-control-attribution a { color: #60a5fa !important; }
-.leaflet-bar a { background: var(--card) !important; color: var(--text) !important; border-color: var(--border) !important; }
 
 /* HUD KHI ĐANG DẪN ĐƯỜNG */
 .hud-top { position: fixed; top: 0; left: 0; right: 0; z-index: 500; padding: calc(10px + var(--safe-top)) 12px 10px; display: flex; gap: 8px; pointer-events: none; }
@@ -98,8 +99,8 @@ button { cursor: pointer; }
 .sug-item i { color: var(--primary); }
 
 /* POPUP GOOGLE MAPS STYLE */
-.leaflet-popup-content-wrapper { background: var(--card) !important; color: var(--text) !important; border-radius: 12px !important; box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important; }
-.leaflet-popup-tip { background: var(--card) !important; }
+.leaflet-popup-content-wrapper { background: #1e293b !important; color: #fff !important; border-radius: 12px !important; box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important; border: 1px solid #334155 !important; }
+.leaflet-popup-tip { background: #1e293b !important; }
 .leaflet-popup-content { margin: 12px 14px !important; }
 .custom-touch-marker { z-index: 1000 !important; }
 
@@ -157,16 +158,16 @@ button { cursor: pointer; }
 <div id="appUI" class="hidden">
   <div id="map"></div>
 
-  <!-- Thanh Search Trên Cùng -->
+  <!-- Thanh Search Trên Cùng (Sẽ bị ẩn khi dẫn đường) -->
   <div class="floating-search" id="searchBar" onclick="openSearchMode()">
     <i class="fas fa-search"></i>
     <input type="text" id="topSearchInput" placeholder="Tìm địa điểm..." readonly />
   </div>
   
-  <!-- Icon Menu & Định vị & Chỉ đường -->
-  <button class="fab-menu" onclick="openMenu()"><i class="fas fa-bars"></i></button>
-  <button class="fab-locate" id="btnLocateMe" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
-  <button class="fab-directions" onclick="openDirections()"><i class="fas fa-directions"></i></button>
+  <!-- Icon Menu & Định vị & Chỉ đường (Sẽ bị ẩn khi dẫn đường) -->
+  <button class="fab-menu" id="mainMenuBtn" onclick="openMenu()"><i class="fas fa-bars"></i></button>
+  <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
+  <button class="fab-directions" id="mainDirBtn" onclick="openDirections()"><i class="fas fa-directions"></i></button>
 
   <!-- Bảng Chỉ Đường -->
   <div class="dir-sheet" id="dirSheet">
@@ -378,9 +379,6 @@ function initMap() {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
   }
 
-  // ==========================================
-  // XỬ LÝ CHẠM & NHẤN GIỮ (GOOGLE MAPS STYLE)
-  // ==========================================
   let pressTimer = null;
   let touchMarker = null; 
   let startX = 0, startY = 0;
@@ -399,10 +397,7 @@ function initMap() {
   mapContainer.style.touchAction = 'none'; 
 
   function clearTouchMarker() {
-    if (touchMarker) {
-      map.removeLayer(touchMarker);
-      touchMarker = null;
-    }
+    if (touchMarker) { map.removeLayer(touchMarker); touchMarker = null; }
     map.closePopup();
   }
 
@@ -437,19 +432,18 @@ function initMap() {
     pressIndicator.style.transform = 'translate(-50%, -50%) scale(1)';
     pressIndicator.style.opacity = '1';
 
-    // Giảm xuống còn 0.5 giây (500ms)
     pressTimer = setTimeout(() => {
+      if (isDragging) return;
       cancelPress(); 
       if (navigator.vibrate) navigator.vibrate(50);
       showLocationPopup(latlng);
-    }, 500);
+    }, 500); 
   }
 
   function endPress(e) {
     clearTimeout(pressTimer);
     cancelPress();
     
-    // Nếu không phải kéo bản đồ => Click thường
     if (!isDragging) {
       const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
       const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
@@ -472,12 +466,11 @@ function initMap() {
   mapContainer.addEventListener('mouseleave', cancelPress);
   mapContainer.addEventListener('touchcancel', cancelPress);
 
-  // Tự động xóa chấm đỏ khi bản đồ bị kéo (drag) hoặc zoom
   map.on('dragstart', () => { clearTouchMarker(); });
   map.on('zoomstart', () => { clearTouchMarker(); });
 
   async function showLocationPopup(latlng) {
-    clearTouchMarker(); // Xóa cái cũ trước khi tạo cái mới
+    clearTouchMarker(); 
     
     const icon = L.divIcon({ 
       html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', 
@@ -487,7 +480,7 @@ function initMap() {
     touchMarker = L.marker(latlng, { icon }).addTo(map);
 
     const popupContent = document.createElement('div');
-    popupContent.innerHTML = `<div style="text-align:center; padding:5px; color:#333;"><i class="fas fa-spinner fa-spin"></i> Đang lấy địa chỉ...</div>`;
+    popupContent.innerHTML = `<div style="text-align:center; padding:5px; color:#fff;"><i class="fas fa-spinner fa-spin"></i> Đang lấy địa chỉ...</div>`;
     
     touchMarker.bindPopup(popupContent, { 
       autoClose: false,
@@ -505,12 +498,11 @@ function initMap() {
 
     const displayName = name || `Tọa độ: ${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
 
-    // Nếu marker đã bị xóa (do người dùng kéo map trong lúc chờ API), thì không hiển thị nữa
     if (!touchMarker) return;
 
     popupContent.innerHTML = `
       <div style="min-width: 180px;">
-        <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: #0f172a;">${displayName}</div>
+        <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: #fff;">${displayName}</div>
         <button onclick="goToLongPressLocation(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" 
                 style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
           <i class="fas fa-location-arrow"></i> Tới chỗ này
@@ -623,7 +615,7 @@ function selectLocation(lat, lng, name) {
 
 function refreshGPS() {
   if (!navigator.geolocation) return;
-  const btn = document.getElementById('btnLocateMe');
+  const btn = document.getElementById('mainLocateBtn');
   if (btn) btn.classList.add('loading');
   
   navigator.geolocation.getCurrentPosition(pos => {
@@ -648,6 +640,14 @@ async function startRouteFromSheet() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
   
   closeDirections();
+  
+  // Ẩn các nút UI bên ngoài
+  document.getElementById('searchBar').classList.add('hidden');
+  document.getElementById('mainMenuBtn').classList.add('hidden');
+  document.getElementById('mainLocateBtn').classList.add('hidden');
+  document.getElementById('mainDirBtn').classList.add('hidden');
+
+  // Hiện HUD
   document.getElementById('hud').classList.remove('hidden');
   
   const fromStr = `${startPoint.lng},${startPoint.lat}`;
@@ -679,7 +679,12 @@ async function startRouteFromSheet() {
     
   } catch (e) {
     alert('Lỗi lấy đường: ' + e.message);
+    // Nếu lỗi thì hiện lại các nút UI
     document.getElementById('hud').classList.add('hidden');
+    document.getElementById('searchBar').classList.remove('hidden');
+    document.getElementById('mainMenuBtn').classList.remove('hidden');
+    document.getElementById('mainLocateBtn').classList.remove('hidden');
+    document.getElementById('mainDirBtn').classList.remove('hidden');
   }
 }
 
