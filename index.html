@@ -12,11 +12,8 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 
-<!-- Leaflet & TrackAsia GL JS -->
+<!-- Leaflet -->
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js"></script>
-<link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
-<script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
 
 <!-- vConsole để debug -->
 <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
@@ -45,7 +42,6 @@ button { cursor: pointer; }
 .leaflet-control-attribution { font-size: 9px !important; background: rgba(15,23,42,0.7) !important; color: #94a3b8 !important; }
 .leaflet-control-attribution a { color: #60a5fa !important; }
 .leaflet-bar a { background: var(--card) !important; color: var(--text) !important; border-color: var(--border) !important; }
-.leaflet-control-layers { border-radius: 10px !important; border: 1px solid var(--border) !important; background: var(--card) !important; color: var(--text) !important; }
 
 /* HUD */
 .hud-top { position: fixed; top: 0; left: 0; right: 0; z-index: 500; padding: calc(10px + var(--safe-top)) 12px 10px; display: flex; gap: 8px; pointer-events: none; }
@@ -77,7 +73,7 @@ button { cursor: pointer; }
 .fab-directions { position: fixed; bottom: calc(30px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 6px 24px rgba(59,130,246,0.5); transition: 0.2s; }
 .fab-directions:active { transform: scale(0.92); }
 
-/* LOCATE ME BUTTON */
+/* NÚT LOCATE ME MỚI */
 .fab-locate { position: fixed; bottom: calc(30px + var(--safe-bottom)); left: 16px; z-index: 1000; width: 56px; height: 56px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; box-shadow: 0 4px 20px rgba(0,0,0,0.4); transition: 0.2s; }
 .fab-locate:active { transform: scale(0.92); }
 .fab-locate.loading { color: var(--primary); animation: spin 1s linear infinite; }
@@ -179,7 +175,7 @@ button { cursor: pointer; }
     <i class="fas fa-directions"></i>
   </button>
 
-  <!-- Nút Locate Me (Mới thêm) -->
+  <!-- Nút Locate Me Mới -->
   <button class="fab-locate" id="btnLocateMe" onclick="centerToLocation()">
     <i class="fas fa-location-arrow"></i>
   </button>
@@ -259,8 +255,9 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-// SỬ DỤNG WORKER CHUNG
+// DÙNG WORKER CŨ CỦA BẠN
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
+const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f'; 
 
 // --- STATE ---
 let map = null;
@@ -395,15 +392,19 @@ function initMap() {
   
   map = L.map('map', { center: [21.0285, 105.8542], zoom: 13, zoomControl: false });
   
-  // SỬ DỤNG WORKER ĐỂ ẨN KEY TRACKASIA
-  const trackasiaStyleUrl = `${WORKER_URL}/trackasia-tiles/styles/v2/streets.json`;
+  // SỬ DỤNG RASTER TILE CỦA TRACKASIA (GỌI TRỰC TIẾP ĐỂ TRÁNH LỖI WORKER)
+  const trackasiaUrl = `https://maps.track-asia.com/tiles/v1/style-streets/{z}/{x}/{y}.png?key=${TRACKASIA_KEY}`;
   
-  try {
-    const gl = L.trackasiaGL({ style: trackasiaStyleUrl }).addTo(map);
-    console.log('✅ TrackAsia GL Layer added successfully via Worker');
-  } catch (error) {
-    console.error('❌ Lỗi khởi tạo TrackAsia GL:', error);
-  }
+  const tileLayer = L.tileLayer(trackasiaUrl, { 
+    maxZoom: 22,
+    crossOrigin: true
+  });
+  
+  tileLayer.on('tileerror', function(error) {
+    console.warn('⚠️ Lỗi tải Tile TrackAsia, kiểm tra lại Key hoặc Domain.');
+  });
+
+  tileLayer.addTo(map);
   
   map.on('click', (e) => {
     if (document.getElementById('dirSheet').classList.contains('open') && !document.getElementById('suggestionsBox').classList.contains('show')) {
