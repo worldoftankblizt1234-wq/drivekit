@@ -167,8 +167,8 @@ button { cursor: pointer; }
   <!-- Thêm onclick để đóng bảng khi bấm ra ngoài -->
   <div id="map" onclick="closeDirections()"></div>
 
-  <!-- Thanh Search Trên Cùng -->
-  <div class="floating-search" id="searchBar" onclick="openSearchMode(event)">
+  <!-- Thanh Search Trên Cùng (Tách biệt, chỉ xem trước) -->
+  <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
     <i class="fas fa-search"></i>
     <input type="text" id="topSearchInput" placeholder="Tìm địa điểm..." readonly />
     <i class="fas fa-times search-clear-btn hidden" id="searchClearBtn" onclick="event.stopPropagation(); clearTopSearch()"></i>
@@ -270,7 +270,7 @@ let currentRouteCoords = [];
 let watchId = null;
 let lastUserPos = null;
 let lastHeading = 0;
-let searchContext = 'view'; // 'view' (chỉ tìm trên thanh search), 'start', 'end'
+let searchContext = 'view'; // 'view', 'start', 'end'
 
 // --- VOICE STATE ---
 let voiceEnabled = true;
@@ -463,7 +463,7 @@ function initMap() {
       const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
       const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
       const rect = mapContainer.getBoundingClientRect();
-      const latlng = mapContainer.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
+      const latlng = map.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
       showLocationPopup(latlng);
     }
   }
@@ -530,7 +530,6 @@ function initMap() {
 
 window.goToLongPressLocation = function(lat, lng, name) {
   if (searchContext === 'view') {
-    // Nếu đang ở chế độ chỉ xem (bấm từ thanh search), chỉ hiển thị marker tạm
     if (map) map.closePopup();
     map.eachLayer(layer => {
       if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
@@ -542,10 +541,9 @@ window.goToLongPressLocation = function(lat, lng, name) {
     map.setView([lat, lng], 16);
     document.getElementById('topSearchInput').value = name;
     document.getElementById('searchClearBtn').classList.remove('hidden');
-    return; // Dừng, không nhét vào bảng chỉ đường
+    return; 
   }
 
-  // Nếu đang chọn Điểm đi/Điểm đến
   if (searchContext === 'start') {
     startPoint = { lat, lng, name };
     document.getElementById('dirInputStart').value = name;
@@ -579,14 +577,12 @@ function centerToLocation() {
   else refreshGPS();
 }
 
-// Xóa text trên thanh search
 window.clearTopSearch = function() {
   document.getElementById('topSearchInput').value = '';
   document.getElementById('searchClearBtn').classList.add('hidden');
   clearPoint('end');
 };
 
-// Hàm mở/đóng bảng
 function openDirections() { 
   document.getElementById('dirSheet').classList.add('open'); 
   document.getElementById('dirSheet').style.transform = ''; 
@@ -598,17 +594,6 @@ function closeDirections() {
 }
 function openMenu() { document.getElementById('historyModal').classList.remove('hidden'); loadHistory(); }
 function closeMenu() { document.getElementById('historyModal').classList.add('hidden'); }
-
-// Hàm mở chế độ tìm kiếm (được gọi từ thanh search trên cùng)
-function openSearchMode(event) { 
-  if (event && event.target.id === 'searchClearBtn') return; // Nếu bấm X thì không làm gì
-
-  // Mở bảng chỉ đường để người dùng có thể chọn start/end
-  openDirections();
-  
-  // Đặt context là 'view' để tìm kiếm không nhét vào điểm đến
-  setTimeout(() => activateSearch('view'), 300); 
-}
 
 window.clearPoint = function(type) {
   if (type === 'start') {
@@ -626,6 +611,11 @@ window.clearPoint = function(type) {
 
 function activateSearch(type) {
   searchContext = type;
+  
+  if (type !== 'view') {
+    document.getElementById('dirSheet').classList.add('open');
+  }
+
   const box = document.getElementById('suggestionsBox');
   box.classList.add('show');
   box.innerHTML = '<div class="sug-item">Nhập để tìm kiếm...</div>';
@@ -687,7 +677,16 @@ function selectLocation(lat, lng, name) {
   closeSearch();
   map.setView([lat, lng], 16);
 
-  if (searchContext === 'start') {
+  map.eachLayer(layer => {
+    if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
+       map.removeLayer(layer);
+    }
+  });
+
+  if (searchContext === 'view') {
+    const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
+    L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
+  } else if (searchContext === 'start') {
     startPoint = { lat, lng, name };
     document.getElementById('dirInputStart').value = name;
     document.getElementById('btnClearStart').classList.remove('hidden');
@@ -695,15 +694,6 @@ function selectLocation(lat, lng, name) {
     endPoint = { lat, lng, name };
     document.getElementById('dirInputEnd').value = name;
     document.getElementById('btnClearEnd').classList.remove('hidden');
-  } else {
-    // Nếu là 'view' (chỉ xem trước), vẽ marker tạm
-    map.eachLayer(layer => {
-      if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
-         map.removeLayer(layer);
-      }
-    });
-    const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
-    L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
   }
 }
 
@@ -806,7 +796,7 @@ async function startRouteFromSheet() {
     voiceRouteSteps = r.legs[0].steps || [];
     voiceStepIndex = 0;
     
-    currentRouteCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    currentRouteCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]); 
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
     currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
     
@@ -957,9 +947,9 @@ async function loadHistory() {
   } catch (e) { list.innerHTML = 'Lỗi tải lịch sử.'; }
 }
 
-window.openSearchMode = openSearchMode;
-window.openDirections = openDirections;
 window.activateSearch = activateSearch;
+window.openDirections = openDirections;
+window.clearTopSearch = clearTopSearch;
 window.refreshGPS = refreshGPS;
 window.centerToLocation = centerToLocation;
 window.startRouteFromSheet = startRouteFromSheet;
