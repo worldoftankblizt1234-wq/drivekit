@@ -121,17 +121,26 @@ button { cursor: pointer; }
 <!-- AUTH SCREEN -->
 <div class="auth-screen hidden" id="authScreen">
   <div class="auth-box">
-    <h2>DriveKit 🚌</h2>
-    <p>Đăng nhập để lưu lịch sử chuyến đi</p>
+    <h2 id="authTitle">DriveKit 🚌</h2>
+    <p id="authSubtitle">Đăng nhập để lưu lịch sử chuyến đi</p>
     
     <button class="btn-auth btn-google" id="btnGoogleAuth">
-      <i class="fab fa-google"></i> Đăng nhập Google
+      <i class="fab fa-google"></i> Đăng nhập bằng Google
     </button>
-    <div style="text-align:center; color:var(--text-muted); margin: 16px 0;">hoặc</div>
     
+    <div style="text-align:center; color:var(--text-muted); margin: 16px 0; font-size:0.85rem;">hoặc dùng Email</div>
+    
+    <div id="authError" style="color:var(--danger); font-size:0.85rem; margin-bottom:10px; display:none; text-align:center; font-weight:600;"></div>
+
     <input type="email" id="authEmail" class="auth-input" placeholder="Email" />
     <input type="password" id="authPassword" class="auth-input" placeholder="Mật khẩu" />
-    <button class="btn-auth btn-email" id="btnEmailAuth">Đăng nhập / Đăng ký</button>
+    
+    <button class="btn-auth btn-email" id="btnSubmitAuth">Đăng nhập</button>
+    
+    <div style="text-align:center; margin-top:16px; font-size:0.9rem;">
+      <span id="authToggleText" style="color:var(--text-muted);">Chưa có tài khoản?</span>
+      <a href="#" id="authToggleBtn" style="color:var(--primary); font-weight:700; text-decoration:none; margin-left:5px;">Đăng ký ngay</a>
+    </div>
   </div>
 </div>
 
@@ -230,7 +239,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f'; // Key của bạn
+const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f'; 
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 
 // --- STATE ---
@@ -248,42 +257,108 @@ let isSearchingFor = 'end'; // 'start' hoặc 'end'
 let voiceEnabled = true;
 let voiceRouteSteps = null;
 let voiceStepIndex = 0;
-let voiceSpokenMarks = new Map();
 let voiceCheckTimer = null;
 
-// --- AUTHENTICATION ---
+// ==========================================
+// AUTHENTICATION LOGIC
+// ==========================================
+function getAuthErrorMessage(errorCode) {
+  switch (errorCode) {
+    case 'auth/invalid-email': return 'Email không đúng định dạng.';
+    case 'auth/user-disabled': return 'Tài khoản này đã bị khóa.';
+    case 'auth/user-not-found': return 'Tài khoản không tồn tại. Vui lòng đăng ký.';
+    case 'auth/wrong-password': return 'Mật khẩu không chính xác.';
+    case 'auth/invalid-credential': return 'Tài khoản hoặc mật khẩu không đúng.';
+    case 'auth/email-already-in-use': return 'Email này đã được đăng ký. Vui lòng đăng nhập.';
+    case 'auth/weak-password': return 'Mật khẩu quá yếu (phải từ 6 ký tự).';
+    case 'auth/too-many-requests': return 'Bạn thử quá nhiều lần. Vui lòng đợi 1 lát rồi thử lại.';
+    case 'auth/network-request-failed': return 'Lỗi kết nối mạng. Vui lòng kiểm tra internet.';
+    default: return 'Có lỗi xảy ra. Vui lòng thử lại sau.';
+  }
+}
+
+let isRegisterMode = false;
+const authTitle = document.getElementById('authTitle');
+const authSubtitle = document.getElementById('authSubtitle');
+const btnSubmitAuth = document.getElementById('btnSubmitAuth');
+const authToggleText = document.getElementById('authToggleText');
+const authToggleBtn = document.getElementById('authToggleBtn');
+const authError = document.getElementById('authError');
+
+authToggleBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  isRegisterMode = !isRegisterMode;
+  authError.style.display = 'none';
+  
+  if (isRegisterMode) {
+    authTitle.textContent = 'Tạo tài khoản 📝';
+    authSubtitle.textContent = 'Đăng ký để bắt đầu hành trình';
+    btnSubmitAuth.textContent = 'Đăng ký tài khoản';
+    authToggleText.textContent = 'Đã có tài khoản?';
+    authToggleBtn.textContent = 'Đăng nhập';
+  } else {
+    authTitle.textContent = 'DriveKit 🚌';
+    authSubtitle.textContent = 'Đăng nhập để lưu lịch sử chuyến đi';
+    btnSubmitAuth.textContent = 'Đăng nhập';
+    authToggleText.textContent = 'Chưa có tài khoản?';
+    authToggleBtn.textContent = 'Đăng ký ngay';
+  }
+});
+
+btnSubmitAuth.addEventListener('click', async () => {
+  const email = document.getElementById('authEmail').value;
+  const pass = document.getElementById('authPassword').value;
+  
+  if (!email || !pass) {
+    authError.textContent = 'Vui lòng nhập đầy đủ Email và Mật khẩu.';
+    authError.style.display = 'block';
+    return;
+  }
+
+  btnSubmitAuth.disabled = true;
+  btnSubmitAuth.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
+  authError.style.display = 'none';
+
+  try {
+    if (isRegisterMode) {
+      await createUserWithEmailAndPassword(auth, email, pass);
+    } else {
+      await signInWithEmailAndPassword(auth, email, pass);
+    }
+  } catch (err) {
+    authError.textContent = getAuthErrorMessage(err.code);
+    authError.style.display = 'block';
+  } finally {
+    btnSubmitAuth.disabled = false;
+    btnSubmitAuth.textContent = isRegisterMode ? 'Đăng ký tài khoản' : 'Đăng nhập';
+  }
+});
+
+document.getElementById('btnGoogleAuth').addEventListener('click', async () => {
+  const provider = new GoogleAuthProvider();
+  try {
+    await signInWithPopup(auth, provider);
+  } catch (e) {
+    authError.textContent = getAuthErrorMessage(e.code);
+    authError.style.display = 'block';
+  }
+});
+
 onAuthStateChanged(auth, (user) => {
   document.getElementById('loadingScreen').classList.add('hidden');
   if (user) {
     currentUser = user;
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('appUI').classList.remove('hidden');
+    authError.style.display = 'none';
+    document.getElementById('authEmail').value = '';
+    document.getElementById('authPassword').value = '';
     initMap();
-    refreshGPS(); // Tự động lấy GPS làm điểm A
+    refreshGPS(); 
   } else {
     currentUser = null;
     document.getElementById('authScreen').classList.remove('hidden');
     document.getElementById('appUI').classList.add('hidden');
-  }
-});
-
-document.getElementById('btnGoogleAuth').addEventListener('click', () => {
-  const provider = new GoogleAuthProvider();
-  signInWithPopup(auth, provider).catch(e => alert(e.message));
-});
-
-document.getElementById('btnEmailAuth').addEventListener('click', async () => {
-  const email = document.getElementById('authEmail').value;
-  const pass = document.getElementById('authPassword').value;
-  if (!email || !pass) return alert('Nhập email và mật khẩu');
-  try {
-    await signInWithEmailAndPassword(auth, email, pass);
-  } catch (err) {
-    if (err.code === 'auth/user-not-found') {
-      await createUserWithEmailAndPassword(auth, email, pass);
-    } else {
-      alert(err.message);
-    }
   }
 });
 
@@ -292,35 +367,28 @@ function logout() {
   closeMenu();
 }
 
-// --- MAP INIT ---
+// ==========================================
+// MAP & UI LOGIC
+// ==========================================
 function initMap() {
   if (map) return;
   map = L.map('map', { center: [21.0285, 105.8542], zoom: 13, zoomControl: false });
   L.tileLayer(`https://maps.track-asia.com/styles/v2/streets-raster/{z}/{x}/{y}.png?key=${TRACKASIA_KEY}`, { maxZoom: 22 }).addTo(map);
   
-  // Ấn vào bản đồ để chọn điểm đến
   map.on('click', (e) => {
     if (document.getElementById('dirSheet').classList.contains('open') && !document.getElementById('suggestionsBox').classList.contains('show')) {
-      // Nếu bảng A-B đang mở, click bản đồ sẽ set điểm đến
-      reverseGeocode(e.latlng.lat, e.latlng.lng, 'end');
+      reverseGeocode(e.latlng.lat, e.latlng.lng);
     }
   });
 }
 
-// --- UI INTERACTIONS ---
-function openDirections() {
-  document.getElementById('dirSheet').classList.add('open');
-}
-function closeDirections() {
-  document.getElementById('dirSheet').classList.remove('open');
-}
+function openDirections() { document.getElementById('dirSheet').classList.add('open'); }
+function closeDirections() { document.getElementById('dirSheet').classList.remove('open'); }
 function openMenu() {
   document.getElementById('historyModal').classList.remove('hidden');
   loadHistory();
 }
-function closeMenu() {
-  document.getElementById('historyModal').classList.add('hidden');
-}
+function closeMenu() { document.getElementById('historyModal').classList.add('hidden'); }
 function openSearchMode() {
   openDirections();
   setTimeout(() => activateSearch('end'), 300);
@@ -375,7 +443,7 @@ async function doSearch(query) {
   }
 }
 
-async function reverseGeocode(lat, lng, type) {
+async function reverseGeocode(lat, lng) {
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
     const data = await res.json();
@@ -399,15 +467,14 @@ function selectLocation(lat, lng, name) {
   document.getElementById('topSearchInput').readOnly = true;
   closeSearch();
   
-  // Vẽ marker tạm
   if (userMarker) map.removeLayer(userMarker);
   const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;"></div>', iconSize: [24,24] });
   userMarker = L.marker([lat, lng], { icon }).addTo(map);
   map.setView([lat, lng], 16);
 }
 
-async function refreshGPS() {
-  if (!navigator.geolocation) return alert('Không hỗ trợ GPS');
+function refreshGPS() {
+  if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(pos => {
     startPoint = { lat: pos.coords.latitude, lng: pos.coords.longitude, name: 'Vị trí của tôi' };
     document.getElementById('dirInputStart').value = 'Vị trí của tôi (GPS)';
@@ -415,7 +482,9 @@ async function refreshGPS() {
   });
 }
 
-// --- ROUTING & VOICE ---
+// ==========================================
+// ROUTING & VOICE
+// ==========================================
 async function startRouteFromSheet() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
   
@@ -433,9 +502,7 @@ async function startRouteFromSheet() {
     const r = data.routes[0];
     voiceRouteSteps = r.legs.flatMap(l => l.steps);
     voiceStepIndex = 0;
-    voiceSpokenMarks.clear();
     
-    // Vẽ đường
     const routeCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
     L.polyline(routeCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
     map.fitBounds(L.latLngBounds(routeCoords), { padding: [50, 50] });
@@ -447,7 +514,6 @@ async function startRouteFromSheet() {
     startWatching();
     startVoice();
     
-    // Lưu lịch sử
     saveHistory(startPoint, endPoint, r.distance);
     
   } catch (e) {
@@ -469,10 +535,9 @@ function stopRoute() {
   document.getElementById('hud').classList.add('hidden');
   if (watchId) navigator.geolocation.clearWatch(watchId);
   if (voiceCheckTimer) clearInterval(voiceCheckTimer);
-  location.reload(); // Reload nhanh để reset map
+  location.reload(); 
 }
 
-// --- VOICE ENGINE (Rút gọn) ---
 function speak(text) {
   if (!voiceEnabled || !window.speechSynthesis) return;
   speechSynthesis.cancel();
@@ -504,7 +569,9 @@ function calcDist(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// --- FIREBASE HISTORY ---
+// ==========================================
+// HISTORY (FIREBASE)
+// ==========================================
 async function saveHistory(start, end, distance) {
   if (!currentUser) return;
   const historyRef = ref(db, `users/${currentUser.uid}/history`);
@@ -551,7 +618,7 @@ async function loadHistory() {
   }
 }
 
-// Expose functions to global for HTML onclick
+// Expose functions to global
 window.openSearchMode = openSearchMode;
 window.openDirections = openDirections;
 window.activateSearch = activateSearch;
