@@ -234,7 +234,6 @@ input:checked + .slider:before { transform: translateX(20px); }
 </div>
 
 <div id="appUI" class="hidden">
-  <!-- LỖI CLICK XUYÊN QUA MAP: Ngăn chặn sự kiện click của map khi bấm vào nút -->
   <div id="map"></div>
 
   <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
@@ -747,7 +746,7 @@ function initMap() {
 
   async function showLocationPopup(latlng) {
     clearTouchMarker();
-    const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', size: [24,24], className: 'custom-touch-marker' });
+    const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
     touchMarker = L.marker(latlng, { icon }).addTo(map);
     const popupContent = document.createElement('div');
     popupContent.innerHTML = `<div style="text-align:center; padding:5px; color:var(--text);"><i class="fas fa-spinner fa-spin"></i> Đang lấy địa chỉ...</div>`;
@@ -1629,8 +1628,7 @@ window.goToLongPressLocation = function(lat, lng, name) {
     map.eachLayer(layer => { if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') map.removeLayer(layer); });
   }
   
-  // Mở bảng điều hướng và tự động gọi tìm đường
-  openDirections();
+  // Chỉ mở bảng chọn tuyến đường, đợi user chọn xong mới bắt đầu dẫn đường
   fetchAndShowRouteOptions();
 };
 
