@@ -57,44 +57,46 @@ button { cursor: pointer; }
 .hud-stat .value { font-size: 0.95rem; font-weight: 800; font-family: var(--font-mono); display: flex; align-items: center; gap: 4px; color: var(--text); }
 .hud-stat.speed .value { color: var(--success); }
 
+/* NÚT KẾT THÚC TRÊN CÙNG (MỚI) */
+.hud-end-btn-top {
+  background: var(--danger);
+  color: white;
+  border-radius: 12px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  border: 1px solid var(--danger);
+  pointer-events: auto;
+  box-shadow: 0 4px 10px rgba(239,68,68,0.3);
+  min-width: 56px;
+}
+.hud-end-btn-top i { font-size: 1.1rem; }
+.hud-end-btn-top:active { transform: scale(0.95); }
+
 .hud-next { position: fixed; top: calc(70px + var(--safe-top)); left: 12px; right: 12px; z-index: 500; background: linear-gradient(135deg, var(--primary), var(--voice)); border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 12px; pointer-events: auto; box-shadow: 0 4px 15px rgba(59,130,246,0.3); }
 .hud-next .arrow { font-size: 1.8rem; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.2); border-radius: 8px; }
 .hud-next .dist { font-size: 0.7rem; font-weight: 800; color: rgba(255,255,255,0.9); }
 .hud-next .instr { font-size: 0.95rem; font-weight: 700; line-height: 1.2; }
 
-.hud-bottom { position: fixed; bottom: 0; left: 0; right: 0; z-index: 500; padding: 10px 12px calc(10px + var(--safe-bottom)); background: var(--card); backdrop-filter: blur(10px); border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: center; pointer-events: auto; }
-.hud-next-stop { flex: 1; }
+.hud-bottom { position: fixed; bottom: 0; left: 0; right: 0; z-index: 500; padding: 10px 12px calc(10px + var(--safe-bottom)); background: var(--card); backdrop-filter: blur(10px); border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: center; pointer-events: auto; overflow: hidden; }
+.hud-next-stop { flex: 1; min-width: 0; }
 .hud-next-stop .name { font-size: 1rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
 .hud-next-stop .dist { font-size: 0.75rem; font-weight: 700; color: var(--warning); font-family: var(--font-mono); margin-top: 2px; }
+
+/* FIX CỨNG NHÓM NÚT KHÔNG BỊ CO LẠI */
+.hud-btn-group {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .hud-btn { width: 44px; height: 44px; border-radius: 12px; background: var(--card-2); color: var(--text); font-size: 1.1rem; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); }
 .hud-btn.active { background: var(--success); color: white; border-color: transparent; }
-.hud-btn.stop { background: var(--danger); color: white; }
 .hud-btn.swap { background: var(--warning); color: white; border-color: transparent; }
-
-/* NÚT KẾT THÚC CHUYẾN ĐI (ĐÃ FIX HIỂN THỊ) */
-.hud-btn.end-trip-btn-hud { 
-  width: 60px; 
-  height: 48px; 
-  display: flex; 
-  flex-direction: column; 
-  align-items: center; 
-  justify-content: center; 
-  gap: 2px; 
-  font-size: 0.65rem; 
-  font-weight: 800;
-  padding: 2px; 
-  background: var(--danger); 
-  color: white; 
-  border: none; 
-  border-radius: 12px;
-  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4);
-}
-.hud-btn.end-trip-btn-hud i { 
-  font-size: 1.1rem; 
-}
-.hud-btn.end-trip-btn-hud:active { 
-  transform: scale(0.95); 
-}
 
 .floating-search { position: fixed; top: calc(16px + var(--safe-top)); left: 16px; right: 60px; z-index: 1000; background: var(--card); border-radius: 24px; padding: 10px 16px; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid var(--border); cursor: pointer; }
 .floating-search input { flex: 1; background: transparent; color: var(--text); font-size: 0.9rem; font-weight: 600; pointer-events: none; }
@@ -303,24 +305,27 @@ input:checked + .slider:before { transform: translateX(20px); }
       <div class="hud-stat"><span class="label">Còn lại</span><span class="value" id="hudRemainDist">—</span></div>
       <div class="hud-stat"><span class="label">Đến nơi</span><span class="value" id="hudRemainTime">—</span></div>
       <div class="hud-stat speed"><span class="label">Tốc độ</span><span class="value" id="hudSpeed">0 km/h</span></div>
+      
+      <!-- NÚT KẾT THÚC TRÊN CÙNG -->
+      <button class="hud-end-btn-top" onclick="openEndTripModal()">
+        <i class="fas fa-flag-checkered"></i>
+        <span>Kết thúc</span>
+      </button>
     </div>
+    
     <div class="hud-next">
       <div class="arrow" id="hudNextArrow">↑</div>
       <div class="info"><div class="dist" id="hudNextDist">—</div><div class="instr" id="hudNextInstr">Đang tải...</div></div>
     </div>
+    
     <div class="hud-bottom">
       <div class="hud-next-stop">
         <div class="name" id="hudNextStopName">—</div>
         <div class="dist" id="hudNextStopDist">—</div>
       </div>
-      <div style="display:flex; gap:8px;">
+      <div class="hud-btn-group">
         <button class="hud-btn swap" onclick="openAlternativeRoutes()" title="Đổi đường"><i class="fas fa-random"></i></button>
         <button class="hud-btn" id="hudBtnVoice"><i class="fas fa-volume-up"></i></button>
-        <!-- NÚT KẾT THÚC CHUYẾN ĐI -->
-        <button class="hud-btn end-trip-btn-hud" onclick="openEndTripModal()" title="Kết thúc chuyến">
-          <i class="fas fa-flag-checkered"></i>
-          <span>Kết thúc</span>
-        </button>
       </div>
     </div>
   </div>
