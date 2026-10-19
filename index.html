@@ -159,7 +159,8 @@ button { cursor: pointer; }
 .history-item .route .end { color: var(--danger); }
 
 /* Nút chức năng */
-.profile-btn { width: 100%; padding: 14px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text); font-weight: 700; display: flex; align-items: center; justify-content: space-between; font-size: 0.95rem; margin-bottom: 10px; }
+.profile-btn { width: 100%; padding: 14px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text); font-weight: 700; display: flex; align-items: center; justify-content: space-between; font-size: 0.95rem; margin-bottom: 10px; cursor: pointer; transition: background 0.2s; }
+.profile-btn:active { background: var(--card-2); }
 .profile-btn:last-child { margin-bottom: 0; }
 .profile-btn i { color: var(--primary); font-size: 1.1rem; }
 .profile-btn.logout { background: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: rgba(239, 68, 68, 0.3); }
@@ -288,13 +289,13 @@ input:checked + .slider:before { transform: translateX(20px); }
 
   <div class="profile-body">
     <!-- Nút Chia sẻ -->
-    <div class="profile-btn" onclick="shareRoute()" style="cursor: pointer;">
+    <button class="profile-btn" onclick="shareRoute()">
       <span><i class="fas fa-share-alt"></i> Chia sẻ lộ trình hiện tại</span>
       <i class="fas fa-chevron-right"></i>
-    </div>
+    </button>
 
     <!-- Sáng / Tối -->
-    <div class="profile-btn">
+    <div class="profile-btn" style="cursor: default;">
       <span><i class="fas fa-moon"></i> Chế độ Sáng / Tối</span>
       <label class="switch">
         <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
@@ -318,9 +319,9 @@ input:checked + .slider:before { transform: translateX(20px); }
       </div>
     </div>
 
-    <div class="profile-btn logout" onclick="logout()" style="cursor: pointer;">
+    <button class="profile-btn logout" onclick="logout()">
       <span><i class="fas fa-sign-out-alt"></i> Đăng xuất</span>
-    </div>
+    </button>
   </div>
 </div>
 
@@ -638,7 +639,8 @@ function initMap() {
       const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
       const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
       const rect = mapContainer.getBoundingClientRect();
-      const latlng = mapContainer.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
+      // FIX LỖI: Dùng map.containerPointToLatLng thay vì mapContainer
+      const latlng = map.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
       showLocationPopup(latlng);
     }
     isMouseDown = false;
@@ -705,7 +707,7 @@ function initMap() {
 // ==========================================
 window.shareRoute = function() {
   if (!startPoint || !endPoint) {
-    return showToast('Vui lòng chọn đủ Điểm đi và Điểm đến trước khi chia sẻ!', 'error');
+    return alert('Vui lòng chọn đủ Điểm đi và Điểm đến trước khi chia sẻ!');
   }
 
   const baseUrl = window.location.origin + window.location.pathname;
@@ -727,12 +729,12 @@ window.shareRoute = function() {
       url: shareUrl
     }).then(() => {
       saveSharedLink(startPoint.name, endPoint.name, shareUrl);
-      showToast('Đã chia sẻ thành công!');
+      alert('Đã chia sẻ thành công!');
     }).catch((e) => console.log('Hủy chia sẻ', e));
   } else {
     navigator.clipboard.writeText(shareUrl).then(() => {
       saveSharedLink(startPoint.name, endPoint.name, shareUrl);
-      showToast('Đã copy link chia sẻ vào bộ nhớ tạm!');
+      alert('Đã copy link chia sẻ vào bộ nhớ tạm!');
     }).catch(() => {
       prompt('Copy link này để chia sẻ:', shareUrl);
     });
@@ -758,11 +760,11 @@ window.shareLocation = function(lat, lng, name) {
       text: `Địa điểm: ${name}`,
       url: shareUrl
     }).then(() => {
-      showToast('Đã chia sẻ địa điểm!');
+      alert('Đã chia sẻ địa điểm!');
     }).catch((e) => console.log('Hủy chia sẻ', e));
   } else {
     navigator.clipboard.writeText(shareUrl).then(() => {
-      showToast('Đã copy link địa điểm!');
+      alert('Đã copy link địa điểm!');
     }).catch(() => {
       prompt('Copy link này để chia sẻ:', shareUrl);
     });
@@ -792,7 +794,7 @@ async function loadSharedLinks() {
           <div class="history-item">
             <div class="time">${date}</div>
             <div class="route"><i class="fas fa-circle"></i> ${item.fromName} <i class="fas fa-arrow-right" style="font-size:0.7rem; margin:0 4px; color:var(--text-muted)"></i> <i class="fas fa-circle end"></i> ${item.toName}</div>
-            <button onclick="navigator.clipboard.writeText('${item.url}').then(()=>showToast('Đã copy!'))" style="margin-top:8px; padding:6px 12px; background:var(--primary); color:white; border-radius:6px; font-size:0.75rem;"><i class="fas fa-copy"></i> Copy Link</button>
+            <button onclick="navigator.clipboard.writeText('${item.url}').then(()=>alert('Đã copy!'))" style="margin-top:8px; padding:6px 12px; background:var(--primary); color:white; border-radius:6px; font-size:0.75rem;"><i class="fas fa-copy"></i> Copy Link</button>
           </div>
         `;
       });
