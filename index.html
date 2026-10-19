@@ -202,6 +202,11 @@ input:checked + .slider:before { transform: translateX(20px); }
 .end-trip-btn.save { background: var(--success); color: white; }
 .end-trip-btn.discard { background: var(--bg-2); color: var(--text); border: 1px solid var(--border); }
 .end-trip-btn.cancel { background: transparent; color: var(--text-muted); border: 1px solid var(--border); margin-bottom: 0; }
+
+/* SHARE PING ANIMATION */
+@keyframes ping {
+  75%, 100% { transform: scale(2.5); opacity: 0; }
+}
 </style>
 </head>
 <body>
@@ -608,22 +613,13 @@ onAuthStateChanged(auth, (user) => {
       startPoint = { lat: parseFloat(params.get('fromLat')), lng: parseFloat(params.get('fromLng')), name: params.get('fromName') || 'Điểm đi' };
       endPoint = { lat: parseFloat(params.get('toLat')), lng: parseFloat(params.get('toLng')), name: params.get('toName') || 'Điểm đến' };
       initialCenter = [startPoint.lat, startPoint.lng];
-      setTimeout(() => {
-        document.getElementById('dirInputStart').value = startPoint.name;
-        document.getElementById('dirInputEnd').value = endPoint.name;
-        document.getElementById('topSearchInput').value = endPoint.name;
-        document.getElementById('btnClearStart').classList.remove('hidden');
-        document.getElementById('btnClearEnd').classList.remove('hidden');
-        document.getElementById('searchClearBtn').classList.remove('hidden');
-
-        if (startPoint.lat === endPoint.lat && startPoint.lng === endPoint.lng) {
-          const orangeIcon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#f97316;border:3px solid white;box-shadow:0 0 10px rgba(249,115,22,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
-          L.marker([startPoint.lat, startPoint.lng], { icon: orangeIcon }).addTo(map).bindPopup(`<b>📍 Vị trí được chia sẻ</b>`).openPopup();
-        } else {
-          const orangeIcon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#f97316;border:3px solid white;box-shadow:0 0 10px rgba(249,115,22,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
-          L.marker([endPoint.lat, endPoint.lng], { icon: orangeIcon }).addTo(map).bindPopup(`<b>📍 Điểm đến được chia sẻ</b>`).openPopup();
-        }
-      }, 1000);
+      
+      document.getElementById('dirInputStart').value = startPoint.name;
+      document.getElementById('dirInputEnd').value = endPoint.name;
+      document.getElementById('topSearchInput').value = endPoint.name;
+      document.getElementById('btnClearStart').classList.remove('hidden');
+      document.getElementById('btnClearEnd').classList.remove('hidden');
+      document.getElementById('searchClearBtn').classList.remove('hidden');
     }
 
     if (navigator.geolocation) {
@@ -662,6 +658,24 @@ function finishAuthInit() {
     }
     updateUserMarkerOnMap(lastUserPos, lastHeading);
   } else refreshGPS();
+
+  // Vẽ chấm cam nếu mở từ link chia sẻ
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('fromLat')) {
+    const fromLat = parseFloat(params.get('fromLat'));
+    const fromLng = parseFloat(params.get('fromLng'));
+    const toLat = parseFloat(params.get('toLat'));
+    const toLng = parseFloat(params.get('toLng'));
+    const toName = params.get('toName') || 'Điểm đến';
+    
+    setTimeout(() => {
+      if (fromLat === toLat && fromLng === toLng) {
+        showSharedLocationMarker(fromLat, fromLng, toName, true);
+      } else {
+        showSharedLocationMarker(toLat, toLng, toName, true);
+      }
+    }, 800);
+  }
 }
 
 function logout() { signOut(auth); closeMenu(); }
@@ -782,6 +796,34 @@ function initMap() {
     `;
     touchMarker.setPopupContent(popupContent).openPopup();
   }
+}
+
+// ==========================================
+// SHARED LOCATION MARKER (CHẤM CAM PING)
+// ==========================================
+function showSharedLocationMarker(lat, lng, name, isDestination = false) {
+  map.eachLayer(layer => {
+    if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
+      map.removeLayer(layer);
+    }
+  });
+
+  const orangeIcon = L.divIcon({
+    html: `
+      <div style="position: relative; width: 24px; height: 24px;">
+        <div style="position: absolute; inset: 0; background: #f97316; border-radius: 50%; opacity: 0.5; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+        <div style="position: absolute; inset: 4px; background: #f97316; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(249,115,22,0.8);"></div>
+      </div>
+    `,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    className: 'custom-touch-marker'
+  });
+
+  const marker = L.marker([lat, lng], { icon: orangeIcon }).addTo(map);
+  const label = isDestination ? '📍 Điểm đến được chia sẻ' : '📍 Vị trí được chia sẻ';
+  marker.bindPopup(`<b>${label}</b><br><small>${name}</small>`).openPopup();
+  map.flyTo([lat, lng], 16, { animate: true, duration: 1.5 });
 }
 
 // ==========================================
