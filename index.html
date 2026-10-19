@@ -84,7 +84,7 @@ button { cursor: pointer; }
 .fab-layers { position: fixed; bottom: calc(80px + var(--safe-bottom)); left: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
 .fab-report { position: fixed; bottom: calc(80px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, var(--danger), #f97316); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(239,68,68,0.4); }
 
-/* MODALS (Báo cáo & Profile) */
+/* MODALS */
 .report-modal, .profile-modal { position: fixed; inset: 0; z-index: 2500; background: var(--bg); display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s ease-in-out; }
 .profile-modal { transform: translateX(100%); }
 .report-modal.open, .profile-modal.open { transform: translate(0); }
@@ -98,8 +98,8 @@ button { cursor: pointer; }
 .report-btn.police i { color: #3b82f6; }
 .report-btn.accident i { color: #ef4444; }
 .report-btn.pothole i { color: #f59e0b; }
+.report-btn.traffic i { color: #ef4444; }
 
-/* Các CSS cũ giữ nguyên */
 .dir-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1500; background: var(--card); border-top-left-radius: 20px; border-top-right-radius: 20px; padding: 12px 16px calc(12px + var(--safe-bottom)); transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 -10px 30px rgba(0,0,0,0.2); }
 .dir-sheet.open { transform: translateY(0); }
 .dir-handle { width: 36px; height: 4px; background: var(--border); border-radius: 4px; margin: 0 auto 12px; cursor: grab; }
@@ -202,7 +202,7 @@ input:checked + .slider:before { transform: translateX(20px); }
     <button class="layer-option" onclick="changeLayer('satellite', this)"><i class="fas fa-satellite"></i> Vệ tinh</button>
   </div>
 
-  <button class="fab-report" onclick="openReportMenu()"><i class="fas fa-exclamation-triangle"></i></button>
+  <button class="fab-report" id="btnReport" onclick="openReportMenu()"><i class="fas fa-exclamation-triangle"></i></button>
   <button class="fab-directions" id="mainDirBtn" onclick="openDirections()"><i class="fas fa-directions"></i></button>
 
   <div class="dir-sheet" id="dirSheet">
@@ -260,6 +260,9 @@ input:checked + .slider:before { transform: translateX(20px); }
     </button>
     <button class="report-btn accident" onclick="submitReport('accident')">
       <i class="fas fa-car-crash"></i> Tai nạn
+    </button>
+    <button class="report-btn traffic" onclick="submitReport('traffic')">
+      <i class="fas fa-traffic-light"></i> Kẹt xe
     </button>
     <button class="report-btn pothole" onclick="submitReport('pothole')">
       <i class="fas fa-exclamation-circle"></i> Ổ gà
@@ -322,6 +325,7 @@ import { getDatabase, ref, push, set, get, child, onValue } from "https://www.gs
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
   authDomain: "drivekit-c88ef.firebaseapp.com",
+  databaseURL: "https://drivekit-c88ef-default-rtdb.asia-southeast1.firebasedatabase.app", // Đã thêm URL database
   projectId: "drivekit-c88ef",
   storageBucket: "drivekit-c88ef.firebasestorage.app",
   messagingSenderId: "1073887619343",
@@ -352,7 +356,7 @@ let currentMapLayer = null;
 let initialCenter = [21.0285, 105.8542]; 
 let initialZoom = 17; 
 let lastSnapIndex = 0; 
-let smoothedSpeed = 0; // Bộ lọc tốc độ
+let smoothedSpeed = 0; 
 
 // --- REPORT STATE ---
 let activeReports = {}; 
@@ -468,7 +472,6 @@ onAuthStateChanged(auth, (user) => {
     document.getElementById('profileEmail').textContent = user.email;
     if (user.photoURL) document.getElementById('profileAvatar').innerHTML = `<img src="${user.photoURL}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
 
-    // Load link chia sẻ từ URL
     const params = new URLSearchParams(window.location.search);
     if (params.get('fromLat')) {
       startPoint = { lat: parseFloat(params.get('fromLat')), lng: parseFloat(params.get('fromLng')), name: params.get('fromName') || 'Điểm đi' };
@@ -509,7 +512,7 @@ function finishAuthInit() {
   document.getElementById('loadingScreen').classList.add('hidden');
   document.getElementById('appUI').classList.remove('hidden');
   initMap();
-  initReports(); // Lắng nghe báo cáo từ Firebase
+  initReports();
   
   if (lastUserPos) {
     if (!startPoint) {
@@ -639,7 +642,7 @@ function initMap() {
 }
 
 // ==========================================
-// REPORTING SYSTEM (GIAI ĐOẠN 2)
+// REPORTING SYSTEM
 // ==========================================
 window.openReportMenu = function() {
   document.getElementById('reportModal').classList.add('open');
@@ -653,9 +656,10 @@ window.submitReport = async function(type) {
   closeReportMenu();
 
   const now = Date.now();
-  let ttl = 3600000; // Mặc định 1 tiếng
-  if (type === 'pothole') ttl = 86400000; // Ổ gà 24 tiếng (để test)
-  else if (type === 'flood') ttl = 10800000; // Ngập 3 tiếng
+  let ttl = 3600000; // 1 tiếng
+  if (type === 'pothole') ttl = 86400000; // 24 tiếng
+  else if (type === 'flood') ttl = 10800000; // 3 tiếng
+  else if (type === 'traffic') ttl = 1800000; // Kẹt xe 30 phút
 
   const newReport = {
     lat: lastUserPos.lat,
@@ -683,7 +687,6 @@ function initReports() {
 }
 
 function renderReportsOnMap() {
-  // Xóa marker cũ
   reportMarkers.forEach(m => map.removeLayer(m));
   reportMarkers = [];
 
@@ -691,20 +694,21 @@ function renderReportsOnMap() {
   const icons = {
     'police': '<div style="background:#3b82f6;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-shield-alt"></i></div>',
     'accident': '<div style="background:#ef4444;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-car-crash"></i></div>',
+    'traffic': '<div style="background:#ef4444;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-traffic-light"></i></div>',
     'pothole': '<div style="background:#f59e0b;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-exclamation-circle"></i></div>',
     'flood': '<div style="background:#06b6d4;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-water"></i></div>'
   };
 
   for (const key in activeReports) {
     const rep = activeReports[key];
-    if (now > rep.expiresAt) continue; // Hết hạn thì bỏ qua
+    if (now > rep.expiresAt) continue;
 
     const iconHtml = icons[rep.type] || icons['pothole'];
     const customIcon = L.divIcon({ html: iconHtml, className: '', iconSize: [30, 30], iconAnchor: [15, 15] });
     
     const marker = L.marker([rep.lat, rep.lng], { icon: customIcon }).addTo(map);
     
-    let title = rep.type === 'police' ? 'CSGT' : rep.type === 'accident' ? 'Tai nạn' : rep.type === 'flood' ? 'Ngập nước' : 'Ổ gà';
+    let title = rep.type === 'police' ? 'CSGT' : rep.type === 'accident' ? 'Tai nạn' : rep.type === 'traffic' ? 'Kẹt xe' : rep.type === 'flood' ? 'Ngập nước' : 'Ổ gà';
     marker.bindPopup(`<b>${title}</b><br><small>Báo cáo bởi cộng đồng</small>`);
     
     reportMarkers.push(marker);
@@ -720,9 +724,9 @@ function checkReportProximity(lat, lng) {
     if (now > rep.expiresAt || warnedReports.has(key)) continue;
 
     const dist = calcDist(lat, lng, rep.lat, rep.lng);
-    if (dist < 300) { // Cảnh báo khi cách 300m
+    if (dist < 300) { 
       warnedReports.add(key);
-      let msg = rep.type === 'police' ? 'CSGT' : rep.type === 'accident' ? 'tai nạn' : rep.type === 'flood' ? 'ngập nước' : 'ổ gà';
+      let msg = rep.type === 'police' ? 'CSGT' : rep.type === 'accident' ? 'tai nạn' : rep.type === 'traffic' ? 'kẹt xe' : rep.type === 'flood' ? 'ngập nước' : 'ổ gà';
       speak(`Chú ý, phía trước có báo cáo ${msg}`);
     }
   }
@@ -739,8 +743,7 @@ window.shareRoute = function() {
   
   if (navigator.share) {
     navigator.share({ title: 'DriveKit - Lộ trình', text: `Lộ trình từ ${startPoint.name} đến ${endPoint.name}`, url: shareUrl })
-    .then(() => { saveSharedLink(startPoint.name, endPoint.name, shareUrl); alert('Đã chia sẻ thành công!'); })
-    .catch(() => {});
+    .then(() => { saveSharedLink(startPoint.name, endPoint.name, shareUrl); alert('Đã chia sẻ thành công!'); }).catch(() => {});
   } else {
     navigator.clipboard.writeText(shareUrl).then(() => { saveSharedLink(startPoint.name, endPoint.name, shareUrl); alert('Đã copy link chia sẻ!'); })
     .catch(() => prompt('Copy link này:', shareUrl));
@@ -761,8 +764,7 @@ window.shareLocation = function(lat, lng, name) {
 
 async function saveSharedLink(fromName, toName, url) {
   if (!currentUser) return;
-  const newRef = push(ref(db, `users/${currentUser.uid}/sharedLinks`));
-  await set(newRef, { fromName, toName, url, timestamp: Date.now() });
+  await set(push(ref(db, `users/${currentUser.uid}/sharedLinks`)), { fromName, toName, url, timestamp: Date.now() });
   loadSharedLinks();
 }
 
@@ -772,12 +774,10 @@ async function loadSharedLinks() {
   try {
     const snapshot = await get(child(ref(db), `users/${currentUser.uid}/sharedLinks`));
     if (snapshot.exists()) {
-      const data = snapshot.val();
-      const items = Object.values(data).sort((a,b) => b.timestamp - a.timestamp);
+      const items = Object.values(snapshot.val()).sort((a,b) => b.timestamp - a.timestamp);
       list.innerHTML = '';
       items.forEach(item => {
-        const date = new Date(item.timestamp).toLocaleString('vi-VN');
-        list.innerHTML += `<div class="history-item"><div class="time">${date}</div><div class="route"><i class="fas fa-circle"></i> ${item.fromName} <i class="fas fa-arrow-right" style="font-size:0.7rem; margin:0 4px; color:var(--text-muted)"></i> <i class="fas fa-circle end"></i> ${item.toName}</div><button onclick="navigator.clipboard.writeText('${item.url}').then(()=>alert('Đã copy!'))" style="margin-top:8px; padding:6px 12px; background:var(--primary); color:white; border-radius:6px; font-size:0.75rem;"><i class="fas fa-copy"></i> Copy Link</button></div>`;
+        list.innerHTML += `<div class="history-item"><div class="time">${new Date(item.timestamp).toLocaleString('vi-VN')}</div><div class="route"><i class="fas fa-circle"></i> ${item.fromName} <i class="fas fa-arrow-right" style="font-size:0.7rem; margin:0 4px; color:var(--text-muted)"></i> <i class="fas fa-circle end"></i> ${item.toName}</div><button onclick="navigator.clipboard.writeText('${item.url}').then(()=>alert('Đã copy!'))" style="margin-top:8px; padding:6px 12px; background:var(--primary); color:white; border-radius:6px; font-size:0.75rem;"><i class="fas fa-copy"></i> Copy Link</button></div>`;
       });
     } else list.innerHTML = '<div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có link nào</div>';
   } catch (e) { list.innerHTML = 'Lỗi tải link.'; }
@@ -1011,8 +1011,8 @@ async function startRouteFromSheet() {
   document.getElementById('mainLocateBtn').classList.add('hidden');
   document.getElementById('mainDirBtn').classList.add('hidden');
   document.querySelector('.fab-layers').classList.add('hidden');
-  document.querySelector('.fab-report').classList.add('hidden'); // Ẩn nút báo cáo tạm thời khi đang chạy
   document.getElementById('hud').classList.remove('hidden');
+  // Nút report vẫn hiện (không thêm class hidden)
   
   const fromStr = `${startPoint.lng},${startPoint.lat}`; const toStr = `${endPoint.lng},${endPoint.lat}`;
   const url = `${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}`;
@@ -1043,7 +1043,6 @@ async function startRouteFromSheet() {
     document.getElementById('mainLocateBtn').classList.remove('hidden');
     document.getElementById('mainDirBtn').classList.remove('hidden');
     document.querySelector('.fab-layers').classList.remove('hidden');
-    document.querySelector('.fab-report').classList.remove('hidden');
   }
 }
 
@@ -1067,7 +1066,6 @@ function startWatching() {
     animateMarkerTo(lastUserPos);
     if (map) map.panTo([lastUserPos.lat, lastUserPos.lng], { animate: true, duration: 0.5 });
 
-    // Kiểm tra báo cáo gần đây
     checkReportProximity(lastUserPos.lat, lastUserPos.lng);
   }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
 }
@@ -1106,17 +1104,32 @@ function calcDist(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// Swipe
+// ==========================================
+// VUỐT BẢNG XUỐNG ĐỂ ĐÓNG (ĐÃ FIX LỖI TOUCH)
+// ==========================================
 let sheetTouchStartY = 0; let isSwiping = false;
 const dirSheet = document.getElementById('dirSheet');
+
 dirSheet.addEventListener('touchstart', (e) => {
-  if (e.target.closest('.dir-handle') || e.target.closest('.dir-header')) { sheetTouchStartY = e.touches[0].clientY; isSwiping = true; dirSheet.style.transition = 'none'; }
+  // Chỉ vuốt khi chạm vào handle, header hoặc khoảng trống trên cùng của bảng
+  // Bỏ qua nếu chạm vào input để tránh xung đột gõ phím
+  if (e.target.tagName === 'INPUT') return;
+  
+  if (e.target.closest('.dir-handle') || e.target.closest('.dir-header') || e.target.classList.contains('dir-sheet')) {
+    sheetTouchStartY = e.touches[0].clientY;
+    isSwiping = true;
+    dirSheet.style.transition = 'none';
+  }
 }, { passive: true });
+
 dirSheet.addEventListener('touchmove', (e) => {
   if (!isSwiping) return;
   const deltaY = e.touches[0].clientY - sheetTouchStartY;
-  if (deltaY > 0) dirSheet.style.transform = `translateY(${deltaY}px)`;
+  if (deltaY > 0) {
+    dirSheet.style.transform = `translateY(${deltaY}px)`;
+  }
 }, { passive: true });
+
 dirSheet.addEventListener('touchend', (e) => {
   if (!isSwiping) return;
   const deltaY = e.changedTouches[0].clientY - sheetTouchStartY;
@@ -1128,7 +1141,9 @@ dirSheet.addEventListener('touchend', (e) => {
 
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' || e.key === 'Esc') closeDirections(); });
 
-// Lịch sử
+// ==========================================
+// LỊCH SỬ
+// ==========================================
 async function saveHistory(start, end, distance) {
   if (!currentUser) return;
   await set(push(ref(db, `users/${currentUser.uid}/history`)), { startName: start.name, endName: end.name, distance, timestamp: Date.now() });
@@ -1162,6 +1177,9 @@ window.changeLayer = changeLayer;
 window.toggleTheme = toggleTheme;
 window.shareRoute = shareRoute;
 window.shareLocation = shareLocation;
+window.submitReport = submitReport;
+window.openReportMenu = openReportMenu;
+window.closeReportMenu = closeReportMenu;
 
 </script>
 </body>
