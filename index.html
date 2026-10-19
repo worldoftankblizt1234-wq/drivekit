@@ -234,7 +234,8 @@ input:checked + .slider:before { transform: translateX(20px); }
 </div>
 
 <div id="appUI" class="hidden">
-  <div id="map" onclick="closeDirections()"></div>
+  <!-- LỖI CLICK XUYÊN QUA MAP: Ngăn chặn sự kiện click của map khi bấm vào nút -->
+  <div id="map"></div>
 
   <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
     <i class="fas fa-search"></i>
@@ -406,7 +407,6 @@ input:checked + .slider:before { transform: translateX(20px); }
   </div>
 </div>
 
-<!-- NEW: SAVE PLACE MODAL -->
 <div class="save-place-modal" id="savePlaceModal">
   <div class="save-place-box">
     <h3><i class="fas fa-map-pin" style="color:var(--primary);"></i> Lưu địa điểm</h3>
@@ -668,6 +668,10 @@ function logout() { signOut(auth); closeMenu(); }
 function initMap() {
   if (map) return;
   map = L.map('map', { center: initialCenter, zoom: initialZoom, zoomControl: false });
+  
+  // Bắt sự kiện click map để đóng bảng
+  map.on('click', () => { closeDirections(); });
+
   setTimeout(() => { changeLayer('trackasia', document.querySelector('.layer-option.active')); }, 100);
 
   let pressTimer = null;
@@ -722,13 +726,6 @@ function initMap() {
 
   function endPress(e) {
     clearTimeout(pressTimer); cancelPress();
-    if (!isDragging && isMouseDown) {
-      const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
-      const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
-      const rect = mapContainer.getBoundingClientRect();
-      const latlng = map.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
-      showLocationPopup(latlng);
-    }
     isMouseDown = false;
   }
 
@@ -746,11 +743,11 @@ function initMap() {
 
   map.on('dragstart', () => { clearTouchMarker(); });
   map.on('zoomstart', () => { clearTouchMarker(); });
-  mapContainer.addEventListener('contextmenu', (e) => { e.preventDefault(); closeDirections(); });
+  mapContainer.addEventListener('contextmenu', (e) => { e.preventDefault(); });
 
   async function showLocationPopup(latlng) {
     clearTouchMarker();
-    const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
+    const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', size: [24,24], className: 'custom-touch-marker' });
     touchMarker = L.marker(latlng, { icon }).addTo(map);
     const popupContent = document.createElement('div');
     popupContent.innerHTML = `<div style="text-align:center; padding:5px; color:var(--text);"><i class="fas fa-spinner fa-spin"></i> Đang lấy địa chỉ...</div>`;
@@ -766,15 +763,34 @@ function initMap() {
     const displayName = name || `Tọa độ: ${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
     if (!touchMarker) return;
 
-    popupContent.innerHTML = `
-      <div style="min-width: 180px;">
-        <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: var(--text);">${displayName}</div>
-        <button onclick="event.stopPropagation(); goToLongPressLocation(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
-        <button onclick="event.stopPropagation(); openSavePlaceModal(${latlng.lat}, ${latlng.lng})" style="width: 100%; padding: 10px; background: var(--warning); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-bookmark"></i> Lưu địa điểm</button>
-        <button onclick="event.stopPropagation(); shareLocation(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fas fa-share-alt"></i> Chia sẻ địa điểm</button>
-      </div>
-    `;
-    touchMarker.setPopupContent(popupContent).openPopup();
+    // ✅ SỬ DỤNG NÚT VỚI SỰ KIỆN JS ĐỂ TRÁNH BỊ ĐÓNG BẢNG DO CLICK XUYÊN QUA
+    const btnContainer = document.createElement('div');
+    btnContainer.style.minWidth = '180px';
+    
+    const nameDiv = document.createElement('div');
+    nameDiv.style.cssText = 'font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: var(--text);';
+    nameDiv.textContent = displayName;
+    btnContainer.appendChild(nameDiv);
+
+    const btnGo = document.createElement('button');
+    btnGo.style.cssText = 'width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;';
+    btnGo.innerHTML = '<i class="fas fa-location-arrow"></i> Tới chỗ này';
+    btnGo.onclick = (ev) => { ev.stopPropagation(); ev.preventDefault(); goToLongPressLocation(latlng.lat, latlng.lng, displayName); };
+    btnContainer.appendChild(btnGo);
+
+    const btnSave = document.createElement('button');
+    btnSave.style.cssText = 'width: 100%; padding: 10px; background: var(--warning); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;';
+    btnSave.innerHTML = '<i class="fas fa-bookmark"></i> Lưu địa điểm';
+    btnSave.onclick = (ev) => { ev.stopPropagation(); ev.preventDefault(); openSavePlaceModal(latlng.lat, latlng.lng); };
+    btnContainer.appendChild(btnSave);
+
+    const btnShare = document.createElement('button');
+    btnShare.style.cssText = 'width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;';
+    btnShare.innerHTML = '<i class="fas fa-share-alt"></i> Chia sẻ địa điểm';
+    btnShare.onclick = (ev) => { ev.stopPropagation(); ev.preventDefault(); shareLocation(latlng.lat, latlng.lng, displayName); };
+    btnContainer.appendChild(btnShare);
+
+    touchMarker.setPopupContent(btnContainer).openPopup();
   }
 }
 
@@ -1607,10 +1623,15 @@ window.goToLongPressLocation = function(lat, lng, name) {
   document.getElementById('topSearchInput').value = name;
   document.getElementById('btnClearEnd').classList.remove('hidden');
   document.getElementById('searchClearBtn').classList.remove('hidden');
-  if (map) map.closePopup();
-  map.eachLayer(layer => { if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') map.removeLayer(layer); });
+  
+  if (map) {
+    map.closePopup();
+    map.eachLayer(layer => { if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') map.removeLayer(layer); });
+  }
+  
+  // Mở bảng điều hướng và tự động gọi tìm đường
   openDirections();
-  if (!startPoint) refreshGPS();
+  fetchAndShowRouteOptions();
 };
 
 function escapeHtml(text) { return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
