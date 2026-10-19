@@ -71,9 +71,30 @@ button { cursor: pointer; }
 .hud-btn.stop { background: var(--danger); color: white; }
 .hud-btn.swap { background: var(--warning); color: white; border-color: transparent; }
 
-/* NÚT KẾT THÚC CÓ TEXT */
-.hud-btn.end-trip-btn-hud { width: 56px; height: 48px; flex-direction: column; gap: 2px; font-size: 0.6rem; padding: 2px; background: var(--danger); color: white; border-color: transparent; }
-.hud-btn.end-trip-btn-hud i { font-size: 1.2rem; }
+/* NÚT KẾT THÚC CHUYẾN ĐI (ĐÃ FIX HIỂN THỊ) */
+.hud-btn.end-trip-btn-hud { 
+  width: 60px; 
+  height: 48px; 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  justify-content: center; 
+  gap: 2px; 
+  font-size: 0.65rem; 
+  font-weight: 800;
+  padding: 2px; 
+  background: var(--danger); 
+  color: white; 
+  border: none; 
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4);
+}
+.hud-btn.end-trip-btn-hud i { 
+  font-size: 1.1rem; 
+}
+.hud-btn.end-trip-btn-hud:active { 
+  transform: scale(0.95); 
+}
 
 .floating-search { position: fixed; top: calc(16px + var(--safe-top)); left: 16px; right: 60px; z-index: 1000; background: var(--card); border-radius: 24px; padding: 10px 16px; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid var(--border); cursor: pointer; }
 .floating-search input { flex: 1; background: transparent; color: var(--text); font-size: 0.9rem; font-weight: 600; pointer-events: none; }
@@ -266,6 +287,9 @@ input:checked + .slider:before { transform: translateX(20px); }
         <i class="fas fa-motorcycle"></i> Xe máy
       </button>
     </div>
+    <p style="font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-top: -4px; margin-bottom: 8px; line-height: 1.2;">
+      <i class="fas fa-info-circle"></i> Dữ liệu cấm tải tại VN có thể chưa cập nhật. Tài xế xe tải vui lòng chú ý biển báo thực tế!
+    </p>
 
     <button class="btn-auth btn-email" style="margin-top:6px; margin-bottom:0;" onclick="fetchAndShowRouteOptions()">
       <i class="fas fa-search-location"></i> Xem tất cả tuyến đường
