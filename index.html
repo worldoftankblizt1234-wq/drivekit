@@ -16,16 +16,12 @@
 <script src="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js"></script>
 <link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
-
 <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
 <script>
-  if (window.location.search.includes('debug=1')) {
-    window.vConsole = new window.VConsole();
-  }
+  if (window.location.search.includes('debug=1')) window.vConsole = new window.VConsole();
 </script>
 
 <style>
-/* CSS TỐI ƯU CHO MOBILE APP */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
   --bg: #0f172a; --bg-2: #1e293b; --card: #1e293b; --card-2: #334155;
@@ -34,25 +30,20 @@
   --font-main: 'Be Vietnam Pro', sans-serif; --font-mono: 'Fira Code', monospace;
   --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
-
-/* CHẾ ĐỘ SÁNG */
 body.light-mode {
   --bg: #f8fafc; --bg-2: #e2e8f0; --card: #ffffff; --card-2: #f1f5f9;
   --border: #cbd5e1; --text: #0f172a; --text-muted: #64748b;
 }
-
 html, body { width: 100%; height: 100%; overflow: hidden; font-family: var(--font-main); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; user-select: none; transition: background 0.3s, color 0.3s; }
 button, input { font-family: inherit; outline: none; border: none; }
 button { cursor: pointer; }
 .hidden { display: none !important; }
 
-/* MAP */
 #map { position: fixed; inset: 0; z-index: 1; background: var(--bg); }
 .leaflet-container { font-family: var(--font-main) !important; }
 .leaflet-control-attribution { font-size: 9px !important; background: rgba(15,23,42,0.7) !important; color: #94a3b8 !important; }
 .leaflet-control-attribution a { color: #60a5fa !important; }
 
-/* HUD */
 .hud-top { position: fixed; top: 0; left: 0; right: 0; z-index: 500; padding: calc(10px + var(--safe-top)) 12px 10px; display: flex; gap: 8px; pointer-events: none; }
 .hud-stat { flex: 1; background: rgba(15,23,42,0.9); backdrop-filter: blur(10px); border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; pointer-events: auto; }
 .hud-stat .label { font-size: 0.6rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
@@ -73,7 +64,6 @@ button { cursor: pointer; }
 .hud-btn.stop { background: var(--danger); color: white; }
 .hud-btn.swap { background: var(--warning); color: white; border-color: transparent; }
 
-/* SEARCH & FAB */
 .floating-search { position: fixed; top: calc(16px + var(--safe-top)); left: 16px; right: 60px; z-index: 1000; background: var(--card); border-radius: 24px; padding: 10px 16px; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid var(--border); cursor: pointer; }
 .floating-search input { flex: 1; background: transparent; color: var(--text); font-size: 0.9rem; font-weight: 600; pointer-events: none; }
 .floating-search i.fa-search { color: var(--primary); font-size: 1.1rem; }
@@ -85,7 +75,6 @@ button { cursor: pointer; }
 .fab-layers { position: fixed; bottom: calc(80px + var(--safe-bottom)); left: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
 .fab-report { position: fixed; bottom: calc(80px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, var(--danger), #f97316); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(239,68,68,0.4); }
 
-/* MODALS */
 .route-options-modal, .report-modal, .profile-modal { position: fixed; inset: 0; z-index: 2500; background: var(--bg); display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s ease-in-out; }
 .profile-modal { transform: translateX(100%); }
 .route-options-modal.open, .report-modal.open, .profile-modal.open { transform: translate(0); }
@@ -95,7 +84,7 @@ button { cursor: pointer; }
 .route-options-body { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
 .route-card { background: var(--card); border: 2px solid var(--border); border-radius: 16px; padding: 16px; cursor: pointer; transition: all 0.2s; display: flex; justify-content: space-between; align-items: center; }
 .route-card.active { border-color: var(--primary); background: rgba(59,130,246,0.05); }
-.route-card .info h3 { font-size: 1.1rem; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+.route-card .info h3 { font-size: 1.05rem; font-weight: 800; color: var(--text); margin-bottom: 4px; }
 .route-card .info p { font-size: 0.85rem; color: var(--text-muted); }
 .route-card .badge { background: var(--success); color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
 
@@ -159,11 +148,40 @@ input:checked + .slider:before { transform: translateX(20px); }
 .loading-screen { position: fixed; inset: 0; z-index: 5000; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 20px; }
 .spinner { width: 50px; height: 50px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* ══════ NEW: VEHICLE MODE ══════ */
+.vehicle-selector { display: flex; gap: 8px; margin: 8px 0; }
+.vehicle-mode-btn { flex: 1; padding: 10px 6px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; color: var(--text-muted); font-weight: 700; font-size: 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; transition: all 0.2s; }
+.vehicle-mode-btn.active { background: var(--primary); color: white; border-color: transparent; box-shadow: 0 3px 10px rgba(59,130,246,0.3); }
+.vehicle-mode-btn i { font-size: 1.15rem; }
+.vehicle-mode-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ══════ NEW: SORT CHIPS ══════ */
+.sort-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+.sort-chip { padding: 6px 14px; border-radius: 20px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text-muted); font-size: 0.75rem; font-weight: 700; cursor: pointer; }
+.sort-chip.active { background: var(--primary); color: white; border-color: transparent; }
+
+/* ══════ NEW: ROUTE BADGE ON MAP ══════ */
+.route-num-badge { background: white; border: 3px solid currentColor; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.85rem; box-shadow: 0 3px 8px rgba(0,0,0,0.3); }
+
+/* ══════ NEW: END TRIP MODAL ══════ */
+.end-trip-modal { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; padding: 24px; }
+.end-trip-modal.open { display: flex; }
+.end-trip-box { background: var(--card); border-radius: 20px; padding: 24px; max-width: 380px; width: 100%; border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: popIn 0.25s ease-out; }
+@keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.end-trip-box h2 { font-size: 1.3rem; text-align: center; margin-bottom: 20px; color: var(--text); }
+.end-trip-stats { background: var(--bg-2); border-radius: 12px; padding: 16px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px; }
+.end-trip-stats .row { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; color: var(--text-muted); }
+.end-trip-stats .row b { color: var(--text); font-family: var(--font-mono); font-size: 1rem; }
+.end-trip-btn { width: 100%; padding: 14px; border-radius: 12px; font-weight: 800; font-size: 0.95rem; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: opacity 0.2s; }
+.end-trip-btn:active { opacity: 0.7; }
+.end-trip-btn.save { background: var(--success); color: white; }
+.end-trip-btn.discard { background: var(--bg-2); color: var(--text); border: 1px solid var(--border); }
+.end-trip-btn.cancel { background: transparent; color: var(--text-muted); border: 1px solid var(--border); margin-bottom: 0; }
 </style>
 </head>
 <body>
 
-<!-- LOADING SCREEN -->
 <div class="loading-screen" id="loadingScreen">
   <div class="spinner"></div>
   <div style="text-align:center;">
@@ -172,7 +190,6 @@ input:checked + .slider:before { transform: translateX(20px); }
   </div>
 </div>
 
-<!-- AUTH SCREEN -->
 <div class="auth-screen hidden" id="authScreen">
   <div class="auth-box">
     <h2 id="authTitle">DriveKit 🚌</h2>
@@ -190,9 +207,7 @@ input:checked + .slider:before { transform: translateX(20px); }
   </div>
 </div>
 
-<!-- MAIN MAP & UI -->
 <div id="appUI" class="hidden">
-  
   <div id="map" onclick="closeDirections()"></div>
 
   <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
@@ -200,11 +215,11 @@ input:checked + .slider:before { transform: translateX(20px); }
     <input type="text" id="topSearchInput" placeholder="Tìm địa điểm hoặc dán link Google Maps..." readonly />
     <i class="fas fa-times search-clear-btn hidden" id="searchClearBtn" onclick="event.stopPropagation(); clearTopSearch()"></i>
   </div>
-  
+
   <button class="fab-menu" id="mainMenuBtn" onclick="openMenu()"><i class="fas fa-bars"></i></button>
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
   <button class="fab-layers" onclick="toggleLayerMenu()"><i class="fas fa-layer-group"></i></button>
-  
+
   <div class="layer-menu" id="layerMenu" style="position: fixed; bottom: calc(140px + var(--safe-bottom)); left: 16px; z-index: 1000; background: var(--card); border-radius: 12px; padding: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); border: 1px solid var(--border); display: none; flex-direction: column; gap: 4px;">
     <button class="layer-option active" onclick="changeLayer('trackasia', this)"><i class="fas fa-map"></i> TrackAsia</button>
     <button class="layer-option" onclick="changeLayer('mapbox', this)"><i class="fas fa-map-marked-alt"></i> Mapbox</button>
@@ -228,8 +243,22 @@ input:checked + .slider:before { transform: translateX(20px); }
       <input type="text" id="dirInputEnd" placeholder="Điểm đến" readonly onclick="activateSearch('end')" />
       <button class="btn-clear-input hidden" id="btnClearEnd" onclick="clearPoint('end')"><i class="fas fa-times"></i></button>
     </div>
+
+    <!-- ══════ NEW: VEHICLE MODE ══════ -->
+    <div class="vehicle-selector">
+      <button class="vehicle-mode-btn active" data-mode="driving" onclick="setVehicleMode('driving', this)">
+        <i class="fas fa-car"></i> Ô tô
+      </button>
+      <button class="vehicle-mode-btn" data-mode="truck" onclick="setVehicleMode('truck', this)">
+        <i class="fas fa-truck"></i> Xe tải
+      </button>
+      <button class="vehicle-mode-btn" data-mode="motorcycle" onclick="setVehicleMode('motorcycle', this)">
+        <i class="fas fa-motorcycle"></i> Xe máy
+      </button>
+    </div>
+
     <button class="btn-auth btn-email" style="margin-top:6px; margin-bottom:0;" onclick="fetchAndShowRouteOptions()">
-      <i class="fas fa-search-location"></i> Đánh giá & Chọn đường
+      <i class="fas fa-search-location"></i> Xem tất cả tuyến đường
     </button>
   </div>
 
@@ -253,24 +282,21 @@ input:checked + .slider:before { transform: translateX(20px); }
       <div style="display:flex; gap:8px;">
         <button class="hud-btn swap" onclick="openAlternativeRoutes()" title="Đổi đường"><i class="fas fa-random"></i></button>
         <button class="hud-btn" id="hudBtnVoice"><i class="fas fa-volume-up"></i></button>
-        <button class="hud-btn stop" onclick="stopRoute()"><i class="fas fa-stop"></i></button>
+        <!-- ══════ NEW: KẾT THÚC CHUYẾN ══════ -->
+        <button class="hud-btn stop" onclick="openEndTripModal()" title="Kết thúc chuyến"><i class="fas fa-flag-checkered"></i></button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ROUTE OPTIONS MODAL -->
 <div class="route-options-modal" id="routeOptionsModal">
   <div class="route-options-header">
     <h2><i class="fas fa-route"></i> Các tuyến đường gợi ý</h2>
     <button class="report-close" onclick="closeRouteOptions()" style="background:var(--bg-2);color:var(--text);"><i class="fas fa-times"></i></button>
   </div>
-  <div class="route-options-body" id="routeOptionsBody">
-    <!-- Nội dung render tự động bằng JS -->
-  </div>
+  <div class="route-options-body" id="routeOptionsBody"></div>
 </div>
 
-<!-- REPORT MODAL -->
 <div class="report-modal" id="reportModal">
   <div class="report-header">
     <h2>Báo cáo sự cố</h2>
@@ -285,7 +311,6 @@ input:checked + .slider:before { transform: translateX(20px); }
   </div>
 </div>
 
-<!-- PROFILE MODAL -->
 <div class="profile-modal" id="profileModal">
   <div class="profile-header">
     <button class="profile-close" onclick="closeMenu()"><i class="fas fa-times"></i></button>
@@ -294,13 +319,11 @@ input:checked + .slider:before { transform: translateX(20px); }
     <div class="profile-email" id="profileEmail">...</div>
     <div class="profile-time" id="profileTime">00:00:00</div>
   </div>
-
   <div class="profile-body">
     <button class="profile-btn" onclick="shareRoute()">
       <span><i class="fas fa-share-alt"></i> Chia sẻ lộ trình hiện tại</span>
       <i class="fas fa-chevron-right"></i>
     </button>
-
     <div class="profile-btn" style="cursor: default;">
       <span><i class="fas fa-moon"></i> Chế độ Sáng / Tối</span>
       <label class="switch">
@@ -308,31 +331,43 @@ input:checked + .slider:before { transform: translateX(20px); }
         <span class="slider"></span>
       </label>
     </div>
-
     <div class="profile-card">
       <h3><i class="fas fa-bookmark"></i> Lộ trình đã lưu</h3>
       <div class="history-list" id="savedRoutesList">
         <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có lộ trình nào được lưu</div>
       </div>
     </div>
-
     <div class="profile-card">
       <h3><i class="fas fa-history"></i> Lịch sử chuyến đi</h3>
       <div class="history-list" id="historyList">
         <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có chuyến đi nào</div>
       </div>
     </div>
-
     <div class="profile-card">
       <h3><i class="fas fa-link"></i> Link đã chia sẻ</h3>
       <div class="history-list" id="sharedLinksList">
         <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có link nào</div>
       </div>
     </div>
-
     <button class="profile-btn logout" onclick="logout()">
       <span><i class="fas fa-sign-out-alt"></i> Đăng xuất</span>
     </button>
+  </div>
+</div>
+
+<!-- ══════ NEW: END TRIP MODAL ══════ -->
+<div class="end-trip-modal" id="endTripModal">
+  <div class="end-trip-box">
+    <h2>🏁 Hoàn thành chuyến đi</h2>
+    <div class="end-trip-stats">
+      <div class="row"><span><i class="fas fa-road"></i> Quãng đường</span><b id="endTripDist">—</b></div>
+      <div class="row"><span><i class="fas fa-clock"></i> Thời gian</span><b id="endTripTime">—</b></div>
+      <div class="row"><span><i class="fas fa-tachometer-alt"></i> Tốc độ TB</span><b id="endTripAvgSpeed">—</b></div>
+      <div class="row"><span><i class="fas fa-map-marker-alt"></i> Điểm đến</span><b id="endTripDest" style="font-size:0.85rem; font-family:var(--font-main); max-width:160px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">—</b></div>
+    </div>
+    <button class="end-trip-btn save" onclick="endTrip(true)"><i class="fas fa-save"></i> Lưu & Kết thúc</button>
+    <button class="end-trip-btn discard" onclick="endTrip(false)"><i class="fas fa-flag-checkered"></i> Kết thúc không lưu</button>
+    <button class="end-trip-btn cancel" onclick="closeEndTripModal()"><i class="fas fa-arrow-left"></i> Tiếp tục chuyến đi</button>
   </div>
 </div>
 
@@ -344,7 +379,7 @@ import { getDatabase, ref, push, set, get, child, onValue } from "https://www.gs
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
   authDomain: "drivekit-c88ef.firebaseapp.com",
-  databaseURL: "https://drivekit-c88ef-default-rtdb.asia-southeast1.firebasedatabase.app", 
+  databaseURL: "https://drivekit-c88ef-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "drivekit-c88ef",
   storageBucket: "drivekit-c88ef.firebasestorage.app",
   messagingSenderId: "1073887619343",
@@ -356,7 +391,7 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
-const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f'; 
+const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
 
 // --- STATE ---
 let map = null;
@@ -366,34 +401,41 @@ let endPoint = null;
 let userMarker = null;
 let gpsCircle = null;
 let currentRouteLayer = null;
-let alternativeLayers = []; 
-let currentRouteCoords = []; 
-let currentRouteData = null; 
-let alternativeRoutesData = []; 
+let alternativeLayers = [];
+let currentRouteCoords = [];
+let currentRouteData = null;
+let alternativeRoutesData = [];
 let watchId = null;
 let lastUserPos = null;
 let lastHeading = 0;
-let searchContext = 'view'; 
+let searchContext = 'view';
 let currentMapLayer = null;
-let initialCenter = [21.0285, 105.8542]; 
-let initialZoom = 17; 
-let lastSnapIndex = 0; 
-let smoothedSpeed = 0; 
+let initialCenter = [21.0285, 105.8542];
+let initialZoom = 17;
+let lastSnapIndex = 0;
+let smoothedSpeed = 0;
 
-// --- OFF-ROUTE STATE ---
 let offRouteCount = 0;
 let isRerouting = false;
 
-// --- REPORT STATE ---
-let activeReports = {}; 
+let activeReports = {};
 let reportMarkers = [];
 let warnedReports = new Set();
 
-// --- VOICE STATE ---
 let voiceEnabled = true;
 let voiceRouteSteps = null;
 let voiceStepIndex = 0;
 let voiceCheckTimer = null;
+// FIX: khai báo trước 2 biến này (tránh ReferenceError trong autoReroute)
+let voiceSpokenMarks = new Map();
+let voiceArrivalSpoken = false;
+
+// --- NEW STATE ---
+let currentVehicleMode = 'driving'; // driving | truck | motorcycle
+let currentSortMode = 'fastest';    // fastest | shortest
+let tripStartTime = null;
+
+const ROUTE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 
 // ==========================================
 // THEME & TIME
@@ -419,7 +461,7 @@ setInterval(() => {
 }, 1000);
 
 // ==========================================
-// AUTHENTICATION
+// AUTH
 // ==========================================
 function getAuthErrorMessage(errorCode) {
   switch (errorCode) {
@@ -428,7 +470,7 @@ function getAuthErrorMessage(errorCode) {
     case 'auth/user-not-found': return 'Tài khoản không tồn tại. Vui lòng đăng ký.';
     case 'auth/wrong-password': return 'Mật khẩu không chính xác.';
     case 'auth/invalid-credential': return 'Tài khoản hoặc mật khẩu không đúng.';
-    case 'auth/email-already-in-use': return 'Email này đã được đăng ký. Vui lòng đăng nhập.';
+    case 'auth/email-already-in-use': return 'Email này đã được đăng ký.';
     case 'auth/weak-password': return 'Mật khẩu quá yếu (phải từ 6 ký tự).';
     default: return 'Có lỗi xảy ra. Vui lòng thử lại sau.';
   }
@@ -485,7 +527,7 @@ btnSubmitAuth.addEventListener('click', async () => {
 });
 
 document.getElementById('btnGoogleAuth').addEventListener('click', async () => {
-  try { await signInWithPopup(auth, new GoogleAuthProvider()); } 
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
   catch (e) { authError.textContent = getAuthErrorMessage(e.code); authError.style.display = 'block'; }
 });
 
@@ -503,7 +545,6 @@ onAuthStateChanged(auth, (user) => {
       startPoint = { lat: parseFloat(params.get('fromLat')), lng: parseFloat(params.get('fromLng')), name: params.get('fromName') || 'Điểm đi' };
       endPoint = { lat: parseFloat(params.get('toLat')), lng: parseFloat(params.get('toLng')), name: params.get('toName') || 'Điểm đến' };
       initialCenter = [startPoint.lat, startPoint.lng];
-      
       setTimeout(() => {
         document.getElementById('dirInputStart').value = startPoint.name;
         document.getElementById('dirInputEnd').value = endPoint.name;
@@ -511,13 +552,13 @@ onAuthStateChanged(auth, (user) => {
         document.getElementById('btnClearStart').classList.remove('hidden');
         document.getElementById('btnClearEnd').classList.remove('hidden');
         document.getElementById('searchClearBtn').classList.remove('hidden');
-        
+
         if (startPoint.lat === endPoint.lat && startPoint.lng === endPoint.lng) {
-            const orangeIcon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#f97316;border:3px solid white;box-shadow:0 0 10px rgba(249,115,22,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
-            L.marker([startPoint.lat, startPoint.lng], { icon: orangeIcon }).addTo(map).bindPopup(`<b>📍 Vị trí được chia sẻ</b>`).openPopup();
+          const orangeIcon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#f97316;border:3px solid white;box-shadow:0 0 10px rgba(249,115,22,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
+          L.marker([startPoint.lat, startPoint.lng], { icon: orangeIcon }).addTo(map).bindPopup(`<b>📍 Vị trí được chia sẻ</b>`).openPopup();
         } else {
-            const orangeIcon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#f97316;border:3px solid white;box-shadow:0 0 10px rgba(249,115,22,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
-            L.marker([endPoint.lat, endPoint.lng], { icon: orangeIcon }).addTo(map).bindPopup(`<b>📍 Điểm đến được chia sẻ</b>`).openPopup();
+          const orangeIcon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#f97316;border:3px solid white;box-shadow:0 0 10px rgba(249,115,22,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
+          L.marker([endPoint.lat, endPoint.lng], { icon: orangeIcon }).addTo(map).bindPopup(`<b>📍 Điểm đến được chia sẻ</b>`).openPopup();
         }
       }, 1000);
     }
@@ -548,7 +589,6 @@ function finishAuthInit() {
   document.getElementById('appUI').classList.remove('hidden');
   initMap();
   initReports();
-  
   if (lastUserPos) {
     if (!startPoint) {
       startPoint = { lat: lastUserPos.lat, lng: lastUserPos.lng, name: 'Vị trí của tôi' };
@@ -562,7 +602,7 @@ function finishAuthInit() {
 function logout() { signOut(auth); closeMenu(); }
 
 // ==========================================
-// MAP & UI LOGIC
+// MAP INIT
 // ==========================================
 function initMap() {
   if (map) return;
@@ -570,7 +610,7 @@ function initMap() {
   setTimeout(() => { changeLayer('trackasia', document.querySelector('.layer-option.active')); }, 100);
 
   let pressTimer = null;
-  let touchMarker = null; 
+  let touchMarker = null;
   let startX = 0, startY = 0;
   let isDragging = false;
   let isMouseDown = false;
@@ -580,7 +620,7 @@ function initMap() {
   document.body.appendChild(pressIndicator);
 
   const mapContainer = map.getContainer();
-  mapContainer.style.touchAction = 'none'; 
+  mapContainer.style.touchAction = 'none';
 
   function clearTouchMarker() {
     if (touchMarker) { map.removeLayer(touchMarker); touchMarker = null; }
@@ -613,10 +653,10 @@ function initMap() {
 
     pressTimer = setTimeout(() => {
       if (isDragging) return;
-      cancelPress(); 
+      cancelPress();
       if (navigator.vibrate) navigator.vibrate(50);
       showLocationPopup(latlng);
-    }, e.type === 'touchstart' ? 400 : 300); 
+    }, e.type === 'touchstart' ? 400 : 300);
   }
 
   function endPress(e) {
@@ -648,7 +688,7 @@ function initMap() {
   mapContainer.addEventListener('contextmenu', (e) => { e.preventDefault(); closeDirections(); });
 
   async function showLocationPopup(latlng) {
-    clearTouchMarker(); 
+    clearTouchMarker();
     const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
     touchMarker = L.marker(latlng, { icon }).addTo(map);
     const popupContent = document.createElement('div');
@@ -677,185 +717,281 @@ function initMap() {
 }
 
 // ==========================================
-// AUTO REROUTING (ĐI SAI ĐƯỜNG)
+// TRACKASIA PARALLEL ROUTING
 // ==========================================
-function checkOffRoute(userLat, userLng) {
-  if (!currentRouteCoords || currentRouteCoords.length < 2 || isRerouting) return;
-
-  let minDist = Infinity;
-  const startScan = Math.max(0, lastSnapIndex - 10);
-  const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 150);
-
-  for (let i = startScan; i < endScan; i++) {
-    const pt = getClosestPointOnSegment(
-      { lat: userLat, lng: userLng }, 
-      { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] }, 
-      { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] }
-    );
-    const d = calcDist(userLat, userLng, pt.lat, pt.lng);
-    if (d < minDist) minDist = d;
+function decodePolyline(str, precision = 5) {
+  if (!str) return [];
+  let index = 0, lat = 0, lng = 0;
+  const coordinates = [];
+  const factor = Math.pow(10, precision);
+  while (index < str.length) {
+    let shift = 0, result = 0, b;
+    do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    coordinates.push([lat / factor, lng / factor]);
   }
-
-  if (minDist > 50) {
-    offRouteCount++;
-    if (offRouteCount >= 3) { 
-      offRouteCount = 0;
-      autoReroute(userLat, userLng);
-    }
-  } else {
-    offRouteCount = 0; 
-  }
+  return coordinates;
 }
 
-async function autoReroute(userLat, userLng) {
-  if (isRerouting) return;
-  isRerouting = true;
-
-  // Tắt thông báo bằng Voice theo yêu cầu
-  // speak('Bạn đã đi chệch hướng. Đang tìm lại đường...');
-
-  const fromStr = `${userLng},${userLat}`;
-  const toStr = `${endPoint.lng},${endPoint.lat}`;
-  const url = `${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}`;
-
-  try {
-    const res = await fetch(url); 
-    const data = await res.json();
-    
-    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
-      throw new Error('Không tìm được đường mới');
-    }
-
-    const r = data.routes[0];
-    voiceRouteSteps = r.legs[0].steps || [];
-    voiceStepIndex = 0;
-    lastSnapIndex = 0;
-    offRouteCount = 0;
-
-    currentRouteCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-    
-    if (currentRouteLayer) map.removeLayer(currentRouteLayer);
-    currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
-    
-    map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
-
-    document.getElementById('hudRemainDist').textContent = (r.distance/1000).toFixed(1) + ' km';
-    document.getElementById('hudRemainTime').textContent = Math.round(r.duration/60) + ' phút';
-    
-    // Không đọc thông báo, chỉ reset biến để nó tự đọc các bước rẽ tiếp theo
-    voiceSpokenMarks = new Map(); 
-    voiceArrivalSpoken = false;
-
-  } catch (e) {
-    console.error('Lỗi Reroute:', e);
-  } finally {
-    isRerouting = false;
+async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
+  const url = `${WORKER_URL}/trackasia-route?origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&mode=${mode}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.status !== 'OK' || !data.routes || data.routes.length === 0) {
+    throw new Error('TrackAsia: ' + (data.status || 'no routes'));
   }
+  return data.routes.map(r => {
+    const leg = r.legs?.[0] || {};
+    let coords = [];
+    if (r.overview_polyline?.points) coords = decodePolyline(r.overview_polyline.points);
+    else if (r.geometry?.coordinates) coords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    else if (leg.steps?.length) {
+      coords = leg.steps.flatMap(s => {
+        if (s.polyline?.points) return decodePolyline(s.polyline.points);
+        if (s.start_location && s.end_location) return [
+          [s.start_location.lat, s.start_location.lng],
+          [s.end_location.lat, s.end_location.lng],
+        ];
+        return [];
+      });
+    }
+    if (coords.length < 2) throw new Error('TrackAsia: invalid polyline');
+
+    const steps = (leg.steps || []).map(step => ({
+      distance: step.distance?.value || 0,
+      duration: step.duration?.value || 0,
+      maneuver: {
+        type: step.maneuver || 'straight',
+        instruction: (step.html_instructions || '').replace(/<[^>]*>/g, ''),
+        location: [step.end_location?.lng ?? from.lng, step.end_location?.lat ?? from.lat],
+      },
+    }));
+
+    return {
+      distance: leg.distance?.value || 0,
+      duration: leg.duration?.value || 0,
+      geometry: { coordinates: coords.map(([lat, lng]) => [lng, lat]) },
+      legs: [{ steps }],
+      provider: 'trackasia',
+      mode,
+    };
+  });
 }
 
 // ==========================================
-// ROUTE OPTIONS LOGIC (ĐÁNH GIÁ ĐƯỜNG ĐI)
+// VEHICLE MODE + SORT
 // ==========================================
-window.fetchAndShowRouteOptions = async function() {
-  if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
-  
-  document.getElementById('routeOptionsBody').innerHTML = '<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px; color:var(--text-muted);">Đang tìm các tuyến đường...</p></div>';
-  document.getElementById('routeOptionsModal').classList.add('open');
-
-  const fromStr = `${startPoint.lng},${startPoint.lat}`; const toStr = `${endPoint.lng},${endPoint.lat}`;
-  const url = `${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}&alternatives=true`;
-  
-  try {
-    const res = await fetch(url); const data = await res.json();
-    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) throw new Error('Không tìm thấy đường');
-    
-    alternativeRoutesData = data.routes;
-    
-    if (currentRouteLayer) map.removeLayer(currentRouteLayer);
-    alternativeLayers.forEach(l => map.removeLayer(l));
-    alternativeLayers = [];
-
-    alternativeRoutesData.forEach((r, index) => {
-      const coords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-      const color = index === 0 ? '#3b82f6' : '#9ca3af';
-      const weight = index === 0 ? 8 : 5;
-      const layer = L.polyline(coords, { color: color, weight: weight, opacity: index === 0 ? 1 : 0.7, dashArray: index === 0 ? '' : '10, 10' }).addTo(map);
-      alternativeLayers.push(layer);
-    });
-
-    const bounds = L.latLngBounds(alternativeRoutesData[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]));
-    map.fitBounds(bounds, { padding: [50, 50] });
-
-    let html = '';
-    alternativeRoutesData.forEach((r, index) => {
-      const dist = (r.distance / 1000).toFixed(1);
-      const dur = Math.round(r.duration / 60);
-      const isOptimal = index === 0;
-      html += `
-        <div class="route-card ${isOptimal ? 'active' : ''}" onclick="selectRouteOption(${index})">
-          <div class="info">
-            <h3>Tuyến ${index + 1} ${isOptimal ? '(Tối ưu nhất)' : ''}</h3>
-            <p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p>
-          </div>
-          ${isOptimal ? '<span class="badge">Đề xuất</span>' : ''}
-        </div>
-      `;
-    });
-    document.getElementById('routeOptionsBody').innerHTML = html;
-
-  } catch (e) {
-    document.getElementById('routeOptionsBody').innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Lỗi: ${e.message}</p></div>`;
+window.setVehicleMode = function(mode, btn) {
+  currentVehicleMode = mode;
+  document.querySelectorAll('.vehicle-mode-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  if (startPoint && endPoint && document.getElementById('routeOptionsModal').classList.contains('open')) {
+    fetchAndShowRouteOptions();
   }
 };
 
+window.changeSort = function(mode) {
+  currentSortMode = mode;
+  if (startPoint && endPoint) fetchAndShowRouteOptions();
+};
+
+// ==========================================
+// FETCH + PREVIEW ALL ROUTES
+// ==========================================
+window.fetchAndShowRouteOptions = async function() {
+  if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
+
+  const modeLabel = currentVehicleMode === 'driving' ? 'ô tô' : currentVehicleMode === 'truck' ? 'xe tải' : 'xe máy';
+  document.getElementById('routeOptionsBody').innerHTML =
+    `<div style="text-align:center; padding:40px;">
+      <i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i>
+      <p style="margin-top:10px; color:var(--text-muted);">Đang tìm tuyến (${modeLabel})...</p>
+    </div>`;
+  document.getElementById('routeOptionsModal').classList.add('open');
+
+  const fromStr = `${startPoint.lng},${startPoint.lat}`;
+  const toStr = `${endPoint.lng},${endPoint.lat}`;
+  const mapboxUrl = `${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}&alternatives=true`;
+
+  const tasks = [
+    currentVehicleMode === 'driving'
+      ? fetch(mapboxUrl).then(r => r.json())
+      : Promise.reject(new Error('skip'))
+  ];
+  tasks.push(fetchTrackAsiaRouteNormalized(startPoint, endPoint, currentVehicleMode));
+
+  const [mapboxResult, trackasiaResult] = await Promise.allSettled(tasks);
+
+  let routes = [];
+  if (mapboxResult.status === 'fulfilled' && mapboxResult.value.code === 'Ok' && mapboxResult.value.routes) {
+    routes.push(...mapboxResult.value.routes.map(r => ({ ...r, provider: 'mapbox', mode: 'driving' })));
+  } else if (mapboxResult.status === 'rejected' && mapboxResult.reason?.message !== 'skip') {
+    console.warn('❌ Mapbox fail:', mapboxResult.reason?.message);
+  }
+  if (trackasiaResult.status === 'fulfilled') routes.push(...trackasiaResult.value);
+  else console.warn('❌ TrackAsia fail:', trackasiaResult.reason?.message);
+
+  if (routes.length === 0) {
+    const extra = currentVehicleMode !== 'driving' ? '<p style="color:var(--text-muted); font-size:0.8rem; margin-top:8px;">TrackAsia chưa hỗ trợ loại xe này tại khu vực. Thử chọn Ô tô.</p>' : '';
+    document.getElementById('routeOptionsBody').innerHTML =
+      `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Không tìm được tuyến nào.</p>${extra}</div>`;
+    return;
+  }
+
+  routes.sort((a, b) => currentSortMode === 'shortest' ? a.distance - b.distance : a.duration - b.duration);
+  routes = routes.slice(0, 5);
+  alternativeRoutesData = routes;
+
+  // Vẽ lại trên map
+  if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
+  alternativeLayers.forEach(l => map.removeLayer(l));
+  alternativeLayers = [];
+  if (window._routeBadges) window._routeBadges.forEach(m => map.removeLayer(m));
+  window._routeBadges = [];
+
+  const allCoords = [];
+  routes.forEach((r, index) => {
+    const coords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    allCoords.push(...coords);
+    const isBest = index === 0;
+    const color = ROUTE_COLORS[index];
+    const layer = L.polyline(coords, {
+      color, weight: isBest ? 8 : 4,
+      opacity: isBest ? 1 : 0.55,
+      dashArray: isBest ? '' : '8, 8',
+      lineCap: 'round', lineJoin: 'round',
+    }).addTo(map);
+    layer.on('click', () => selectRouteOption(index));
+    alternativeLayers.push(layer);
+
+    const midIdx = Math.floor(coords.length / 2);
+    const badge = L.marker(coords[midIdx], {
+      icon: L.divIcon({
+        html: `<div class="route-num-badge" style="color:${color};">${index + 1}</div>`,
+        className: '', iconSize: [28, 28], iconAnchor: [14, 14],
+      }),
+      interactive: false, zIndexOffset: 1000,
+    }).addTo(map);
+    window._routeBadges.push(badge);
+  });
+  map.fitBounds(L.latLngBounds(allCoords), { padding: [50, 50] });
+
+  // Render list
+  let html = `
+    <div class="sort-bar">
+      <button class="sort-chip ${currentSortMode === 'fastest' ? 'active' : ''}" onclick="changeSort('fastest')"><i class="fas fa-bolt"></i> Nhanh nhất</button>
+      <button class="sort-chip ${currentSortMode === 'shortest' ? 'active' : ''}" onclick="changeSort('shortest')"><i class="fas fa-route"></i> Ngắn nhất</button>
+    </div>
+  `;
+
+  routes.forEach((r, index) => {
+    const dist = (r.distance / 1000).toFixed(1);
+    const dur = Math.round(r.duration / 60);
+    const isBest = index === 0;
+    const color = ROUTE_COLORS[index];
+    const isTA = r.provider === 'trackasia';
+    const providerLabel = isTA
+      ? `TrackAsia · ${r.mode === 'truck' ? '🚛 Xe tải' : r.mode === 'motorcycle' ? '🏍️ Xe máy' : '🚗 Ô tô'}`
+      : 'Mapbox · 🚗 Ô tô';
+
+    html += `
+      <div class="route-card ${isBest ? 'active' : ''}" onclick="selectRouteOption(${index})" style="border-left: 4px solid ${color};">
+        <div class="info">
+          <h3 style="display:flex; align-items:center; gap:8px;">
+            <span style="background:${color}; color:white; width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem;">${index + 1}</span>
+            Tuyến ${index + 1} ${isBest ? '(Ưu tiên)' : ''}
+          </h3>
+          <p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p>
+          <span style="background:${isTA ? '#10b981' : '#3b82f6'}; color:white; padding:2px 8px; border-radius:10px; font-size:0.65rem; font-weight:800; display:inline-block; margin-top:6px;">${providerLabel}</span>
+        </div>
+        ${isBest ? '<span class="badge">⭐ Đề xuất</span>' : ''}
+      </div>
+    `;
+  });
+  document.getElementById('routeOptionsBody').innerHTML = html;
+};
+
+// ==========================================
+// SELECT ROUTE
+// ==========================================
 window.selectRouteOption = function(index) {
   const selectedRoute = alternativeRoutesData[index];
-  
+  if (!selectedRoute) return;
+
   const unselectedRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(unselectedRoutes));
-  
+
   alternativeLayers.forEach((l, i) => {
-    if (i === index) {
-      l.setStyle({ color: '#3b82f6', weight: 8, opacity: 1, dashArray: '' });
-    } else {
-      l.setStyle({ color: '#9ca3af', weight: 5, opacity: 0.5, dashArray: '10, 10' });
-    }
+    if (i === index) l.setStyle({ color: '#3b82f6', weight: 8, opacity: 1, dashArray: '' });
+    else l.setStyle({ color: '#9ca3af', weight: 5, opacity: 0.5, dashArray: '10, 10' });
   });
-  
-  alternativeLayers.forEach((l, i) => {
-    if (i !== index) map.removeLayer(l);
-  });
-  
+  alternativeLayers.forEach((l, i) => { if (i !== index) map.removeLayer(l); });
+
   currentRouteLayer = alternativeLayers[index];
   alternativeLayers = [currentRouteLayer];
-  
   currentRouteData = selectedRoute;
   currentRouteCoords = selectedRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-  
+
+  // Xoá badge
+  if (window._routeBadges) { window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = []; }
+
   closeRouteOptions();
   startNavigationHUD();
 };
 
+window.closeRouteOptions = function() { document.getElementById('routeOptionsModal').classList.remove('open'); };
+
+// ==========================================
+// START NAV
+// ==========================================
+function startNavigationHUD() {
+  closeDirections();
+  document.getElementById('searchBar').classList.add('hidden');
+  document.getElementById('mainMenuBtn').classList.add('hidden');
+  document.getElementById('mainLocateBtn').classList.add('hidden');
+  document.getElementById('mainDirBtn').classList.add('hidden');
+  document.querySelector('.fab-layers').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+
+  voiceRouteSteps = currentRouteData.legs[0].steps || [];
+  voiceStepIndex = 0;
+  lastSnapIndex = 0;
+  tripStartTime = Date.now();
+
+  document.getElementById('hudRemainDist').textContent = (currentRouteData.distance / 1000).toFixed(1) + ' km';
+  document.getElementById('hudRemainTime').textContent = Math.round(currentRouteData.duration / 60) + ' phút';
+  document.getElementById('hudNextStopName').textContent = endPoint.name;
+
+  startWatching();
+  startVoice();
+  saveHistory(startPoint, endPoint, currentRouteData.distance);
+}
+
+// ==========================================
+// ALTERNATIVE ROUTES (đổi giữa chừng)
+// ==========================================
 window.openAlternativeRoutes = function() {
   const stored = localStorage.getItem('alternativeRoutes');
   if (!stored) return alert('Không có tuyến đường phụ nào được lưu!');
-  
   const routes = JSON.parse(stored);
   if (routes.length === 0) return alert('Không có tuyến đường phụ nào!');
+  alternativeRoutesData = [currentRouteData, ...routes];
 
-  alternativeRoutesData = [currentRouteData, ...routes]; 
-  
-  document.getElementById('routeOptionsBody').innerHTML = '';
   let html = '';
   alternativeRoutesData.forEach((r, index) => {
     const dist = (r.distance / 1000).toFixed(1);
     const dur = Math.round(r.duration / 60);
     const isCurrent = index === 0;
+    const isTA = r.provider === 'trackasia';
     html += `
       <div class="route-card ${isCurrent ? 'active' : ''}" onclick="switchToRoute(${index})">
         <div class="info">
           <h3>${isCurrent ? 'Tuyến hiện tại' : 'Tuyến gợi ý ' + index}</h3>
           <p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p>
+          <span style="background:${isTA ? '#10b981' : '#3b82f6'}; color:white; padding:2px 8px; border-radius:10px; font-size:0.65rem; font-weight:800; display:inline-block; margin-top:6px;">${isTA ? 'TrackAsia' : 'Mapbox'}</span>
         </div>
       </div>
     `;
@@ -867,8 +1003,6 @@ window.openAlternativeRoutes = function() {
 window.switchToRoute = function(index) {
   const selectedRoute = alternativeRoutesData[index];
   if (!selectedRoute) return;
-
-  const previousRoute = currentRouteData;
   const otherRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(otherRoutes));
 
@@ -882,41 +1016,165 @@ window.switchToRoute = function(index) {
   currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
   map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
 
-  document.getElementById('hudRemainDist').textContent = (selectedRoute.distance/1000).toFixed(1) + ' km';
-  document.getElementById('hudRemainTime').textContent = Math.round(selectedRoute.duration/60) + ' phút';
+  document.getElementById('hudRemainDist').textContent = (selectedRoute.distance / 1000).toFixed(1) + ' km';
+  document.getElementById('hudRemainTime').textContent = Math.round(selectedRoute.duration / 60) + ' phút';
 
   closeRouteOptions();
   speak('Đã đổi tuyến đường mới.');
 };
 
-window.closeRouteOptions = function() {
-  document.getElementById('routeOptionsModal').classList.remove('open');
-};
+// ==========================================
+// AUTO REROUTE (giữ nguyên provider)
+// ==========================================
+function checkOffRoute(userLat, userLng) {
+  if (!currentRouteCoords || currentRouteCoords.length < 2 || isRerouting) return;
+  let minDist = Infinity;
+  const startScan = Math.max(0, lastSnapIndex - 10);
+  const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 150);
+  for (let i = startScan; i < endScan; i++) {
+    const pt = getClosestPointOnSegment(
+      { lat: userLat, lng: userLng },
+      { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] },
+      { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] }
+    );
+    const d = calcDist(userLat, userLng, pt.lat, pt.lng);
+    if (d < minDist) minDist = d;
+  }
+  if (minDist > 50) {
+    offRouteCount++;
+    if (offRouteCount >= 3) { offRouteCount = 0; autoReroute(userLat, userLng); }
+  } else offRouteCount = 0;
+}
 
-function startNavigationHUD() {
-  closeDirections();
-  document.getElementById('searchBar').classList.add('hidden');
-  document.getElementById('mainMenuBtn').classList.add('hidden');
-  document.getElementById('mainLocateBtn').classList.add('hidden');
-  document.getElementById('mainDirBtn').classList.add('hidden');
-  document.querySelector('.fab-layers').classList.add('hidden');
-  document.getElementById('hud').classList.remove('hidden');
-  
-  voiceRouteSteps = currentRouteData.legs[0].steps || []; 
-  voiceStepIndex = 0; 
-  lastSnapIndex = 0; 
-  
-  document.getElementById('hudRemainDist').textContent = (currentRouteData.distance/1000).toFixed(1) + ' km';
-  document.getElementById('hudRemainTime').textContent = Math.round(currentRouteData.duration/60) + ' phút';
-  document.getElementById('hudNextStopName').textContent = endPoint.name;
-  
-  startWatching(); 
-  startVoice(); 
-  saveHistory(startPoint, endPoint, currentRouteData.distance);
+async function autoReroute(userLat, userLng) {
+  if (isRerouting) return;
+  isRerouting = true;
+
+  const currentProvider = currentRouteData?.provider || 'mapbox';
+  const currentMode = currentRouteData?.mode || 'driving';
+  const fromStr = `${userLng},${userLat}`;
+  const toStr = `${endPoint.lng},${endPoint.lat}`;
+
+  try {
+    let r;
+    if (currentProvider === 'trackasia') {
+      try {
+        const ta = await fetchTrackAsiaRouteNormalized({ lat: userLat, lng: userLng }, endPoint, currentMode);
+        r = ta[0];
+      } catch (e) {
+        console.warn('TrackAsia reroute fail → fallback Mapbox:', e.message);
+        const res = await fetch(`${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}`);
+        const data = await res.json();
+        if (data.code !== 'Ok') throw new Error('no route');
+        r = { ...data.routes[0], provider: 'mapbox', mode: 'driving' };
+      }
+    } else {
+      const res = await fetch(`${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}`);
+      const data = await res.json();
+      if (data.code !== 'Ok') throw new Error('no route');
+      r = { ...data.routes[0], provider: 'mapbox', mode: 'driving' };
+    }
+
+    currentRouteData = r;
+    voiceRouteSteps = r.legs[0].steps || [];
+    voiceStepIndex = 0;
+    lastSnapIndex = 0;
+    offRouteCount = 0;
+    voiceSpokenMarks = new Map();
+    voiceArrivalSpoken = false;
+
+    currentRouteCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    if (currentRouteLayer) map.removeLayer(currentRouteLayer);
+    currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+    map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
+
+    document.getElementById('hudRemainDist').textContent = (r.distance / 1000).toFixed(1) + ' km';
+    document.getElementById('hudRemainTime').textContent = Math.round(r.duration / 60) + ' phút';
+  } catch (e) {
+    console.error('Lỗi Reroute:', e);
+  } finally {
+    isRerouting = false;
+  }
 }
 
 // ==========================================
-// REPORTING SYSTEM
+// END TRIP MODAL
+// ==========================================
+window.openEndTripModal = function() {
+  if (!currentRouteData) return;
+  const totalDist = (currentRouteData.distance / 1000).toFixed(1);
+  const elapsedSec = tripStartTime ? (Date.now() - tripStartTime) / 1000 : currentRouteData.duration;
+  const elapsedMin = Math.max(1, Math.round(elapsedSec / 60));
+  const avgSpeed = elapsedSec > 5 ? ((currentRouteData.distance / 1000) / (elapsedSec / 3600)).toFixed(1) : '—';
+
+  document.getElementById('endTripDist').textContent = totalDist + ' km';
+  document.getElementById('endTripTime').textContent = elapsedMin + ' phút';
+  document.getElementById('endTripAvgSpeed').textContent = avgSpeed === '—' ? '—' : avgSpeed + ' km/h';
+  document.getElementById('endTripDest').textContent = endPoint?.name || '—';
+
+  document.getElementById('endTripModal').classList.add('open');
+};
+
+window.closeEndTripModal = function() {
+  document.getElementById('endTripModal').classList.remove('open');
+};
+
+window.endTrip = async function(save) {
+  closeEndTripModal();
+
+  if (save && currentRouteData && currentUser) {
+    try {
+      await saveHistory(startPoint, endPoint, currentRouteData.distance);
+      await set(push(ref(db, `users/${currentUser.uid}/savedRoutes`)), {
+        startName: startPoint.name, startLng: startPoint.lng, startLat: startPoint.lat,
+        endName: endPoint.name, endLng: endPoint.lng, endLat: endPoint.lat,
+        coords: currentRouteCoords,
+        timestamp: Date.now(),
+      });
+    } catch (e) { console.warn('Save trip failed:', e); }
+  }
+
+  if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  if (voiceCheckTimer) { clearInterval(voiceCheckTimer); voiceCheckTimer = null; }
+  if (window.speechSynthesis) speechSynthesis.cancel();
+
+  if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
+  alternativeLayers.forEach(l => { try { map.removeLayer(l); } catch (e) {} });
+  alternativeLayers = [];
+  if (window._routeBadges) { window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = []; }
+
+  currentRouteCoords = [];
+  currentRouteData = null;
+  alternativeRoutesData = [];
+  voiceRouteSteps = null;
+  voiceStepIndex = 0;
+  lastSnapIndex = 0;
+  offRouteCount = 0;
+  isRerouting = false;
+  tripStartTime = null;
+  warnedReports.clear();
+  localStorage.removeItem('alternativeRoutes');
+
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('searchBar').classList.remove('hidden');
+  document.getElementById('mainMenuBtn').classList.remove('hidden');
+  document.getElementById('mainLocateBtn').classList.remove('hidden');
+  document.getElementById('mainDirBtn').classList.remove('hidden');
+  document.querySelector('.fab-layers').classList.remove('hidden');
+
+  document.getElementById('dirInputEnd').value = '';
+  document.getElementById('topSearchInput').value = '';
+  document.getElementById('btnClearEnd').classList.add('hidden');
+  document.getElementById('searchClearBtn').classList.add('hidden');
+  endPoint = null;
+
+  if (lastUserPos) map.flyTo([lastUserPos.lat, lastUserPos.lng], 16, { animate: true, duration: 1 });
+
+  alert(save ? '✅ Đã lưu chuyến đi. Cảm ơn bạn đã dùng DriveKit!' : '🏁 Đã kết thúc chuyến đi.');
+};
+
+// ==========================================
+// REPORTS
 // ==========================================
 window.openReportMenu = function() { document.getElementById('reportModal').classList.add('open'); };
 window.closeReportMenu = function() { document.getElementById('reportModal').classList.remove('open'); };
@@ -924,18 +1182,12 @@ window.closeReportMenu = function() { document.getElementById('reportModal').cla
 window.submitReport = async function(type) {
   if (!lastUserPos) return alert('Chưa lấy được vị trí GPS, không thể báo cáo!');
   closeReportMenu();
-
   const now = Date.now();
-  let ttl = 3600000; 
-  if (type === 'pothole') ttl = 86400000; 
-  else if (type === 'flood') ttl = 10800000; 
-  else if (type === 'traffic') ttl = 1800000; 
-
-  const newReport = {
-    lat: lastUserPos.lat, lng: lastUserPos.lng, type: type,
-    timestamp: now, expiresAt: now + ttl, uid: currentUser.uid
-  };
-
+  let ttl = 3600000;
+  if (type === 'pothole') ttl = 86400000;
+  else if (type === 'flood') ttl = 10800000;
+  else if (type === 'traffic') ttl = 1800000;
+  const newReport = { lat: lastUserPos.lat, lng: lastUserPos.lng, type, timestamp: now, expiresAt: now + ttl, uid: currentUser.uid };
   try {
     await push(ref(db, 'reports'), newReport);
     alert('Cảm ơn bạn! Báo cáo đã được gửi đến cộng đồng tài xế.');
@@ -954,20 +1206,18 @@ function renderReportsOnMap() {
   reportMarkers = [];
   const now = Date.now();
   const icons = {
-    'police': '<div style="background:#3b82f6;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-shield-alt"></i></div>',
-    'accident': '<div style="background:#ef4444;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-car-crash"></i></div>',
-    'traffic': '<div style="background:#ef4444;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-traffic-light"></i></div>',
-    'pothole': '<div style="background:#f59e0b;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-exclamation-circle"></i></div>',
-    'flood': '<div style="background:#06b6d4;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-water"></i></div>'
+    police: '<div style="background:#3b82f6;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-shield-alt"></i></div>',
+    accident: '<div style="background:#ef4444;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-car-crash"></i></div>',
+    traffic: '<div style="background:#ef4444;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-traffic-light"></i></div>',
+    pothole: '<div style="background:#f59e0b;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-exclamation-circle"></i></div>',
+    flood: '<div style="background:#06b6d4;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-water"></i></div>',
   };
-
   for (const key in activeReports) {
     const rep = activeReports[key];
     if (now > rep.expiresAt) continue;
-    const iconHtml = icons[rep.type] || icons['pothole'];
-    const customIcon = L.divIcon({ html: iconHtml, className: '', iconSize: [30, 30], iconAnchor: [15, 15] });
+    const customIcon = L.divIcon({ html: icons[rep.type] || icons.pothole, className: '', iconSize: [30, 30], iconAnchor: [15, 15] });
     const marker = L.marker([rep.lat, rep.lng], { icon: customIcon }).addTo(map);
-    let title = rep.type === 'police' ? 'CSGT' : rep.type === 'accident' ? 'Tai nạn' : rep.type === 'traffic' ? 'Kẹt xe' : rep.type === 'flood' ? 'Ngập nước' : 'Ổ gà';
+    const title = rep.type === 'police' ? 'CSGT' : rep.type === 'accident' ? 'Tai nạn' : rep.type === 'traffic' ? 'Kẹt xe' : rep.type === 'flood' ? 'Ngập nước' : 'Ổ gà';
     marker.bindPopup(`<b>${title}</b><br><small>Báo cáo bởi cộng đồng</small>`);
     reportMarkers.push(marker);
   }
@@ -979,30 +1229,28 @@ function checkReportProximity(lat, lng) {
   for (const key in activeReports) {
     const rep = activeReports[key];
     if (now > rep.expiresAt || warnedReports.has(key)) continue;
-    const dist = calcDist(lat, lng, rep.lat, rep.lng);
-    if (dist < 300) { 
+    if (calcDist(lat, lng, rep.lat, rep.lng) < 300) {
       warnedReports.add(key);
-      let msg = rep.type === 'police' ? 'CSGT' : rep.type === 'accident' ? 'tai nạn' : rep.type === 'traffic' ? 'kẹt xe' : rep.type === 'flood' ? 'ngập nước' : 'ổ gà';
+      const msg = rep.type === 'police' ? 'CSGT' : rep.type === 'accident' ? 'tai nạn' : rep.type === 'traffic' ? 'kẹt xe' : rep.type === 'flood' ? 'ngập nước' : 'ổ gà';
       speak(`Chú ý, phía trước có báo cáo ${msg}`);
     }
   }
 }
 
 // ==========================================
-// SHARE & SAVED ROUTES
+// SHARE + SAVED ROUTES
 // ==========================================
 window.shareRoute = function() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến trước khi chia sẻ!');
   const baseUrl = window.location.origin + window.location.pathname;
   const params = new URLSearchParams({ fromLat: startPoint.lat, fromLng: startPoint.lng, fromName: startPoint.name, toLat: endPoint.lat, toLng: endPoint.lng, toName: endPoint.name });
   const shareUrl = `${baseUrl}?${params.toString()}`;
-  
   if (navigator.share) {
     navigator.share({ title: 'DriveKit - Lộ trình', text: `Lộ trình từ ${startPoint.name} đến ${endPoint.name}`, url: shareUrl })
-    .then(() => { saveSharedLink(startPoint.name, endPoint.name, shareUrl); alert('Đã chia sẻ thành công!'); }).catch(() => {});
+      .then(() => { saveSharedLink(startPoint.name, endPoint.name, shareUrl); alert('Đã chia sẻ thành công!'); }).catch(() => {});
   } else {
     navigator.clipboard.writeText(shareUrl).then(() => { saveSharedLink(startPoint.name, endPoint.name, shareUrl); alert('Đã copy link chia sẻ!'); })
-    .catch(() => prompt('Copy link này:', shareUrl));
+      .catch(() => prompt('Copy link này:', shareUrl));
   }
 };
 
@@ -1010,12 +1258,8 @@ window.shareLocation = function(lat, lng, name) {
   const baseUrl = window.location.origin + window.location.pathname;
   const params = new URLSearchParams({ fromLat: lat, fromLng: lng, fromName: name, toLat: lat, toLng: lng, toName: name });
   const shareUrl = `${baseUrl}?${params.toString()}`;
-  
-  if (navigator.share) {
-    navigator.share({ title: 'DriveKit - Địa điểm', text: `Địa điểm: ${name}`, url: shareUrl }).catch(() => {});
-  } else {
-    navigator.clipboard.writeText(shareUrl).then(() => alert('Đã copy link địa điểm!')).catch(() => prompt('Copy link này:', shareUrl));
-  }
+  if (navigator.share) navigator.share({ title: 'DriveKit - Địa điểm', text: `Địa điểm: ${name}`, url: shareUrl }).catch(() => {});
+  else navigator.clipboard.writeText(shareUrl).then(() => alert('Đã copy link địa điểm!')).catch(() => prompt('Copy link này:', shareUrl));
 };
 
 async function saveSharedLink(fromName, toName, url) {
@@ -1030,7 +1274,7 @@ async function loadSharedLinks() {
   try {
     const snapshot = await get(child(ref(db), `users/${currentUser.uid}/sharedLinks`));
     if (snapshot.exists()) {
-      const items = Object.values(snapshot.val()).sort((a,b) => b.timestamp - a.timestamp);
+      const items = Object.values(snapshot.val()).sort((a, b) => b.timestamp - a.timestamp);
       list.innerHTML = '';
       items.forEach(item => {
         list.innerHTML += `<div class="history-item"><div class="time">${new Date(item.timestamp).toLocaleString('vi-VN')}</div><div class="route"><i class="fas fa-circle"></i> ${item.fromName} <i class="fas fa-arrow-right" style="font-size:0.7rem; margin:0 4px; color:var(--text-muted)"></i> <i class="fas fa-circle end"></i> ${item.toName}</div><button onclick="navigator.clipboard.writeText('${item.url}').then(()=>alert('Đã copy!'))" style="margin-top:8px; padding:6px 12px; background:var(--primary); color:white; border-radius:6px; font-size:0.75rem;"><i class="fas fa-copy"></i> Copy Link</button></div>`;
@@ -1039,9 +1283,6 @@ async function loadSharedLinks() {
   } catch (e) { list.innerHTML = 'Lỗi tải link.'; }
 }
 
-// ==========================================
-// CÁC HÀM UI KHÁC
-// ==========================================
 window.saveCurrentRoute = async function() {
   if (!currentUser || !currentRouteCoords || currentRouteCoords.length === 0) return;
   try {
@@ -1049,7 +1290,7 @@ window.saveCurrentRoute = async function() {
       startName: startPoint.name, startLng: startPoint.lng, startLat: startPoint.lat,
       endName: endPoint.name, endLng: endPoint.lng, endLat: endPoint.lat,
       coords: currentRouteCoords,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
     alert('Đã lưu lộ trình!');
     loadSavedRoutes();
@@ -1062,7 +1303,7 @@ async function loadSavedRoutes() {
   try {
     const snapshot = await get(child(ref(db), `users/${currentUser.uid}/savedRoutes`));
     if (snapshot.exists()) {
-      const items = Object.values(snapshot.val()).sort((a,b) => b.timestamp - a.timestamp);
+      const items = Object.values(snapshot.val()).sort((a, b) => b.timestamp - a.timestamp);
       list.innerHTML = '';
       items.forEach((item, index) => {
         list.innerHTML += `<div class="history-item">
@@ -1080,28 +1321,26 @@ async function loadSavedRoutes() {
 window.reloadSavedRoute = function(index) {
   const item = window._savedRoutesData[index];
   if (!item) return;
-
   startPoint = { lat: item.startLat, lng: item.startLng, name: item.startName };
   endPoint = { lat: item.endLat, lng: item.endLng, name: item.endName };
-  
   document.getElementById('dirInputStart').value = startPoint.name;
   document.getElementById('dirInputEnd').value = endPoint.name;
   document.getElementById('topSearchInput').value = endPoint.name;
   document.getElementById('btnClearStart').classList.remove('hidden');
   document.getElementById('btnClearEnd').classList.remove('hidden');
   document.getElementById('searchClearBtn').classList.remove('hidden');
-
   currentRouteCoords = item.coords;
   lastSnapIndex = 0;
-  
   if (currentRouteLayer) map.removeLayer(currentRouteLayer);
   currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
   map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
-
   closeMenu();
   openDirections();
 };
 
+// ==========================================
+// UI HELPERS
+// ==========================================
 function toggleLayerMenu() { document.getElementById('layerMenu').classList.toggle('show'); }
 
 function changeLayer(type, btn) {
@@ -1109,18 +1348,12 @@ function changeLayer(type, btn) {
   document.querySelectorAll('.layer-option').forEach(el => el.classList.remove('active'));
   if (btn) btn.classList.add('active');
   document.getElementById('layerMenu').classList.remove('show');
-
   if (type === 'trackasia') {
-    const trackasiaStyleUrl = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
-    try { currentMapLayer = L.trackasiaGL({ style: trackasiaStyleUrl }).addTo(map); } 
+    try { currentMapLayer = L.trackasiaGL({ style: `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}` }).addTo(map); }
     catch (error) { currentMapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); }
-  } else if (type === 'mapbox') {
-    currentMapLayer = L.tileLayer(`${WORKER_URL}/mapbox-tiles/{z}/{x}/{y}`, { maxZoom: 19, tileSize: 512, zoomOffset: -1 }).addTo(map);
-  } else if (type === 'thunderforest') {
-    currentMapLayer = L.tileLayer(`${WORKER_URL}/tf-tiles/{z}/{x}/{y}`, { maxZoom: 19 }).addTo(map);
-  } else if (type === 'satellite') {
-    currentMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
-  }
+  } else if (type === 'mapbox') currentMapLayer = L.tileLayer(`${WORKER_URL}/mapbox-tiles/{z}/{x}/{y}`, { maxZoom: 19, tileSize: 512, zoomOffset: -1 }).addTo(map);
+  else if (type === 'thunderforest') currentMapLayer = L.tileLayer(`${WORKER_URL}/tf-tiles/{z}/{x}/{y}`, { maxZoom: 19 }).addTo(map);
+  else if (type === 'satellite') currentMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
 }
 
 window.goToLongPressLocation = function(lat, lng, name) {
@@ -1146,13 +1379,13 @@ window.clearTopSearch = function() {
 };
 
 function openDirections() { document.getElementById('dirSheet').classList.add('open'); document.getElementById('dirSheet').style.transform = ''; }
-function closeDirections() { 
-  document.getElementById('dirSheet').classList.remove('open'); 
+function closeDirections() {
+  document.getElementById('dirSheet').classList.remove('open');
   document.getElementById('dirSheet').style.transform = '';
-  if (searchContext !== 'view') document.getElementById('suggestionsBox').classList.remove('show'); 
+  if (searchContext !== 'view') document.getElementById('suggestionsBox').classList.remove('show');
 }
-window.openMenu = function() { document.getElementById('profileModal').classList.add('open'); loadHistory(); loadSharedLinks(); loadSavedRoutes(); }
-window.closeMenu = function() { document.getElementById('profileModal').classList.remove('open'); }
+window.openMenu = function() { document.getElementById('profileModal').classList.add('open'); loadHistory(); loadSharedLinks(); loadSavedRoutes(); };
+window.closeMenu = function() { document.getElementById('profileModal').classList.remove('open'); };
 
 window.clearPoint = function(type) {
   if (type === 'start') {
@@ -1177,7 +1410,6 @@ function activateSearch(type) {
   const input = document.getElementById('topSearchInput');
   input.readOnly = false; input.value = ''; input.focus();
   document.getElementById('searchClearBtn').classList.add('hidden');
-  
   input.oninput = (e) => {
     const q = e.target.value.trim();
     if (q.length > 0) document.getElementById('searchClearBtn').classList.remove('hidden');
@@ -1192,7 +1424,6 @@ function closeSearch() { document.getElementById('suggestionsBox').classList.rem
 
 async function doSearch(query) {
   const box = document.getElementById('suggestionsBox');
-  
   if (query.startsWith('http://') || query.startsWith('https://')) {
     if (query.includes('google.com/maps') || query.includes('goo.gl/maps')) {
       box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang giải mã link Google Maps...</div>';
@@ -1206,18 +1437,11 @@ async function doSearch(query) {
           div.innerHTML = `<i class="fas fa-map-marker-alt"></i><div>${data.placeName || 'Vị trí từ Google Maps'}</div>`;
           div.onclick = () => selectLocation(data.coords.lat, data.coords.lng, data.placeName || 'Vị trí từ Google Maps');
           box.appendChild(div);
-          return;
-        } else {
-          box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Không giải mã được link này</div>';
-          return;
-        }
-      } catch (e) {
-        box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Lỗi kết nối</div>';
-        return;
-      }
+        } else box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Không giải mã được link này</div>';
+      } catch (e) { box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Lỗi kết nối</div>'; }
+      return;
     }
   }
-
   box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang tìm...</div>';
   try {
     const res = await fetch(`${WORKER_URL}/trackasia-search?query=${encodeURIComponent(query)}`);
@@ -1245,7 +1469,6 @@ function selectLocation(lat, lng, name) {
   closeSearch();
   map.flyTo([lat, lng], 16, { animate: true, duration: 1 });
   map.eachLayer(layer => { if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') map.removeLayer(layer); });
-
   if (searchContext === 'view') {
     const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
     L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
@@ -1273,13 +1496,13 @@ function refreshGPS() {
 }
 
 // ==========================================
-// SNAP TO ROAD & SPEED FILTER
+// SNAP-TO-ROAD + SPEED
 // ==========================================
 function getClosestPointOnSegment(p, a, b) {
   const atob = { x: b.lng - a.lng, y: b.lat - a.lat };
   const atop = { x: p.lng - a.lng, y: p.lat - a.lat };
   const len = atob.x * atob.x + atob.y * atob.y;
-  let dot = atop.x * atob.x + atop.y * atob.y;
+  const dot = atop.x * atob.x + atop.y * atob.y;
   const t = Math.min(1, Math.max(0, dot / len));
   return { lat: a.lat + atob.y * t, lng: a.lng + atob.x * t };
 }
@@ -1298,43 +1521,38 @@ function updateUserMarkerOnMap(pos, heading) {
 
 function animateMarkerTo(targetPos) {
   if (!userMarker) { updateUserMarkerOnMap(targetPos, targetPos.heading); return; }
-  let snappedLat = targetPos.lat; let snappedLng = targetPos.lng; let targetHeading = targetPos.heading;
+  let snappedLat = targetPos.lat, snappedLng = targetPos.lng, targetHeading = targetPos.heading;
 
   if (currentRouteCoords && currentRouteCoords.length > 1 && lastSnapIndex < currentRouteCoords.length - 1) {
-    let minDist = Infinity; let bestPoint = null; let bestSegmentIndex = lastSnapIndex;
+    let minDist = Infinity, bestPoint = null, bestSegmentIndex = lastSnapIndex;
     const startScan = Math.max(0, lastSnapIndex - 5);
     const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 50);
-    
     for (let i = startScan; i < endScan; i++) {
       const pt = getClosestPointOnSegment({ lat: targetPos.lat, lng: targetPos.lng }, { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] }, { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] });
       const d = calcDist(targetPos.lat, targetPos.lng, pt.lat, pt.lng);
       if (d < minDist) { minDist = d; bestPoint = pt; bestSegmentIndex = i; if (i > lastSnapIndex) lastSnapIndex = i; }
     }
-
     if (bestPoint && minDist < 40) {
-      const p1 = currentRouteCoords[bestSegmentIndex]; const p2 = currentRouteCoords[bestSegmentIndex + 1];
+      const p1 = currentRouteCoords[bestSegmentIndex];
+      const p2 = currentRouteCoords[bestSegmentIndex + 1];
       const angle = Math.atan2(p2[0] - p1[0], p2[1] - p1[1]);
-      const offsetDist = 0.00003; 
-      snappedLat = bestPoint.lat + Math.cos(angle) * offsetDist;
-      snappedLng = bestPoint.lng - Math.sin(angle) * offsetDist;
-      targetHeading = (angle * 180 / Math.PI) + 90; 
+      snappedLat = bestPoint.lat + Math.cos(angle) * 0.00003;
+      snappedLng = bestPoint.lng - Math.sin(angle) * 0.00003;
+      targetHeading = (angle * 180 / Math.PI) + 90;
     }
   }
 
-  if (currentRouteCoords && currentRouteCoords.length > 0 && lastSnapIndex > 0) {
-    if (currentRouteLayer) {
-      const remaining = currentRouteCoords.slice(lastSnapIndex);
-      if (remaining.length > 1) currentRouteLayer.setLatLngs(remaining);
-      else { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
-    }
+  if (currentRouteCoords && currentRouteCoords.length > 0 && lastSnapIndex > 0 && currentRouteLayer) {
+    const remaining = currentRouteCoords.slice(lastSnapIndex);
+    if (remaining.length > 1) currentRouteLayer.setLatLngs(remaining);
+    else { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
   }
 
-  const startLat = userMarker.getLatLng().lat; const startLng = userMarker.getLatLng().lng;
-  const startTime = performance.now(); const duration = 1000;
-
+  const startLat = userMarker.getLatLng().lat, startLng = userMarker.getLatLng().lng;
+  const startTime = performance.now(), duration = 1000;
   function step(time) {
     const progress = Math.min((time - startTime) / duration, 1);
-    const ease = 1 - Math.pow(1 - progress, 3); 
+    const ease = 1 - Math.pow(1 - progress, 3);
     userMarker.setLatLng([startLat + (snappedLat - startLat) * ease, startLng + (snappedLng - startLng) * ease]);
     userMarker.setIcon(getUserIcon(targetHeading));
     if (progress < 1) requestAnimationFrame(step);
@@ -1349,35 +1567,23 @@ function startWatching() {
   if (watchId) navigator.geolocation.clearWatch(watchId);
   watchId = navigator.geolocation.watchPosition(pos => {
     const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, speed: pos.coords.speed || 0, accuracy: pos.coords.accuracy || 10, heading: pos.coords.heading };
-    
-    if (newPos.speed !== null) { smoothedSpeed = (0.2 * newPos.speed) + (0.8 * smoothedSpeed); }
+    if (newPos.speed !== null) smoothedSpeed = (0.2 * newPos.speed) + (0.8 * smoothedSpeed);
     document.getElementById('hudSpeed').textContent = Math.round(smoothedSpeed * 3.6) + ' km/h';
-
     if (lastUserPos && !newPos.heading) {
-      const dy = newPos.lat - lastUserPos.lat; const dx = newPos.lng - lastUserPos.lng;
-      newPos.heading = 90 - (Math.atan2(dy, dx) * 180 / Math.PI); 
+      const dy = newPos.lat - lastUserPos.lat, dx = newPos.lng - lastUserPos.lng;
+      newPos.heading = 90 - (Math.atan2(dy, dx) * 180 / Math.PI);
     }
     lastUserPos = newPos;
-    
     animateMarkerTo(lastUserPos);
     if (map) map.panTo([lastUserPos.lat, lastUserPos.lng], { animate: true, duration: 0.5 });
-
     checkReportProximity(lastUserPos.lat, lastUserPos.lng);
-    checkOffRoute(lastUserPos.lat, lastUserPos.lng); 
+    checkOffRoute(lastUserPos.lat, lastUserPos.lng);
   }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
 }
 
 function stopRoute() {
-  if (currentRouteCoords && currentRouteCoords.length > 0) {
-    if (confirm('Kết thúc chuyến đi. Bạn có muốn lưu lộ trình này lại không?')) {
-      saveCurrentRoute();
-    }
-  }
-  
-  document.getElementById('hud').classList.add('hidden');
-  if (watchId) navigator.geolocation.clearWatch(watchId);
-  if (voiceCheckTimer) clearInterval(voiceCheckTimer);
-  location.reload(); 
+  // Fallback nếu ai đó gọi hàm cũ
+  if (currentRouteData) openEndTripModal();
 }
 
 function speak(text) {
@@ -1401,48 +1607,42 @@ function startVoice() {
 }
 
 function calcDist(lat1, lng1, lat2, lng2) {
-  const R = 6371e3; const p1 = lat1 * Math.PI/180; const p2 = lat2 * Math.PI/180;
-  const dp = (lat2-lat1) * Math.PI/180; const dl = (lng2-lng1) * Math.PI/180;
+  const R = 6371e3;
+  const p1 = lat1 * Math.PI/180, p2 = lat2 * Math.PI/180;
+  const dp = (lat2-lat1) * Math.PI/180, dl = (lng2-lng1) * Math.PI/180;
   const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// ==========================================
-// VUỐT BẢNG XUỐNG ĐỂ ĐÓNG
-// ==========================================
-let sheetTouchStartY = 0; let isSwiping = false;
-const dirSheet = document.getElementById('dirSheet');
-
-dirSheet.addEventListener('touchstart', (e) => {
+// Swipe to close dir sheet
+let sheetTouchStartY = 0, isSwiping = false;
+const dirSheetEl = document.getElementById('dirSheet');
+dirSheetEl.addEventListener('touchstart', (e) => {
   if (e.target.tagName === 'INPUT') return;
   if (e.target.closest('.dir-handle') || e.target.closest('.dir-header') || e.target.classList.contains('dir-sheet')) {
     sheetTouchStartY = e.touches[0].clientY;
     isSwiping = true;
-    dirSheet.style.transition = 'none';
+    dirSheetEl.style.transition = 'none';
   }
 }, { passive: true });
-
-dirSheet.addEventListener('touchmove', (e) => {
+dirSheetEl.addEventListener('touchmove', (e) => {
   if (!isSwiping) return;
   const deltaY = e.touches[0].clientY - sheetTouchStartY;
-  if (deltaY > 0) {
-    dirSheet.style.transform = `translateY(${deltaY}px)`;
-  }
+  if (deltaY > 0) dirSheetEl.style.transform = `translateY(${deltaY}px)`;
 }, { passive: true });
-
-dirSheet.addEventListener('touchend', (e) => {
+dirSheetEl.addEventListener('touchend', (e) => {
   if (!isSwiping) return;
   const deltaY = e.changedTouches[0].clientY - sheetTouchStartY;
-  dirSheet.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+  dirSheetEl.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
   if (deltaY > 80) closeDirections();
-  else dirSheet.style.transform = 'translateY(0)';
+  else dirSheetEl.style.transform = 'translateY(0)';
   isSwiping = false; sheetTouchStartY = 0;
 });
 
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' || e.key === 'Esc') closeDirections(); });
 
 // ==========================================
-// LỊCH SỬ
+// HISTORY
 // ==========================================
 async function saveHistory(start, end, distance) {
   if (!currentUser) return;
@@ -1456,7 +1656,7 @@ async function loadHistory() {
   try {
     const snapshot = await get(child(ref(db), `users/${currentUser.uid}/history`));
     if (snapshot.exists()) {
-      const items = Object.values(snapshot.val()).sort((a,b) => b.timestamp - a.timestamp);
+      const items = Object.values(snapshot.val()).sort((a, b) => b.timestamp - a.timestamp);
       list.innerHTML = '';
       items.forEach(item => {
         list.innerHTML += `<div class="history-item"><div class="time">${new Date(item.timestamp).toLocaleString('vi-VN')}</div><div class="route"><i class="fas fa-circle"></i> ${item.startName}</div><div class="route" style="margin-top:4px;"><i class="fas fa-circle end"></i> ${item.endName}</div><div style="margin-top:6px; font-size:0.75rem; color:var(--text-muted);">${(item.distance/1000).toFixed(1)} km</div></div>`;
@@ -1465,24 +1665,20 @@ async function loadHistory() {
   } catch (e) { list.innerHTML = 'Lỗi tải lịch sử.'; }
 }
 
+// Export
 window.openDirections = openDirections;
 window.activateSearch = activateSearch;
 window.refreshGPS = refreshGPS;
 window.centerToLocation = centerToLocation;
-window.fetchAndShowRouteOptions = fetchAndShowRouteOptions;
 window.stopRoute = stopRoute;
 window.logout = logout;
 window.toggleLayerMenu = toggleLayerMenu;
 window.changeLayer = changeLayer;
-window.toggleTheme = toggleTheme;
 window.shareRoute = shareRoute;
 window.shareLocation = shareLocation;
 window.submitReport = submitReport;
 window.openReportMenu = openReportMenu;
 window.closeReportMenu = closeReportMenu;
-window.saveCurrentRoute = saveCurrentRoute;
-window.reloadSavedRoute = reloadSavedRoute;
-
 </script>
 </body>
 </html>
