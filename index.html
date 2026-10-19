@@ -57,7 +57,7 @@ button { cursor: pointer; }
 .hud-stat .value { font-size: 0.95rem; font-weight: 800; font-family: var(--font-mono); display: flex; align-items: center; gap: 4px; color: var(--text); }
 .hud-stat.speed .value { color: var(--success); }
 
-/* NÚT KẾT THÚC TRÊN CÙNG (MỚI) */
+/* NÚT KẾT THÚC TRÊN CÙNG */
 .hud-end-btn-top {
   background: var(--danger);
   color: white;
@@ -88,12 +88,7 @@ button { cursor: pointer; }
 .hud-next-stop .name { font-size: 1rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
 .hud-next-stop .dist { font-size: 0.75rem; font-weight: 700; color: var(--warning); font-family: var(--font-mono); margin-top: 2px; }
 
-/* FIX CỨNG NHÓM NÚT KHÔNG BỊ CO LẠI */
-.hud-btn-group {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
+.hud-btn-group { display: flex; gap: 8px; flex-shrink: 0; }
 .hud-btn { width: 44px; height: 44px; border-radius: 12px; background: var(--card-2); color: var(--text); font-size: 1.1rem; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); }
 .hud-btn.active { background: var(--success); color: white; border-color: transparent; }
 .hud-btn.swap { background: var(--warning); color: white; border-color: transparent; }
@@ -109,8 +104,10 @@ button { cursor: pointer; }
 .fab-layers { position: fixed; bottom: calc(80px + var(--safe-bottom)); left: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
 .fab-report { position: fixed; bottom: calc(80px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, var(--danger), #f97316); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(239,68,68,0.4); }
 
-.route-options-modal, .report-modal, .profile-modal { position: fixed; inset: 0; z-index: 2500; background: var(--bg); display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s ease-in-out; }
+.route-options-modal, .report-modal, .profile-modal, .save-place-modal { position: fixed; inset: 0; z-index: 2500; background: var(--bg); display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s ease-in-out; }
 .profile-modal { transform: translateX(100%); }
+.save-place-modal { z-index: 3500; background: rgba(0,0,0,0.7); transform: none; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+.save-place-modal.open { display: flex; }
 .route-options-modal.open, .report-modal.open, .profile-modal.open { transform: translate(0); }
 
 .route-options-header { padding: calc(20px + var(--safe-top)) 24px 20px; background: var(--card); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
@@ -165,7 +162,10 @@ button { cursor: pointer; }
 .profile-time { position: absolute; bottom: 20px; right: 24px; font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 10px; }
 .profile-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 .profile-card { background: var(--card); border-radius: 16px; padding: 16px; border: 1px solid var(--border); }
-.profile-card h3 { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+.profile-card h3 { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; font-weight: 800; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.btn-clear-all { background: transparent; color: var(--danger); font-size: 0.75rem; font-weight: 700; display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 6px; cursor: pointer; }
+.btn-clear-all:hover { background: rgba(239, 68, 68, 0.1); }
+
 .history-list { display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; }
 .history-item { background: var(--bg-2); padding: 12px; border-radius: 10px; border-left: 3px solid var(--primary); }
 .history-item .time { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px; }
@@ -178,6 +178,23 @@ button { cursor: pointer; }
 .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
 input:checked + .slider { background-color: var(--primary); }
 input:checked + .slider:before { transform: translateX(20px); }
+
+/* SAVED PLACES */
+.saved-place-item { display: flex; align-items: center; gap: 12px; padding: 10px; background: var(--bg-2); border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--border); cursor: pointer; transition: 0.2s; }
+.saved-place-item:hover { border-color: var(--primary); }
+.saved-place-item .icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; color: white; flex-shrink: 0; }
+.saved-place-item .info { flex: 1; min-width: 0; }
+.saved-place-item .name { font-weight: 800; font-size: 0.9rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.saved-place-item .address { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.btn-delete-place { background: transparent; color: var(--danger); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.btn-delete-place:hover { background: rgba(239,68,68,0.1); }
+
+.save-place-box { background: var(--card); border-radius: 20px; padding: 24px; max-width: 380px; width: 90%; border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: popIn 0.25s ease-out; }
+.save-place-box h2 { font-size: 1.2rem; text-align: center; margin-bottom: 16px; color: var(--text); }
+.icon-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 16px 0; }
+.icon-option { padding: 12px 0; border-radius: 12px; background: var(--bg-2); border: 2px solid transparent; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; font-size: 0.65rem; font-weight: 700; transition: 0.2s; }
+.icon-option.active { border-color: var(--primary); background: rgba(59,130,246,0.1); color: var(--primary); }
+.icon-option i { font-size: 1.5rem; }
 
 .loading-screen { position: fixed; inset: 0; z-index: 5000; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 20px; }
 .spinner { width: 50px; height: 50px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
@@ -306,7 +323,6 @@ input:checked + .slider:before { transform: translateX(20px); }
       <div class="hud-stat"><span class="label">Đến nơi</span><span class="value" id="hudRemainTime">—</span></div>
       <div class="hud-stat speed"><span class="label">Tốc độ</span><span class="value" id="hudSpeed">0 km/h</span></div>
       
-      <!-- NÚT KẾT THÚC TRÊN CÙNG -->
       <button class="hud-end-btn-top" onclick="openEndTripModal()">
         <i class="fas fa-flag-checkered"></i>
         <span>Kết thúc</span>
@@ -373,18 +389,34 @@ input:checked + .slider:before { transform: translateX(20px); }
         <span class="slider"></span>
       </label>
     </div>
+
+    <!-- ĐỊA ĐIỂM ĐÃ LƯU -->
+    <div class="profile-card">
+      <h3><i class="fas fa-map-pin"></i> Địa điểm đã lưu</h3>
+      <div class="history-list" id="savedPlacesList">
+        <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có địa điểm nào</div>
+      </div>
+    </div>
+
+    <!-- LỘ TRÌNH ĐÃ LƯU -->
     <div class="profile-card">
       <h3><i class="fas fa-bookmark"></i> Lộ trình đã lưu</h3>
       <div class="history-list" id="savedRoutesList">
         <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có lộ trình nào được lưu</div>
       </div>
     </div>
+
+    <!-- LỊCH SỬ CHUYẾN ĐI (CÓ NÚT XOÁ) -->
     <div class="profile-card">
-      <h3><i class="fas fa-history"></i> Lịch sử chuyến đi</h3>
+      <h3>
+        <span><i class="fas fa-history"></i> Lịch sử chuyến đi</span>
+        <button class="btn-clear-all" onclick="clearHistory()"><i class="fas fa-trash-alt"></i> Xoá tất cả</button>
+      </h3>
       <div class="history-list" id="historyList">
         <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có chuyến đi nào</div>
       </div>
     </div>
+
     <div class="profile-card">
       <h3><i class="fas fa-link"></i> Link đã chia sẻ</h3>
       <div class="history-list" id="sharedLinksList">
@@ -394,6 +426,28 @@ input:checked + .slider:before { transform: translateX(20px); }
     <button class="profile-btn logout" onclick="logout()">
       <span><i class="fas fa-sign-out-alt"></i> Đăng xuất</span>
     </button>
+  </div>
+</div>
+
+<!-- MODAL THÊM ĐỊA ĐIỂM -->
+<div class="save-place-modal" id="savePlaceModal">
+  <div class="save-place-box">
+    <h2>📍 Lưu địa điểm</h2>
+    <input type="text" id="savePlaceName" class="auth-input" placeholder="Tên địa điểm (VD: Nhà riêng, Cafe...)" style="margin-bottom:0;" />
+    
+    <div class="icon-grid" id="iconGrid">
+      <button class="icon-option active" data-type="home" onclick="selectIconType('home', this)"><i class="fas fa-home"></i> Nhà</button>
+      <button class="icon-option" data-type="work" onclick="selectIconType('work', this)"><i class="fas fa-building"></i> C.ty</button>
+      <button class="icon-option" data-type="cafe" onclick="selectIconType('cafe', this)"><i class="fas fa-coffee"></i> Cafe</button>
+      <button class="icon-option" data-type="food" onclick="selectIconType('food', this)"><i class="fas fa-utensils"></i> Ăn uống</button>
+      <button class="icon-option" data-type="gas" onclick="selectIconType('gas', this)"><i class="fas fa-gas-pump"></i> Cây xăng</button>
+      <button class="icon-option" data-type="shop" onclick="selectIconType('shop', this)"><i class="fas fa-shopping-bag"></i> Mua sắm</button>
+      <button class="icon-option" data-type="park" onclick="selectIconType('park', this)"><i class="fas fa-tree"></i> Công viên</button>
+      <button class="icon-option" data-type="other" onclick="selectIconType('other', this)"><i class="fas fa-map-marker-alt"></i> Khác</button>
+    </div>
+
+    <button class="btn-auth btn-email" onclick="confirmSavePlace()" style="margin-bottom:8px;"><i class="fas fa-save"></i> Lưu lại</button>
+    <button class="btn-auth" onclick="closeSavePlaceModal()" style="background:transparent; color:var(--text-muted); border:1px solid var(--border); margin-bottom:0;">Huỷ</button>
   </div>
 </div>
 
@@ -415,7 +469,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getDatabase, ref, push, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, push, set, get, child, onValue, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
@@ -470,15 +524,29 @@ let voiceCheckTimer = null;
 let voiceSpokenMarks = new Map();
 let voiceArrivalSpoken = false;
 
-let currentVehicleMode = 'driving'; // driving | truck | motorcycle
-let currentSortMode = 'fastest';    // fastest | shortest
+let currentVehicleMode = 'driving'; 
+let currentSortMode = 'fastest';    
 let tripStartTime = null;
-
-// ARRIVAL STATE
 let arrivalHandled = false;
-const ARRIVAL_RADIUS_M = 20; // Cách 20m là tự kết thúc
+const ARRIVAL_RADIUS_M = 20; 
 
 const ROUTE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
+
+// SAVED PLACES STATE
+let savedPlacesMarkers = [];
+let pendingSaveLatLng = null;
+let pendingSaveName = '';
+let currentSaveType = 'home';
+const PLACE_ICONS = {
+  home: { icon: 'fa-home', color: '#ef4444' },
+  work: { icon: 'fa-building', color: '#3b82f6' },
+  cafe: { icon: 'fa-coffee', color: '#f59e0b' },
+  food: { icon: 'fa-utensils', color: '#f97316' },
+  gas: { icon: 'fa-gas-pump', color: '#10b981' },
+  shop: { icon: 'fa-shopping-bag', color: '#8b5cf6' },
+  park: { icon: 'fa-tree', color: '#06b6d4' },
+  other: { icon: 'fa-map-marker-alt', color: '#64748b' }
+};
 
 // ==========================================
 // THEME & TIME
@@ -632,6 +700,7 @@ function finishAuthInit() {
   document.getElementById('appUI').classList.remove('hidden');
   initMap();
   initReports();
+  initSavedPlaces();
   if (lastUserPos) {
     if (!startPoint) {
       startPoint = { lat: lastUserPos.lat, lng: lastUserPos.lng, name: 'Vị trí của tôi' };
@@ -749,15 +818,103 @@ function initMap() {
     if (!touchMarker) return;
 
     popupContent.innerHTML = `
-      <div style="min-width: 180px;">
+      <div style="min-width: 200px;">
         <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: var(--text);">${displayName}</div>
         <button onclick="event.stopPropagation(); goToLongPressLocation(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
-        <button onclick="event.stopPropagation(); shareLocation(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fas fa-share-alt"></i> Chia sẻ địa điểm</button>
+        <button onclick="event.stopPropagation(); openSavePlaceModal(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-map-pin"></i> Lưu địa điểm</button>
+        <button onclick="event.stopPropagation(); shareLocation(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fas fa-share-alt"></i> Chia sẻ</button>
       </div>
     `;
     touchMarker.setPopupContent(popupContent).openPopup();
   }
 }
+
+// ==========================================
+// SAVED PLACES LOGIC
+// ==========================================
+function initSavedPlaces() {
+  if (!currentUser) return;
+  onValue(ref(db, `users/${currentUser.uid}/savedPlaces`), (snapshot) => {
+    savedPlacesMarkers.forEach(m => map.removeLayer(m));
+    savedPlacesMarkers = [];
+    const list = document.getElementById('savedPlacesList');
+    const places = snapshot.val() || {};
+    const items = Object.keys(places).map(key => ({ id: key, ...places[key] })).sort((a, b) => b.timestamp - a.timestamp);
+
+    if (items.length === 0) {
+      list.innerHTML = '<div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có địa điểm nào</div>';
+    } else {
+      list.innerHTML = '';
+      items.forEach(p => {
+        const conf = PLACE_ICONS[p.type] || PLACE_ICONS.other;
+        
+        // Render marker
+        const iconHtml = `<div style="background:${conf.color};color:white;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 3px 8px rgba(0,0,0,0.4);font-size:1rem;"><i class="fas ${conf.icon}"></i></div>`;
+        const customIcon = L.divIcon({ html: iconHtml, className: '', iconSize: [34, 34], iconAnchor: [17, 17] });
+        const marker = L.marker([p.lat, p.lng], { icon: customIcon }).addTo(map);
+        marker.bindPopup(`<b>${p.name}</b><br><small>${p.address || ''}</small>`);
+        savedPlacesMarkers.push(marker);
+
+        // Render list item
+        list.innerHTML += `
+          <div class="saved-place-item" onclick="goToSavedPlace(${p.lat}, ${p.lng}, '${escapeHtml(p.name)}')">
+            <div class="icon" style="background:${conf.color};"><i class="fas ${conf.icon}"></i></div>
+            <div class="info">
+              <div class="name">${p.name}</div>
+              <div class="address">${p.address || 'Không có địa chỉ'}</div>
+            </div>
+            <button class="btn-delete-place" onclick="event.stopPropagation(); deleteSavedPlace('${p.id}')"><i class="fas fa-trash-alt"></i></button>
+          </div>
+        `;
+      });
+    }
+  });
+}
+
+window.goToSavedPlace = function(lat, lng, name) {
+  closeMenu();
+  map.flyTo([lat, lng], 18, { animate: true, duration: 1 });
+  setTimeout(() => { map.eachLayer(l => { if(l instanceof L.Marker && l.getPopup() && l.getPopup().getContent().includes(name)) l.openPopup(); }); }, 1200);
+};
+
+window.deleteSavedPlace = async function(id) {
+  if (!confirm('Bạn có chắc muốn xoá địa điểm này?')) return;
+  try { await remove(ref(db, `users/${currentUser.uid}/savedPlaces/${id}`)); } 
+  catch(e) { alert('Lỗi xoá địa điểm: ' + e.message); }
+};
+
+window.openSavePlaceModal = function(lat, lng, defaultName) {
+  pendingSaveLatLng = { lat, lng };
+  pendingSaveName = defaultName || 'Địa điểm mới';
+  document.getElementById('savePlaceName').value = pendingSaveName;
+  document.getElementById('savePlaceModal').classList.add('open');
+  if (map) map.closePopup();
+};
+
+window.closeSavePlaceModal = function() {
+  document.getElementById('savePlaceModal').classList.remove('open');
+};
+
+window.selectIconType = function(type, btn) {
+  currentSaveType = type;
+  document.querySelectorAll('#iconGrid .icon-option').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+};
+
+window.confirmSavePlace = async function() {
+  const name = document.getElementById('savePlaceName').value.trim();
+  if (!name) return alert('Vui lòng nhập tên địa điểm!');
+  if (!pendingSaveLatLng) return;
+  
+  try {
+    await push(ref(db, `users/${currentUser.uid}/savedPlaces`), {
+      name: name, lat: pendingSaveLatLng.lat, lng: pendingSaveLatLng.lng,
+      type: currentSaveType, address: pendingSaveName, timestamp: Date.now()
+    });
+    closeSavePlaceModal();
+    showArrivalToast('✅ Đã lưu địa điểm thành công!', '#10b981');
+  } catch (e) { alert('Lỗi lưu địa điểm: ' + e.message); }
+};
 
 // ==========================================
 // TRACKASIA PARALLEL ROUTING
@@ -780,18 +937,13 @@ function decodePolyline(str, precision = 5) {
 }
 
 async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
-  // Worker tự map 'driving' -> 'car', 'motorcycle' -> 'motorcycle', 'truck' -> 'truck'
   let apiMode = mode; 
-
   const url = `${WORKER_URL}/trackasia-route?origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&mode=${apiMode}`;
   const res = await fetch(url);
   const data = await res.json();
 
   if (data.status !== 'OK' || !data.routes || data.routes.length === 0) {
-    if (apiMode === 'truck') {
-      console.warn('TrackAsia không hỗ trợ xe tải, fallback về driving...');
-      return fetchTrackAsiaRouteNormalized(from, to, 'driving');
-    }
+    if (apiMode === 'truck') return fetchTrackAsiaRouteNormalized(from, to, 'driving');
     throw new Error('TrackAsia: ' + (data.status || 'no routes'));
   }
 
@@ -800,16 +952,7 @@ async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
     let coords = [];
     if (r.overview_polyline?.points) coords = decodePolyline(r.overview_polyline.points);
     else if (r.geometry?.coordinates) coords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-    else if (leg.steps?.length) {
-      coords = leg.steps.flatMap(s => {
-        if (s.polyline?.points) return decodePolyline(s.polyline.points);
-        if (s.start_location && s.end_location) return [
-          [s.start_location.lat, s.start_location.lng],
-          [s.end_location.lat, s.end_location.lng],
-        ];
-        return [];
-      });
-    }
+    
     if (coords.length < 2) throw new Error('TrackAsia: invalid polyline');
 
     const steps = (leg.steps || []).map(step => ({
@@ -881,11 +1024,8 @@ window.fetchAndShowRouteOptions = async function() {
   let routes = [];
   if (mapboxResult.status === 'fulfilled' && mapboxResult.value.code === 'Ok' && mapboxResult.value.routes) {
     routes.push(...mapboxResult.value.routes.map(r => ({ ...r, provider: 'mapbox', mode: 'driving' })));
-  } else if (mapboxResult.status === 'rejected' && mapboxResult.reason?.message !== 'skip') {
-    console.warn('❌ Mapbox fail:', mapboxResult.reason?.message);
   }
   if (trackasiaResult.status === 'fulfilled') routes.push(...trackasiaResult.value);
-  else console.warn('❌ TrackAsia fail:', trackasiaResult.reason?.message);
 
   if (routes.length === 0) {
     const extra = currentVehicleMode !== 'driving' ? '<p style="color:var(--text-muted); font-size:0.8rem; margin-top:8px;">TrackAsia chưa hỗ trợ loại xe này tại khu vực. Thử chọn Ô tô.</p>' : '';
@@ -1127,9 +1267,7 @@ function updateNextManeuverHUD(lat, lng) {
 
 function checkArrival(lat, lng) {
   if (arrivalHandled || !endPoint || !currentRouteCoords.length) return;
-
   const distToEnd = calcDist(lat, lng, endPoint.lat, endPoint.lng);
-
   if (distToEnd < ARRIVAL_RADIUS_M) {
     arrivalHandled = true;
     triggerArrival();
@@ -1145,7 +1283,7 @@ function triggerArrival() {
   document.getElementById('hudNextStopDist').textContent = '0 m';
 
   speak('Bạn đã đến nơi. Chuyến đi kết thúc.');
-  showArrivalToast();
+  showArrivalToast('🏁 Đã đến nơi! 🎉', '#10b981');
 
   setTimeout(() => {
     if (document.getElementById('hud').classList.contains('hidden')) return;
@@ -1153,17 +1291,17 @@ function triggerArrival() {
   }, 3000);
 }
 
-function showArrivalToast() {
+function showArrivalToast(text = 'Đã đến nơi! 🎉', color = '#10b981') {
   const toast = document.createElement('div');
   toast.id = 'arrivalToast';
   toast.style.cssText = `
     position: fixed; top: calc(80px + var(--safe-top)); left: 50%; transform: translateX(-50%) translateY(-30px);
-    background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 16px 24px;
+    background: ${color}; color: white; padding: 16px 24px;
     border-radius: 16px; font-weight: 800; font-size: 1rem; z-index: 9999;
-    box-shadow: 0 10px 40px rgba(16,185,129,0.5); display: flex; align-items: center; gap: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 12px;
     opacity: 0; transition: all 0.3s ease-out; pointer-events: none;
   `;
-  toast.innerHTML = `<i class="fas fa-flag-checkered" style="font-size:1.5rem;"></i><span>Đã đến nơi! 🎉</span>`;
+  toast.innerHTML = `<i class="fas fa-check-circle" style="font-size:1.5rem;"></i><span>${text}</span>`;
   document.body.appendChild(toast);
   if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
   
@@ -1217,7 +1355,6 @@ async function autoReroute(userLat, userLng) {
         const ta = await fetchTrackAsiaRouteNormalized({ lat: userLat, lng: userLng }, endPoint, currentMode);
         r = ta[0];
       } catch (e) {
-        console.warn('TrackAsia reroute fail → fallback Mapbox:', e.message);
         const res = await fetch(`${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}`);
         const data = await res.json();
         if (data.code !== 'Ok') throw new Error('no route');
@@ -1394,7 +1531,7 @@ function checkReportProximity(lat, lng) {
 }
 
 // ==========================================
-// SHARE + SAVED ROUTES
+// SHARE + SAVED ROUTES & PLACES
 // ==========================================
 window.shareRoute = function() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến trước khi chia sẻ!');
@@ -1495,8 +1632,38 @@ window.reloadSavedRoute = function(index) {
 };
 
 // ==========================================
-// UI HELPERS
+// UI HELPERS & HISTORY
 // ==========================================
+window.clearHistory = async function() {
+  if (!currentUser) return;
+  if (!confirm('Bạn có chắc muốn xoá toàn bộ lịch sử chuyến đi?')) return;
+  try {
+    await remove(ref(db, `users/${currentUser.uid}/history`));
+    loadHistory();
+  } catch(e) { alert('Lỗi xoá lịch sử: ' + e.message); }
+};
+
+async function saveHistory(start, end, distance) {
+  if (!currentUser) return;
+  await set(push(ref(db, `users/${currentUser.uid}/history`)), { startName: start.name, endName: end.name, distance, timestamp: Date.now() });
+}
+
+async function loadHistory() {
+  const list = document.getElementById('historyList');
+  if (!currentUser) return;
+  list.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i></div>';
+  try {
+    const snapshot = await get(child(ref(db), `users/${currentUser.uid}/history`));
+    if (snapshot.exists()) {
+      const items = Object.values(snapshot.val()).sort((a, b) => b.timestamp - a.timestamp);
+      list.innerHTML = '';
+      items.forEach(item => {
+        list.innerHTML += `<div class="history-item"><div class="time">${new Date(item.timestamp).toLocaleString('vi-VN')}</div><div class="route"><i class="fas fa-circle"></i> ${item.startName}</div><div class="route" style="margin-top:4px;"><i class="fas fa-circle end"></i> ${item.endName}</div><div style="margin-top:6px; font-size:0.75rem; color:var(--text-muted);">${(item.distance/1000).toFixed(1)} km</div></div>`;
+      });
+    } else list.innerHTML = '<div style="text-align:center; color:var(--text-muted);">Chưa có chuyến đi nào.</div>';
+  } catch (e) { list.innerHTML = 'Lỗi tải lịch sử.'; }
+}
+
 function toggleLayerMenu() { document.getElementById('layerMenu').classList.toggle('show'); }
 
 function changeLayer(type, btn) {
@@ -1551,8 +1718,25 @@ function closeDirections() {
   document.getElementById('mainLocateBtn').style.display = 'flex';
   document.getElementById('mainDirBtn').style.display = 'flex';
   document.getElementById('btnReport').style.display = 'flex';
+
+  if (document.getElementById('hud').classList.contains('hidden')) {
+    if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
+    alternativeLayers.forEach(l => { try { map.removeLayer(l); } catch (e) {} });
+    alternativeLayers = [];
+    if (window._routeBadges) { window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = []; }
+    currentRouteCoords = [];
+    currentRouteData = null;
+    alternativeRoutesData = [];
+    
+    endPoint = null;
+    document.getElementById('dirInputEnd').value = '';
+    document.getElementById('topSearchInput').value = '';
+    document.getElementById('btnClearEnd').classList.add('hidden');
+    document.getElementById('searchClearBtn').classList.add('hidden');
+  }
 }
-window.openMenu = function() { document.getElementById('profileModal').classList.add('open'); loadHistory(); loadSharedLinks(); loadSavedRoutes(); };
+
+window.openMenu = function() { document.getElementById('profileModal').classList.add('open'); loadHistory(); loadSharedLinks(); loadSavedRoutes(); initSavedPlaces(); };
 window.closeMenu = function() { document.getElementById('profileModal').classList.remove('open'); }
 
 window.clearPoint = function(type) {
@@ -1566,6 +1750,14 @@ window.clearPoint = function(type) {
     document.getElementById('btnClearEnd').classList.add('hidden');
     document.getElementById('topSearchInput').value = '';
     document.getElementById('searchClearBtn').classList.add('hidden');
+    
+    if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
+    alternativeLayers.forEach(l => { try { map.removeLayer(l); } catch (e) {} });
+    alternativeLayers = [];
+    if (window._routeBadges) { window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = []; }
+    currentRouteCoords = [];
+    currentRouteData = null;
+    alternativeRoutesData = [];
   }
 };
 
@@ -1810,30 +2002,6 @@ dirSheetEl.addEventListener('touchend', (e) => {
 });
 
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' || e.key === 'Esc') closeDirections(); });
-
-// ==========================================
-// HISTORY
-// ==========================================
-async function saveHistory(start, end, distance) {
-  if (!currentUser) return;
-  await set(push(ref(db, `users/${currentUser.uid}/history`)), { startName: start.name, endName: end.name, distance, timestamp: Date.now() });
-}
-
-async function loadHistory() {
-  const list = document.getElementById('historyList');
-  if (!currentUser) return;
-  list.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i></div>';
-  try {
-    const snapshot = await get(child(ref(db), `users/${currentUser.uid}/history`));
-    if (snapshot.exists()) {
-      const items = Object.values(snapshot.val()).sort((a, b) => b.timestamp - a.timestamp);
-      list.innerHTML = '';
-      items.forEach(item => {
-        list.innerHTML += `<div class="history-item"><div class="time">${new Date(item.timestamp).toLocaleString('vi-VN')}</div><div class="route"><i class="fas fa-circle"></i> ${item.startName}</div><div class="route" style="margin-top:4px;"><i class="fas fa-circle end"></i> ${item.endName}</div><div style="margin-top:6px; font-size:0.75rem; color:var(--text-muted);">${(item.distance/1000).toFixed(1)} km</div></div>`;
-      });
-    } else list.innerHTML = '<div style="text-align:center; color:var(--text-muted);">Chưa có chuyến đi nào.</div>';
-  } catch (e) { list.innerHTML = 'Lỗi tải lịch sử.'; }
-}
 
 // Export
 window.openDirections = openDirections;
