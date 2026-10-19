@@ -390,7 +390,6 @@ input:checked + .slider:before { transform: translateX(20px); }
       </label>
     </div>
 
-    <!-- ĐỊA ĐIỂM ĐÃ LƯU -->
     <div class="profile-card">
       <h3><i class="fas fa-map-pin"></i> Địa điểm đã lưu</h3>
       <div class="history-list" id="savedPlacesList">
@@ -398,7 +397,6 @@ input:checked + .slider:before { transform: translateX(20px); }
       </div>
     </div>
 
-    <!-- LỘ TRÌNH ĐÃ LƯU -->
     <div class="profile-card">
       <h3><i class="fas fa-bookmark"></i> Lộ trình đã lưu</h3>
       <div class="history-list" id="savedRoutesList">
@@ -406,7 +404,6 @@ input:checked + .slider:before { transform: translateX(20px); }
       </div>
     </div>
 
-    <!-- LỊCH SỬ CHUYẾN ĐI (CÓ NÚT XOÁ) -->
     <div class="profile-card">
       <h3>
         <span><i class="fas fa-history"></i> Lịch sử chuyến đi</span>
@@ -429,7 +426,6 @@ input:checked + .slider:before { transform: translateX(20px); }
   </div>
 </div>
 
-<!-- MODAL THÊM ĐỊA ĐIỂM -->
 <div class="save-place-modal" id="savePlaceModal">
   <div class="save-place-box">
     <h2>📍 Lưu địa điểm</h2>
@@ -848,14 +844,12 @@ function initSavedPlaces() {
       items.forEach(p => {
         const conf = PLACE_ICONS[p.type] || PLACE_ICONS.other;
         
-        // Render marker
         const iconHtml = `<div style="background:${conf.color};color:white;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 3px 8px rgba(0,0,0,0.4);font-size:1rem;"><i class="fas ${conf.icon}"></i></div>`;
         const customIcon = L.divIcon({ html: iconHtml, className: '', iconSize: [34, 34], iconAnchor: [17, 17] });
         const marker = L.marker([p.lat, p.lng], { icon: customIcon }).addTo(map);
         marker.bindPopup(`<b>${p.name}</b><br><small>${p.address || ''}</small>`);
         savedPlacesMarkers.push(marker);
 
-        // Render list item
         list.innerHTML += `
           <div class="saved-place-item" onclick="goToSavedPlace(${p.lat}, ${p.lng}, '${escapeHtml(p.name)}')">
             <div class="icon" style="background:${conf.color};"><i class="fas ${conf.icon}"></i></div>
@@ -1146,19 +1140,21 @@ function startNavigationHUD() {
   document.querySelector('.fab-layers').classList.add('hidden');
   document.getElementById('hud').classList.remove('hidden');
 
-  voiceRouteSteps = currentRouteData.legs[0].steps || [];
+  // FIX LỖI CRASH KHI API THIẾU TRƯỜNG LEGS
+  voiceRouteSteps = currentRouteData?.legs?.[0]?.steps || [];
   voiceStepIndex = 0;
   lastSnapIndex = 0;
   tripStartTime = Date.now();
   arrivalHandled = false;
 
-  document.getElementById('hudRemainDist').textContent = (currentRouteData.distance / 1000).toFixed(1) + ' km';
-  document.getElementById('hudRemainTime').textContent = Math.round(currentRouteData.duration / 60) + ' phút';
-  document.getElementById('hudNextStopName').textContent = endPoint.name;
+  document.getElementById('hudRemainDist').textContent = ((currentRouteData?.distance || 0) / 1000).toFixed(1) + ' km';
+  document.getElementById('hudRemainTime').textContent = Math.round((currentRouteData?.duration || 0) / 60) + ' phút';
+  document.getElementById('hudNextStopName').textContent = endPoint?.name || 'Điểm đến';
+  document.getElementById('hudNextStopDist').textContent = 'Đang tính...';
 
   startWatching();
   startVoice();
-  saveHistory(startPoint, endPoint, currentRouteData.distance);
+  saveHistory(startPoint, endPoint, currentRouteData?.distance || 0);
 
   if (lastUserPos) updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
 }
@@ -1201,7 +1197,7 @@ window.switchToRoute = function(index) {
 
   currentRouteData = selectedRoute;
   currentRouteCoords = selectedRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-  voiceRouteSteps = selectedRoute.legs[0].steps || [];
+  voiceRouteSteps = currentRouteData?.legs?.[0]?.steps || [];
   voiceStepIndex = 0;
   lastSnapIndex = 0;
 
@@ -1209,8 +1205,8 @@ window.switchToRoute = function(index) {
   currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
   map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
 
-  document.getElementById('hudRemainDist').textContent = (selectedRoute.distance / 1000).toFixed(1) + ' km';
-  document.getElementById('hudRemainTime').textContent = Math.round(selectedRoute.duration / 60) + ' phút';
+  document.getElementById('hudRemainDist').textContent = ((selectedRoute?.distance || 0) / 1000).toFixed(1) + ' km';
+  document.getElementById('hudRemainTime').textContent = Math.round((selectedRoute?.duration || 0) / 60) + ' phút';
 
   closeRouteOptions();
   speak('Đã đổi tuyến đường mới.');
@@ -1220,7 +1216,12 @@ window.switchToRoute = function(index) {
 // ARRIVAL DETECTION + HUD UPDATE
 // ==========================================
 function updateNextManeuverHUD(lat, lng) {
-  if (!voiceRouteSteps || voiceRouteSteps.length === 0) return;
+  if (!voiceRouteSteps || voiceRouteSteps.length === 0) {
+    document.getElementById('hudNextArrow').innerHTML = `<i class="fas fa-arrow-up"></i>`;
+    document.getElementById('hudNextDist').textContent = 'Đi thẳng';
+    document.getElementById('hudNextInstr').textContent = 'Tiếp tục di chuyển đến đích';
+    return;
+  }
 
   let nextStep = null;
   let minDist = Infinity;
@@ -1368,7 +1369,7 @@ async function autoReroute(userLat, userLng) {
     }
 
     currentRouteData = r;
-    voiceRouteSteps = r.legs[0].steps || [];
+    voiceRouteSteps = r?.legs?.[0]?.steps || [];
     voiceStepIndex = 0;
     lastSnapIndex = 0;
     offRouteCount = 0;
@@ -1380,8 +1381,8 @@ async function autoReroute(userLat, userLng) {
     currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
     map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
 
-    document.getElementById('hudRemainDist').textContent = (r.distance / 1000).toFixed(1) + ' km';
-    document.getElementById('hudRemainTime').textContent = Math.round(r.duration / 60) + ' phút';
+    document.getElementById('hudRemainDist').textContent = ((r?.distance || 0) / 1000).toFixed(1) + ' km';
+    document.getElementById('hudRemainTime').textContent = Math.round((r?.duration || 0) / 60) + ' phút';
   } catch (e) {
     console.error('Lỗi Reroute:', e);
   } finally {
@@ -1394,10 +1395,10 @@ async function autoReroute(userLat, userLng) {
 // ==========================================
 window.openEndTripModal = function() {
   if (!currentRouteData) return;
-  const totalDist = (currentRouteData.distance / 1000).toFixed(1);
-  const elapsedSec = tripStartTime ? (Date.now() - tripStartTime) / 1000 : currentRouteData.duration;
+  const totalDist = ((currentRouteData?.distance || 0) / 1000).toFixed(1);
+  const elapsedSec = tripStartTime ? (Date.now() - tripStartTime) / 1000 : (currentRouteData?.duration || 0);
   const elapsedMin = Math.max(1, Math.round(elapsedSec / 60));
-  const avgSpeed = elapsedSec > 5 ? ((currentRouteData.distance / 1000) / (elapsedSec / 3600)).toFixed(1) : '—';
+  const avgSpeed = elapsedSec > 5 ? (((currentRouteData?.distance || 0) / 1000) / (elapsedSec / 3600)).toFixed(1) : '—';
 
   document.getElementById('endTripDist').textContent = totalDist + ' km';
   document.getElementById('endTripTime').textContent = elapsedMin + ' phút';
