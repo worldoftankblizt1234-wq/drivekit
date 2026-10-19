@@ -149,22 +149,22 @@ input:checked + .slider:before { transform: translateX(20px); }
 .spinner { width: 50px; height: 50px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
-/* ══════ NEW: VEHICLE MODE ══════ */
+/* ══════ VEHICLE MODE ══════ */
 .vehicle-selector { display: flex; gap: 8px; margin: 8px 0; }
 .vehicle-mode-btn { flex: 1; padding: 10px 6px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; color: var(--text-muted); font-weight: 700; font-size: 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; transition: all 0.2s; }
 .vehicle-mode-btn.active { background: var(--primary); color: white; border-color: transparent; box-shadow: 0 3px 10px rgba(59,130,246,0.3); }
 .vehicle-mode-btn i { font-size: 1.15rem; }
 .vehicle-mode-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ══════ NEW: SORT CHIPS ══════ */
+/* ══════ SORT CHIPS ══════ */
 .sort-bar { display: flex; gap: 8px; margin-bottom: 12px; }
 .sort-chip { padding: 6px 14px; border-radius: 20px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text-muted); font-size: 0.75rem; font-weight: 700; cursor: pointer; }
 .sort-chip.active { background: var(--primary); color: white; border-color: transparent; }
 
-/* ══════ NEW: ROUTE BADGE ON MAP ══════ */
+/* ══════ ROUTE BADGE ON MAP ══════ */
 .route-num-badge { background: white; border: 3px solid currentColor; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.85rem; box-shadow: 0 3px 8px rgba(0,0,0,0.3); }
 
-/* ══════ NEW: END TRIP MODAL ══════ */
+/* ══════ END TRIP MODAL ══════ */
 .end-trip-modal { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; padding: 24px; }
 .end-trip-modal.open { display: flex; }
 .end-trip-box { background: var(--card); border-radius: 20px; padding: 24px; max-width: 380px; width: 100%; border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: popIn 0.25s ease-out; }
@@ -244,7 +244,6 @@ input:checked + .slider:before { transform: translateX(20px); }
       <button class="btn-clear-input hidden" id="btnClearEnd" onclick="clearPoint('end')"><i class="fas fa-times"></i></button>
     </div>
 
-    <!-- ══════ NEW: VEHICLE MODE ══════ -->
     <div class="vehicle-selector">
       <button class="vehicle-mode-btn active" data-mode="driving" onclick="setVehicleMode('driving', this)">
         <i class="fas fa-car"></i> Ô tô
@@ -282,7 +281,6 @@ input:checked + .slider:before { transform: translateX(20px); }
       <div style="display:flex; gap:8px;">
         <button class="hud-btn swap" onclick="openAlternativeRoutes()" title="Đổi đường"><i class="fas fa-random"></i></button>
         <button class="hud-btn" id="hudBtnVoice"><i class="fas fa-volume-up"></i></button>
-        <!-- ══════ NEW: KẾT THÚC CHUYẾN ══════ -->
         <button class="hud-btn stop" onclick="openEndTripModal()" title="Kết thúc chuyến"><i class="fas fa-flag-checkered"></i></button>
       </div>
     </div>
@@ -355,7 +353,6 @@ input:checked + .slider:before { transform: translateX(20px); }
   </div>
 </div>
 
-<!-- ══════ NEW: END TRIP MODAL ══════ -->
 <div class="end-trip-modal" id="endTripModal">
   <div class="end-trip-box">
     <h2>🏁 Hoàn thành chuyến đi</h2>
@@ -426,14 +423,16 @@ let voiceEnabled = true;
 let voiceRouteSteps = null;
 let voiceStepIndex = 0;
 let voiceCheckTimer = null;
-// FIX: khai báo trước 2 biến này (tránh ReferenceError trong autoReroute)
 let voiceSpokenMarks = new Map();
 let voiceArrivalSpoken = false;
 
-// --- NEW STATE ---
 let currentVehicleMode = 'driving'; // driving | truck | motorcycle
 let currentSortMode = 'fastest';    // fastest | shortest
 let tripStartTime = null;
+
+// ARRIVAL STATE
+let arrivalHandled = false;
+const ARRIVAL_RADIUS_M = 20; // Cách 20m là tự kết thúc
 
 const ROUTE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 
@@ -737,12 +736,25 @@ function decodePolyline(str, precision = 5) {
 }
 
 async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
-  const url = `${WORKER_URL}/trackasia-route?origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&mode=${mode}`;
+  // 1. Chuẩn hóa tên mode theo tài liệu TrackAsia
+  let apiMode = 'driving';
+  if (mode === 'motorcycle') apiMode = 'motorcycling';
+  else if (mode === 'truck') apiMode = 'truck';
+
+  const url = `${WORKER_URL}/trackasia-route?origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&mode=${apiMode}`;
   const res = await fetch(url);
   const data = await res.json();
+
+  // 2. Fallback nếu tài khoản TrackAsia chưa bật xe tải
   if (data.status !== 'OK' || !data.routes || data.routes.length === 0) {
+    if (apiMode === 'truck') {
+      console.warn('TrackAsia không hỗ trợ xe tải, fallback về driving...');
+      return fetchTrackAsiaRouteNormalized(from, to, 'driving');
+    }
     throw new Error('TrackAsia: ' + (data.status || 'no routes'));
   }
+
+  // 3. Map dữ liệu
   return data.routes.map(r => {
     const leg = r.legs?.[0] || {};
     let coords = [];
@@ -765,6 +777,7 @@ async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
       duration: step.duration?.value || 0,
       maneuver: {
         type: step.maneuver || 'straight',
+        modifier: step.maneuver || '',
         instruction: (step.html_instructions || '').replace(/<[^>]*>/g, ''),
         location: [step.end_location?.lng ?? from.lng, step.end_location?.lat ?? from.lat],
       },
@@ -935,7 +948,6 @@ window.selectRouteOption = function(index) {
   currentRouteData = selectedRoute;
   currentRouteCoords = selectedRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
 
-  // Xoá badge
   if (window._routeBadges) { window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = []; }
 
   closeRouteOptions();
@@ -960,6 +972,7 @@ function startNavigationHUD() {
   voiceStepIndex = 0;
   lastSnapIndex = 0;
   tripStartTime = Date.now();
+  arrivalHandled = false;
 
   document.getElementById('hudRemainDist').textContent = (currentRouteData.distance / 1000).toFixed(1) + ' km';
   document.getElementById('hudRemainTime').textContent = Math.round(currentRouteData.duration / 60) + ' phút';
@@ -968,6 +981,8 @@ function startNavigationHUD() {
   startWatching();
   startVoice();
   saveHistory(startPoint, endPoint, currentRouteData.distance);
+
+  if (lastUserPos) updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
 }
 
 // ==========================================
@@ -1024,10 +1039,112 @@ window.switchToRoute = function(index) {
 };
 
 // ==========================================
+// ARRIVAL DETECTION + HUD UPDATE
+// ==========================================
+function updateNextManeuverHUD(lat, lng) {
+  if (!voiceRouteSteps || voiceRouteSteps.length === 0) return;
+
+  let nextStep = null;
+  let minDist = Infinity;
+
+  for (let i = Math.max(0, voiceStepIndex); i < Math.min(voiceRouteSteps.length, voiceStepIndex + 5); i++) {
+    const step = voiceRouteSteps[i];
+    if (!step || !step.maneuver || !step.maneuver.location) continue;
+
+    const d = calcDist(lat, lng, step.maneuver.location[1], step.maneuver.location[0]);
+    if (d > 5 && d < minDist) {
+      minDist = d;
+      nextStep = step;
+    }
+  }
+
+  if (nextStep) {
+    let icon = 'fa-arrow-up';
+    const type = nextStep.maneuver.type || '';
+    const modifier = nextStep.maneuver.modifier || '';
+
+    if (type.includes('turn') || type.includes('fork') || type.includes('merge')) {
+      if (modifier.includes('left')) icon = 'fa-arrow-left';
+      else if (modifier.includes('right')) icon = 'fa-arrow-right';
+      else if (modifier.includes('slight left')) icon = 'fa-share';
+      else if (modifier.includes('slight right')) icon = 'fa-reply';
+    } else if (type.includes('roundabout')) {
+      icon = 'fa-sync-alt';
+    } else if (type.includes('arrive')) {
+      icon = 'fa-flag-checkered';
+    } else if (type.includes('uturn')) {
+      icon = 'fa-undo';
+    }
+
+    document.getElementById('hudNextArrow').innerHTML = `<i class="fas ${icon}"></i>`;
+    document.getElementById('hudNextDist').textContent = minDist > 1000 ? (minDist / 1000).toFixed(1) + ' km' : Math.round(minDist) + ' m';
+    const inst = nextStep.maneuver.instruction || 'Tiếp tục di chuyển';
+    document.getElementById('hudNextInstr').textContent = inst;
+  } else {
+    document.getElementById('hudNextArrow').innerHTML = `<i class="fas fa-arrow-up"></i>`;
+    document.getElementById('hudNextDist').textContent = 'Đi thẳng';
+    document.getElementById('hudNextInstr').textContent = 'Tiếp tục di chuyển đến đích';
+  }
+}
+
+function checkArrival(lat, lng) {
+  if (arrivalHandled || !endPoint || !currentRouteCoords.length) return;
+
+  const distToEnd = calcDist(lat, lng, endPoint.lat, endPoint.lng);
+
+  if (distToEnd < ARRIVAL_RADIUS_M) {
+    arrivalHandled = true;
+    triggerArrival();
+  }
+}
+
+function triggerArrival() {
+  document.getElementById('hudRemainDist').textContent = '0 m';
+  document.getElementById('hudRemainTime').textContent = 'Đã đến';
+  document.getElementById('hudNextInstr').textContent = 'Đã đến nơi 🎉';
+  document.getElementById('hudNextDist').textContent = '';
+  document.getElementById('hudNextArrow').innerHTML = '🏁';
+  document.getElementById('hudNextStopDist').textContent = '0 m';
+
+  speak('Bạn đã đến nơi. Chuyến đi kết thúc.');
+  showArrivalToast();
+
+  setTimeout(() => {
+    if (document.getElementById('hud').classList.contains('hidden')) return;
+    openEndTripModal();
+  }, 3000);
+}
+
+function showArrivalToast() {
+  const toast = document.createElement('div');
+  toast.id = 'arrivalToast';
+  toast.style.cssText = `
+    position: fixed; top: calc(80px + var(--safe-top)); left: 50%; transform: translateX(-50%) translateY(-30px);
+    background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 16px 24px;
+    border-radius: 16px; font-weight: 800; font-size: 1rem; z-index: 9999;
+    box-shadow: 0 10px 40px rgba(16,185,129,0.5); display: flex; align-items: center; gap: 12px;
+    opacity: 0; transition: all 0.3s ease-out; pointer-events: none;
+  `;
+  toast.innerHTML = `<i class="fas fa-flag-checkered" style="font-size:1.5rem;"></i><span>Đã đến nơi! 🎉</span>`;
+  document.body.appendChild(toast);
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+  
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+  });
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(-30px)';
+    setTimeout(() => toast.remove(), 300);
+  }, 2800);
+}
+
+// ==========================================
 // AUTO REROUTE (giữ nguyên provider)
 // ==========================================
 function checkOffRoute(userLat, userLng) {
-  if (!currentRouteCoords || currentRouteCoords.length < 2 || isRerouting) return;
+  if (!currentRouteCoords || currentRouteCoords.length < 2 || isRerouting || arrivalHandled) return;
   let minDist = Infinity;
   const startScan = Math.max(0, lastSnapIndex - 10);
   const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 150);
@@ -1152,6 +1269,7 @@ window.endTrip = async function(save) {
   offRouteCount = 0;
   isRerouting = false;
   tripStartTime = null;
+  arrivalHandled = false;
   warnedReports.clear();
   localStorage.removeItem('alternativeRoutes');
 
@@ -1576,13 +1694,15 @@ function startWatching() {
     lastUserPos = newPos;
     animateMarkerTo(lastUserPos);
     if (map) map.panTo([lastUserPos.lat, lastUserPos.lng], { animate: true, duration: 0.5 });
+
     checkReportProximity(lastUserPos.lat, lastUserPos.lng);
     checkOffRoute(lastUserPos.lat, lastUserPos.lng);
+    checkArrival(lastUserPos.lat, lastUserPos.lng);
+    updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
   }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
 }
 
 function stopRoute() {
-  // Fallback nếu ai đó gọi hàm cũ
   if (currentRouteData) openEndTripModal();
 }
 
