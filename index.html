@@ -161,9 +161,9 @@ button { cursor: pointer; }
 .profile-time { position: absolute; bottom: 20px; right: 24px; font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 10px; }
 .profile-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 .profile-card { background: var(--card); border-radius: 16px; padding: 16px; border: 1px solid var(--border); }
-.profile-card h3 { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+.profile-card h3 { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; font-weight: 800; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .history-list { display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; }
-.history-item { background: var(--bg-2); padding: 12px; border-radius: 10px; border-left: 3px solid var(--primary); }
+.history-item { background: var(--bg-2); padding: 12px; border-radius: 10px; border-left: 3px solid var(--primary); position: relative; }
 .history-item .time { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px; }
 .history-item .route { font-size: 0.9rem; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
 .profile-btn { width: 100%; padding: 14px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text); font-weight: 700; display: flex; align-items: center; justify-content: space-between; font-size: 0.95rem; margin-bottom: 10px; cursor: pointer; }
@@ -374,19 +374,25 @@ input:checked + .slider:before { transform: translateX(20px); }
       </label>
     </div>
     <div class="profile-card">
-      <h3><i class="fas fa-bookmark"></i> Lộ trình đã lưu</h3>
+      <h3><i class="fas fa-bookmark"></i> Lộ trình đã lưu 
+        <button onclick="clearAllSavedRoutes()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button>
+      </h3>
       <div class="history-list" id="savedRoutesList">
         <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có lộ trình nào được lưu</div>
       </div>
     </div>
     <div class="profile-card">
-      <h3><i class="fas fa-history"></i> Lịch sử chuyến đi</h3>
+      <h3><i class="fas fa-history"></i> Lịch sử chuyến đi
+        <button onclick="clearAllHistory()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button>
+      </h3>
       <div class="history-list" id="historyList">
         <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có chuyến đi nào</div>
       </div>
     </div>
     <div class="profile-card">
-      <h3><i class="fas fa-link"></i> Link đã chia sẻ</h3>
+      <h3><i class="fas fa-link"></i> Link đã chia sẻ
+        <button onclick="clearAllSharedLinks()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button>
+      </h3>
       <div class="history-list" id="sharedLinksList">
         <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có link nào</div>
       </div>
@@ -1602,10 +1608,17 @@ async function loadSharedLinks() {
   try {
     const snapshot = await get(child(ref(db), `users/${currentUser.uid}/sharedLinks`));
     if (snapshot.exists()) {
-      const items = Object.values(snapshot.val()).sort((a, b) => b.timestamp - a.timestamp);
+      const items = Object.entries(snapshot.val()).sort((a, b) => b[1].timestamp - a[1].timestamp);
       list.innerHTML = '';
-      items.forEach(item => {
-        list.innerHTML += `<div class="history-item"><div class="time">${new Date(item.timestamp).toLocaleString('vi-VN')}</div><div class="route"><i class="fas fa-circle"></i> ${item.fromName} <i class="fas fa-arrow-right" style="font-size:0.7rem; margin:0 4px; color:var(--text-muted)"></i> <i class="fas fa-circle end"></i> ${item.toName}</div><button onclick="navigator.clipboard.writeText('${item.url}').then(()=>alert('Đã copy!'))" style="margin-top:8px; padding:6px 12px; background:var(--primary); color:white; border-radius:6px; font-size:0.75rem;"><i class="fas fa-copy"></i> Copy Link</button></div>`;
+      items.forEach(([key, item]) => {
+        list.innerHTML += `<div class="history-item">
+          <div class="time">${new Date(item.timestamp).toLocaleString('vi-VN')}</div>
+          <div class="route"><i class="fas fa-circle"></i> ${item.fromName} <i class="fas fa-arrow-right" style="font-size:0.7rem; margin:0 4px; color:var(--text-muted)"></i> <i class="fas fa-circle end"></i> ${item.toName}</div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button onclick="navigator.clipboard.writeText('${item.url}').then(()=>alert('Đã copy!'))" style="flex:1; padding:6px 12px; background:var(--primary); color:white; border-radius:6px; font-size:0.75rem;"><i class="fas fa-copy"></i> Copy Link</button>
+            <button onclick="deleteItem('sharedLinks', '${key}')" style="padding:6px 12px; background:var(--danger); color:white; border-radius:6px; font-size:0.75rem;"><i class="fas fa-trash"></i></button>
+          </div>
+        </div>`;
       });
     } else list.innerHTML = '<div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có link nào</div>';
   } catch (e) { list.innerHTML = 'Lỗi tải link.'; }
@@ -1631,14 +1644,17 @@ async function loadSavedRoutes() {
   try {
     const snapshot = await get(child(ref(db), `users/${currentUser.uid}/savedRoutes`));
     if (snapshot.exists()) {
-      const items = Object.values(snapshot.val()).sort((a, b) => b.timestamp - a.timestamp);
+      const items = Object.entries(snapshot.val()).sort((a, b) => b[1].timestamp - a[1].timestamp);
       list.innerHTML = '';
-      items.forEach((item, index) => {
+      items.forEach(([key, item]) => {
         list.innerHTML += `<div class="history-item">
           <div class="time">${new Date(item.timestamp).toLocaleString('vi-VN')}</div>
           <div class="route"><i class="fas fa-circle"></i> ${item.startName}</div>
           <div class="route" style="margin-top:4px;"><i class="fas fa-circle end"></i> ${item.endName}</div>
-          <button onclick="reloadSavedRoute(${index})" style="margin-top:8px; padding:6px 12px; background:var(--primary); color:white; border-radius:6px; font-size:0.75rem;"><i class="fas fa-route"></i> Xem lại lộ trình</button>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button onclick="reloadSavedRoute('${key}')" style="flex:1; padding:6px 12px; background:var(--primary); color:white; border-radius:6px; font-size:0.75rem;"><i class="fas fa-route"></i> Xem lại</button>
+            <button onclick="deleteItem('savedRoutes', '${key}')" style="padding:6px 12px; background:var(--danger); color:white; border-radius:6px; font-size:0.75rem;"><i class="fas fa-trash"></i></button>
+          </div>
         </div>`;
       });
       window._savedRoutesData = items;
@@ -1646,24 +1662,51 @@ async function loadSavedRoutes() {
   } catch (e) { list.innerHTML = 'Lỗi tải lộ trình.'; }
 }
 
-window.reloadSavedRoute = function(index) {
-  const item = window._savedRoutesData[index];
+window.reloadSavedRoute = function(key) {
+  const item = window._savedRoutesData.find(i => i[0] === key);
   if (!item) return;
-  startPoint = { lat: item.startLat, lng: item.startLng, name: item.startName };
-  endPoint = { lat: item.endLat, lng: item.endLng, name: item.endName };
+  const data = item[1];
+  startPoint = { lat: data.startLat, lng: data.startLng, name: data.startName };
+  endPoint = { lat: data.endLat, lng: data.endLng, name: data.endName };
   document.getElementById('dirInputStart').value = startPoint.name;
   document.getElementById('dirInputEnd').value = endPoint.name;
   document.getElementById('topSearchInput').value = endPoint.name;
   document.getElementById('btnClearStart').classList.remove('hidden');
   document.getElementById('btnClearEnd').classList.remove('hidden');
   document.getElementById('searchClearBtn').classList.remove('hidden');
-  currentRouteCoords = item.coords;
+  currentRouteCoords = data.coords;
   lastSnapIndex = 0;
   if (currentRouteLayer) map.removeLayer(currentRouteLayer);
   currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
   map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
   closeMenu();
   openDirections();
+};
+
+// ==========================================
+// DELETE HISTORY & SAVED ITEMS
+// ==========================================
+window.deleteItem = async function(type, key) {
+  if (!confirm('Bạn có chắc muốn xoá mục này?')) return;
+  try {
+    await remove(ref(db, `users/${currentUser.uid}/${type}/${key}`));
+    if (type === 'history') loadHistory();
+    else if (type === 'savedRoutes') loadSavedRoutes();
+    else if (type === 'sharedLinks') loadSharedLinks();
+  } catch (e) { alert('Lỗi xoá: ' + e.message); }
+};
+
+window.clearAllHistory = async function() {
+  if (!confirm('Bạn có chắc muốn XOÁ TẤT CẢ lịch sử chuyến đi?')) return;
+  try { await remove(ref(db, `users/${currentUser.uid}/history`)); loadHistory(); } catch(e) { alert('Lỗi xoá: ' + e.message); }
+};
+window.clearAllSavedRoutes = async function() {
+  if (!confirm('Bạn có chắc muốn XOÁ TẤT CẢ lộ trình đã lưu?')) return;
+  try { await remove(ref(db, `users/${currentUser.uid}/savedRoutes`)); loadSavedRoutes(); } catch(e) { alert('Lỗi xoá: ' + e.message); }
+};
+window.clearAllSharedLinks = async function() {
+  if (!confirm('Bạn có chắc muốn XOÁ TẤT CẢ link đã chia sẻ?')) return;
+  try { await remove(ref(db, `users/${currentUser.uid}/sharedLinks`)); loadSharedLinks(); } catch(e) { alert('Lỗi xoá: ' + e.message); }
 };
 
 // ==========================================
@@ -2000,10 +2043,16 @@ async function loadHistory() {
   try {
     const snapshot = await get(child(ref(db), `users/${currentUser.uid}/history`));
     if (snapshot.exists()) {
-      const items = Object.values(snapshot.val()).sort((a, b) => b.timestamp - a.timestamp);
+      const items = Object.entries(snapshot.val()).sort((a, b) => b[1].timestamp - a[1].timestamp);
       list.innerHTML = '';
-      items.forEach(item => {
-        list.innerHTML += `<div class="history-item"><div class="time">${new Date(item.timestamp).toLocaleString('vi-VN')}</div><div class="route"><i class="fas fa-circle"></i> ${item.startName}</div><div class="route" style="margin-top:4px;"><i class="fas fa-circle end"></i> ${item.endName}</div><div style="margin-top:6px; font-size:0.75rem; color:var(--text-muted);">${(item.distance/1000).toFixed(1)} km</div></div>`;
+      items.forEach(([key, item]) => {
+        list.innerHTML += `<div class="history-item">
+          <div class="time">${new Date(item.timestamp).toLocaleString('vi-VN')}</div>
+          <div class="route"><i class="fas fa-circle"></i> ${item.startName}</div>
+          <div class="route" style="margin-top:4px;"><i class="fas fa-circle end"></i> ${item.endName}</div>
+          <div style="margin-top:6px; font-size:0.75rem; color:var(--text-muted);">${(item.distance/1000).toFixed(1)} km</div>
+          <button onclick="deleteItem('history', '${key}')" style="position:absolute; top:10px; right:10px; padding:4px; background:transparent; color:var(--danger);"><i class="fas fa-trash"></i></button>
+        </div>`;
       });
     } else list.innerHTML = '<div style="text-align:center; color:var(--text-muted);">Chưa có chuyến đi nào.</div>';
   } catch (e) { list.innerHTML = 'Lỗi tải lịch sử.'; }
