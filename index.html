@@ -71,6 +71,7 @@ button { cursor: pointer; }
 .hud-btn { width: 44px; height: 44px; border-radius: 12px; background: var(--card-2); color: var(--text); font-size: 1.1rem; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); }
 .hud-btn.active { background: var(--success); color: white; border-color: transparent; }
 .hud-btn.stop { background: var(--danger); color: white; }
+.hud-btn.swap { background: var(--warning); color: white; border-color: transparent; }
 
 /* SEARCH & FAB */
 .floating-search { position: fixed; top: calc(16px + var(--safe-top)); left: 16px; right: 60px; z-index: 1000; background: var(--card); border-radius: 24px; padding: 10px 16px; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid var(--border); cursor: pointer; }
@@ -85,9 +86,18 @@ button { cursor: pointer; }
 .fab-report { position: fixed; bottom: calc(80px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, var(--danger), #f97316); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(239,68,68,0.4); }
 
 /* MODALS */
-.report-modal, .profile-modal { position: fixed; inset: 0; z-index: 2500; background: var(--bg); display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s ease-in-out; }
+.route-options-modal, .report-modal, .profile-modal { position: fixed; inset: 0; z-index: 2500; background: var(--bg); display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s ease-in-out; }
 .profile-modal { transform: translateX(100%); }
-.report-modal.open, .profile-modal.open { transform: translate(0); }
+.route-options-modal.open, .report-modal.open, .profile-modal.open { transform: translate(0); }
+
+.route-options-header { padding: calc(20px + var(--safe-top)) 24px 20px; background: var(--card); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.route-options-header h2 { font-size: 1.2rem; color: var(--text); }
+.route-options-body { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+.route-card { background: var(--card); border: 2px solid var(--border); border-radius: 16px; padding: 16px; cursor: pointer; transition: all 0.2s; display: flex; justify-content: space-between; align-items: center; }
+.route-card.active { border-color: var(--primary); background: rgba(59,130,246,0.05); }
+.route-card .info h3 { font-size: 1.1rem; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+.route-card .info p { font-size: 0.85rem; color: var(--text-muted); }
+.route-card .badge { background: var(--success); color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
 
 .report-header { padding: calc(20px + var(--safe-top)) 24px 20px; background: var(--danger); color: white; display: flex; justify-content: space-between; align-items: center; }
 .report-header h2 { font-size: 1.2rem; }
@@ -218,8 +228,8 @@ input:checked + .slider:before { transform: translateX(20px); }
       <input type="text" id="dirInputEnd" placeholder="Điểm đến" readonly onclick="activateSearch('end')" />
       <button class="btn-clear-input hidden" id="btnClearEnd" onclick="clearPoint('end')"><i class="fas fa-times"></i></button>
     </div>
-    <button class="btn-auth btn-email" style="margin-top:6px; margin-bottom:0;" onclick="startRouteFromSheet()">
-      <i class="fas fa-play"></i> Bắt đầu dẫn đường
+    <button class="btn-auth btn-email" style="margin-top:6px; margin-bottom:0;" onclick="fetchAndShowRouteOptions()">
+      <i class="fas fa-search-location"></i> Đánh giá & Chọn đường
     </button>
   </div>
 
@@ -241,10 +251,22 @@ input:checked + .slider:before { transform: translateX(20px); }
         <div class="dist" id="hudNextStopDist">—</div>
       </div>
       <div style="display:flex; gap:8px;">
+        <button class="hud-btn swap" onclick="openAlternativeRoutes()" title="Đổi đường"><i class="fas fa-random"></i></button>
         <button class="hud-btn" id="hudBtnVoice"><i class="fas fa-volume-up"></i></button>
         <button class="hud-btn stop" onclick="stopRoute()"><i class="fas fa-stop"></i></button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ROUTE OPTIONS MODAL -->
+<div class="route-options-modal" id="routeOptionsModal">
+  <div class="route-options-header">
+    <h2><i class="fas fa-route"></i> Các tuyến đường gợi ý</h2>
+    <button class="report-close" onclick="closeRouteOptions()" style="background:var(--bg-2);color:var(--text);"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="route-options-body" id="routeOptionsBody">
+    <!-- Nội dung render tự động bằng JS -->
   </div>
 </div>
 
@@ -255,21 +277,11 @@ input:checked + .slider:before { transform: translateX(20px); }
     <button class="report-close" onclick="closeReportMenu()"><i class="fas fa-times"></i></button>
   </div>
   <div class="report-body">
-    <button class="report-btn police" onclick="submitReport('police')">
-      <i class="fas fa-shield-alt"></i> CSGT
-    </button>
-    <button class="report-btn accident" onclick="submitReport('accident')">
-      <i class="fas fa-car-crash"></i> Tai nạn
-    </button>
-    <button class="report-btn traffic" onclick="submitReport('traffic')">
-      <i class="fas fa-traffic-light"></i> Kẹt xe
-    </button>
-    <button class="report-btn pothole" onclick="submitReport('pothole')">
-      <i class="fas fa-exclamation-circle"></i> Ổ gà
-    </button>
-    <button class="report-btn" onclick="submitReport('flood')">
-      <i class="fas fa-water"></i> Ngập nước
-    </button>
+    <button class="report-btn police" onclick="submitReport('police')"><i class="fas fa-shield-alt"></i> CSGT</button>
+    <button class="report-btn accident" onclick="submitReport('accident')"><i class="fas fa-car-crash"></i> Tai nạn</button>
+    <button class="report-btn traffic" onclick="submitReport('traffic')"><i class="fas fa-traffic-light"></i> Kẹt xe</button>
+    <button class="report-btn pothole" onclick="submitReport('pothole')"><i class="fas fa-exclamation-circle"></i> Ổ gà</button>
+    <button class="report-btn" onclick="submitReport('flood')"><i class="fas fa-water"></i> Ngập nước</button>
   </div>
 </div>
 
@@ -354,7 +366,10 @@ let endPoint = null;
 let userMarker = null;
 let gpsCircle = null;
 let currentRouteLayer = null;
+let alternativeLayers = []; 
 let currentRouteCoords = []; 
+let currentRouteData = null; 
+let alternativeRoutesData = []; 
 let watchId = null;
 let lastUserPos = null;
 let lastHeading = 0;
@@ -364,6 +379,10 @@ let initialCenter = [21.0285, 105.8542];
 let initialZoom = 17; 
 let lastSnapIndex = 0; 
 let smoothedSpeed = 0; 
+
+// --- OFF-ROUTE STATE ---
+let offRouteCount = 0;
+let isRerouting = false;
 
 // --- REPORT STATE ---
 let activeReports = {}; 
@@ -479,7 +498,6 @@ onAuthStateChanged(auth, (user) => {
     document.getElementById('profileEmail').textContent = user.email;
     if (user.photoURL) document.getElementById('profileAvatar').innerHTML = `<img src="${user.photoURL}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
 
-    // Xử lý link chia sẻ
     const params = new URLSearchParams(window.location.search);
     if (params.get('fromLat')) {
       startPoint = { lat: parseFloat(params.get('fromLat')), lng: parseFloat(params.get('fromLng')), name: params.get('fromName') || 'Điểm đi' };
@@ -494,12 +512,10 @@ onAuthStateChanged(auth, (user) => {
         document.getElementById('btnClearEnd').classList.remove('hidden');
         document.getElementById('searchClearBtn').classList.remove('hidden');
         
-        // HIỂN THỊ CHẤM CAM CHO ĐỊA ĐIỂM ĐƯỢC CHIA SẺ
         if (startPoint.lat === endPoint.lat && startPoint.lng === endPoint.lng) {
             const orangeIcon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#f97316;border:3px solid white;box-shadow:0 0 10px rgba(249,115,22,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
             L.marker([startPoint.lat, startPoint.lng], { icon: orangeIcon }).addTo(map).bindPopup(`<b>📍 Vị trí được chia sẻ</b>`).openPopup();
         } else {
-            // Nếu là chia sẻ lộ trình, vẽ chấm cam ở điểm đến
             const orangeIcon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#f97316;border:3px solid white;box-shadow:0 0 10px rgba(249,115,22,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
             L.marker([endPoint.lat, endPoint.lng], { icon: orangeIcon }).addTo(map).bindPopup(`<b>📍 Điểm đến được chia sẻ</b>`).openPopup();
         }
@@ -661,6 +677,245 @@ function initMap() {
 }
 
 // ==========================================
+// AUTO REROUTING (ĐI SAI ĐƯỜNG)
+// ==========================================
+function checkOffRoute(userLat, userLng) {
+  if (!currentRouteCoords || currentRouteCoords.length < 2 || isRerouting) return;
+
+  let minDist = Infinity;
+  const startScan = Math.max(0, lastSnapIndex - 10);
+  const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 150);
+
+  for (let i = startScan; i < endScan; i++) {
+    const pt = getClosestPointOnSegment(
+      { lat: userLat, lng: userLng }, 
+      { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] }, 
+      { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] }
+    );
+    const d = calcDist(userLat, userLng, pt.lat, pt.lng);
+    if (d < minDist) minDist = d;
+  }
+
+  if (minDist > 50) {
+    offRouteCount++;
+    if (offRouteCount >= 3) { 
+      offRouteCount = 0;
+      autoReroute(userLat, userLng);
+    }
+  } else {
+    offRouteCount = 0; 
+  }
+}
+
+async function autoReroute(userLat, userLng) {
+  if (isRerouting) return;
+  isRerouting = true;
+
+  // Tắt thông báo bằng Voice theo yêu cầu
+  // speak('Bạn đã đi chệch hướng. Đang tìm lại đường...');
+
+  const fromStr = `${userLng},${userLat}`;
+  const toStr = `${endPoint.lng},${endPoint.lat}`;
+  const url = `${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}`;
+
+  try {
+    const res = await fetch(url); 
+    const data = await res.json();
+    
+    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+      throw new Error('Không tìm được đường mới');
+    }
+
+    const r = data.routes[0];
+    voiceRouteSteps = r.legs[0].steps || [];
+    voiceStepIndex = 0;
+    lastSnapIndex = 0;
+    offRouteCount = 0;
+
+    currentRouteCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    
+    if (currentRouteLayer) map.removeLayer(currentRouteLayer);
+    currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+    
+    map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
+
+    document.getElementById('hudRemainDist').textContent = (r.distance/1000).toFixed(1) + ' km';
+    document.getElementById('hudRemainTime').textContent = Math.round(r.duration/60) + ' phút';
+    
+    // Không đọc thông báo, chỉ reset biến để nó tự đọc các bước rẽ tiếp theo
+    voiceSpokenMarks = new Map(); 
+    voiceArrivalSpoken = false;
+
+  } catch (e) {
+    console.error('Lỗi Reroute:', e);
+  } finally {
+    isRerouting = false;
+  }
+}
+
+// ==========================================
+// ROUTE OPTIONS LOGIC (ĐÁNH GIÁ ĐƯỜNG ĐI)
+// ==========================================
+window.fetchAndShowRouteOptions = async function() {
+  if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
+  
+  document.getElementById('routeOptionsBody').innerHTML = '<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px; color:var(--text-muted);">Đang tìm các tuyến đường...</p></div>';
+  document.getElementById('routeOptionsModal').classList.add('open');
+
+  const fromStr = `${startPoint.lng},${startPoint.lat}`; const toStr = `${endPoint.lng},${endPoint.lat}`;
+  const url = `${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}&alternatives=true`;
+  
+  try {
+    const res = await fetch(url); const data = await res.json();
+    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) throw new Error('Không tìm thấy đường');
+    
+    alternativeRoutesData = data.routes;
+    
+    if (currentRouteLayer) map.removeLayer(currentRouteLayer);
+    alternativeLayers.forEach(l => map.removeLayer(l));
+    alternativeLayers = [];
+
+    alternativeRoutesData.forEach((r, index) => {
+      const coords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+      const color = index === 0 ? '#3b82f6' : '#9ca3af';
+      const weight = index === 0 ? 8 : 5;
+      const layer = L.polyline(coords, { color: color, weight: weight, opacity: index === 0 ? 1 : 0.7, dashArray: index === 0 ? '' : '10, 10' }).addTo(map);
+      alternativeLayers.push(layer);
+    });
+
+    const bounds = L.latLngBounds(alternativeRoutesData[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]));
+    map.fitBounds(bounds, { padding: [50, 50] });
+
+    let html = '';
+    alternativeRoutesData.forEach((r, index) => {
+      const dist = (r.distance / 1000).toFixed(1);
+      const dur = Math.round(r.duration / 60);
+      const isOptimal = index === 0;
+      html += `
+        <div class="route-card ${isOptimal ? 'active' : ''}" onclick="selectRouteOption(${index})">
+          <div class="info">
+            <h3>Tuyến ${index + 1} ${isOptimal ? '(Tối ưu nhất)' : ''}</h3>
+            <p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p>
+          </div>
+          ${isOptimal ? '<span class="badge">Đề xuất</span>' : ''}
+        </div>
+      `;
+    });
+    document.getElementById('routeOptionsBody').innerHTML = html;
+
+  } catch (e) {
+    document.getElementById('routeOptionsBody').innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Lỗi: ${e.message}</p></div>`;
+  }
+};
+
+window.selectRouteOption = function(index) {
+  const selectedRoute = alternativeRoutesData[index];
+  
+  const unselectedRoutes = alternativeRoutesData.filter((_, i) => i !== index);
+  localStorage.setItem('alternativeRoutes', JSON.stringify(unselectedRoutes));
+  
+  alternativeLayers.forEach((l, i) => {
+    if (i === index) {
+      l.setStyle({ color: '#3b82f6', weight: 8, opacity: 1, dashArray: '' });
+    } else {
+      l.setStyle({ color: '#9ca3af', weight: 5, opacity: 0.5, dashArray: '10, 10' });
+    }
+  });
+  
+  alternativeLayers.forEach((l, i) => {
+    if (i !== index) map.removeLayer(l);
+  });
+  
+  currentRouteLayer = alternativeLayers[index];
+  alternativeLayers = [currentRouteLayer];
+  
+  currentRouteData = selectedRoute;
+  currentRouteCoords = selectedRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+  
+  closeRouteOptions();
+  startNavigationHUD();
+};
+
+window.openAlternativeRoutes = function() {
+  const stored = localStorage.getItem('alternativeRoutes');
+  if (!stored) return alert('Không có tuyến đường phụ nào được lưu!');
+  
+  const routes = JSON.parse(stored);
+  if (routes.length === 0) return alert('Không có tuyến đường phụ nào!');
+
+  alternativeRoutesData = [currentRouteData, ...routes]; 
+  
+  document.getElementById('routeOptionsBody').innerHTML = '';
+  let html = '';
+  alternativeRoutesData.forEach((r, index) => {
+    const dist = (r.distance / 1000).toFixed(1);
+    const dur = Math.round(r.duration / 60);
+    const isCurrent = index === 0;
+    html += `
+      <div class="route-card ${isCurrent ? 'active' : ''}" onclick="switchToRoute(${index})">
+        <div class="info">
+          <h3>${isCurrent ? 'Tuyến hiện tại' : 'Tuyến gợi ý ' + index}</h3>
+          <p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p>
+        </div>
+      </div>
+    `;
+  });
+  document.getElementById('routeOptionsBody').innerHTML = html;
+  document.getElementById('routeOptionsModal').classList.add('open');
+};
+
+window.switchToRoute = function(index) {
+  const selectedRoute = alternativeRoutesData[index];
+  if (!selectedRoute) return;
+
+  const previousRoute = currentRouteData;
+  const otherRoutes = alternativeRoutesData.filter((_, i) => i !== index);
+  localStorage.setItem('alternativeRoutes', JSON.stringify(otherRoutes));
+
+  currentRouteData = selectedRoute;
+  currentRouteCoords = selectedRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+  voiceRouteSteps = selectedRoute.legs[0].steps || [];
+  voiceStepIndex = 0;
+  lastSnapIndex = 0;
+
+  if (currentRouteLayer) map.removeLayer(currentRouteLayer);
+  currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
+  map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
+
+  document.getElementById('hudRemainDist').textContent = (selectedRoute.distance/1000).toFixed(1) + ' km';
+  document.getElementById('hudRemainTime').textContent = Math.round(selectedRoute.duration/60) + ' phút';
+
+  closeRouteOptions();
+  speak('Đã đổi tuyến đường mới.');
+};
+
+window.closeRouteOptions = function() {
+  document.getElementById('routeOptionsModal').classList.remove('open');
+};
+
+function startNavigationHUD() {
+  closeDirections();
+  document.getElementById('searchBar').classList.add('hidden');
+  document.getElementById('mainMenuBtn').classList.add('hidden');
+  document.getElementById('mainLocateBtn').classList.add('hidden');
+  document.getElementById('mainDirBtn').classList.add('hidden');
+  document.querySelector('.fab-layers').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  
+  voiceRouteSteps = currentRouteData.legs[0].steps || []; 
+  voiceStepIndex = 0; 
+  lastSnapIndex = 0; 
+  
+  document.getElementById('hudRemainDist').textContent = (currentRouteData.distance/1000).toFixed(1) + ' km';
+  document.getElementById('hudRemainTime').textContent = Math.round(currentRouteData.duration/60) + ' phút';
+  document.getElementById('hudNextStopName').textContent = endPoint.name;
+  
+  startWatching(); 
+  startVoice(); 
+  saveHistory(startPoint, endPoint, currentRouteData.distance);
+}
+
+// ==========================================
 // REPORTING SYSTEM
 // ==========================================
 window.openReportMenu = function() { document.getElementById('reportModal').classList.add('open'); };
@@ -671,10 +926,10 @@ window.submitReport = async function(type) {
   closeReportMenu();
 
   const now = Date.now();
-  let ttl = 3600000; // 1 tiếng
-  if (type === 'pothole') ttl = 86400000; // 24 tiếng
-  else if (type === 'flood') ttl = 10800000; // 3 tiếng
-  else if (type === 'traffic') ttl = 1800000; // Kẹt xe 30 phút
+  let ttl = 3600000; 
+  if (type === 'pothole') ttl = 86400000; 
+  else if (type === 'flood') ttl = 10800000; 
+  else if (type === 'traffic') ttl = 1800000; 
 
   const newReport = {
     lat: lastUserPos.lat, lng: lastUserPos.lng, type: type,
@@ -938,7 +1193,6 @@ function closeSearch() { document.getElementById('suggestionsBox').classList.rem
 async function doSearch(query) {
   const box = document.getElementById('suggestionsBox');
   
-  // XỬ LÝ LINK GOOGLE MAPS
   if (query.startsWith('http://') || query.startsWith('https://')) {
     if (query.includes('google.com/maps') || query.includes('goo.gl/maps')) {
       box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang giải mã link Google Maps...</div>';
@@ -964,7 +1218,6 @@ async function doSearch(query) {
     }
   }
 
-  // TÌM KIẾM BÌNH THƯỜNG
   box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang tìm...</div>';
   try {
     const res = await fetch(`${WORKER_URL}/trackasia-search?query=${encodeURIComponent(query)}`);
@@ -1092,57 +1345,12 @@ function animateMarkerTo(targetPos) {
   gpsCircle = L.circle([snappedLat, snappedLng], { radius: targetPos.accuracy || 10, color: '#10b981', fillColor: '#10b981', fillOpacity: 0.15, weight: 1 }).addTo(map);
 }
 
-async function startRouteFromSheet() {
-  if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
-  closeDirections();
-  document.getElementById('searchBar').classList.add('hidden');
-  document.getElementById('mainMenuBtn').classList.add('hidden');
-  document.getElementById('mainLocateBtn').classList.add('hidden');
-  document.getElementById('mainDirBtn').classList.add('hidden');
-  document.querySelector('.fab-layers').classList.add('hidden');
-  document.getElementById('hud').classList.remove('hidden');
-  
-  const fromStr = `${startPoint.lng},${startPoint.lat}`; const toStr = `${endPoint.lng},${endPoint.lat}`;
-  const url = `${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}`;
-  
-  try {
-    const res = await fetch(url); const data = await res.json();
-    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) throw new Error('Không tìm thấy đường');
-    
-    const r = data.routes[0];
-    voiceRouteSteps = r.legs[0].steps || []; voiceStepIndex = 0; lastSnapIndex = 0; 
-    
-    currentRouteCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-    if (currentRouteLayer) map.removeLayer(currentRouteLayer);
-    currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
-    map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
-    
-    document.getElementById('hudRemainDist').textContent = (r.distance/1000).toFixed(1) + ' km';
-    document.getElementById('hudRemainTime').textContent = Math.round(r.duration/60) + ' phút';
-    document.getElementById('hudNextStopName').textContent = endPoint.name;
-    
-    startWatching(); startVoice(); saveHistory(startPoint, endPoint, r.distance);
-    
-  } catch (e) {
-    alert('Lỗi lấy đường: ' + e.message);
-    document.getElementById('hud').classList.add('hidden');
-    document.getElementById('searchBar').classList.remove('hidden');
-    document.getElementById('mainMenuBtn').classList.remove('hidden');
-    document.getElementById('mainLocateBtn').classList.remove('hidden');
-    document.getElementById('mainDirBtn').classList.remove('hidden');
-    document.querySelector('.fab-layers').classList.remove('hidden');
-  }
-}
-
 function startWatching() {
   if (watchId) navigator.geolocation.clearWatch(watchId);
   watchId = navigator.geolocation.watchPosition(pos => {
     const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, speed: pos.coords.speed || 0, accuracy: pos.coords.accuracy || 10, heading: pos.coords.heading };
     
-    // BỘ LỌC TỐC ĐỘ (Exponential Moving Average)
-    if (newPos.speed !== null) {
-      smoothedSpeed = (0.2 * newPos.speed) + (0.8 * smoothedSpeed);
-    }
+    if (newPos.speed !== null) { smoothedSpeed = (0.2 * newPos.speed) + (0.8 * smoothedSpeed); }
     document.getElementById('hudSpeed').textContent = Math.round(smoothedSpeed * 3.6) + ' km/h';
 
     if (lastUserPos && !newPos.heading) {
@@ -1155,6 +1363,7 @@ function startWatching() {
     if (map) map.panTo([lastUserPos.lat, lastUserPos.lng], { animate: true, duration: 0.5 });
 
     checkReportProximity(lastUserPos.lat, lastUserPos.lng);
+    checkOffRoute(lastUserPos.lat, lastUserPos.lng); 
   }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
 }
 
@@ -1260,7 +1469,7 @@ window.openDirections = openDirections;
 window.activateSearch = activateSearch;
 window.refreshGPS = refreshGPS;
 window.centerToLocation = centerToLocation;
-window.startRouteFromSheet = startRouteFromSheet;
+window.fetchAndShowRouteOptions = fetchAndShowRouteOptions;
 window.stopRoute = stopRoute;
 window.logout = logout;
 window.toggleLayerMenu = toggleLayerMenu;
