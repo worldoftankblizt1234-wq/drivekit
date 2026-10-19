@@ -39,6 +39,13 @@ button, input { font-family: inherit; outline: none; border: none; }
 button { cursor: pointer; }
 .hidden { display: none !important; }
 
+/* FIX LAYER MENU */
+.layer-menu { position: fixed; bottom: calc(140px + var(--safe-bottom)); left: 16px; z-index: 1000; background: var(--card); border-radius: 12px; padding: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); border: 1px solid var(--border); display: none; flex-direction: column; gap: 4px; }
+.layer-menu.show { display: flex !important; z-index: 1200; }
+.layer-option { padding: 10px 14px; background: transparent; color: var(--text); border-radius: 8px; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 0.85rem; text-align: left; width: 100%; transition: 0.2s; }
+.layer-option:hover { background: var(--bg-2); }
+.layer-option.active { background: var(--primary); color: white; }
+
 #map { position: fixed; inset: 0; z-index: 1; background: var(--bg); }
 .leaflet-container { font-family: var(--font-main) !important; }
 .leaflet-control-attribution { font-size: 9px !important; background: rgba(15,23,42,0.7) !important; color: #94a3b8 !important; }
@@ -63,6 +70,10 @@ button { cursor: pointer; }
 .hud-btn.active { background: var(--success); color: white; border-color: transparent; }
 .hud-btn.stop { background: var(--danger); color: white; }
 .hud-btn.swap { background: var(--warning); color: white; border-color: transparent; }
+
+/* NÚT KẾT THÚC CÓ TEXT */
+.hud-btn.end-trip-btn-hud { width: 56px; height: 48px; flex-direction: column; gap: 2px; font-size: 0.6rem; padding: 2px; background: var(--danger); color: white; border-color: transparent; }
+.hud-btn.end-trip-btn-hud i { font-size: 1.2rem; }
 
 .floating-search { position: fixed; top: calc(16px + var(--safe-top)); left: 16px; right: 60px; z-index: 1000; background: var(--card); border-radius: 24px; padding: 10px 16px; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid var(--border); cursor: pointer; }
 .floating-search input { flex: 1; background: transparent; color: var(--text); font-size: 0.9rem; font-weight: 600; pointer-events: none; }
@@ -149,22 +160,22 @@ input:checked + .slider:before { transform: translateX(20px); }
 .spinner { width: 50px; height: 50px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
-/* ══════ VEHICLE MODE ══════ */
+/* VEHICLE MODE */
 .vehicle-selector { display: flex; gap: 8px; margin: 8px 0; }
 .vehicle-mode-btn { flex: 1; padding: 10px 6px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; color: var(--text-muted); font-weight: 700; font-size: 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; transition: all 0.2s; }
 .vehicle-mode-btn.active { background: var(--primary); color: white; border-color: transparent; box-shadow: 0 3px 10px rgba(59,130,246,0.3); }
 .vehicle-mode-btn i { font-size: 1.15rem; }
 .vehicle-mode-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ══════ SORT CHIPS ══════ */
+/* SORT CHIPS */
 .sort-bar { display: flex; gap: 8px; margin-bottom: 12px; }
 .sort-chip { padding: 6px 14px; border-radius: 20px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text-muted); font-size: 0.75rem; font-weight: 700; cursor: pointer; }
 .sort-chip.active { background: var(--primary); color: white; border-color: transparent; }
 
-/* ══════ ROUTE BADGE ON MAP ══════ */
+/* ROUTE BADGE ON MAP */
 .route-num-badge { background: white; border: 3px solid currentColor; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.85rem; box-shadow: 0 3px 8px rgba(0,0,0,0.3); }
 
-/* ══════ END TRIP MODAL ══════ */
+/* END TRIP MODAL */
 .end-trip-modal { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; padding: 24px; }
 .end-trip-modal.open { display: flex; }
 .end-trip-box { background: var(--card); border-radius: 20px; padding: 24px; max-width: 380px; width: 100%; border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: popIn 0.25s ease-out; }
@@ -220,7 +231,7 @@ input:checked + .slider:before { transform: translateX(20px); }
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
   <button class="fab-layers" onclick="toggleLayerMenu()"><i class="fas fa-layer-group"></i></button>
 
-  <div class="layer-menu" id="layerMenu" style="position: fixed; bottom: calc(140px + var(--safe-bottom)); left: 16px; z-index: 1000; background: var(--card); border-radius: 12px; padding: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); border: 1px solid var(--border); display: none; flex-direction: column; gap: 4px;">
+  <div class="layer-menu" id="layerMenu">
     <button class="layer-option active" onclick="changeLayer('trackasia', this)"><i class="fas fa-map"></i> TrackAsia</button>
     <button class="layer-option" onclick="changeLayer('mapbox', this)"><i class="fas fa-map-marked-alt"></i> Mapbox</button>
     <button class="layer-option" onclick="changeLayer('thunderforest', this)"><i class="fas fa-tree"></i> Thunderforest</button>
@@ -281,7 +292,11 @@ input:checked + .slider:before { transform: translateX(20px); }
       <div style="display:flex; gap:8px;">
         <button class="hud-btn swap" onclick="openAlternativeRoutes()" title="Đổi đường"><i class="fas fa-random"></i></button>
         <button class="hud-btn" id="hudBtnVoice"><i class="fas fa-volume-up"></i></button>
-        <button class="hud-btn stop" onclick="openEndTripModal()" title="Kết thúc chuyến"><i class="fas fa-flag-checkered"></i></button>
+        <!-- NÚT KẾT THÚC CHUYẾN ĐI -->
+        <button class="hud-btn end-trip-btn-hud" onclick="openEndTripModal()" title="Kết thúc chuyến">
+          <i class="fas fa-flag-checkered"></i>
+          <span>Kết thúc</span>
+        </button>
       </div>
     </div>
   </div>
@@ -736,16 +751,13 @@ function decodePolyline(str, precision = 5) {
 }
 
 async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
-  // 1. Chuẩn hóa tên mode theo tài liệu TrackAsia
-  let apiMode = 'driving';
-  if (mode === 'motorcycle') apiMode = 'motorcycling';
-  else if (mode === 'truck') apiMode = 'truck';
+  // Worker tự map 'driving' -> 'car', 'motorcycle' -> 'motorcycle', 'truck' -> 'truck'
+  let apiMode = mode; 
 
   const url = `${WORKER_URL}/trackasia-route?origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&mode=${apiMode}`;
   const res = await fetch(url);
   const data = await res.json();
 
-  // 2. Fallback nếu tài khoản TrackAsia chưa bật xe tải
   if (data.status !== 'OK' || !data.routes || data.routes.length === 0) {
     if (apiMode === 'truck') {
       console.warn('TrackAsia không hỗ trợ xe tải, fallback về driving...');
@@ -754,7 +766,6 @@ async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
     throw new Error('TrackAsia: ' + (data.status || 'no routes'));
   }
 
-  // 3. Map dữ liệu
   return data.routes.map(r => {
     const leg = r.legs?.[0] || {};
     let coords = [];
@@ -858,7 +869,6 @@ window.fetchAndShowRouteOptions = async function() {
   routes = routes.slice(0, 5);
   alternativeRoutesData = routes;
 
-  // Vẽ lại trên map
   if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
   alternativeLayers.forEach(l => map.removeLayer(l));
   alternativeLayers = [];
@@ -892,7 +902,6 @@ window.fetchAndShowRouteOptions = async function() {
   });
   map.fitBounds(L.latLngBounds(allCoords), { padding: [50, 50] });
 
-  // Render list
   let html = `
     <div class="sort-bar">
       <button class="sort-chip ${currentSortMode === 'fastest' ? 'active' : ''}" onclick="changeSort('fastest')"><i class="fas fa-bolt"></i> Nhanh nhất</button>
@@ -1141,7 +1150,7 @@ function showArrivalToast() {
 }
 
 // ==========================================
-// AUTO REROUTE (giữ nguyên provider)
+// AUTO REROUTE
 // ==========================================
 function checkOffRoute(userLat, userLng) {
   if (!currentRouteCoords || currentRouteCoords.length < 2 || isRerouting || arrivalHandled) return;
@@ -1496,14 +1505,26 @@ window.clearTopSearch = function() {
   map.eachLayer(layer => { if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') map.removeLayer(layer); });
 };
 
-function openDirections() { document.getElementById('dirSheet').classList.add('open'); document.getElementById('dirSheet').style.transform = ''; }
+function openDirections() {
+  document.getElementById('dirSheet').classList.add('open');
+  document.getElementById('dirSheet').style.transform = '';
+  document.querySelector('.fab-layers').style.display = 'none';
+  document.getElementById('mainLocateBtn').style.display = 'none';
+  document.getElementById('mainDirBtn').style.display = 'none';
+  document.getElementById('btnReport').style.display = 'none';
+}
+
 function closeDirections() {
   document.getElementById('dirSheet').classList.remove('open');
   document.getElementById('dirSheet').style.transform = '';
   if (searchContext !== 'view') document.getElementById('suggestionsBox').classList.remove('show');
+  document.querySelector('.fab-layers').style.display = 'flex';
+  document.getElementById('mainLocateBtn').style.display = 'flex';
+  document.getElementById('mainDirBtn').style.display = 'flex';
+  document.getElementById('btnReport').style.display = 'flex';
 }
 window.openMenu = function() { document.getElementById('profileModal').classList.add('open'); loadHistory(); loadSharedLinks(); loadSavedRoutes(); };
-window.closeMenu = function() { document.getElementById('profileModal').classList.remove('open'); };
+window.closeMenu = function() { document.getElementById('profileModal').classList.remove('open'); }
 
 window.clearPoint = function(type) {
   if (type === 'start') {
