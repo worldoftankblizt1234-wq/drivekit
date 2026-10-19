@@ -187,7 +187,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 
   <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
     <i class="fas fa-search"></i>
-    <input type="text" id="topSearchInput" placeholder="Tìm địa điểm..." readonly />
+    <input type="text" id="topSearchInput" placeholder="Tìm địa điểm hoặc dán link Google Maps..." readonly />
     <i class="fas fa-times search-clear-btn hidden" id="searchClearBtn" onclick="event.stopPropagation(); clearTopSearch()"></i>
   </div>
   
@@ -298,6 +298,13 @@ input:checked + .slider:before { transform: translateX(20px); }
     </div>
 
     <div class="profile-card">
+      <h3><i class="fas fa-bookmark"></i> Lộ trình đã lưu</h3>
+      <div class="history-list" id="savedRoutesList">
+        <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có lộ trình nào được lưu</div>
+      </div>
+    </div>
+
+    <div class="profile-card">
       <h3><i class="fas fa-history"></i> Lịch sử chuyến đi</h3>
       <div class="history-list" id="historyList">
         <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có chuyến đi nào</div>
@@ -325,7 +332,7 @@ import { getDatabase, ref, push, set, get, child, onValue } from "https://www.gs
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
   authDomain: "drivekit-c88ef.firebaseapp.com",
-  databaseURL: "https://drivekit-c88ef-default-rtdb.asia-southeast1.firebasedatabase.app", // Đã thêm URL database
+  databaseURL: "https://drivekit-c88ef-default-rtdb.asia-southeast1.firebasedatabase.app", 
   projectId: "drivekit-c88ef",
   storageBucket: "drivekit-c88ef.firebasestorage.app",
   messagingSenderId: "1073887619343",
@@ -472,11 +479,13 @@ onAuthStateChanged(auth, (user) => {
     document.getElementById('profileEmail').textContent = user.email;
     if (user.photoURL) document.getElementById('profileAvatar').innerHTML = `<img src="${user.photoURL}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
 
+    // Xử lý link chia sẻ
     const params = new URLSearchParams(window.location.search);
     if (params.get('fromLat')) {
       startPoint = { lat: parseFloat(params.get('fromLat')), lng: parseFloat(params.get('fromLng')), name: params.get('fromName') || 'Điểm đi' };
       endPoint = { lat: parseFloat(params.get('toLat')), lng: parseFloat(params.get('toLng')), name: params.get('toName') || 'Điểm đến' };
       initialCenter = [startPoint.lat, startPoint.lng];
+      
       setTimeout(() => {
         document.getElementById('dirInputStart').value = startPoint.name;
         document.getElementById('dirInputEnd').value = endPoint.name;
@@ -484,6 +493,16 @@ onAuthStateChanged(auth, (user) => {
         document.getElementById('btnClearStart').classList.remove('hidden');
         document.getElementById('btnClearEnd').classList.remove('hidden');
         document.getElementById('searchClearBtn').classList.remove('hidden');
+        
+        // HIỂN THỊ CHẤM CAM CHO ĐỊA ĐIỂM ĐƯỢC CHIA SẺ
+        if (startPoint.lat === endPoint.lat && startPoint.lng === endPoint.lng) {
+            const orangeIcon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#f97316;border:3px solid white;box-shadow:0 0 10px rgba(249,115,22,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
+            L.marker([startPoint.lat, startPoint.lng], { icon: orangeIcon }).addTo(map).bindPopup(`<b>📍 Vị trí được chia sẻ</b>`).openPopup();
+        } else {
+            // Nếu là chia sẻ lộ trình, vẽ chấm cam ở điểm đến
+            const orangeIcon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#f97316;border:3px solid white;box-shadow:0 0 10px rgba(249,115,22,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
+            L.marker([endPoint.lat, endPoint.lng], { icon: orangeIcon }).addTo(map).bindPopup(`<b>📍 Điểm đến được chia sẻ</b>`).openPopup();
+        }
       }, 1000);
     }
 
@@ -644,12 +663,8 @@ function initMap() {
 // ==========================================
 // REPORTING SYSTEM
 // ==========================================
-window.openReportMenu = function() {
-  document.getElementById('reportModal').classList.add('open');
-};
-window.closeReportMenu = function() {
-  document.getElementById('reportModal').classList.remove('open');
-};
+window.openReportMenu = function() { document.getElementById('reportModal').classList.add('open'); };
+window.closeReportMenu = function() { document.getElementById('reportModal').classList.remove('open'); };
 
 window.submitReport = async function(type) {
   if (!lastUserPos) return alert('Chưa lấy được vị trí GPS, không thể báo cáo!');
@@ -662,25 +677,18 @@ window.submitReport = async function(type) {
   else if (type === 'traffic') ttl = 1800000; // Kẹt xe 30 phút
 
   const newReport = {
-    lat: lastUserPos.lat,
-    lng: lastUserPos.lng,
-    type: type,
-    timestamp: now,
-    expiresAt: now + ttl,
-    uid: currentUser.uid
+    lat: lastUserPos.lat, lng: lastUserPos.lng, type: type,
+    timestamp: now, expiresAt: now + ttl, uid: currentUser.uid
   };
 
   try {
     await push(ref(db, 'reports'), newReport);
     alert('Cảm ơn bạn! Báo cáo đã được gửi đến cộng đồng tài xế.');
-  } catch (e) {
-    alert('Lỗi gửi báo cáo: ' + e.message);
-  }
+  } catch (e) { alert('Lỗi gửi báo cáo: ' + e.message); }
 };
 
 function initReports() {
-  const reportsRef = ref(db, 'reports');
-  onValue(reportsRef, (snapshot) => {
+  onValue(ref(db, 'reports'), (snapshot) => {
     activeReports = snapshot.val() || {};
     renderReportsOnMap();
   });
@@ -689,7 +697,6 @@ function initReports() {
 function renderReportsOnMap() {
   reportMarkers.forEach(m => map.removeLayer(m));
   reportMarkers = [];
-
   const now = Date.now();
   const icons = {
     'police': '<div style="background:#3b82f6;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-shield-alt"></i></div>',
@@ -702,15 +709,11 @@ function renderReportsOnMap() {
   for (const key in activeReports) {
     const rep = activeReports[key];
     if (now > rep.expiresAt) continue;
-
     const iconHtml = icons[rep.type] || icons['pothole'];
     const customIcon = L.divIcon({ html: iconHtml, className: '', iconSize: [30, 30], iconAnchor: [15, 15] });
-    
     const marker = L.marker([rep.lat, rep.lng], { icon: customIcon }).addTo(map);
-    
     let title = rep.type === 'police' ? 'CSGT' : rep.type === 'accident' ? 'Tai nạn' : rep.type === 'traffic' ? 'Kẹt xe' : rep.type === 'flood' ? 'Ngập nước' : 'Ổ gà';
     marker.bindPopup(`<b>${title}</b><br><small>Báo cáo bởi cộng đồng</small>`);
-    
     reportMarkers.push(marker);
   }
 }
@@ -718,11 +721,9 @@ function renderReportsOnMap() {
 function checkReportProximity(lat, lng) {
   if (!voiceEnabled) return;
   const now = Date.now();
-
   for (const key in activeReports) {
     const rep = activeReports[key];
     if (now > rep.expiresAt || warnedReports.has(key)) continue;
-
     const dist = calcDist(lat, lng, rep.lat, rep.lng);
     if (dist < 300) { 
       warnedReports.add(key);
@@ -733,7 +734,7 @@ function checkReportProximity(lat, lng) {
 }
 
 // ==========================================
-// SHARE & PROFILE
+// SHARE & SAVED ROUTES
 // ==========================================
 window.shareRoute = function() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến trước khi chia sẻ!');
@@ -786,6 +787,66 @@ async function loadSharedLinks() {
 // ==========================================
 // CÁC HÀM UI KHÁC
 // ==========================================
+window.saveCurrentRoute = async function() {
+  if (!currentUser || !currentRouteCoords || currentRouteCoords.length === 0) return;
+  try {
+    await set(push(ref(db, `users/${currentUser.uid}/savedRoutes`)), {
+      startName: startPoint.name, startLng: startPoint.lng, startLat: startPoint.lat,
+      endName: endPoint.name, endLng: endPoint.lng, endLat: endPoint.lat,
+      coords: currentRouteCoords,
+      timestamp: Date.now()
+    });
+    alert('Đã lưu lộ trình!');
+    loadSavedRoutes();
+  } catch (e) { alert('Lỗi lưu: ' + e.message); }
+};
+
+async function loadSavedRoutes() {
+  const list = document.getElementById('savedRoutesList');
+  if (!currentUser) return;
+  try {
+    const snapshot = await get(child(ref(db), `users/${currentUser.uid}/savedRoutes`));
+    if (snapshot.exists()) {
+      const items = Object.values(snapshot.val()).sort((a,b) => b.timestamp - a.timestamp);
+      list.innerHTML = '';
+      items.forEach((item, index) => {
+        list.innerHTML += `<div class="history-item">
+          <div class="time">${new Date(item.timestamp).toLocaleString('vi-VN')}</div>
+          <div class="route"><i class="fas fa-circle"></i> ${item.startName}</div>
+          <div class="route" style="margin-top:4px;"><i class="fas fa-circle end"></i> ${item.endName}</div>
+          <button onclick="reloadSavedRoute(${index})" style="margin-top:8px; padding:6px 12px; background:var(--primary); color:white; border-radius:6px; font-size:0.75rem;"><i class="fas fa-route"></i> Xem lại lộ trình</button>
+        </div>`;
+      });
+      window._savedRoutesData = items;
+    } else list.innerHTML = '<div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có lộ trình nào được lưu</div>';
+  } catch (e) { list.innerHTML = 'Lỗi tải lộ trình.'; }
+}
+
+window.reloadSavedRoute = function(index) {
+  const item = window._savedRoutesData[index];
+  if (!item) return;
+
+  startPoint = { lat: item.startLat, lng: item.startLng, name: item.startName };
+  endPoint = { lat: item.endLat, lng: item.endLng, name: item.endName };
+  
+  document.getElementById('dirInputStart').value = startPoint.name;
+  document.getElementById('dirInputEnd').value = endPoint.name;
+  document.getElementById('topSearchInput').value = endPoint.name;
+  document.getElementById('btnClearStart').classList.remove('hidden');
+  document.getElementById('btnClearEnd').classList.remove('hidden');
+  document.getElementById('searchClearBtn').classList.remove('hidden');
+
+  currentRouteCoords = item.coords;
+  lastSnapIndex = 0;
+  
+  if (currentRouteLayer) map.removeLayer(currentRouteLayer);
+  currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+  map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
+
+  closeMenu();
+  openDirections();
+};
+
 function toggleLayerMenu() { document.getElementById('layerMenu').classList.toggle('show'); }
 
 function changeLayer(type, btn) {
@@ -835,7 +896,7 @@ function closeDirections() {
   document.getElementById('dirSheet').style.transform = '';
   if (searchContext !== 'view') document.getElementById('suggestionsBox').classList.remove('show'); 
 }
-window.openMenu = function() { document.getElementById('profileModal').classList.add('open'); loadHistory(); loadSharedLinks(); }
+window.openMenu = function() { document.getElementById('profileModal').classList.add('open'); loadHistory(); loadSharedLinks(); loadSavedRoutes(); }
 window.closeMenu = function() { document.getElementById('profileModal').classList.remove('open'); }
 
 window.clearPoint = function(type) {
@@ -857,7 +918,7 @@ function activateSearch(type) {
   if (type !== 'view') document.getElementById('dirSheet').classList.add('open');
   const box = document.getElementById('suggestionsBox');
   box.classList.add('show');
-  box.innerHTML = '<div class="sug-item">Nhập để tìm kiếm...</div>';
+  box.innerHTML = '<div class="sug-item">Nhập địa chỉ hoặc dán link Google Maps...</div>';
   const input = document.getElementById('topSearchInput');
   input.readOnly = false; input.value = ''; input.focus();
   document.getElementById('searchClearBtn').classList.add('hidden');
@@ -866,7 +927,7 @@ function activateSearch(type) {
     const q = e.target.value.trim();
     if (q.length > 0) document.getElementById('searchClearBtn').classList.remove('hidden');
     else document.getElementById('searchClearBtn').classList.add('hidden');
-    if (q.length < 2) return;
+    if (q.length < 2 && !q.startsWith('http')) return;
     clearTimeout(window._searchTimer);
     window._searchTimer = setTimeout(() => doSearch(q), 500);
   };
@@ -876,6 +937,34 @@ function closeSearch() { document.getElementById('suggestionsBox').classList.rem
 
 async function doSearch(query) {
   const box = document.getElementById('suggestionsBox');
+  
+  // XỬ LÝ LINK GOOGLE MAPS
+  if (query.startsWith('http://') || query.startsWith('https://')) {
+    if (query.includes('google.com/maps') || query.includes('goo.gl/maps')) {
+      box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang giải mã link Google Maps...</div>';
+      try {
+        const res = await fetch(`${WORKER_URL}/resolve-gmaps?url=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data.success && data.coords) {
+          box.innerHTML = '';
+          const div = document.createElement('div');
+          div.className = 'sug-item';
+          div.innerHTML = `<i class="fas fa-map-marker-alt"></i><div>${data.placeName || 'Vị trí từ Google Maps'}</div>`;
+          div.onclick = () => selectLocation(data.coords.lat, data.coords.lng, data.placeName || 'Vị trí từ Google Maps');
+          box.appendChild(div);
+          return;
+        } else {
+          box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Không giải mã được link này</div>';
+          return;
+        }
+      } catch (e) {
+        box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Lỗi kết nối</div>';
+        return;
+      }
+    }
+  }
+
+  // TÌM KIẾM BÌNH THƯỜNG
   box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang tìm...</div>';
   try {
     const res = await fetch(`${WORKER_URL}/trackasia-search?query=${encodeURIComponent(query)}`);
@@ -1012,7 +1101,6 @@ async function startRouteFromSheet() {
   document.getElementById('mainDirBtn').classList.add('hidden');
   document.querySelector('.fab-layers').classList.add('hidden');
   document.getElementById('hud').classList.remove('hidden');
-  // Nút report vẫn hiện (không thêm class hidden)
   
   const fromStr = `${startPoint.lng},${startPoint.lat}`; const toStr = `${endPoint.lng},${endPoint.lat}`;
   const url = `${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}`;
@@ -1071,6 +1159,12 @@ function startWatching() {
 }
 
 function stopRoute() {
+  if (currentRouteCoords && currentRouteCoords.length > 0) {
+    if (confirm('Kết thúc chuyến đi. Bạn có muốn lưu lộ trình này lại không?')) {
+      saveCurrentRoute();
+    }
+  }
+  
   document.getElementById('hud').classList.add('hidden');
   if (watchId) navigator.geolocation.clearWatch(watchId);
   if (voiceCheckTimer) clearInterval(voiceCheckTimer);
@@ -1105,16 +1199,13 @@ function calcDist(lat1, lng1, lat2, lng2) {
 }
 
 // ==========================================
-// VUỐT BẢNG XUỐNG ĐỂ ĐÓNG (ĐÃ FIX LỖI TOUCH)
+// VUỐT BẢNG XUỐNG ĐỂ ĐÓNG
 // ==========================================
 let sheetTouchStartY = 0; let isSwiping = false;
 const dirSheet = document.getElementById('dirSheet');
 
 dirSheet.addEventListener('touchstart', (e) => {
-  // Chỉ vuốt khi chạm vào handle, header hoặc khoảng trống trên cùng của bảng
-  // Bỏ qua nếu chạm vào input để tránh xung đột gõ phím
   if (e.target.tagName === 'INPUT') return;
-  
   if (e.target.closest('.dir-handle') || e.target.closest('.dir-header') || e.target.classList.contains('dir-sheet')) {
     sheetTouchStartY = e.touches[0].clientY;
     isSwiping = true;
@@ -1180,6 +1271,8 @@ window.shareLocation = shareLocation;
 window.submitReport = submitReport;
 window.openReportMenu = openReportMenu;
 window.closeReportMenu = closeReportMenu;
+window.saveCurrentRoute = saveCurrentRoute;
+window.reloadSavedRoute = reloadSavedRoute;
 
 </script>
 </body>
