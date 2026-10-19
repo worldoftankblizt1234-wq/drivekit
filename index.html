@@ -136,7 +136,7 @@ button { cursor: pointer; }
 .btn-google { background: white; color: #333; }
 .btn-email { background: var(--primary); color: white; }
 
-/* PROFILE MODAL (MỚI) */
+/* PROFILE MODAL */
 .profile-modal { position: fixed; inset: 0; z-index: 2500; background: var(--bg); display: flex; flex-direction: column; transform: translateX(100%); transition: transform 0.3s ease-in-out; }
 .profile-modal.open { transform: translateX(0); }
 .profile-header { padding: calc(24px + var(--safe-top)) 24px 20px; background: linear-gradient(135deg, var(--primary), var(--voice)); color: white; border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; position: relative; }
@@ -276,7 +276,7 @@ input:checked + .slider:before { transform: translateX(20px); }
   </div>
 </div>
 
-<!-- PROFILE MODAL (MỚI) -->
+<!-- PROFILE MODAL -->
 <div class="profile-modal" id="profileModal">
   <div class="profile-header">
     <button class="profile-close" onclick="closeMenu()"><i class="fas fa-times"></i></button>
@@ -288,10 +288,10 @@ input:checked + .slider:before { transform: translateX(20px); }
 
   <div class="profile-body">
     <!-- Nút Chia sẻ -->
-    <button class="profile-btn" onclick="shareRoute()">
+    <div class="profile-btn" onclick="shareRoute()" style="cursor: pointer;">
       <span><i class="fas fa-share-alt"></i> Chia sẻ lộ trình hiện tại</span>
       <i class="fas fa-chevron-right"></i>
-    </button>
+    </div>
 
     <!-- Sáng / Tối -->
     <div class="profile-btn">
@@ -318,9 +318,9 @@ input:checked + .slider:before { transform: translateX(20px); }
       </div>
     </div>
 
-    <button class="profile-btn logout" onclick="logout()">
+    <div class="profile-btn logout" onclick="logout()" style="cursor: pointer;">
       <span><i class="fas fa-sign-out-alt"></i> Đăng xuất</span>
-    </button>
+    </div>
   </div>
 </div>
 
@@ -487,14 +487,12 @@ onAuthStateChanged(auth, (user) => {
     document.getElementById('authScreen').classList.add('hidden');
     initTheme();
     
-    // Hiển thị thông tin lên profile
     document.getElementById('profileName').textContent = user.displayName || (user.email ? user.email.split('@')[0] : 'Tài xế');
     document.getElementById('profileEmail').textContent = user.email || 'Không có email';
     if (user.photoURL) {
       document.getElementById('profileAvatar').innerHTML = `<img src="${user.photoURL}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
     }
 
-    // Xử lý link chia sẻ
     const params = new URLSearchParams(window.location.search);
     if (params.get('fromLat')) {
       startPoint = { lat: parseFloat(params.get('fromLat')), lng: parseFloat(params.get('fromLng')), name: params.get('fromName') || 'Điểm đi' };
@@ -512,7 +510,6 @@ onAuthStateChanged(auth, (user) => {
       }, 1000);
     }
 
-    // Khởi tạo GPS
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -690,8 +687,12 @@ function initMap() {
       <div style="min-width: 180px;">
         <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: var(--text);">${displayName}</div>
         <button onclick="event.stopPropagation(); goToLongPressLocation(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" 
-                style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;">
           <i class="fas fa-location-arrow"></i> Tới chỗ này
+        </button>
+        <button onclick="event.stopPropagation(); shareLocation(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" 
+                style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <i class="fas fa-share-alt"></i> Chia sẻ địa điểm
         </button>
       </div>
     `;
@@ -700,7 +701,7 @@ function initMap() {
 }
 
 // ==========================================
-// CHIA SẺ LỘ TRÌNH
+// CHIA SẺ LỘ TRÌNH & ĐỊA ĐIỂM
 // ==========================================
 window.shareRoute = function() {
   if (!startPoint || !endPoint) {
@@ -738,12 +739,42 @@ window.shareRoute = function() {
   }
 };
 
+window.shareLocation = function(lat, lng, name) {
+  const baseUrl = window.location.origin + window.location.pathname;
+  const params = new URLSearchParams({
+    fromLat: lat,
+    fromLng: lng,
+    fromName: name,
+    toLat: lat,
+    toLng: lng,
+    toName: name
+  });
+  
+  const shareUrl = `${baseUrl}?${params.toString()}`;
+  
+  if (navigator.share) {
+    navigator.share({
+      title: 'DriveKit - Chia sẻ địa điểm',
+      text: `Địa điểm: ${name}`,
+      url: shareUrl
+    }).then(() => {
+      showToast('Đã chia sẻ địa điểm!');
+    }).catch((e) => console.log('Hủy chia sẻ', e));
+  } else {
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      showToast('Đã copy link địa điểm!');
+    }).catch(() => {
+      prompt('Copy link này để chia sẻ:', shareUrl);
+    });
+  }
+};
+
 async function saveSharedLink(fromName, toName, url) {
   if (!currentUser) return;
   const refPath = `users/${currentUser.uid}/sharedLinks`;
   const newRef = push(ref(db, refPath));
   await set(newRef, { fromName, toName, url, timestamp: Date.now() });
-  loadSharedLinks(); // Cập nhật lại UI
+  loadSharedLinks();
 }
 
 async function loadSharedLinks() {
@@ -1173,7 +1204,7 @@ dirSheet.addEventListener('touchend', (e) => {
 
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' || e.key === 'Esc') closeDirections(); });
 
-// Lịch sử & Share
+// Lịch sử
 async function saveHistory(start, end, distance) {
   if (!currentUser) return;
   const historyRef = ref(db, `users/${currentUser.uid}/history`);
@@ -1218,6 +1249,8 @@ window.logout = logout;
 window.toggleLayerMenu = toggleLayerMenu;
 window.changeLayer = changeLayer;
 window.toggleTheme = toggleTheme;
+window.shareRoute = shareRoute;
+window.shareLocation = shareLocation;
 
 </script>
 </body>
