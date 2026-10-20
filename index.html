@@ -46,7 +46,7 @@ button { cursor: pointer; }
 .layer-option:hover { background: var(--bg-2); }
 .layer-option.active { background: var(--primary); color: white; }
 
-#map { position: fixed; inset: 0; z-index: 1; background: var(--bg); }
+#map { position: fixed; inset: 0; z-index: 1; background: var(--bg); touch-action: none !important; }
 .leaflet-container { font-family: var(--font-main) !important; }
 .leaflet-control-attribution { font-size: 9px !important; background: rgba(15,23,42,0.7) !important; color: #94a3b8 !important; }
 .leaflet-control-attribution a { color: #60a5fa !important; }
@@ -509,6 +509,10 @@ let savedPlacesMarkers = [];
 let tempPinLatLng = null;
 let tempPinName = "";
 
+// MAP ROTATE STATE
+let isAutoHeading = true; 
+let currentMapBearing = 0;
+
 const ROUTE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 
 // ==========================================
@@ -687,12 +691,58 @@ function finishAuthInit() {
 function logout() { signOut(auth); closeMenu(); }
 
 // ==========================================
-// MAP INIT
+// MAP INIT (ĐÃ TÍCH HỢP XOAY 360 ĐỘ)
 // ==========================================
 function initMap() {
   if (map) return;
   map = L.map('map', { center: initialCenter, zoom: initialZoom, zoomControl: false });
   setTimeout(() => { changeLayer('trackasia', document.querySelector('.layer-option.active')); }, 100);
+
+  // ══════ CODE XOAY MAP BẰNG 2 NGÓN TAY ══════
+  const mapContainer = map.getContainer();
+  let startAngle = 0;
+  let startBearing = 0;
+  let isRotating = false;
+
+  mapContainer.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      isRotating = true;
+      isAutoHeading = false; // Tắt tự xoay khi user can thiệp
+      
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      startAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+      
+      if (currentMapLayer && typeof currentMapLayer.getBearing === 'function') {
+        startBearing = currentMapLayer.getBearing();
+      } else {
+        startBearing = currentMapBearing || 0;
+      }
+    }
+  }, { passive: true });
+
+  mapContainer.addEventListener('touchmove', (e) => {
+    if (isRotating && e.touches.length === 2) {
+      e.preventDefault(); 
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const currentAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+      const angleDiff = currentAngle - startAngle;
+      const newBearing = startBearing + angleDiff;
+      
+      if (currentMapLayer && typeof currentMapLayer.setBearing === 'function') {
+        currentMapLayer.setBearing(newBearing);
+        currentMapBearing = newBearing;
+      }
+    }
+  }, { passive: false });
+
+  mapContainer.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) {
+      isRotating = false;
+    }
+  });
+  // ══════ KẾT THÚC CODE XOAY ══════
 
   let pressTimer = null;
   let touchMarker = null;
@@ -703,9 +753,6 @@ function initMap() {
   const pressIndicator = document.createElement('div');
   pressIndicator.style.cssText = `position: fixed; width: 40px; height: 40px; border-radius: 50%; background: rgba(59,130,246,0.4); border: 2px solid #3b82f6; transform: translate(-50%, -50%) scale(0); transition: transform 0.2s, opacity 0.2s; pointer-events: none; z-index: 9999; opacity: 0;`;
   document.body.appendChild(pressIndicator);
-
-  const mapContainer = map.getContainer();
-  mapContainer.style.touchAction = 'none';
 
   function clearTouchMarker() {
     if (touchMarker) { map.removeLayer(touchMarker); touchMarker = null; }
@@ -1486,6 +1533,9 @@ window.endTrip = async function(save) {
   arrivalHandled = false;
   warnedReports.clear();
   localStorage.removeItem('alternativeRoutes');
+  
+  isAutoHeading = true;
+  if (currentMapLayer && typeof currentMapLayer.setBearing === 'function') currentMapLayer.setBearing(0);
 
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('searchBar').classList.remove('hidden');
@@ -1960,6 +2010,25 @@ function startWatching() {
     }
     lastUserPos = newPos;
     animateMarkerTo(lastUserPos);
+
+    // ══════ XỬ LÝ XOAY THEO HƯỚNG ĐI (Heading Up) ══════
+    if (map && currentRouteData && newPos.heading !== null && newPos.heading !== undefined) {
+      if (smoothedSpeed * 3.6 > 5 && isAutoHeading) {
+        const targetBearing = -newPos.heading;
+        if (currentMapLayer && typeof currentMapLayer.setBearing === 'function') {
+          currentMapLayer.setBearing(targetBearing);
+          currentMapBearing = targetBearing;
+        }
+      }
+    } else if (map && !currentRouteData) {
+      if (currentMapLayer && typeof currentMapLayer.setBearing === 'function') {
+        currentMapLayer.setBearing(0);
+        currentMapBearing = 0;
+      }
+      isAutoHeading = true;
+    }
+    // ══════ KẾT THÚC ══════
+
     if (map) map.panTo([lastUserPos.lat, lastUserPos.lng], { animate: true, duration: 0.5 });
 
     checkReportProximity(lastUserPos.lat, lastUserPos.lng);
