@@ -13,9 +13,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- Thư viện chuyển đổi địa chỉ hành chính cũ/mới -->
 <script src="https://unpkg.com/vietnam-address-converter@latest/dist/index.browser.js"></script>
-
 <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
 <script>
   if (window.location.search.includes('debug=1')) window.vConsole = new window.VConsole();
@@ -39,44 +37,37 @@ button, input { font-family: inherit; outline: none; border: none; }
 button { cursor: pointer; }
 .hidden { display: none !important; }
 
-/* LOADING SCREEN */
+/* LOADING CHỈ HIỆN SỐ */
 .loading-screen { position: fixed; inset: 0; z-index: 5000; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 15px; }
-.spinner { width: 50px; height: 50px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+.spinner { width: 50px; height: 50px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px;}
 @keyframes spin { 100% { transform: rotate(360deg); } }
-.progress-container { width: 80%; max-width: 300px; background: var(--card-2); height: 8px; border-radius: 4px; overflow: hidden; margin-top: 10px; }
-.progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary), var(--success)); width: 0%; transition: width 0.1s linear; }
-.loading-text { font-size: 0.85rem; color: var(--text-muted); margin-top: 5px; font-weight: 600; text-align: center; }
+.loading-text { font-size: 0.9rem; color: var(--text-muted); font-weight: 600; text-align: center; }
+.loading-percent { font-size: 2.5rem; color: var(--primary); font-weight: 900; font-family: var(--font-mono); }
 
-/* LAYER MENU */
+/* CÁC CSS KHÁC GIỮ NGUYÊN */
 .layer-menu { position: fixed; bottom: calc(140px + var(--safe-bottom)); left: 16px; z-index: 1000; background: var(--card); border-radius: 12px; padding: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); border: 1px solid var(--border); display: none; flex-direction: column; gap: 4px; }
 .layer-menu.show { display: flex !important; z-index: 1200; }
 .layer-option { padding: 10px 14px; background: transparent; color: var(--text); border-radius: 8px; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 0.85rem; text-align: left; width: 100%; transition: 0.2s; }
 .layer-option:hover { background: var(--bg-2); }
 .layer-option.active { background: var(--primary); color: white; }
-
 #map { position: fixed; inset: 0; z-index: 1; background: #e5e5e5; touch-action: none !important; }
 body.light-mode #map { background: #f1f5f9; }
 .leaflet-container { font-family: var(--font-main) !important; background: #e5e5e5 !important; }
 body.light-mode .leaflet-container { background: #f1f5f9 !important; }
 .leaflet-control-attribution { font-size: 9px !important; background: rgba(15,23,42,0.7) !important; color: #94a3b8 !important; }
 .leaflet-control-attribution a { color: #60a5fa !important; }
-
-/* HUD (NAVIGATION) */
 .hud-top { position: fixed; top: 0; left: 0; right: 0; z-index: 500; padding: calc(10px + var(--safe-top)) 12px 10px; display: flex; gap: 8px; pointer-events: none; }
 .hud-stat { flex: 1; background: rgba(15,23,42,0.9); backdrop-filter: blur(10px); border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; pointer-events: auto; }
 .hud-stat .label { font-size: 0.6rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
 .hud-stat .value { font-size: 0.95rem; font-weight: 800; font-family: var(--font-mono); display: flex; align-items: center; gap: 4px; color: var(--text); }
 .hud-stat.speed .value { color: var(--success); }
-
 .hud-end-btn-top { background: var(--danger); color: white; border-radius: 12px; padding: 6px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 0.6rem; font-weight: 800; border: 1px solid var(--danger); pointer-events: auto; box-shadow: 0 4px 10px rgba(239,68,68,0.3); min-width: 56px; }
 .hud-end-btn-top i { font-size: 1.1rem; }
 .hud-end-btn-top:active { transform: scale(0.95); }
-
 .hud-next { position: fixed; top: calc(70px + var(--safe-top)); left: 12px; right: 12px; z-index: 500; background: linear-gradient(135deg, var(--primary), var(--voice)); border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 12px; pointer-events: auto; box-shadow: 0 4px 15px rgba(59,130,246,0.3); }
 .hud-next .arrow { font-size: 1.8rem; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.2); border-radius: 8px; }
 .hud-next .dist { font-size: 0.7rem; font-weight: 800; color: rgba(255,255,255,0.9); }
 .hud-next .instr { font-size: 0.95rem; font-weight: 700; line-height: 1.2; }
-
 .hud-bottom { position: fixed; bottom: 0; left: 0; right: 0; z-index: 500; padding: 10px 12px calc(10px + var(--safe-bottom)); background: var(--card); backdrop-filter: blur(10px); border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: center; pointer-events: auto; overflow: hidden; }
 .hud-next-stop { flex: 1; min-width: 0; }
 .hud-next-stop .name { font-size: 1rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
@@ -85,41 +76,24 @@ body.light-mode .leaflet-container { background: #f1f5f9 !important; }
 .hud-btn { width: 44px; height: 44px; border-radius: 12px; background: var(--card-2); color: var(--text); font-size: 1.1rem; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); }
 .hud-btn.active { background: var(--success); color: white; border-color: transparent; }
 .hud-btn.swap { background: var(--warning); color: white; border-color: transparent; }
-
-/* FLOATING BUTTONS */
 .floating-search { position: fixed; top: calc(16px + var(--safe-top)); left: 16px; right: 60px; z-index: 1000; background: var(--card); border-radius: 24px; padding: 10px 16px; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid var(--border); cursor: pointer; }
 .floating-search input { flex: 1; background: transparent; color: var(--text); font-size: 0.9rem; font-weight: 600; pointer-events: none; }
 .floating-search i.fa-search { color: var(--primary); font-size: 1.1rem; }
 .search-clear-btn { color: var(--text-muted); font-size: 1rem; padding: 4px 8px; cursor: pointer; }
-
 .fab-menu { position: fixed; top: calc(16px + var(--safe-top)); right: 16px; z-index: 1000; width: 42px; height: 42px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
 .fab-directions { position: fixed; bottom: calc(20px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 6px 20px rgba(59,130,246,0.4); }
 .fab-locate { position: fixed; bottom: calc(20px + var(--safe-bottom)); left: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
 .fab-layers { position: fixed; bottom: calc(80px + var(--safe-bottom)); left: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
 .fab-report { position: fixed; bottom: calc(80px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, var(--danger), #f97316); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(239,68,68,0.4); transition: width 0.2s, height 0.2s, font-size 0.2s, opacity 0.2s, bottom 0.2s; }
-
-/* THU NHỎ NÚT BÁO CÁO KHI ĐANG DẪN ĐƯỜNG */
-body.navigating #btnReport {
-  width: 40px;
-  height: 40px;
-  font-size: 1rem;
-  bottom: calc(90px + var(--safe-bottom));
-  opacity: 0.85;
-  z-index: 600; /* Nổi lên trên bản đồ nhưng dưới HUD bottom */
-}
-
-/* CUSTOM PIN */
+body.navigating #btnReport { width: 40px; height: 40px; font-size: 1rem; bottom: calc(90px + var(--safe-bottom)); opacity: 0.85; z-index: 600; }
 .custom-pin { background: white; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 6px rgba(0,0,0,0.3); border: 2px solid white; }
 .custom-pin i { transform: rotate(45deg); font-size: 0.8rem; }
 .custom-pin-close { position: absolute; top: -6px; right: -6px; background: var(--danger); color: white; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.55rem; cursor: pointer; border: 1.5px solid white; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-
-/* MODALS & OTHERS */
 .route-options-modal, .report-modal, .profile-modal, .end-trip-modal { position: fixed; inset: 0; z-index: 2500; background: var(--bg); display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s ease-in-out; }
 .end-trip-modal { z-index: 3000; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; padding: 24px; transform: none; }
 .end-trip-modal.open { display: flex; }
 .profile-modal { transform: translateX(100%); }
 .route-options-modal.open, .report-modal.open, .profile-modal.open { transform: translate(0); }
-
 .route-options-header, .report-header { padding: calc(20px + var(--safe-top)) 24px 20px; display: flex; justify-content: space-between; align-items: center; }
 .route-options-header { background: var(--card); border-bottom: 1px solid var(--border); }
 .report-header { background: var(--danger); color: white; }
@@ -128,13 +102,11 @@ body.navigating #btnReport {
 .report-body { flex: 1; padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; overflow-y: auto; }
 .report-btn { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 20px 10px; display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--text); font-weight: 700; font-size: 0.9rem; }
 .report-btn i { font-size: 2rem; }
-
 .route-card { background: var(--card); border: 2px solid var(--border); border-radius: 16px; padding: 16px; cursor: pointer; transition: all 0.2s; display: flex; justify-content: space-between; align-items: center; }
 .route-card.active { border-color: var(--primary); background: rgba(59,130,246,0.05); }
 .route-card .info h3 { font-size: 1.05rem; font-weight: 800; color: var(--text); margin-bottom: 4px; }
 .route-card .info p { font-size: 0.85rem; color: var(--text-muted); }
 .route-card .badge { background: var(--success); color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
-
 .dir-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1500; background: var(--card); border-top-left-radius: 20px; border-top-right-radius: 20px; padding: 12px 16px calc(12px + var(--safe-bottom)); transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 -10px 30px rgba(0,0,0,0.2); }
 .dir-sheet.open { transform: translateY(0); }
 .dir-handle { width: 36px; height: 4px; background: var(--border); border-radius: 4px; margin: 0 auto 12px; cursor: grab; }
@@ -149,7 +121,6 @@ body.navigating #btnReport {
 .sug-item { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; font-size: 0.9rem; color: var(--text); }
 .leaflet-popup-content-wrapper { background: var(--card) !important; color: var(--text) !important; border-radius: 12px !important; border: 1px solid var(--border) !important; }
 .leaflet-popup-tip { background: var(--card) !important; }
-
 .auth-screen { position: fixed; inset: 0; z-index: 3000; background: var(--bg); display: flex; flex-direction: column; justify-content: center; padding: 24px; }
 .auth-box { background: var(--card); padding: 32px 24px; border-radius: 24px; border: 1px solid var(--border); }
 .auth-box h2 { font-size: 1.8rem; font-weight: 900; text-align: center; margin-bottom: 8px; }
@@ -158,7 +129,6 @@ body.navigating #btnReport {
 .btn-auth { width: 100%; padding: 14px; border-radius: 12px; font-weight: 800; font-size: 1rem; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; }
 .btn-google { background: white; color: #333; }
 .btn-email { background: var(--primary); color: white; }
-
 .profile-header { padding: calc(24px + var(--safe-top)) 24px 20px; background: linear-gradient(135deg, var(--primary), var(--voice)); color: white; border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; position: relative; }
 .profile-close { position: absolute; top: calc(16px + var(--safe-top)); right: 16px; width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.2); color: white; display: flex; align-items: center; justify-content: center; font-size: 1rem; }
 .profile-avatar { width: 70px; height: 70px; border-radius: 50%; background: rgba(255,255,255,0.2); border: 3px solid white; display: flex; align-items: center; justify-content: center; font-size: 2rem; margin-bottom: 12px; }
@@ -180,19 +150,15 @@ body.navigating #btnReport {
 .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
 input:checked + .slider { background-color: var(--primary); }
 input:checked + .slider:before { transform: translateX(20px); }
-
 .vehicle-selector { display: flex; gap: 8px; margin: 8px 0; }
 .vehicle-mode-btn { flex: 1; padding: 10px 6px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; color: var(--text-muted); font-weight: 700; font-size: 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; transition: all 0.2s; }
 .vehicle-mode-btn.active { background: var(--primary); color: white; border-color: transparent; box-shadow: 0 3px 10px rgba(59,130,246,0.3); }
 .vehicle-mode-btn i { font-size: 1.15rem; }
 .vehicle-mode-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
 .sort-bar { display: flex; gap: 8px; margin-bottom: 12px; }
 .sort-chip { padding: 6px 14px; border-radius: 20px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text-muted); font-size: 0.75rem; font-weight: 700; cursor: pointer; }
 .sort-chip.active { background: var(--primary); color: white; border-color: transparent; }
-
 .route-num-badge { background: white; border: 3px solid currentColor; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.85rem; box-shadow: 0 3px 8px rgba(0,0,0,0.3); }
-
 .end-trip-box { background: var(--card); border-radius: 20px; padding: 24px; max-width: 380px; width: 100%; border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: popIn 0.25s ease-out; }
 @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .end-trip-box h2 { font-size: 1.3rem; text-align: center; margin-bottom: 20px; color: var(--text); }
@@ -204,10 +170,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 .end-trip-btn.save { background: var(--success); color: white; }
 .end-trip-btn.discard { background: var(--bg-2); color: var(--text); border: 1px solid var(--border); }
 .end-trip-btn.cancel { background: transparent; color: var(--text-muted); border: 1px solid var(--border); margin-bottom: 0; }
-
 @keyframes ping { 75%, 100% { transform: scale(2.5); opacity: 0; } }
-
-/* ADDRESS MODAL */
 .address-compare-modal { position: fixed; inset: 0; z-index: 3100; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; padding: 24px; }
 .address-compare-modal.open { display: flex; }
 .addr-box { background: var(--card); border-radius: 20px; padding: 24px; max-width: 420px; width: 100%; border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: popIn 0.25s ease-out; }
@@ -223,16 +186,12 @@ input:checked + .slider:before { transform: translateX(20px); }
 </head>
 <body>
 
-<!-- MÀN HÌNH LOADING MỚI CÓ PROGRESS BAR -->
 <div class="loading-screen" id="loadingScreen">
   <div class="spinner"></div>
   <div style="text-align:center;">
     <h2 style="color:var(--text); margin-bottom:8px;">DriveKit</h2>
     <p style="color:var(--text-muted);" id="loadingText">Đang khởi tạo hệ thống...</p>
-    <div class="progress-container">
-      <div class="progress-bar" id="loadingBar"></div>
-    </div>
-    <div class="loading-text" id="loadingPercent">0%</div>
+    <div class="loading-percent" id="loadingPercent">0%</div>
   </div>
 </div>
 
@@ -346,7 +305,6 @@ input:checked + .slider:before { transform: translateX(20px); }
   </div>
 </div>
 
-<!-- CÁC MODAL (GIỮ NGUYÊN) -->
 <div class="route-options-modal" id="routeOptionsModal">
   <div class="route-options-header">
     <h2><i class="fas fa-route"></i> Các tuyến đường gợi ý</h2>
@@ -550,53 +508,75 @@ let _addrCompareState = { text: '', latlng: null, oldText: '' };
 const ROUTE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 
 // ==========================================
-// LOADING PROGRESS LOGIC
+// LOGIC LOADING + TẢI NGẦM THÔNG MINH
 // ==========================================
 let loadProgress = 0;
 let loadInterval = null;
 let isConverterLoaded = false;
 let isUserAuthChecked = false;
+let isAppReadyToShow = false;
+let forceFinishTimer = null;
 
 function updateLoadingProgress(targetPercent, text) {
-  if (targetPercent > loadProgress) {
+  if (targetPercent > loadProgress && !isAppReadyToShow) {
     loadProgress = targetPercent;
-    document.getElementById('loadingBar').style.width = `${loadProgress}%`;
     document.getElementById('loadingPercent').textContent = `${Math.floor(loadProgress)}%`;
     if (text) document.getElementById('loadingText').textContent = text;
   }
 }
 
-// Hàm kiểm tra xem mọi thứ đã xong chưa
 function checkLoadingComplete() {
-  if (isConverterLoaded && isUserAuthChecked && loadProgress >= 95) {
+  if (isConverterLoaded && isUserAuthChecked && loadProgress >= 95 && !isAppReadyToShow) {
     if (loadInterval) clearInterval(loadInterval);
-    // Chạy nốt 2-3 giây cuối lên 100%
+    if (forceFinishTimer) clearTimeout(forceFinishTimer);
+    
+    // Chạy nốt 2-3 giây cuối cho mượt mắt
     let finalProgress = loadProgress;
     const finalPhase = setInterval(() => {
-      finalProgress += 2;
+      finalProgress += 5;
       if (finalProgress >= 100) {
         finalProgress = 100;
         clearInterval(finalPhase);
+        isAppReadyToShow = true;
+        document.getElementById('loadingPercent').textContent = `100%`;
+        
+        setTimeout(() => {
+          document.getElementById('loadingScreen').classList.add('hidden');
+          if (currentUser) {
+            document.getElementById('appUI').classList.remove('hidden');
+            initAppUI();
+          } else {
+            document.getElementById('authScreen').classList.remove('hidden');
+          }
+        }, 300);
+      }
+      document.getElementById('loadingPercent').textContent = `${finalProgress}%`;
+    }, 40); 
+  }
+}
+
+function startFakeLoading() {
+  // Nếu mạng lag quá, ép buộc mở app sau 4 giây (không chờ nữa)
+  forceFinishTimer = setTimeout(() => {
+    if (!isAppReadyToShow) {
+      isAppReadyToShow = true;
+      if (loadInterval) clearInterval(loadInterval);
+      document.getElementById('loadingPercent').textContent = `100%`;
+      document.getElementById('loadingText').textContent = "Đang mở ứng dụng...";
+      setTimeout(() => {
         document.getElementById('loadingScreen').classList.add('hidden');
-        // Kích hoạt App UI
         if (currentUser) {
           document.getElementById('appUI').classList.remove('hidden');
           initAppUI();
         } else {
           document.getElementById('authScreen').classList.remove('hidden');
         }
-      }
-      document.getElementById('loadingBar').style.width = `${finalProgress}%`;
-      document.getElementById('loadingPercent').textContent = `100%`;
-    }, 50); // 50ms * 2% = ~2.5s cho 100%
-  }
-}
+      }, 300);
+    }
+  }, 4000);
 
-// Khởi chạy thanh Loading tự động
-function startFakeLoading() {
   loadInterval = setInterval(() => {
-    if (loadProgress < 95) {
-      // Tốc độ chạy ngẫu nhiên từ từ đến 95%
+    if (loadProgress < 95 && !isAppReadyToShow) {
       const step = (95 - loadProgress) > 20 ? 2 : 0.5;
       updateLoadingProgress(loadProgress + step);
     }
@@ -621,18 +601,25 @@ async function initAddressConverter() {
     addrConverter = new VietnamAddressConverter.VietnamAddressConverter();
     updateLoadingProgress(15, "Đang nạp dữ liệu hành chính...");
     
-    await addrConverter.initializeFromUrl('https://unpkg.com/vietnam-address-database@latest/address.json');
-    
-    isConverterReady = true;
-    isConverterLoaded = true;
-    updateLoadingProgress(80, "Đã tải xong dữ liệu địa giới!");
-    console.log('✅ Address converter ready');
+    // Không dùng await chặn luồng, mà chạy song song
+    addrConverter.initializeFromUrl('https://unpkg.com/vietnam-address-database@latest/address.json').then(() => {
+      isConverterReady = true;
+      isConverterLoaded = true;
+      updateLoadingProgress(80, "Đã tải xong dữ liệu địa giới!");
+      checkLoadingComplete();
+      console.log('✅ Address converter ready (Background task done)');
+    }).catch(e => {
+      console.error('❌ Address converter init failed:', e);
+      isConverterLoaded = true;
+      updateLoadingProgress(80, "Lỗi tải dữ liệu địa giới (bỏ qua)");
+      checkLoadingComplete();
+    });
   } catch (e) {
-    console.error('❌ Address converter init failed:', e);
+    console.error('❌ Address converter sync error:', e);
     isConverterLoaded = true;
     updateLoadingProgress(80, "Lỗi tải dữ liệu địa giới (bỏ qua)");
+    checkLoadingComplete();
   }
-  checkLoadingComplete();
 }
 initAddressConverter();
 
@@ -668,7 +655,7 @@ onAuthStateChanged(auth, (user) => {
         () => {
           updateLoadingProgress(90, "Không lấy được GPS, dùng mặc định");
           checkLoadingComplete();
-        }, { enableHighAccuracy: true, timeout: 5000 }
+        }, { enableHighAccuracy: true, timeout: 3000 }
       );
     } else {
       updateLoadingProgress(90, "Thiết bị không hỗ trợ GPS");
@@ -727,15 +714,30 @@ function initAppUI() {
 }
 
 // ==========================================
-// ADDRESS COMPARE FUNCTIONS
+// ADDRESS COMPARE FUNCTIONS (LAZY LOAD CHECK)
 // ==========================================
 window.openAddressCompare = function(text, lat, lng) {
   _addrCompareState = { text, latlng: `${lat},${lng}`, oldText: '' };
   document.getElementById('addrNewText').textContent = text;
   document.getElementById('addrOldSection').style.display = 'none';
   document.getElementById('addrCopyBtn').style.display = 'none';
-  document.getElementById('addrToggleBtn').style.display = 'flex';
-  document.getElementById('addrToggleBtn').innerHTML = '<i class="fas fa-exchange-alt"></i> Đổi sang địa chỉ cũ';
+  
+  const btn = document.getElementById('addrToggleBtn');
+  if (!isConverterReady) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải dữ liệu địa giới...';
+    // Tự động thử lại sau 2 giây nếu thư viện chưa xong
+    setTimeout(() => {
+      if (isConverterReady) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-exchange-alt"></i> Đổi sang địa chỉ cũ';
+      }
+    }, 2000);
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-exchange-alt"></i> Đổi sang địa chỉ cũ';
+  }
+
   document.getElementById('addressCompareModal').classList.add('open');
 };
 
@@ -745,7 +747,7 @@ window.closeAddressCompare = function() {
 
 window.convertAddressFormat = async function() {
   if (!isConverterReady) {
-    return alert("Hệ thống đang tải dữ liệu địa giới, vui lòng thử lại sau 1-2 giây!");
+    return alert("Hệ thống đang tải dữ liệu địa giới ngầm. Vui lòng đợi 1-2 giây nữa rồi bấm lại nhé!");
   }
 
   const btn = document.getElementById('addrToggleBtn');
