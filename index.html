@@ -43,8 +43,8 @@ button { cursor: pointer; }
 .loading-screen { position: fixed; inset: 0; z-index: 5000; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 15px; }
 .spinner { width: 50px; height: 50px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px;}
 @keyframes spin { 100% { transform: rotate(360deg); } }
-.loading-text { font-size: 0.9rem; color: var(--text-muted); font-weight: 600; text-align: center; }
-.loading-percent { font-size: 2.5rem; color: var(--primary); font-weight: 900; font-family: var(--font-mono); }
+.loading-text { font-size: 0.9rem; color: var(--text-muted); font-weight: 600; text-align: center; min-height: 20px; transition: all 0.3s; }
+.loading-percent { font-size: 2.5rem; color: var(--primary); font-weight: 900; font-family: var(--font-mono); transition: all 0.2s; }
 
 /* MAP & UI */
 .layer-menu { position: fixed; bottom: calc(140px + var(--safe-bottom)); left: 16px; z-index: 1000; background: var(--card); border-radius: 12px; padding: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); border: 1px solid var(--border); display: none; flex-direction: column; gap: 4px; }
@@ -193,7 +193,7 @@ input:checked + .slider:before { transform: translateX(20px); }
   <div class="spinner"></div>
   <div style="text-align:center;">
     <h2 style="color:var(--text); margin-bottom:8px;">DriveKit</h2>
-    <p style="color:var(--text-muted);" id="loadingText">Đang khởi tạo hệ thống...</p>
+    <p class="loading-text" id="loadingText">Đang khởi tạo hệ thống...</p>
     <div class="loading-percent" id="loadingPercent">0%</div>
   </div>
 </div>
@@ -521,6 +521,7 @@ function checkLoadingComplete() {
         clearInterval(finalPhase);
         isAppReadyToShow = true;
         document.getElementById('loadingPercent').textContent = `100%`;
+        document.getElementById('loadingText').textContent = "Hoàn tất!";
         
         setTimeout(() => {
           document.getElementById('loadingScreen').classList.add('hidden');
@@ -543,7 +544,7 @@ function startFakeLoading() {
       isAppReadyToShow = true;
       if (loadInterval) clearInterval(loadInterval);
       document.getElementById('loadingPercent').textContent = `100%`;
-      document.getElementById('loadingText').textContent = "Đang mở ứng dụng...";
+      document.getElementById('loadingText').textContent = "Đang mở ứng dụng (timeout)...";
       setTimeout(() => {
         document.getElementById('loadingScreen').classList.add('hidden');
         if (currentUser) {
@@ -554,12 +555,28 @@ function startFakeLoading() {
         }
       }, 300);
     }
-  }, 4000);
+  }, 8000); // Tăng lên 8s nếu mạng quá chậm
 
   loadInterval = setInterval(() => {
     if (loadProgress < 95 && !isAppReadyToShow) {
-      const step = (95 - loadProgress) > 20 ? 2 : 0.5;
-      updateLoadingProgress(loadProgress + step);
+      let step = 0;
+      let text = "Đang khởi tạo...";
+      
+      if (loadProgress < 20) {
+        step = 2; // Nhanh
+        text = "Đang kiểm tra kết nối...";
+      } else if (loadProgress < 50) {
+        step = 0.5; // Chậm
+        text = "Đang chờ tín hiệu GPS...";
+      } else if (loadProgress < 80) {
+        step = 0.2; // Rất chậm
+        text = "Đang tải bản đồ...";
+      } else {
+        step = 0.1; // Cực chậm
+        text = "Sắp xong rồi...";
+      }
+      
+      updateLoadingProgress(loadProgress + step, text);
     }
   }, 100);
 }
@@ -600,7 +617,7 @@ onAuthStateChanged(auth, (user) => {
         () => {
           updateLoadingProgress(90, "Không lấy được GPS, dùng mặc định");
           checkLoadingComplete();
-        }, { enableHighAccuracy: true, timeout: 1500 }
+        }, { enableHighAccuracy: true, timeout: 3000 }
       );
     } else {
       updateLoadingProgress(90, "Thiết bị không hỗ trợ GPS");
