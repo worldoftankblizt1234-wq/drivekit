@@ -164,10 +164,9 @@ input:checked + .slider { background-color: var(--primary); }
 input:checked + .slider:before { transform: translateX(20px); }
 
 .vehicle-selector { display: flex; gap: 8px; margin: 8px 0; }
-.vehicle-mode-btn { flex: 1; padding: 10px 6px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; color: var(--text-muted); font-weight: 700; font-size: 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; transition: all 0.2s; }
+.vehicle-mode-btn { flex: 1; padding: 10px 6px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; color: var(--text-muted); font-weight: 700; font-size: 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; transition: all 0.2s; pointer-events: auto; }
 .vehicle-mode-btn.active { background: var(--primary); color: white; border-color: transparent; box-shadow: 0 3px 10px rgba(59,130,246,0.3); }
 .vehicle-mode-btn i { font-size: 1.15rem; }
-.vehicle-mode-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .sort-bar { display: flex; gap: 8px; margin-bottom: 12px; }
 .sort-chip { padding: 6px 14px; border-radius: 20px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text-muted); font-size: 0.75rem; font-weight: 700; cursor: pointer; }
@@ -267,6 +266,9 @@ input:checked + .slider:before { transform: translateX(20px); }
       <button class="vehicle-mode-btn" data-mode="motorcycle" onclick="setVehicleMode('motorcycle', this)">
         <i class="fas fa-motorcycle"></i> Xe máy
       </button>
+      <button class="vehicle-mode-btn" data-mode="walking" onclick="setVehicleMode('walking', this)">
+        <i class="fas fa-walking"></i> Đi bộ
+      </button>
     </div>
     <p style="font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-top: -4px; margin-bottom: 8px; line-height: 1.2;">
       <i class="fas fa-info-circle"></i> Dữ liệu cấm tải tại VN có thể chưa cập nhật. Tài xế xe tải vui lòng chú ý biển báo thực tế!
@@ -328,6 +330,8 @@ input:checked + .slider:before { transform: translateX(20px); }
     <button class="report-btn traffic" onclick="submitReport('traffic')"><i class="fas fa-traffic-light"></i> Kẹt xe</button>
     <button class="report-btn pothole" onclick="submitReport('pothole')"><i class="fas fa-exclamation-circle"></i> Ổ gà</button>
     <button class="report-btn" onclick="submitReport('flood')"><i class="fas fa-water"></i> Ngập nước</button>
+    <button class="report-btn" onclick="submitReport('bridge_collapse')"><i class="fas fa-road-circle-xmark"></i> Sập cầu</button>
+    <button class="report-btn" onclick="submitReport('road_collapse')"><i class="fas fa-triangle-exclamation"></i> Sập đường</button>
   </div>
 </div>
 
@@ -565,6 +569,7 @@ updateLoadingProgress(5, "Đang kiểm tra kết nối...");
 // ==========================================
 onAuthStateChanged(auth, (user) => {
   isUserAuthChecked = true;
+  
   if (user) {
     currentUser = user;
     document.getElementById('profileName').textContent = user.displayName || user.email.split('@')[0];
@@ -592,7 +597,7 @@ onAuthStateChanged(auth, (user) => {
         () => {
           updateLoadingProgress(90, "Không lấy được GPS, dùng mặc định");
           checkLoadingComplete();
-        }, { enableHighAccuracy: true, timeout: 3000 }
+        }, { enableHighAccuracy: true, timeout: 1500 }
       );
     } else {
       updateLoadingProgress(90, "Thiết bị không hỗ trợ GPS");
@@ -843,7 +848,6 @@ function initMap() {
 
     let name = '';
     try {
-      // DÙNG WORKER GỌI MAPBOX REVERSE GEOCODING
       const res = await fetch(`${WORKER_URL}/reverse-geocode?lat=${latlng.lat}&lng=${latlng.lng}`);
       const data = await res.json();
       if (data.display_name) name = data.display_name.split(',').slice(0, 3).join(', ');
@@ -1003,7 +1007,11 @@ function decodePolyline(str, precision = 5) {
 }
 
 async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
-  let apiMode = mode; 
+  let apiMode = 'driving'; 
+  if (mode === 'motorcycle') apiMode = 'motorcycling';
+  else if (mode === 'walking') apiMode = 'walking';
+  else if (mode === 'driving') apiMode = 'driving';
+
   const url = `${WORKER_URL}/trackasia-route?origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&mode=${apiMode}`;
   const res = await fetch(url);
   const data = await res.json();
@@ -1046,19 +1054,23 @@ window.changeSort = function(mode) { currentSortMode = mode; if (startPoint && e
 
 window.fetchAndShowRouteOptions = async function() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
-  const modeLabel = currentVehicleMode === 'driving' ? 'ô tô' : currentVehicleMode === 'truck' ? 'xe tải' : 'xe máy';
+  const modeLabel = currentVehicleMode === 'driving' ? 'ô tô' : currentVehicleMode === 'truck' ? 'xe tải' : currentVehicleMode === 'walking' ? 'đi bộ' : 'xe máy';
   document.getElementById('routeOptionsBody').innerHTML = `<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px; color:var(--text-muted);">Đang tìm tuyến (${modeLabel})...</p></div>`;
   document.getElementById('routeOptionsModal').classList.add('open');
 
   const fromStr = `${startPoint.lng},${startPoint.lat}`; const toStr = `${endPoint.lng},${endPoint.lat}`;
-  const mapboxUrl = `${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}&alternatives=true`;
+  const mapboxUrl = `${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}&alternatives=true&mode=${currentVehicleMode}`;
 
-  const tasks = [ currentVehicleMode === 'driving' ? fetch(mapboxUrl).then(r => r.json()) : Promise.reject(new Error('skip')) ];
+  const tasks = [ 
+    (currentVehicleMode === 'driving' || currentVehicleMode === 'walking') 
+      ? fetch(mapboxUrl).then(r => r.json()) 
+      : Promise.reject(new Error('skip')) 
+  ];
   tasks.push(fetchTrackAsiaRouteNormalized(startPoint, endPoint, currentVehicleMode));
 
   const [mapboxResult, trackasiaResult] = await Promise.allSettled(tasks);
   let routes = [];
-  if (mapboxResult.status === 'fulfilled' && mapboxResult.value.code === 'Ok' && mapboxResult.value.routes) routes.push(...mapboxResult.value.routes.map(r => ({ ...r, provider: 'mapbox', mode: 'driving' })));
+  if (mapboxResult.status === 'fulfilled' && mapboxResult.value.code === 'Ok' && mapboxResult.value.routes) routes.push(...mapboxResult.value.routes.map(r => ({ ...r, provider: 'mapbox', mode: currentVehicleMode })));
   if (trackasiaResult.status === 'fulfilled') routes.push(...trackasiaResult.value);
 
   if (routes.length === 0) {
@@ -1226,9 +1238,9 @@ async function autoReroute(userLat, userLng) {
     let r;
     if (currentProvider === 'trackasia') {
       try { const ta = await fetchTrackAsiaRouteNormalized({ lat: userLat, lng: userLng }, endPoint, currentMode); r = ta[0]; }
-      catch (e) { const res = await fetch(`${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}`); const data = await res.json(); if (data.code !== 'Ok') throw new Error('no route'); r = { ...data.routes[0], provider: 'mapbox', mode: 'driving' }; }
+      catch (e) { const res = await fetch(`${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}&mode=${currentMode}`); const data = await res.json(); if (data.code !== 'Ok') throw new Error('no route'); r = { ...data.routes[0], provider: 'mapbox', mode: currentMode }; }
     } else {
-      const res = await fetch(`${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}`); const data = await res.json(); if (data.code !== 'Ok') throw new Error('no route'); r = { ...data.routes[0], provider: 'mapbox', mode: 'driving' };
+      const res = await fetch(`${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}&mode=${currentMode}`); const data = await res.json(); if (data.code !== 'Ok') throw new Error('no route'); r = { ...data.routes[0], provider: 'mapbox', mode: currentMode };
     }
     currentRouteData = r; voiceRouteSteps = r.legs[0].steps || []; voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
     currentRouteCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
@@ -1297,7 +1309,10 @@ window.closeReportMenu = function() { document.getElementById('reportModal').cla
 window.submitReport = async function(type) {
   if (!lastUserPos) return alert('Chưa lấy được vị trí GPS, không thể báo cáo!');
   closeReportMenu(); const now = Date.now(); let ttl = 3600000;
-  if (type === 'pothole') ttl = 86400000; else if (type === 'flood') ttl = 10800000; else if (type === 'traffic') ttl = 1800000;
+  if (type === 'pothole') ttl = 86400000; 
+  else if (type === 'flood') ttl = 10800000; 
+  else if (type === 'traffic') ttl = 1800000;
+  else if (type === 'bridge_collapse' || type === 'road_collapse') ttl = 604800000;
   const newReport = { lat: lastUserPos.lat, lng: lastUserPos.lng, type, timestamp: now, expiresAt: now + ttl, uid: currentUser.uid };
   try { await push(ref(db, 'reports'), newReport); alert('Cảm ơn bạn! Báo cáo đã được gửi.'); } catch (e) { alert('Lỗi: ' + e.message); }
 };
@@ -1309,12 +1324,21 @@ function initReports() {
 function renderReportsOnMap() {
   reportMarkers.forEach(m => map.removeLayer(m)); reportMarkers = [];
   const now = Date.now();
-  const icons = { police: '<div style="background:#3b82f6;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-shield-alt"></i></div>', accident: '<div style="background:#ef4444;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-car-crash"></i></div>', traffic: '<div style="background:#ef4444;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-traffic-light"></i></div>', pothole: '<div style="background:#f59e0b;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-exclamation-circle"></i></div>', flood: '<div style="background:#06b6d4;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-water"></i></div>' };
+  const icons = { 
+    police: '<div style="background:#3b82f6;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-shield-alt"></i></div>', 
+    accident: '<div style="background:#ef4444;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-car-crash"></i></div>', 
+    traffic: '<div style="background:#ef4444;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-traffic-light"></i></div>', 
+    pothole: '<div style="background:#f59e0b;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-exclamation-circle"></i></div>', 
+    flood: '<div style="background:#06b6d4;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-water"></i></div>',
+    bridge_collapse: '<div style="background:#dc2626;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-road-circle-xmark"></i></div>',
+    road_collapse: '<div style="background:#b91c1c;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-triangle-exclamation"></i></div>'
+  };
   for (const key in activeReports) {
     const rep = activeReports[key]; if (now > rep.expiresAt) continue;
     const customIcon = L.divIcon({ html: icons[rep.type] || icons.pothole, className: '', iconSize: [30, 30], iconAnchor: [15, 15] });
     const marker = L.marker([rep.lat, rep.lng], { icon: customIcon }).addTo(map);
-    marker.bindPopup(`<b>${rep.type.toUpperCase()}</b><br><small>Báo cáo bởi cộng đồng</small>`);
+    let title = rep.type === 'police' ? 'CSGT' : rep.type === 'accident' ? 'Tai nạn' : rep.type === 'traffic' ? 'Kẹt xe' : rep.type === 'flood' ? 'Ngập nước' : rep.type === 'bridge_collapse' ? 'Sập cầu' : rep.type === 'road_collapse' ? 'Sập đường' : 'Ổ gà';
+    marker.bindPopup(`<b>${title}</b><br><small>Báo cáo bởi cộng đồng</small>`);
     reportMarkers.push(marker);
   }
 }
@@ -1323,7 +1347,18 @@ function checkReportProximity(lat, lng) {
   if (!voiceEnabled) return; const now = Date.now();
   for (const key in activeReports) {
     const rep = activeReports[key]; if (now > rep.expiresAt || warnedReports.has(key)) continue;
-    if (calcDist(lat, lng, rep.lat, rep.lng) < 300) { warnedReports.add(key); speak(`Chú ý, phía trước có báo cáo ${rep.type === 'police' ? 'CSGT' : rep.type === 'accident' ? 'tai nạn' : rep.type === 'traffic' ? 'kẹt xe' : rep.type === 'flood' ? 'ngập nước' : 'ổ gà'}`); }
+    if (calcDist(lat, lng, rep.lat, rep.lng) < 300) { 
+      warnedReports.add(key); 
+      let msg = 'sự cố';
+      if (rep.type === 'police') msg = 'CSGT';
+      else if (rep.type === 'accident') msg = 'tai nạn';
+      else if (rep.type === 'traffic') msg = 'kẹt xe';
+      else if (rep.type === 'flood') msg = 'ngập nước';
+      else if (rep.type === 'pothole') msg = 'ổ gà';
+      else if (rep.type === 'bridge_collapse') msg = 'SẬP CẦU';
+      else if (rep.type === 'road_collapse') msg = 'SẬP ĐƯỜNG';
+      speak(`Chú ý, phía trước có báo cáo ${msg}`); 
+    }
   }
 }
 
