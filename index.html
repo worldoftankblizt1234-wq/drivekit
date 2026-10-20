@@ -46,7 +46,7 @@ button { cursor: pointer; }
 .layer-option:hover { background: var(--bg-2); }
 .layer-option.active { background: var(--primary); color: white; }
 
-#map { position: fixed; inset: 0; z-index: 1; background: var(--bg); touch-action: none !important; overflow: hidden; }
+#map { position: fixed; inset: 0; z-index: 1; background: var(--bg); touch-action: none !important; }
 .leaflet-container { font-family: var(--font-main) !important; }
 .leaflet-control-attribution { font-size: 9px !important; background: rgba(15,23,42,0.7) !important; color: #94a3b8 !important; }
 .leaflet-control-attribution a { color: #60a5fa !important; }
@@ -691,33 +691,14 @@ function finishAuthInit() {
 function logout() { signOut(auth); closeMenu(); }
 
 // ==========================================
-// HÀM XOAY BẢN ĐỒ (CSS TRANSFORM)
-// ==========================================
-function applyCanvasRotation(degree) {
-  currentMapBearing = degree;
-  const canvas = document.querySelector('#map canvas');
-  if (canvas) {
-    // Xoay canvas và scale 1.5 để lấp đầy khoảng trống khi xoay
-    canvas.style.transform = `rotate(${degree}deg) scale(1.5)`;
-    canvas.style.transformOrigin = 'center center';
-    canvas.style.transition = 'transform 0.1s linear';
-  }
-  
-  // Cập nhật lại icon user để mũi tên không bị xoay theo map
-  if (userMarker && typeof userMarker.setIcon === 'function') {
-    userMarker.setIcon(getUserIcon(lastHeading));
-  }
-}
-
-// ==========================================
-// MAP INIT
+// MAP INIT (ĐÃ TÍCH HỢP XOAY 360 ĐỘ)
 // ==========================================
 function initMap() {
   if (map) return;
   map = L.map('map', { center: initialCenter, zoom: initialZoom, zoomControl: false });
   setTimeout(() => { changeLayer('trackasia', document.querySelector('.layer-option.active')); }, 100);
 
-  // ══════ CODE XOAY MAP BẰNG 2 NGÓN TAY (DÙNG CSS) ══════
+  // ══════ CODE XOAY MAP BẰNG 2 NGÓN TAY ══════
   const mapContainer = map.getContainer();
   let startAngle = 0;
   let startBearing = 0;
@@ -726,12 +707,17 @@ function initMap() {
   mapContainer.addEventListener('touchstart', (e) => {
     if (e.touches.length === 2) {
       isRotating = true;
-      isAutoHeading = false;
+      isAutoHeading = false; // Tắt tự xoay khi user can thiệp
       
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       startAngle = Math.atan2(dy, dx) * 180 / Math.PI;
-      startBearing = currentMapBearing || 0;
+      
+      if (currentMapLayer && typeof currentMapLayer.getBearing === 'function') {
+        startBearing = currentMapLayer.getBearing();
+      } else {
+        startBearing = currentMapBearing || 0;
+      }
     }
   }, { passive: true });
 
@@ -744,7 +730,10 @@ function initMap() {
       const angleDiff = currentAngle - startAngle;
       const newBearing = startBearing + angleDiff;
       
-      applyCanvasRotation(newBearing);
+      if (currentMapLayer && typeof currentMapLayer.setBearing === 'function') {
+        currentMapLayer.setBearing(newBearing);
+        currentMapBearing = newBearing;
+      }
     }
   }, { passive: false });
 
@@ -1546,7 +1535,7 @@ window.endTrip = async function(save) {
   localStorage.removeItem('alternativeRoutes');
   
   isAutoHeading = true;
-  applyCanvasRotation(0);
+  if (currentMapLayer && typeof currentMapLayer.setBearing === 'function') currentMapLayer.setBearing(0);
 
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('searchBar').classList.remove('hidden');
@@ -1786,9 +1775,6 @@ function changeLayer(type, btn) {
   } else if (type === 'mapbox') currentMapLayer = L.tileLayer(`${WORKER_URL}/mapbox-tiles/{z}/{x}/{y}`, { maxZoom: 19, tileSize: 512, zoomOffset: -1 }).addTo(map);
   else if (type === 'thunderforest') currentMapLayer = L.tileLayer(`${WORKER_URL}/tf-tiles/{z}/{x}/{y}`, { maxZoom: 19 }).addTo(map);
   else if (type === 'satellite') currentMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
-  
-  // Reset xoay khi đổi layer
-  applyCanvasRotation(0);
 }
 
 window.goToLongPressLocation = function(lat, lng, name) {
@@ -2029,10 +2015,16 @@ function startWatching() {
     if (map && currentRouteData && newPos.heading !== null && newPos.heading !== undefined) {
       if (smoothedSpeed * 3.6 > 5 && isAutoHeading) {
         const targetBearing = -newPos.heading;
-        applyCanvasRotation(targetBearing);
+        if (currentMapLayer && typeof currentMapLayer.setBearing === 'function') {
+          currentMapLayer.setBearing(targetBearing);
+          currentMapBearing = targetBearing;
+        }
       }
     } else if (map && !currentRouteData) {
-      applyCanvasRotation(0);
+      if (currentMapLayer && typeof currentMapLayer.setBearing === 'function') {
+        currentMapLayer.setBearing(0);
+        currentMapBearing = 0;
+      }
       isAutoHeading = true;
     }
     // ══════ KẾT THÚC ══════
