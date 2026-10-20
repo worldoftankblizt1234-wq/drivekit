@@ -269,6 +269,9 @@ input:checked + .slider:before { transform: translateX(20px); }
       <button class="vehicle-mode-btn" data-mode="walking" onclick="setVehicleMode('walking', this)">
         <i class="fas fa-walking"></i> Đi bộ
       </button>
+      <button class="vehicle-mode-btn" data-mode="bicycle" onclick="setVehicleMode('bicycle', this)">
+        <i class="fas fa-bicycle"></i> Xe đạp
+      </button>
     </div>
     <p style="font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-top: -4px; margin-bottom: 8px; line-height: 1.2;">
       <i class="fas fa-info-circle"></i> Dữ liệu cấm tải tại VN có thể chưa cập nhật. Tài xế xe tải vui lòng chú ý biển báo thực tế!
@@ -1010,7 +1013,7 @@ async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
   let apiMode = 'driving'; 
   if (mode === 'motorcycle') apiMode = 'motorcycling';
   else if (mode === 'walking') apiMode = 'walking';
-  else if (mode === 'driving') apiMode = 'driving';
+  else if (mode === 'bicycle') apiMode = 'cycling';
 
   const url = `${WORKER_URL}/trackasia-route?origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&mode=${apiMode}`;
   const res = await fetch(url);
@@ -1054,7 +1057,7 @@ window.changeSort = function(mode) { currentSortMode = mode; if (startPoint && e
 
 window.fetchAndShowRouteOptions = async function() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
-  const modeLabel = currentVehicleMode === 'driving' ? 'ô tô' : currentVehicleMode === 'truck' ? 'xe tải' : currentVehicleMode === 'walking' ? 'đi bộ' : 'xe máy';
+  const modeLabel = currentVehicleMode === 'driving' ? 'ô tô' : currentVehicleMode === 'truck' ? 'xe tải' : currentVehicleMode === 'walking' ? 'đi bộ' : currentVehicleMode === 'bicycle' ? 'xe đạp' : 'xe máy';
   document.getElementById('routeOptionsBody').innerHTML = `<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px; color:var(--text-muted);">Đang tìm tuyến (${modeLabel})...</p></div>`;
   document.getElementById('routeOptionsModal').classList.add('open');
 
@@ -1062,7 +1065,7 @@ window.fetchAndShowRouteOptions = async function() {
   const mapboxUrl = `${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}&alternatives=true&mode=${currentVehicleMode}`;
 
   const tasks = [ 
-    (currentVehicleMode === 'driving' || currentVehicleMode === 'walking') 
+    (currentVehicleMode === 'driving' || currentVehicleMode === 'walking' || currentVehicleMode === 'bicycle') 
       ? fetch(mapboxUrl).then(r => r.json()) 
       : Promise.reject(new Error('skip')) 
   ];
@@ -1549,13 +1552,11 @@ async function doSearch(query) {
 }
 
 async function selectLocation(lat, lng, name) {
-  // Cập nhật UI tạm thời với tên từ TrackAsia
   document.getElementById('topSearchInput').value = name;
   document.getElementById('topSearchInput').readOnly = true;
   document.getElementById('searchClearBtn').classList.remove('hidden');
   closeSearch();
   
-  // Vẽ chấm đỏ tạm
   map.flyTo([lat, lng], 16, { animate: true, duration: 1 });
   map.eachLayer(layer => { 
     if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') map.removeLayer(layer); 
@@ -1564,19 +1565,15 @@ async function selectLocation(lat, lng, name) {
   const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
   const tempMarker = L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>Đang lấy địa chỉ chi tiết...</b>`).openPopup();
 
-  // GỌI MAPBOX ĐỂ LẤY ĐỊA CHỈ CHI TIẾT
   let finalName = name;
   try {
     const res = await fetch(`${WORKER_URL}/reverse-geocode?lat=${lat}&lng=${lng}`);
     const data = await res.json();
     if (data.display_name) {
-      finalName = data.display_name.split(',').slice(0, 3).join(', '); // Lấy 3 phần đầu cho gọn
+      finalName = data.display_name.split(',').slice(0, 3).join(', ');
     }
-  } catch (e) {
-    console.warn('Lỗi gọi Mapbox, dùng tên mặc định', e);
-  }
+  } catch (e) {}
 
-  // Cập nhật lại popup với tên Mapbox trả về
   tempMarker.setPopupContent(`
     <div style="min-width: 180px;">
       <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: var(--text);">${finalName}</div>
@@ -1586,7 +1583,6 @@ async function selectLocation(lat, lng, name) {
     </div>
   `).openPopup();
 
-  // Xử lý logic lưu điểm đi / điểm đến
   if (searchContext === 'view') {
     // Đã vẽ marker ở trên rồi
   } else if (searchContext === 'start') {
@@ -1596,7 +1592,7 @@ async function selectLocation(lat, lng, name) {
   } else if (searchContext === 'end') {
     endPoint = { lat, lng, name: finalName };
     document.getElementById('dirInputEnd').value = finalName;
-    document.getElementById('topSearchInput').value = finalName; // Cập nhật lại thanh search bằng tên chuẩn Mapbox
+    document.getElementById('topSearchInput').value = finalName;
     document.getElementById('btnClearEnd').classList.remove('hidden');
   }
 }
