@@ -13,9 +13,9 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js"></script>
-<link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
-<script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
+<!-- ✅ leaflet-rotate: cho phép xoay bản đồ ở tầng Leaflet, hoạt động với mọi tile layer -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
+
 <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
 <script>
   if (window.location.search.includes('debug=1')) window.vConsole = new window.VConsole();
@@ -39,7 +39,6 @@ button, input { font-family: inherit; outline: none; border: none; }
 button { cursor: pointer; }
 .hidden { display: none !important; }
 
-/* FIX LAYER MENU */
 .layer-menu { position: fixed; bottom: calc(140px + var(--safe-bottom)); left: 16px; z-index: 1000; background: var(--card); border-radius: 12px; padding: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); border: 1px solid var(--border); display: none; flex-direction: column; gap: 4px; }
 .layer-menu.show { display: flex !important; z-index: 1200; }
 .layer-option { padding: 10px 14px; background: transparent; color: var(--text); border-radius: 8px; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 0.85rem; text-align: left; width: 100%; transition: 0.2s; }
@@ -57,7 +56,6 @@ button { cursor: pointer; }
 .hud-stat .value { font-size: 0.95rem; font-weight: 800; font-family: var(--font-mono); display: flex; align-items: center; gap: 4px; color: var(--text); }
 .hud-stat.speed .value { color: var(--success); }
 
-/* NÚT KẾT THÚC TRÊN CÙNG */
 .hud-end-btn-top {
   background: var(--danger);
   color: white;
@@ -103,7 +101,25 @@ button { cursor: pointer; }
 .fab-layers { position: fixed; bottom: calc(80px + var(--safe-bottom)); left: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
 .fab-report { position: fixed; bottom: calc(80px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, var(--danger), #f97316); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(239,68,68,0.4); }
 
-/* CUSTOM PIN */
+/* NÚT LA BÀN */
+.fab-compass {
+  position: fixed;
+  bottom: calc(200px + var(--safe-bottom));
+  right: 16px;
+  z-index: 1000;
+  width: 50px; height: 50px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  transition: background 0.2s, color 0.2s;
+}
+.fab-compass.auto { background: var(--primary); color: white; border-color: transparent; box-shadow: 0 4px 15px rgba(59,130,246,0.4); }
+#compassIcon { transition: transform 0.1s linear; }
+
 .custom-pin { background: white; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 6px rgba(0,0,0,0.3); border: 2px solid white; }
 .custom-pin i { transform: rotate(45deg); font-size: 0.8rem; }
 .custom-pin-close { position: absolute; top: -6px; right: -6px; background: var(--danger); color: white; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.55rem; cursor: pointer; border: 1.5px solid white; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
@@ -203,7 +219,6 @@ input:checked + .slider:before { transform: translateX(20px); }
 .end-trip-btn.discard { background: var(--bg-2); color: var(--text); border: 1px solid var(--border); }
 .end-trip-btn.cancel { background: transparent; color: var(--text-muted); border: 1px solid var(--border); margin-bottom: 0; }
 
-/* SHARE PING ANIMATION */
 @keyframes ping {
   75%, 100% { transform: scale(2.5); opacity: 0; }
 }
@@ -249,7 +264,6 @@ input:checked + .slider:before { transform: translateX(20px); }
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
   
   <button class="fab-layers" onclick="toggleLayerMenu()"><i class="fas fa-layer-group"></i></button>
-  <!-- NÚT GHIM NHANH GPS -->
   <button class="fab-layers" id="btnQuickPin" onclick="openQuickPin()" style="bottom: calc(140px + var(--safe-bottom)); right: 16px; left: auto; background: var(--success); color: white; border: none; box-shadow: 0 4px 15px rgba(16,185,129,0.4);">
     <i class="fas fa-map-marker-alt"></i>
   </button>
@@ -263,6 +277,11 @@ input:checked + .slider:before { transform: translateX(20px); }
 
   <button class="fab-report" id="btnReport" onclick="openReportMenu()"><i class="fas fa-exclamation-triangle"></i></button>
   <button class="fab-directions" id="mainDirBtn" onclick="openDirections()"><i class="fas fa-directions"></i></button>
+
+  <!-- ✅ NÚT LA BÀN XOAY BẢN ĐỒ -->
+  <button class="fab-compass auto" id="btnCompass" onclick="toggleMapOrientation()" title="Bật/tắt xoay theo hướng đi">
+    <i class="fas fa-compass" id="compassIcon"></i>
+  </button>
 
   <div class="dir-sheet" id="dirSheet">
     <div class="dir-handle"></div>
@@ -305,8 +324,6 @@ input:checked + .slider:before { transform: translateX(20px); }
       <div class="hud-stat"><span class="label">Còn lại</span><span class="value" id="hudRemainDist">—</span></div>
       <div class="hud-stat"><span class="label">Đến nơi</span><span class="value" id="hudRemainTime">—</span></div>
       <div class="hud-stat speed"><span class="label">Tốc độ</span><span class="value" id="hudSpeed">0 km/h</span></div>
-      
-      <!-- NÚT KẾT THÚC TRÊN CÙNG -->
       <button class="hud-end-btn-top" onclick="openEndTripModal()">
         <i class="fas fa-flag-checkered"></i>
         <span>Kết thúc</span>
@@ -418,12 +435,10 @@ input:checked + .slider:before { transform: translateX(20px); }
   </div>
 </div>
 
-<!-- SAVE PLACE MODAL -->
 <div class="end-trip-modal" id="savePlaceModal">
   <div class="end-trip-box">
     <h2>📍 Lưu địa điểm</h2>
     <p style="text-align: center; color: var(--text-muted); margin-bottom: 16px; font-size: 0.9rem;" id="savePlaceAddress">Đang lấy địa chỉ...</p>
-    
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
       <button class="report-btn" onclick="submitSavePlace('home')"><i class="fas fa-home" style="color:#10b981;"></i> Nhà riêng</button>
       <button class="report-btn" onclick="submitSavePlace('cafe')"><i class="fas fa-coffee" style="color:#f59e0b;"></i> Quán Cafe</button>
@@ -432,7 +447,6 @@ input:checked + .slider:before { transform: translateX(20px); }
       <button class="report-btn" onclick="submitSavePlace('school')"><i class="fas fa-school" style="color:#8b5cf6;"></i> Trường học</button>
       <button class="report-btn" onclick="submitSavePlace('other')"><i class="fas fa-map-marker-alt" style="color:#64748b;"></i> Khác</button>
     </div>
-    
     <button class="end-trip-btn cancel" onclick="closeSavePlaceModal()"><i class="fas fa-times"></i> Huỷ</button>
   </div>
 </div>
@@ -495,25 +509,64 @@ let voiceCheckTimer = null;
 let voiceSpokenMarks = new Map();
 let voiceArrivalSpoken = false;
 
-let currentVehicleMode = 'driving'; // driving | truck | motorcycle
-let currentSortMode = 'fastest';    // fastest | shortest
+let currentVehicleMode = 'driving';
+let currentSortMode = 'fastest';
 let tripStartTime = null;
 
-// ARRIVAL STATE
 let arrivalHandled = false;
 const ARRIVAL_RADIUS_M = 20;
 
-// CUSTOM PINS STATE
 let savedPlacesData = {};
 let savedPlacesMarkers = [];
 let tempPinLatLng = null;
 let tempPinName = "";
 
 // MAP ROTATE STATE
-let isAutoHeading = true; 
+let isAutoHeading = true;
 let currentMapBearing = 0;
+let isProgrammaticBearing = false;
 
 const ROUTE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
+
+// ==========================================
+// ROTATE HELPERS
+// ==========================================
+function setMapBearing(deg) {
+  if (!map || typeof map.setBearing !== 'function') return;
+  // Normalize về -180..180
+  let d = ((deg % 360) + 540) % 360 - 180;
+  isProgrammaticBearing = true;
+  map.setBearing(d);
+  currentMapBearing = d;
+  updateCompassIcon();
+}
+
+function updateCompassIcon() {
+  const icon = document.getElementById('compassIcon');
+  const btn = document.getElementById('btnCompass');
+  if (!icon || !btn) return;
+  icon.style.transform = `rotate(${-currentMapBearing}deg)`;
+  btn.classList.toggle('auto', isAutoHeading);
+}
+
+window.toggleMapOrientation = function () {
+  if (!map) return;
+  if (isAutoHeading) {
+    isAutoHeading = false;
+    setMapBearing(0);
+  } else {
+    isAutoHeading = true;
+    if (lastUserPos && lastUserPos.heading != null && smoothedSpeed * 3.6 > 5) {
+      setMapBearing(lastUserPos.heading);
+    }
+  }
+  updateCompassIcon();
+};
+
+window.resetBearing = function () {
+  isAutoHeading = false;
+  setMapBearing(0);
+};
 
 // ==========================================
 // THEME & TIME
@@ -659,6 +712,7 @@ function finishAuthInit() {
   initMap();
   initReports();
   initSavedPlaces();
+  updateCompassIcon();
   
   if (lastUserPos) {
     if (!startPoint) {
@@ -669,7 +723,6 @@ function finishAuthInit() {
     updateUserMarkerOnMap(lastUserPos, lastHeading);
   } else refreshGPS();
 
-  // Vẽ chấm cam nếu mở từ link chia sẻ
   const params = new URLSearchParams(window.location.search);
   if (params.get('fromLat')) {
     const fromLat = parseFloat(params.get('fromLat'));
@@ -691,59 +744,34 @@ function finishAuthInit() {
 function logout() { signOut(auth); closeMenu(); }
 
 // ==========================================
-// MAP INIT (ĐÃ TÍCH HỢP XOAY 360 ĐỘ)
+// MAP INIT (DÙNG leaflet-rotate)
 // ==========================================
 function initMap() {
   if (map) return;
-  map = L.map('map', { center: initialCenter, zoom: initialZoom, zoomControl: false });
+  map = L.map('map', {
+    center: initialCenter,
+    zoom: initialZoom,
+    zoomControl: false,
+    rotate: true,
+    bearing: 0,
+    touchRotate: true,
+    shiftKeyRotate: true,
+    bearingSnap: 8,
+  });
+
   setTimeout(() => { changeLayer('trackasia', document.querySelector('.layer-option.active')); }, 100);
 
-  // ══════ CODE XOAY MAP BẰNG 2 NGÓN TAY ══════
-  const mapContainer = map.getContainer();
-  let startAngle = 0;
-  let startBearing = 0;
-  let isRotating = false;
-
-  mapContainer.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 2) {
-      isRotating = true;
-      isAutoHeading = false; // Tắt tự xoay khi user can thiệp
-      
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      startAngle = Math.atan2(dy, dx) * 180 / Math.PI;
-      
-      if (currentMapLayer && typeof currentMapLayer.getBearing === 'function') {
-        startBearing = currentMapLayer.getBearing();
-      } else {
-        startBearing = currentMapBearing || 0;
-      }
+  map.on('rotate', () => {
+    currentMapBearing = map.getBearing();
+    updateCompassIcon();
+    if (isProgrammaticBearing) {
+      isProgrammaticBearing = false;
+      return;
     }
-  }, { passive: true });
-
-  mapContainer.addEventListener('touchmove', (e) => {
-    if (isRotating && e.touches.length === 2) {
-      e.preventDefault(); 
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const currentAngle = Math.atan2(dy, dx) * 180 / Math.PI;
-      const angleDiff = currentAngle - startAngle;
-      const newBearing = startBearing + angleDiff;
-      
-      if (currentMapLayer && typeof currentMapLayer.setBearing === 'function') {
-        currentMapLayer.setBearing(newBearing);
-        currentMapBearing = newBearing;
-      }
-    }
-  }, { passive: false });
-
-  mapContainer.addEventListener('touchend', (e) => {
-    if (e.touches.length < 2) {
-      isRotating = false;
-    }
+    isAutoHeading = false;
   });
-  // ══════ KẾT THÚC CODE XOAY ══════
 
+  // ===== LONG-PRESS =====
   let pressTimer = null;
   let touchMarker = null;
   let startX = 0, startY = 0;
@@ -762,23 +790,26 @@ function initMap() {
   function startPress(e) {
     if (document.getElementById('dirSheet').classList.contains('open')) return;
     if (document.getElementById('suggestionsBox').classList.contains('show')) closeSearch();
+    if (e.touches && e.touches.length > 1) return;
+
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     startX = clientX; startY = clientY; isDragging = false; isMouseDown = true;
 
     function checkMove(moveEvent) {
+      if (moveEvent.touches && moveEvent.touches.length > 1) { isDragging = true; cancelPress(); return; }
       const moveX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
       const moveY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
       if (Math.abs(moveX - startX) > 10 || Math.abs(moveY - startY) > 10) {
         isDragging = true; cancelPress();
-        mapContainer.removeEventListener('touchmove', checkMove);
-        mapContainer.removeEventListener('mousemove', checkMove);
+        map.getContainer().removeEventListener('touchmove', checkMove);
+        map.getContainer().removeEventListener('mousemove', checkMove);
       }
     }
-    mapContainer.addEventListener('touchmove', checkMove);
-    mapContainer.addEventListener('mousemove', checkMove);
+    map.getContainer().addEventListener('touchmove', checkMove);
+    map.getContainer().addEventListener('mousemove', checkMove);
 
-    const rect = mapContainer.getBoundingClientRect();
+    const rect = map.getContainer().getBoundingClientRect();
     const latlng = map.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
     pressIndicator.style.left = clientX + 'px'; pressIndicator.style.top = clientY + 'px';
     pressIndicator.style.transform = 'translate(-50%, -50%) scale(1)'; pressIndicator.style.opacity = '1';
@@ -796,7 +827,7 @@ function initMap() {
     if (!isDragging && isMouseDown) {
       const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
       const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
-      const rect = mapContainer.getBoundingClientRect();
+      const rect = map.getContainer().getBoundingClientRect();
       const latlng = map.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
       showLocationPopup(latlng);
     }
@@ -808,16 +839,17 @@ function initMap() {
     pressIndicator.style.transform = 'translate(-50%, -50%) scale(0)'; pressIndicator.style.opacity = '0';
   }
 
-  mapContainer.addEventListener('mousedown', startPress);
-  mapContainer.addEventListener('touchstart', startPress, { passive: true });
-  mapContainer.addEventListener('mouseup', endPress);
-  mapContainer.addEventListener('touchend', endPress);
-  mapContainer.addEventListener('mouseleave', cancelPress);
-  mapContainer.addEventListener('touchcancel', cancelPress);
+  const mc = map.getContainer();
+  mc.addEventListener('mousedown', startPress);
+  mc.addEventListener('touchstart', startPress, { passive: true });
+  mc.addEventListener('mouseup', endPress);
+  mc.addEventListener('touchend', endPress);
+  mc.addEventListener('mouseleave', cancelPress);
+  mc.addEventListener('touchcancel', cancelPress);
 
   map.on('dragstart', () => { clearTouchMarker(); });
   map.on('zoomstart', () => { clearTouchMarker(); });
-  mapContainer.addEventListener('contextmenu', (e) => { e.preventDefault(); closeDirections(); });
+  mc.addEventListener('contextmenu', (e) => { e.preventDefault(); closeDirections(); });
 
   async function showLocationPopup(latlng) {
     clearTouchMarker();
@@ -840,9 +872,7 @@ function initMap() {
     popupContent.innerHTML = `
       <div style="min-width: 180px;">
         <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: var(--text);">${displayName}</div>
-        
         <button onclick="event.stopPropagation(); openSavePlaceModal(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--success); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-bookmark"></i> Ghim địa điểm</button>
-
         <button onclick="event.stopPropagation(); goToLongPressLocation(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
         <button onclick="event.stopPropagation(); shareLocation(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fas fa-share-alt"></i> Chia sẻ</button>
       </div>
@@ -851,9 +881,6 @@ function initMap() {
   }
 }
 
-// ==========================================
-// SHARED LOCATION MARKER (CHẤM CAM PING)
-// ==========================================
 function showSharedLocationMarker(lat, lng, name, isDestination = false) {
   map.eachLayer(layer => {
     if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
@@ -880,7 +907,7 @@ function showSharedLocationMarker(lat, lng, name, isDestination = false) {
 }
 
 // ==========================================
-// SAVED PLACES (CÁ NHÂN HOÁ)
+// SAVED PLACES
 // ==========================================
 function initSavedPlaces() {
   if (!currentUser) return;
@@ -918,13 +945,7 @@ function renderSavedPlacesOnMap() {
       </div>
     `;
     
-    const customIcon = L.divIcon({ 
-      html, 
-      className: '', 
-      iconSize: [30, 30], 
-      iconAnchor: [15, 30] 
-    });
-    
+    const customIcon = L.divIcon({ html, className: '', iconSize: [30, 30], iconAnchor: [15, 30] });
     const marker = L.marker([place.lat, place.lng], { icon: customIcon }).addTo(map);
     marker.bindPopup(`<b>${place.address.split(',')[0]}</b>`);
     savedPlacesMarkers.push(marker);
@@ -1229,6 +1250,7 @@ function startNavigationHUD() {
   document.getElementById('btnQuickPin').classList.add('hidden');
   document.querySelector('.fab-layers').classList.add('hidden');
   document.getElementById('btnReport').classList.add('hidden');
+  document.getElementById('btnCompass').classList.remove('hidden');
   document.getElementById('hud').classList.remove('hidden');
 
   voiceRouteSteps = currentRouteData.legs[0].steps || [];
@@ -1249,7 +1271,7 @@ function startNavigationHUD() {
 }
 
 // ==========================================
-// ALTERNATIVE ROUTES (đổi giữa chừng)
+// ALTERNATIVE ROUTES
 // ==========================================
 window.openAlternativeRoutes = function() {
   const stored = localStorage.getItem('alternativeRoutes');
@@ -1302,7 +1324,7 @@ window.switchToRoute = function(index) {
 };
 
 // ==========================================
-// ARRIVAL DETECTION + HUD UPDATE
+// ARRIVAL + HUD
 // ==========================================
 function updateNextManeuverHUD(lat, lng) {
   if (!voiceRouteSteps || voiceRouteSteps.length === 0) return;
@@ -1476,7 +1498,7 @@ async function autoReroute(userLat, userLng) {
 }
 
 // ==========================================
-// END TRIP MODAL
+// END TRIP
 // ==========================================
 window.openEndTripModal = function() {
   if (!currentRouteData) return;
@@ -1535,7 +1557,7 @@ window.endTrip = async function(save) {
   localStorage.removeItem('alternativeRoutes');
   
   isAutoHeading = true;
-  if (currentMapLayer && typeof currentMapLayer.setBearing === 'function') currentMapLayer.setBearing(0);
+  setMapBearing(0);
 
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('searchBar').classList.remove('hidden');
@@ -1734,7 +1756,7 @@ window.reloadSavedRoute = function(key) {
 };
 
 // ==========================================
-// DELETE HISTORY & SAVED ITEMS
+// DELETE
 // ==========================================
 window.deleteItem = async function(type, key) {
   if (!confirm('Bạn có chắc muốn xoá mục này?')) return;
@@ -1770,8 +1792,7 @@ function changeLayer(type, btn) {
   if (btn) btn.classList.add('active');
   document.getElementById('layerMenu').classList.remove('show');
   if (type === 'trackasia') {
-    try { currentMapLayer = L.trackasiaGL({ style: `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}` }).addTo(map); }
-    catch (error) { currentMapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); }
+    currentMapLayer = L.tileLayer(`https://maps.track-asia.com/styles/v2/streets/{z}/{x}/{y}.png?key=${TRACKASIA_KEY}`, { maxZoom: 19, tileSize: 256 }).addTo(map);
   } else if (type === 'mapbox') currentMapLayer = L.tileLayer(`${WORKER_URL}/mapbox-tiles/{z}/{x}/{y}`, { maxZoom: 19, tileSize: 512, zoomOffset: -1 }).addTo(map);
   else if (type === 'thunderforest') currentMapLayer = L.tileLayer(`${WORKER_URL}/tf-tiles/{z}/{x}/{y}`, { maxZoom: 19 }).addTo(map);
   else if (type === 'satellite') currentMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
@@ -2011,21 +2032,9 @@ function startWatching() {
     lastUserPos = newPos;
     animateMarkerTo(lastUserPos);
 
-    // ══════ XỬ LÝ XOAY THEO HƯỚNG ĐI (Heading Up) ══════
-    if (map && currentRouteData && newPos.heading !== null && newPos.heading !== undefined) {
-      if (smoothedSpeed * 3.6 > 5 && isAutoHeading) {
-        const targetBearing = -newPos.heading;
-        if (currentMapLayer && typeof currentMapLayer.setBearing === 'function') {
-          currentMapLayer.setBearing(targetBearing);
-          currentMapBearing = targetBearing;
-        }
-      }
-    } else if (map && !currentRouteData) {
-      if (currentMapLayer && typeof currentMapLayer.setBearing === 'function') {
-        currentMapLayer.setBearing(0);
-        currentMapBearing = 0;
-      }
-      isAutoHeading = true;
+    // ══════ AUTO XOAY THEO HƯỚNG ĐI ══════
+    if (currentRouteData && newPos.heading != null && smoothedSpeed * 3.6 > 5 && isAutoHeading) {
+      setMapBearing(newPos.heading);
     }
     // ══════ KẾT THÚC ══════
 
@@ -2070,7 +2079,6 @@ function calcDist(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// Swipe to close dir sheet
 let sheetTouchStartY = 0, isSwiping = false;
 const dirSheetEl = document.getElementById('dirSheet');
 dirSheetEl.addEventListener('touchstart', (e) => {
@@ -2127,7 +2135,6 @@ async function loadHistory() {
   } catch (e) { list.innerHTML = 'Lỗi tải lịch sử.'; }
 }
 
-// Export
 window.openDirections = openDirections;
 window.activateSearch = activateSearch;
 window.refreshGPS = refreshGPS;
