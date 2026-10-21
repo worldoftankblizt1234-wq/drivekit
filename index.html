@@ -47,8 +47,8 @@ button { cursor: pointer; }
 .loading-percent { font-size: 2.5rem; color: var(--primary); font-weight: 900; font-family: var(--font-mono); transition: all 0.2s; }
 
 /* MAP & UI */
-.layer-menu { position: fixed; bottom: calc(140px + var(--safe-bottom)); left: 16px; z-index: 1000; background: var(--card); border-radius: 12px; padding: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); border: 1px solid var(--border); display: none; flex-direction: column; gap: 4px; }
-.layer-menu.show { display: flex !important; z-index: 1200; }
+.layer-menu { position: fixed; bottom: calc(140px + var(--safe-bottom)); left: 16px; z-index: 2000; background: var(--card); border-radius: 12px; padding: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); border: 1px solid var(--border); display: none; flex-direction: column; gap: 4px; }
+.layer-menu.show { display: flex !important; z-index: 2100; }
 .layer-option { padding: 10px 14px; background: transparent; color: var(--text); border-radius: 8px; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 0.85rem; text-align: left; width: 100%; transition: 0.2s; }
 .layer-option:hover { background: var(--bg-2); }
 .layer-option.active { background: var(--primary); color: white; }
@@ -88,7 +88,7 @@ body.light-mode .leaflet-container { background: #f1f5f9 !important; }
 .fab-menu { position: fixed; top: calc(16px + var(--safe-top)); right: 16px; z-index: 1000; width: 42px; height: 42px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
 .fab-directions { position: fixed; bottom: calc(20px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 6px 20px rgba(59,130,246,0.4); }
 .fab-locate { position: fixed; bottom: calc(20px + var(--safe-bottom)); left: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-.fab-layers { position: fixed; bottom: calc(80px + var(--safe-bottom)); left: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+.fab-layers { position: fixed; bottom: calc(80px + var(--safe-bottom)); left: 16px; z-index: 1100; width: 50px; height: 50px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
 .fab-report { position: fixed; bottom: calc(80px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, var(--danger), #f97316); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(239,68,68,0.4); transition: width 0.2s, height 0.2s, font-size 0.2s, opacity 0.2s, bottom 0.2s; }
 body.navigating #btnReport { width: 40px; height: 40px; font-size: 1rem; bottom: calc(90px + var(--safe-bottom)); opacity: 0.85; z-index: 600; }
 
@@ -257,6 +257,66 @@ input:checked + .slider:before { transform: translateX(20px); }
 }
 .community-poi-pin .verified-badge i { font-size: 0.5rem; transform: rotate(0); }
 
+/* Marker đặc biệt cho Trạm dừng nghỉ */
+.community-poi-pin.rest-stop-pin {
+  width: 40px; height: 40px;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  border: 3px solid white;
+  box-shadow: 0 4px 12px rgba(59,130,246,0.6), 0 0 0 4px rgba(59,130,246,0.2);
+  animation: restStopPulse 2s ease-in-out infinite;
+}
+.community-poi-pin.rest-stop-pin i {
+  font-size: 1.1rem;
+}
+.community-poi-pin.rest-stop-pin .verified-badge {
+  width: 18px; height: 18px;
+  background: #10b981;
+}
+@keyframes restStopPulse {
+  0%, 100% { box-shadow: 0 4px 12px rgba(59,130,246,0.6), 0 0 0 4px rgba(59,130,246,0.2); }
+  50% { box-shadow: 0 4px 12px rgba(59,130,246,0.8), 0 0 0 8px rgba(59,130,246,0.1); }
+}
+
+/* Nút filter nhanh trạm dừng nghỉ */
+.fab-rest-stop-filter {
+  position: fixed;
+  bottom: calc(200px + var(--safe-bottom));
+  right: 16px;
+  z-index: 1000;
+  width: 50px; height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: white;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem;
+  box-shadow: 0 4px 15px rgba(59,130,246,0.5);
+  border: 2px solid white;
+  transition: transform 0.2s;
+}
+.fab-rest-stop-filter:active { transform: scale(0.92); }
+.fab-rest-stop-filter.active {
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 4px 15px rgba(16,185,129,0.6);
+}
+body.navigating .fab-rest-stop-filter { display: none; }
+
+/* Badge "Trạm dừng nghỉ" trong popup */
+.rest-stop-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: white; padding: 4px 10px; border-radius: 20px;
+  font-size: 0.7rem; font-weight: 800;
+  box-shadow: 0 2px 6px rgba(59,130,246,0.4);
+  margin-bottom: 8px;
+}
+
+/* Section ưu tiên trạm dừng nghỉ trong search */
+.sug-section-title.rest-stop-title {
+  color: #3b82f6;
+  background: rgba(59,130,246,0.08);
+  border-left: 3px solid #3b82f6;
+}
+
 /* Section heading trong suggestions */
 .sug-section-title {
   padding: 10px 16px 6px; font-size: 0.7rem; font-weight: 800;
@@ -265,6 +325,50 @@ input:checked + .slider:before { transform: translateX(20px); }
   background: var(--bg-2); border-bottom: 1px solid var(--border);
 }
 .sug-section-title.community { color: var(--success); }
+
+/* Toast gợi ý zoom */
+.zoom-hint-toast {
+  position: fixed; bottom: calc(150px + var(--safe-bottom)); left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15,23,42,0.95); color: white;
+  padding: 10px 16px; border-radius: 12px;
+  font-weight: 700; font-size: 0.8rem; z-index: 9999;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  display: flex; gap: 8px; align-items: center;
+  border: 1px solid var(--border); pointer-events: none;
+}
+
+/* Layer option với mô tả phụ */
+.layer-option {
+  padding: 10px 14px;
+  background: transparent;
+  color: var(--text);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-align: left;
+  width: 100%;
+  transition: 0.2s;
+}
+.layer-option:hover { background: var(--bg-2); }
+.layer-option.active { background: var(--primary); color: white; }
+.layer-option .layer-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+.layer-option .layer-desc {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-left: 24px;
+}
+.layer-option.active .layer-desc { color: rgba(255,255,255,0.8); }
 </style>
 </head>
 <body>
@@ -296,7 +400,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 </div>
 
 <div id="appUI" class="hidden">
-  <div id="map" onclick="closeDirections()"></div>
+  <div id="map"></div>
 
   <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
     <i class="fas fa-search"></i>
@@ -307,16 +411,33 @@ input:checked + .slider:before { transform: translateX(20px); }
   <button class="fab-menu" id="mainMenuBtn" onclick="openMenu()"><i class="fas fa-bars"></i></button>
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
   
-  <button class="fab-layers" onclick="toggleLayerMenu()"><i class="fas fa-layer-group"></i></button>
-  <button class="fab-layers" id="btnQuickPin" onclick="openQuickPin()" style="bottom: calc(140px + var(--safe-bottom)); right: 16px; left: auto; background: var(--success); color: white; border: none; box-shadow: 0 4px 15px rgba(16,185,129,0.4);">
+  <button class="fab-layers" id="btnLayerMenu" onclick="event.stopPropagation(); toggleLayerMenu()" title="Lớp bản đồ">
+    <i class="fas fa-layer-group"></i>
+  </button>
+  <button class="fab-layers" id="btnQuickPin" onclick="event.stopPropagation(); openQuickPin()" style="bottom: calc(140px + var(--safe-bottom)); right: 16px; left: auto; background: var(--success); color: white; border: none; box-shadow: 0 4px 15px rgba(16,185,129,0.4);" title="Ghim nhanh vị trí">
     <i class="fas fa-map-marker-alt"></i>
+  </button>
+  <button class="fab-rest-stop-filter" id="btnRestStopFilter" onclick="toggleRestStopFilter()" title="Hiện/ẩn trạm dừng nghỉ">
+    <i class="fas fa-bed"></i>
   </button>
 
   <div class="layer-menu" id="layerMenu">
-    <button class="layer-option active" onclick="changeLayer('trackasia', this)"><i class="fas fa-map"></i> TrackAsia</button>
-    <button class="layer-option" onclick="changeLayer('mapbox', this)"><i class="fas fa-map-marked-alt"></i> Mapbox</button>
-    <button class="layer-option" onclick="changeLayer('thunderforest', this)"><i class="fas fa-tree"></i> Thunderforest</button>
-    <button class="layer-option" onclick="changeLayer('satellite', this)"><i class="fas fa-satellite"></i> Vệ tinh</button>
+    <button class="layer-option active" onclick="changeLayer('trackasia', this)">
+      <div class="layer-title"><i class="fas fa-map"></i> Tiêu chuẩn V1</div>
+      <div class="layer-desc">Bản đồ mặc định</div>
+    </button>
+    <button class="layer-option" onclick="changeLayer('mapbox', this)">
+      <div class="layer-title"><i class="fas fa-map-marked-alt"></i> Tiêu chuẩn</div>
+      <div class="layer-desc">Đường phố chi tiết</div>
+    </button>
+    <button class="layer-option" onclick="changeLayer('thunderforest', this)">
+      <div class="layer-title"><i class="fas fa-road"></i> Street</div>
+      <div class="layer-desc">Tên đường, POI địa phương</div>
+    </button>
+    <button class="layer-option" onclick="changeLayer('satellite', this)">
+      <div class="layer-title"><i class="fas fa-satellite"></i> Vệ tinh</div>
+      <div class="layer-desc">Ảnh vệ tinh thực tế</div>
+    </button>
   </div>
 
   <button class="fab-report" id="btnReport" onclick="openReportMenu()"><i class="fas fa-exclamation-triangle"></i></button>
@@ -516,8 +637,9 @@ input:checked + .slider:before { transform: translateX(20px); }
     <button class="poi-tag-btn" data-tag="supermarket" onclick="selectPoiTag('supermarket', this)">
       <i class="fas fa-shopping-cart"></i> Siêu thị
     </button>
-    <button class="poi-tag-btn" data-tag="rest_stop" onclick="selectPoiTag('rest_stop', this)">
+    <button class="poi-tag-btn" data-tag="rest_stop" onclick="selectPoiTag('rest_stop', this)" style="border-color: #3b82f6; color: #3b82f6; position: relative;">
       <i class="fas fa-bed"></i> Trạm dừng nghỉ
+      <span style="position:absolute; top:-6px; right:-6px; background:#3b82f6; color:white; font-size:0.55rem; padding:2px 6px; border-radius:8px; font-weight:800;">HOT</span>
     </button>
     <button class="poi-tag-btn" data-tag="gas_station" onclick="selectPoiTag('gas_station', this)">
       <i class="fas fa-gas-pump"></i> Cây xăng
@@ -639,10 +761,12 @@ let communityPoisData = {};
 let communityPoiMarkers = [];
 let tempPoiLatLng = null;
 let tempPoiTag = null;
+let restStopFilterActive = false;
+let restStopMarkers = [];
 
 const POI_TAG_CONFIG = {
   supermarket: { icon: 'fa-shopping-cart', label: 'Siêu thị', color: '#10b981' },
-  rest_stop: { icon: 'fa-bed', label: 'Trạm dừng nghỉ', color: '#3b82f6' },
+  rest_stop: { icon: 'fa-bed', label: 'Trạm dừng nghỉ', color: '#3b82f6', featured: true },
   gas_station: { icon: 'fa-gas-pump', label: 'Cây xăng', color: '#f59e0b' },
   cafe: { icon: 'fa-coffee', label: 'Cafe', color: '#8b5cf6' },
   restaurant: { icon: 'fa-utensils', label: 'Nhà hàng', color: '#ef4444' },
@@ -650,6 +774,17 @@ const POI_TAG_CONFIG = {
   atm: { icon: 'fa-money-bill-wave', label: 'ATM', color: '#ec4899' },
   repair: { icon: 'fa-wrench', label: 'Sửa xe', color: '#64748b' },
   hotel: { icon: 'fa-hotel', label: 'Khách sạn', color: '#dc2626' }
+};
+
+// ═══════════════════════════════════════════════════════
+// ZOOM THRESHOLDS — Ẩn marker khi zoom xa
+// ═══════════════════════════════════════════════════════
+const ZOOM_CONFIG = {
+  communityPoi: 15,
+  restStop: 13,
+  savedPlace: 14,
+  report: 14,
+  savedPlaceAlwaysShow: ['home', 'company']
 };
 
 // ==========================================
@@ -1011,6 +1146,25 @@ function initMap() {
   map.on('zoomstart', () => { clearTouchMarker(); });
   mc.addEventListener('contextmenu', (e) => { e.preventDefault(); closeDirections(); });
 
+  // Đóng directions khi click vào map (không chặn FAB)
+  map.on('click', () => { closeDirections(); });
+
+  // ═══ LẮNG NGHE ZOOM: Tự động ẩn/hiện marker theo mức zoom ═══
+  let zoomRenderTimer = null;
+  map.on('zoomend', () => {
+    if (zoomRenderTimer) clearTimeout(zoomRenderTimer);
+    zoomRenderTimer = setTimeout(() => {
+      if (typeof renderCommunityPoisOnMap === 'function') renderCommunityPoisOnMap();
+      if (typeof renderSavedPlacesOnMap === 'function') renderSavedPlacesOnMap();
+      if (typeof renderReportsOnMap === 'function') renderReportsOnMap();
+
+      const z = map.getZoom();
+      if (z < Math.min(ZOOM_CONFIG.communityPoi, ZOOM_CONFIG.savedPlace, ZOOM_CONFIG.report)) {
+        showZoomHint();
+      }
+    }, 150);
+  });
+
   async function showLocationPopup(latlng) {
     clearTouchMarker();
     const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
@@ -1084,7 +1238,9 @@ function initSavedPlaces() {
 function renderSavedPlacesOnMap() {
   savedPlacesMarkers.forEach(m => map.removeLayer(m));
   savedPlacesMarkers = [];
-  
+
+  const currentZoom = map ? map.getZoom() : 17;
+
   const icons = {
     home: { icon: 'fa-home', color: '#10b981' },
     cafe: { icon: 'fa-coffee', color: '#f59e0b' },
@@ -1097,7 +1253,10 @@ function renderSavedPlacesOnMap() {
   for (const key in savedPlacesData) {
     const place = savedPlacesData[key];
     const conf = icons[place.type] || icons.other;
-    
+
+    const alwaysShow = ZOOM_CONFIG.savedPlaceAlwaysShow.includes(place.type);
+    if (!alwaysShow && currentZoom < ZOOM_CONFIG.savedPlace) continue;
+
     const html = `
       <div style="position: relative;">
         <div class="custom-pin" style="width: 30px; height: 30px; background: ${conf.color}; border-color: ${conf.color};">
@@ -1108,7 +1267,7 @@ function renderSavedPlacesOnMap() {
         </div>
       </div>
     `;
-    
+
     const customIcon = L.divIcon({ html, className: '', iconSize: [30, 30], iconAnchor: [15, 30] });
     const marker = L.marker([place.lat, place.lng], { icon: customIcon }).addTo(map);
     marker.bindPopup(`<b>${place.address.split(',')[0]}</b>`);
@@ -1128,7 +1287,7 @@ window.openQuickPin = function() {
   tempPinLatLng = { lat: lastUserPos.lat, lng: lastUserPos.lng };
   document.getElementById('savePlaceAddress').textContent = "Đang lấy địa chỉ...";
   document.getElementById('savePlaceModal').classList.add('open');
-  
+
   fetchWorker(`/reverse-geocode?lat=${lastUserPos.lat}&lng=${lastUserPos.lng}`)
     .then(r => r.json())
     .then(data => {
@@ -1181,7 +1340,7 @@ function decodePolyline(str, precision = 5) {
 }
 
 async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
-  let apiMode = 'driving'; 
+  let apiMode = 'driving';
   if (mode === 'motorcycle') apiMode = 'motorcycling';
   else if (mode === 'walking') apiMode = 'walking';
   else if (mode === 'bicycle') apiMode = 'cycling';
@@ -1235,10 +1394,10 @@ window.fetchAndShowRouteOptions = async function() {
   const fromStr = `${startPoint.lng},${startPoint.lat}`; const toStr = `${endPoint.lng},${endPoint.lat}`;
   const mapboxUrl = `/mapbox-route?from=${fromStr}&to=${toStr}&alternatives=true&mode=${currentVehicleMode}`;
 
-  const tasks = [ 
-    (currentVehicleMode === 'driving' || currentVehicleMode === 'driving-traffic' || currentVehicleMode === 'walking' || currentVehicleMode === 'bicycle') 
-      ? fetchWorker(mapboxUrl).then(r => r.json()) 
-      : Promise.reject(new Error('skip')) 
+  const tasks = [
+    (currentVehicleMode === 'driving' || currentVehicleMode === 'driving-traffic' || currentVehicleMode === 'walking' || currentVehicleMode === 'bicycle')
+      ? fetchWorker(mapboxUrl).then(r => r.json())
+      : Promise.reject(new Error('skip'))
   ];
   tasks.push(fetchTrackAsiaRouteNormalized(startPoint, endPoint, currentVehicleMode));
 
@@ -1303,10 +1462,12 @@ function startNavigationHUD() {
   document.getElementById('mainDirBtn').classList.add('hidden');
   document.getElementById('btnQuickPin').classList.add('hidden');
   document.querySelector('.fab-layers').classList.add('hidden');
-  
+  const restStopBtn = document.getElementById('btnRestStopFilter');
+  if (restStopBtn) restStopBtn.classList.add('hidden');
+
   document.getElementById('btnReport').classList.remove('hidden');
   document.body.classList.add('navigating');
-  
+
   document.getElementById('hud').classList.remove('hidden');
   voiceRouteSteps = currentRouteData.legs[0].steps || [];
   voiceStepIndex = 0; lastSnapIndex = 0; tripStartTime = Date.now(); arrivalHandled = false;
@@ -1456,9 +1617,9 @@ window.endTrip = async function(save) {
   if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
   alternativeLayers.forEach(l => { try { map.removeLayer(l); } catch (e) {} }); alternativeLayers = [];
   if (window._routeBadges) { window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = []; }
-  
+
   currentRouteCoords = []; currentRouteData = null; alternativeRoutesData = []; voiceRouteSteps = null; voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0; isRerouting = false; tripStartTime = null; arrivalHandled = false; warnedReports.clear(); localStorage.removeItem('alternativeRoutes');
-  
+
   document.body.classList.remove('navigating');
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('searchBar').classList.remove('hidden');
@@ -1467,6 +1628,8 @@ window.endTrip = async function(save) {
   document.getElementById('mainDirBtn').classList.remove('hidden');
   document.getElementById('btnQuickPin').classList.remove('hidden');
   document.querySelector('.fab-layers').classList.remove('hidden');
+  const restStopBtn2 = document.getElementById('btnRestStopFilter');
+  if (restStopBtn2) restStopBtn2.classList.remove('hidden');
   document.getElementById('btnReport').classList.remove('hidden');
 
   document.getElementById('dirInputEnd').value = ''; document.getElementById('topSearchInput').value = ''; document.getElementById('btnClearEnd').classList.add('hidden'); document.getElementById('searchClearBtn').classList.add('hidden'); endPoint = null;
@@ -1483,8 +1646,8 @@ window.closeReportMenu = function() { document.getElementById('reportModal').cla
 window.submitReport = async function(type) {
   if (!lastUserPos) return alert('Chưa lấy được vị trí GPS, không thể báo cáo!');
   closeReportMenu(); const now = Date.now(); let ttl = 3600000;
-  if (type === 'pothole') ttl = 86400000; 
-  else if (type === 'flood') ttl = 10800000; 
+  if (type === 'pothole') ttl = 86400000;
+  else if (type === 'flood') ttl = 10800000;
   else if (type === 'traffic') ttl = 1800000;
   else if (type === 'bridge_collapse' || type === 'road_collapse') ttl = 604800000;
   const newReport = { lat: lastUserPos.lat, lng: lastUserPos.lng, type, timestamp: now, expiresAt: now + ttl, uid: currentUser.uid };
@@ -1498,11 +1661,15 @@ function initReports() {
 function renderReportsOnMap() {
   reportMarkers.forEach(m => map.removeLayer(m)); reportMarkers = [];
   const now = Date.now();
-  const icons = { 
-    police: '<div style="background:#3b82f6;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-shield-alt"></i></div>', 
-    accident: '<div style="background:#ef4444;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-car-crash"></i></div>', 
-    traffic: '<div style="background:#ef4444;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-traffic-light"></i></div>', 
-    pothole: '<div style="background:#f59e0b;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-exclamation-circle"></i></div>', 
+  const currentZoom = map ? map.getZoom() : 17;
+
+  if (currentZoom < ZOOM_CONFIG.report) return;
+
+  const icons = {
+    police: '<div style="background:#3b82f6;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-shield-alt"></i></div>',
+    accident: '<div style="background:#ef4444;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-car-crash"></i></div>',
+    traffic: '<div style="background:#ef4444;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-traffic-light"></i></div>',
+    pothole: '<div style="background:#f59e0b;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-exclamation-circle"></i></div>',
     flood: '<div style="background:#06b6d4;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-water"></i></div>',
     bridge_collapse: '<div style="background:#dc2626;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-road-circle-xmark"></i></div>',
     road_collapse: '<div style="background:#b91c1c;color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;"><i class="fas fa-triangle-exclamation"></i></div>'
@@ -1521,8 +1688,8 @@ function checkReportProximity(lat, lng) {
   if (!voiceEnabled) return; const now = Date.now();
   for (const key in activeReports) {
     const rep = activeReports[key]; if (now > rep.expiresAt || warnedReports.has(key)) continue;
-    if (calcDist(lat, lng, rep.lat, rep.lng) < 300) { 
-      warnedReports.add(key); 
+    if (calcDist(lat, lng, rep.lat, rep.lng) < 300) {
+      warnedReports.add(key);
       let msg = 'sự cố';
       if (rep.type === 'police') msg = 'CSGT';
       else if (rep.type === 'accident') msg = 'tai nạn';
@@ -1531,7 +1698,7 @@ function checkReportProximity(lat, lng) {
       else if (rep.type === 'pothole') msg = 'ổ gà';
       else if (rep.type === 'bridge_collapse') msg = 'SẬP CẦU';
       else if (rep.type === 'road_collapse') msg = 'SẬP ĐƯỜNG';
-      speak(`Chú ý, phía trước có báo cáo ${msg}`); 
+      speak(`Chú ý, phía trước có báo cáo ${msg}`);
     }
   }
 }
@@ -1620,7 +1787,26 @@ window.clearAllSharedLinks = async function() { if (!confirm('Xoá TẤT CẢ li
 // ==========================================
 // UI HELPERS
 // ==========================================
-function toggleLayerMenu() { document.getElementById('layerMenu').classList.toggle('show'); }
+window.toggleLayerMenu = function() {
+  const menu = document.getElementById('layerMenu');
+  const isShowing = menu.classList.contains('show');
+  if (isShowing) {
+    menu.classList.remove('show');
+  } else {
+    menu.classList.add('show');
+    setTimeout(() => {
+      const closeHandler = (e) => {
+        if (!menu.contains(e.target) && e.target.id !== 'btnLayerMenu' && !e.target.closest('#btnLayerMenu')) {
+          menu.classList.remove('show');
+          document.removeEventListener('click', closeHandler);
+          document.removeEventListener('touchstart', closeHandler);
+        }
+      };
+      document.addEventListener('click', closeHandler);
+      document.addEventListener('touchstart', closeHandler);
+    }, 100);
+  }
+};
 
 function changeLayer(type, btn) {
   if (currentMapLayer) { map.removeLayer(currentMapLayer); currentMapLayer = null; }
@@ -1628,10 +1814,10 @@ function changeLayer(type, btn) {
   if (btn) btn.classList.add('active');
   document.getElementById('layerMenu').classList.remove('show');
   if (type === 'trackasia') {
-    try { 
-      currentMapLayer = L.trackasiaGL({ style: `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}` }).addTo(map); 
-    } catch (error) { 
-      currentMapLayer = L.tileLayer(`https://maps.track-asia.com/styles/v2/streets/{z}/{x}/{y}.png?key=${TRACKASIA_KEY}`, { maxZoom: 19, tileSize: 256 }).addTo(map); 
+    try {
+      currentMapLayer = L.trackasiaGL({ style: `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}` }).addTo(map);
+    } catch (error) {
+      currentMapLayer = L.tileLayer(`https://maps.track-asia.com/styles/v2/streets/{z}/{x}/{y}.png?key=${TRACKASIA_KEY}`, { maxZoom: 19, tileSize: 256 }).addTo(map);
     }
   }
   else if (type === 'mapbox') currentMapLayer = L.tileLayer(`${WORKER_URL}/mapbox-tiles/{z}/{x}/{y}`, { maxZoom: 19, tileSize: 512, zoomOffset: -1 }).addTo(map);
@@ -1696,7 +1882,6 @@ function closeSearch() { document.getElementById('suggestionsBox').classList.rem
 async function doSearch(query) {
   const box = document.getElementById('suggestionsBox');
 
-  // Xử lý link Google Maps trước
   if (query.startsWith('http://') || query.startsWith('https://')) {
     if (query.includes('google.com/maps') || query.includes('goo.gl/maps')) {
       box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang giải mã link...</div>';
@@ -1716,35 +1901,61 @@ async function doSearch(query) {
     }
   }
 
-  // ═══ BƯỚC 1: Quét POI CỘNG ĐỒNG trước ═══
   const communityResults = searchCommunityPois(query);
   box.innerHTML = '';
 
   if (communityResults.length > 0) {
-    const title = document.createElement('div');
-    title.className = 'sug-section-title community';
-    title.innerHTML = '<i class="fas fa-users"></i> Địa điểm cộng đồng';
-    box.appendChild(title);
+    const restStops = communityResults.filter(p => p.tag === 'rest_stop');
+    const others = communityResults.filter(p => p.tag !== 'rest_stop');
 
-    communityResults.forEach(poi => {
-      const conf = POI_TAG_CONFIG[poi.tag] || POI_TAG_CONFIG.supermarket;
-      const div = document.createElement('div');
-      div.className = 'sug-item';
-      div.innerHTML = `
-        <i class="fas fa-user-check" style="color:var(--success);"></i>
-        <div style="flex:1;">
-          <div style="font-weight:700;">${escapeHtml(poi.name)}</div>
-          <div style="font-size:0.7rem;color:${conf.color};font-weight:700;margin-top:2px;">
-            <i class="fas ${conf.icon}"></i> ${conf.label} • <i class="fas fa-check-circle" style="color:#3b82f6;"></i> Cộng đồng
+    if (restStops.length > 0) {
+      const title = document.createElement('div');
+      title.className = 'sug-section-title community rest-stop-title';
+      title.innerHTML = '<i class="fas fa-bed"></i> Trạm dừng nghỉ cộng đồng';
+      box.appendChild(title);
+
+      restStops.forEach(poi => {
+        const div = document.createElement('div');
+        div.className = 'sug-item';
+        div.innerHTML = `
+          <i class="fas fa-bed" style="color:#3b82f6;font-size:1.1rem;"></i>
+          <div style="flex:1;">
+            <div style="font-weight:700;">${escapeHtml(poi.name)}</div>
+            <div style="font-size:0.7rem;color:#3b82f6;font-weight:700;margin-top:2px;">
+              <i class="fas fa-check-circle"></i> Trạm dừng nghỉ • <i class="fas fa-users"></i> Cộng đồng
+            </div>
           </div>
-        </div>
-      `;
-      div.onclick = () => selectLocation(poi.lat, poi.lng, poi.name);
-      box.appendChild(div);
-    });
+        `;
+        div.onclick = () => selectLocation(poi.lat, poi.lng, poi.name);
+        box.appendChild(div);
+      });
+    }
+
+    if (others.length > 0) {
+      const title = document.createElement('div');
+      title.className = 'sug-section-title community';
+      title.innerHTML = '<i class="fas fa-users"></i> Địa điểm cộng đồng';
+      box.appendChild(title);
+
+      others.forEach(poi => {
+        const conf = POI_TAG_CONFIG[poi.tag] || POI_TAG_CONFIG.supermarket;
+        const div = document.createElement('div');
+        div.className = 'sug-item';
+        div.innerHTML = `
+          <i class="fas fa-user-check" style="color:var(--success);"></i>
+          <div style="flex:1;">
+            <div style="font-weight:700;">${escapeHtml(poi.name)}</div>
+            <div style="font-size:0.7rem;color:${conf.color};font-weight:700;margin-top:2px;">
+              <i class="fas ${conf.icon}"></i> ${conf.label} • <i class="fas fa-check-circle" style="color:#3b82f6;"></i> Cộng đồng
+            </div>
+          </div>
+        `;
+        div.onclick = () => selectLocation(poi.lat, poi.lng, poi.name);
+        box.appendChild(div);
+      });
+    }
   }
 
-  // ═══ BƯỚC 2: Gọi API TrackAsia ═══
   const loadingDiv = document.createElement('div');
   loadingDiv.className = 'sug-item';
   loadingDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tìm địa điểm khác...';
@@ -1788,12 +1999,12 @@ async function selectLocation(lat, lng, name) {
   document.getElementById('topSearchInput').readOnly = true;
   document.getElementById('searchClearBtn').classList.remove('hidden');
   closeSearch();
-  
+
   map.flyTo([lat, lng], 16, { animate: true, duration: 1 });
-  map.eachLayer(layer => { 
-    if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') map.removeLayer(layer); 
+  map.eachLayer(layer => {
+    if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') map.removeLayer(layer);
   });
-  
+
   const icon = L.divIcon({ html: '<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>', iconSize: [24,24], className: 'custom-touch-marker' });
   const tempMarker = L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>Đang lấy địa chỉ chi tiết...</b>`).openPopup();
 
@@ -1900,7 +2111,7 @@ function startWatching() {
     if (lastUserPos && !newPos.heading) { const dy = newPos.lat - lastUserPos.lat, dx = newPos.lng - lastUserPos.lng; newPos.heading = 90 - (Math.atan2(dy, dx) * 180 / Math.PI); }
     lastUserPos = newPos; animateMarkerTo(lastUserPos);
     if (map) map.panTo([lastUserPos.lat, lastUserPos.lng], { animate: true, duration: 0.5 });
-    
+
     checkReportProximity(lastUserPos.lat, lastUserPos.lng); checkOffRoute(lastUserPos.lat, lastUserPos.lng); checkArrival(lastUserPos.lat, lastUserPos.lng); updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
 
     const now = Date.now();
@@ -1909,7 +2120,7 @@ function startWatching() {
 
     let shouldUpdateByName = (smoothedSpeed * 3.6 < 3 && timeSinceLastGeo > 10000);
     let shouldUpdateByDistance = (distSinceLastGeo > 150);
-    
+
     let shouldUpdateByTurn = false;
     if (voiceRouteSteps && voiceRouteSteps[voiceStepIndex]) {
       const nextStep = voiceRouteSteps[voiceStepIndex];
@@ -1925,7 +2136,7 @@ function startWatching() {
     if (shouldUpdateByDistance || shouldUpdateByName || shouldUpdateByTurn) {
       lastReverseGeoTime = now;
       lastReverseGeoPos = { lat: lastUserPos.lat, lng: lastUserPos.lng };
-      
+
       fetchWorker(`/reverse-geocode?lat=${lastUserPos.lat}&lng=${lastUserPos.lng}`)
         .then(r => r.json())
         .then(data => {
@@ -2008,7 +2219,6 @@ async function loadHistory() {
 // COMMUNITY POI — LOGIC
 // ═══════════════════════════════════════════════════════
 
-/** Mở form thêm POI tại toạ độ cho trước */
 window.openPoiSheet = function(lat, lng, addressHint) {
   if (!currentUser) { alert('Vui lòng đăng nhập để thêm địa điểm!'); return; }
   tempPoiLatLng = { lat, lng };
@@ -2027,14 +2237,12 @@ window.openPoiSheet = function(lat, lng, addressHint) {
   setTimeout(() => document.getElementById('poiNameInput').focus(), 350);
 };
 
-/** Đóng form */
 window.closePoiSheet = function() {
   document.getElementById('poiSheet').classList.remove('open');
   tempPoiLatLng = null;
   tempPoiTag = null;
 };
 
-/** Chọn tag */
 window.selectPoiTag = function(tag, btn) {
   tempPoiTag = tag;
   document.querySelectorAll('.poi-tag-btn').forEach(b => b.classList.remove('active'));
@@ -2042,20 +2250,17 @@ window.selectPoiTag = function(tag, btn) {
   updatePoiSaveBtnState();
 };
 
-/** Cập nhật trạng thái nút Lưu */
 function updatePoiSaveBtnState() {
   const name = document.getElementById('poiNameInput').value.trim();
   const btn = document.getElementById('poiSaveBtn');
   btn.disabled = !(tempPoiTag && name.length >= 2);
 }
 
-// Lắng nghe input tên
 document.addEventListener('DOMContentLoaded', () => {
   const inp = document.getElementById('poiNameInput');
   if (inp) inp.addEventListener('input', updatePoiSaveBtnState);
 });
 
-/** Gửi POI lên Firebase */
 window.submitCommunityPoi = async function() {
   if (!currentUser) return alert('Chưa đăng nhập!');
   if (!tempPoiLatLng || !tempPoiTag) return alert('Vui lòng chọn loại địa điểm!');
@@ -2090,7 +2295,6 @@ window.submitCommunityPoi = async function() {
   }
 };
 
-/** Lắng nghe Firebase & vẽ marker */
 function initCommunityPois() {
   onValue(ref(db, 'communityPois'), (snapshot) => {
     communityPoisData = snapshot.val() || {};
@@ -2101,40 +2305,80 @@ function initCommunityPois() {
 function renderCommunityPoisOnMap() {
   communityPoiMarkers.forEach(m => { try { map.removeLayer(m); } catch(e){} });
   communityPoiMarkers = [];
+  restStopMarkers = [];
+
+  const currentZoom = map ? map.getZoom() : 17;
 
   for (const key in communityPoisData) {
     const poi = communityPoisData[key];
     if (!poi || !poi.lat || !poi.lng) continue;
     const conf = POI_TAG_CONFIG[poi.tag] || POI_TAG_CONFIG.supermarket;
+    const isRestStop = poi.tag === 'rest_stop';
+
+    if (restStopFilterActive && !isRestStop) continue;
+
+    const minZoom = isRestStop ? ZOOM_CONFIG.restStop : ZOOM_CONFIG.communityPoi;
+    if (currentZoom < minZoom) continue;
+
+    const iconClass = isRestStop ? 'rest-stop-pin' : '';
 
     const icon = L.divIcon({
       html: `
-        <div class="community-poi-pin">
+        <div class="community-poi-pin ${iconClass}">
           <i class="fas ${conf.icon}"></i>
           <div class="verified-badge"><i class="fas fa-check"></i></div>
         </div>
       `,
       className: '',
-      iconSize: [32, 32],
-      iconAnchor: [16, 32]
+      iconSize: isRestStop ? [40, 40] : [32, 32],
+      iconAnchor: isRestStop ? [20, 40] : [16, 32]
     });
 
-    const marker = L.marker([poi.lat, poi.lng], { icon }).addTo(map);
+    const marker = L.marker([poi.lat, poi.lng], {
+      icon,
+      zIndexOffset: isRestStop ? 500 : 0
+    }).addTo(map);
+
+    const badgeHtml = isRestStop
+      ? `<div class="rest-stop-badge"><i class="fas fa-bed"></i> TRẠM DỪNG NGHỈ</div>`
+      : `<span style="background:${conf.color};color:white;padding:2px 8px;border-radius:10px;font-size:0.65rem;font-weight:800;">${conf.label}</span>`;
+
     marker.bindPopup(`
-      <div style="min-width:170px;">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-          <span style="background:${conf.color};color:white;padding:2px 8px;border-radius:10px;font-size:0.65rem;font-weight:800;">${conf.label}</span>
+      <div style="min-width:200px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+          ${badgeHtml}
           <span style="color:#3b82f6;font-size:0.65rem;font-weight:700;"><i class="fas fa-check-circle"></i> Cộng đồng</span>
         </div>
-        <div style="font-weight:800;font-size:0.9rem;margin-bottom:8px;color:var(--text);">${escapeHtml(poi.name)}</div>
-        <button onclick="event.stopPropagation(); goToLongPressLocation(${poi.lat}, ${poi.lng}, '${escapeHtml(poi.name).replace(/'/g,"\\'")}')" style="width:100%;padding:8px;background:#3b82f6;color:white;border:none;border-radius:8px;font-weight:800;font-size:0.8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
+        <div style="font-weight:800;font-size:0.95rem;margin-bottom:8px;color:var(--text);">${escapeHtml(poi.name)}</div>
+        ${isRestStop ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px;"><i class="fas fa-info-circle"></i> Địa điểm do cộng đồng tài xế đóng góp</div>` : ''}
+        <button onclick="event.stopPropagation(); goToLongPressLocation(${poi.lat}, ${poi.lng}, '${escapeHtml(poi.name).replace(/'/g,"\\'")}')" style="width:100%;padding:10px;background:#3b82f6;color:white;border:none;border-radius:8px;font-weight:800;font-size:0.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
       </div>
     `);
+
     communityPoiMarkers.push(marker);
+    if (isRestStop) restStopMarkers.push(marker);
   }
 }
 
-// Search helper: quét POI cộng đồng
+window.toggleRestStopFilter = function() {
+  restStopFilterActive = !restStopFilterActive;
+  const btn = document.getElementById('btnRestStopFilter');
+  if (btn) btn.classList.toggle('active', restStopFilterActive);
+  renderCommunityPoisOnMap();
+
+  const t = document.createElement('div');
+  t.style.cssText = `position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:${restStopFilterActive ? 'linear-gradient(135deg,#3b82f6,#1d4ed8)' : 'linear-gradient(135deg,#64748b,#475569)'};color:white;padding:12px 20px;border-radius:14px;font-weight:800;z-index:9999;box-shadow:0 10px 30px rgba(59,130,246,0.5);display:flex;gap:10px;align-items:center;font-size:0.85rem;`;
+  t.innerHTML = restStopFilterActive
+    ? `<i class="fas fa-bed"></i><span>Đang hiện ${restStopMarkers.length} trạm dừng nghỉ</span>`
+    : `<i class="fas fa-eye"></i><span>Đã hiện tất cả địa điểm</span>`;
+  document.body.appendChild(t);
+  setTimeout(() => {
+    t.style.opacity = '0';
+    t.style.transition = 'opacity 0.3s';
+    setTimeout(() => t.remove(), 300);
+  }, 2000);
+};
+
 function searchCommunityPois(query) {
   const q = query.toLowerCase().trim();
   if (!q || q.length < 2) return [];
@@ -2146,11 +2390,34 @@ function searchCommunityPois(query) {
       results.push({ key, ...poi });
     }
   }
-  return results.sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0)).slice(0, 5);
+  return results.sort((a, b) => {
+    const aFeatured = a.tag === 'rest_stop' ? 1 : 0;
+    const bFeatured = b.tag === 'rest_stop' ? 1 : 0;
+    if (aFeatured !== bFeatured) return bFeatured - aFeatured;
+    return (b.upvotes || 0) - (a.upvotes || 0);
+  }).slice(0, 5);
+}
+
+// ═══════════════════════════════════════════════════════
+// GỢI Ý ZOOM KHI MARKER BỊ ẨN
+// ═══════════════════════════════════════════════════════
+let zoomHintShown = false;
+function showZoomHint() {
+  if (zoomHintShown) return;
+  zoomHintShown = true;
+  const t = document.createElement('div');
+  t.className = 'zoom-hint-toast';
+  t.innerHTML = '<i class="fas fa-search-plus" style="color:var(--primary);"></i><span>Zoom gần hơn để xem địa điểm</span>';
+  document.body.appendChild(t);
+  setTimeout(() => {
+    t.style.opacity = '0';
+    t.style.transition = 'opacity 0.3s';
+    setTimeout(() => { t.remove(); zoomHintShown = false; }, 300);
+  }, 2500);
 }
 
 // Export
-window.openDirections = openDirections; window.activateSearch = activateSearch; window.refreshGPS = refreshGPS; window.centerToLocation = centerToLocation; window.stopRoute = stopRoute; window.logout = logout; window.toggleLayerMenu = toggleLayerMenu; window.changeLayer = changeLayer; window.shareRoute = shareRoute; window.shareLocation = shareLocation; window.submitReport = submitReport; window.openReportMenu = openReportMenu; window.closeReportMenu = closeReportMenu; window.closeDirections = closeDirections;
+window.openDirections = openDirections; window.activateSearch = activateSearch; window.refreshGPS = refreshGPS; window.centerToLocation = centerToLocation; window.logout = logout; window.toggleLayerMenu = toggleLayerMenu; window.changeLayer = changeLayer; window.shareRoute = shareRoute; window.shareLocation = shareLocation; window.submitReport = submitReport; window.openReportMenu = openReportMenu; window.closeReportMenu = closeReportMenu; window.closeDirections = closeDirections;
 </script>
 </body>
 </html>
