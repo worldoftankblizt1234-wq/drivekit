@@ -126,7 +126,8 @@ body.navigating #btnReport { width: 40px; height: 40px; font-size: 1rem; bottom:
 .btn-clear-input { width: 28px; height: 28px; border-radius: 50%; background: transparent; color: var(--text-muted); font-size: 0.9rem; display: flex; align-items: center; justify-content: center; }
 .suggestions-box { position: fixed; top: 70px; left: 16px; right: 16px; z-index: 1200; background: var(--card); border-radius: 12px; max-height: 300px; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.2); border: 1px solid var(--border); display: none; }
 .suggestions-box.show { display: block; }
-.sug-item { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; font-size: 0.9rem; color: var(--text); }
+.sug-item { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; font-size: 0.9rem; color: var(--text); cursor: pointer; }
+.sug-item:hover { background: var(--bg-2); }
 .leaflet-popup-content-wrapper { background: var(--card) !important; color: var(--text) !important; border-radius: 12px !important; border: 1px solid var(--border) !important; }
 .leaflet-popup-tip { background: var(--card) !important; }
 
@@ -183,6 +184,87 @@ input:checked + .slider:before { transform: translateX(20px); }
 .end-trip-btn.discard { background: var(--bg-2); color: var(--text); border: 1px solid var(--border); }
 .end-trip-btn.cancel { background: transparent; color: var(--text-muted); border: 1px solid var(--border); margin-bottom: 0; }
 @keyframes ping { 75%, 100% { transform: scale(2.5); opacity: 0; } }
+
+/* ═══════════════════════════════════════════════════════
+   COMMUNITY POI — BOTTOM SHEET FORM
+   ═══════════════════════════════════════════════════════ */
+.poi-sheet {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 2600;
+  background: var(--card); border-top-left-radius: 20px; border-top-right-radius: 20px;
+  padding: 16px 16px calc(16px + var(--safe-bottom));
+  transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.3); border: 1px solid var(--border);
+  max-height: 90vh; overflow-y: auto;
+}
+.poi-sheet.open { transform: translateY(0); }
+.poi-sheet-handle {
+  width: 40px; height: 4px; background: var(--border);
+  border-radius: 4px; margin: 0 auto 16px;
+}
+.poi-sheet h3 {
+  font-size: 1.1rem; font-weight: 800; color: var(--text);
+  margin-bottom: 4px; display: flex; align-items: center; gap: 8px;
+}
+.poi-sheet .poi-coords {
+  font-size: 0.75rem; color: var(--text-muted);
+  font-family: var(--font-mono); margin-bottom: 16px;
+}
+.poi-tag-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px;
+}
+.poi-tag-btn {
+  background: var(--bg-2); border: 2px solid var(--border);
+  border-radius: 12px; padding: 12px 6px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  color: var(--text-muted); font-weight: 700; font-size: 0.72rem;
+  cursor: pointer; transition: all 0.2s; text-align: center;
+}
+.poi-tag-btn i { font-size: 1.4rem; }
+.poi-tag-btn.active {
+  background: rgba(16,185,129,0.15); border-color: var(--success);
+  color: var(--success); box-shadow: 0 3px 12px rgba(16,185,129,0.3);
+}
+.poi-input-name {
+  width: 100%; padding: 14px 16px; background: var(--bg-2);
+  border: 1px solid var(--border); border-radius: 12px;
+  color: var(--text); font-size: 0.95rem; font-weight: 600; margin-bottom: 16px;
+}
+.poi-input-name:focus { border-color: var(--primary); }
+.poi-actions { display: flex; gap: 10px; }
+.poi-btn {
+  flex: 1; padding: 14px; border-radius: 12px; font-weight: 800; font-size: 0.95rem;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer; transition: opacity 0.2s;
+}
+.poi-btn:active { opacity: 0.7; }
+.poi-btn.cancel { background: var(--bg-2); color: var(--text); border: 1px solid var(--border); }
+.poi-btn.save { background: var(--success); color: white; }
+.poi-btn.save:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Marker POI cộng đồng với tick xanh */
+.community-poi-pin {
+  position: relative; width: 32px; height: 32px;
+  background: var(--success); border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg); display: flex; align-items: center; justify-content: center;
+  border: 2px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+}
+.community-poi-pin i { transform: rotate(45deg); color: white; font-size: 0.85rem; }
+.community-poi-pin .verified-badge {
+  position: absolute; top: -4px; right: -4px;
+  width: 16px; height: 16px; background: #3b82f6; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid white; transform: rotate(45deg);
+}
+.community-poi-pin .verified-badge i { font-size: 0.5rem; transform: rotate(0); }
+
+/* Section heading trong suggestions */
+.sug-section-title {
+  padding: 10px 16px 6px; font-size: 0.7rem; font-weight: 800;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg-2); border-bottom: 1px solid var(--border);
+}
+.sug-section-title.community { color: var(--success); }
 </style>
 </head>
 <body>
@@ -423,6 +505,49 @@ input:checked + .slider:before { transform: translateX(20px); }
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════
+     COMMUNITY POI — BOTTOM SHEET FORM
+     ═══════════════════════════════════════════════════════ -->
+<div class="poi-sheet" id="poiSheet">
+  <div class="poi-sheet-handle"></div>
+  <h3><i class="fas fa-map-marker-alt" style="color:var(--success);"></i> Thêm địa điểm cộng đồng</h3>
+  <div class="poi-coords" id="poiCoords">—</div>
+  <div class="poi-tag-grid" id="poiTagGrid">
+    <button class="poi-tag-btn" data-tag="supermarket" onclick="selectPoiTag('supermarket', this)">
+      <i class="fas fa-shopping-cart"></i> Siêu thị
+    </button>
+    <button class="poi-tag-btn" data-tag="rest_stop" onclick="selectPoiTag('rest_stop', this)">
+      <i class="fas fa-bed"></i> Trạm dừng nghỉ
+    </button>
+    <button class="poi-tag-btn" data-tag="gas_station" onclick="selectPoiTag('gas_station', this)">
+      <i class="fas fa-gas-pump"></i> Cây xăng
+    </button>
+    <button class="poi-tag-btn" data-tag="cafe" onclick="selectPoiTag('cafe', this)">
+      <i class="fas fa-coffee"></i> Cafe
+    </button>
+    <button class="poi-tag-btn" data-tag="restaurant" onclick="selectPoiTag('restaurant', this)">
+      <i class="fas fa-utensils"></i> Nhà hàng
+    </button>
+    <button class="poi-tag-btn" data-tag="pharmacy" onclick="selectPoiTag('pharmacy', this)">
+      <i class="fas fa-prescription-bottle-medical"></i> Nhà thuốc
+    </button>
+    <button class="poi-tag-btn" data-tag="atm" onclick="selectPoiTag('atm', this)">
+      <i class="fas fa-money-bill-wave"></i> ATM
+    </button>
+    <button class="poi-tag-btn" data-tag="repair" onclick="selectPoiTag('repair', this)">
+      <i class="fas fa-wrench"></i> Sửa xe
+    </button>
+    <button class="poi-tag-btn" data-tag="hotel" onclick="selectPoiTag('hotel', this)">
+      <i class="fas fa-hotel"></i> Khách sạn
+    </button>
+  </div>
+  <input type="text" class="poi-input-name" id="poiNameInput" placeholder="Nhập tên địa điểm (VD: Vinmart Nguyễn Trãi)..." maxlength="80" />
+  <div class="poi-actions">
+    <button class="poi-btn cancel" onclick="closePoiSheet()"><i class="fas fa-times"></i> Huỷ</button>
+    <button class="poi-btn save" id="poiSaveBtn" onclick="submitCommunityPoi()" disabled><i class="fas fa-check"></i> Lưu địa điểm</button>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -443,17 +568,13 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
-const SECRET_KEY = 'drivekit_2026_secret'; // THAY BẰNG SECRET_KEY CỦA BRO
+const SECRET_KEY = 'drivekit_2026_secret';
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
 
-// Hàm fetch wrapper tự động gắn Token
 async function fetchWorker(path, options = {}) {
   return fetch(`${WORKER_URL}${path}`, {
     ...options,
-    headers: {
-      'X-API-Key': SECRET_KEY,
-      ...(options.headers || {})
-    }
+    headers: { 'X-API-Key': SECRET_KEY, ...(options.headers || {}) }
   });
 }
 
@@ -510,6 +631,26 @@ let lastReverseGeoPos = null;
 let lastGeoStepIndex = -1;
 
 const ROUTE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
+
+// ═══════════════════════════════════════════════════════
+// COMMUNITY POI STATE
+// ═══════════════════════════════════════════════════════
+let communityPoisData = {};
+let communityPoiMarkers = [];
+let tempPoiLatLng = null;
+let tempPoiTag = null;
+
+const POI_TAG_CONFIG = {
+  supermarket: { icon: 'fa-shopping-cart', label: 'Siêu thị', color: '#10b981' },
+  rest_stop: { icon: 'fa-bed', label: 'Trạm dừng nghỉ', color: '#3b82f6' },
+  gas_station: { icon: 'fa-gas-pump', label: 'Cây xăng', color: '#f59e0b' },
+  cafe: { icon: 'fa-coffee', label: 'Cafe', color: '#8b5cf6' },
+  restaurant: { icon: 'fa-utensils', label: 'Nhà hàng', color: '#ef4444' },
+  pharmacy: { icon: 'fa-prescription-bottle-medical', label: 'Nhà thuốc', color: '#06b6d4' },
+  atm: { icon: 'fa-money-bill-wave', label: 'ATM', color: '#ec4899' },
+  repair: { icon: 'fa-wrench', label: 'Sửa xe', color: '#64748b' },
+  hotel: { icon: 'fa-hotel', label: 'Khách sạn', color: '#dc2626' }
+};
 
 // ==========================================
 // LOADING LOGIC
@@ -649,6 +790,7 @@ function initAppUI() {
   initMap();
   initReports();
   initSavedPlaces();
+  initCommunityPois();
   
   if (lastUserPos) {
     if (!startPoint) {
@@ -891,6 +1033,7 @@ function initMap() {
       <div style="min-width: 180px;">
         <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: var(--text);">${displayName}</div>
         <button onclick="event.stopPropagation(); openSavePlaceModal(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--success); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-bookmark"></i> Ghim địa điểm</button>
+        <button onclick="event.stopPropagation(); openPoiSheet(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: linear-gradient(135deg,#10b981,#059669); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-plus-circle"></i> Thêm địa điểm mới</button>
         <button onclick="event.stopPropagation(); goToLongPressLocation(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
         <button onclick="event.stopPropagation(); shareLocation(${latlng.lat}, ${latlng.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fas fa-share-alt"></i> Chia sẻ</button>
       </div>
@@ -1552,31 +1695,92 @@ function closeSearch() { document.getElementById('suggestionsBox').classList.rem
 
 async function doSearch(query) {
   const box = document.getElementById('suggestionsBox');
+
+  // Xử lý link Google Maps trước
   if (query.startsWith('http://') || query.startsWith('https://')) {
     if (query.includes('google.com/maps') || query.includes('goo.gl/maps')) {
       box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang giải mã link...</div>';
       try {
-        const res = await fetchWorker(`/resolve-gmaps?url=${encodeURIComponent(query)}`); const data = await res.json();
+        const res = await fetchWorker(`/resolve-gmaps?url=${encodeURIComponent(query)}`);
+        const data = await res.json();
         if (data.success && data.coords) {
-          box.innerHTML = ''; const div = document.createElement('div'); div.className = 'sug-item'; div.innerHTML = `<i class="fas fa-map-marker-alt"></i><div>${data.placeName || 'Vị trí từ Google Maps'}</div>`;
-          div.onclick = () => selectLocation(data.coords.lat, data.coords.lng, data.placeName || 'Vị trí từ Google Maps'); box.appendChild(div);
+          box.innerHTML = '';
+          const div = document.createElement('div');
+          div.className = 'sug-item';
+          div.innerHTML = `<i class="fas fa-map-marker-alt"></i><div>${data.placeName || 'Vị trí từ Google Maps'}</div>`;
+          div.onclick = () => selectLocation(data.coords.lat, data.coords.lng, data.placeName || 'Vị trí từ Google Maps');
+          box.appendChild(div);
         } else box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Không giải mã được link này</div>';
       } catch (e) { box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Lỗi kết nối</div>'; }
       return;
     }
   }
-  box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang tìm...</div>';
+
+  // ═══ BƯỚC 1: Quét POI CỘNG ĐỒNG trước ═══
+  const communityResults = searchCommunityPois(query);
+  box.innerHTML = '';
+
+  if (communityResults.length > 0) {
+    const title = document.createElement('div');
+    title.className = 'sug-section-title community';
+    title.innerHTML = '<i class="fas fa-users"></i> Địa điểm cộng đồng';
+    box.appendChild(title);
+
+    communityResults.forEach(poi => {
+      const conf = POI_TAG_CONFIG[poi.tag] || POI_TAG_CONFIG.supermarket;
+      const div = document.createElement('div');
+      div.className = 'sug-item';
+      div.innerHTML = `
+        <i class="fas fa-user-check" style="color:var(--success);"></i>
+        <div style="flex:1;">
+          <div style="font-weight:700;">${escapeHtml(poi.name)}</div>
+          <div style="font-size:0.7rem;color:${conf.color};font-weight:700;margin-top:2px;">
+            <i class="fas ${conf.icon}"></i> ${conf.label} • <i class="fas fa-check-circle" style="color:#3b82f6;"></i> Cộng đồng
+          </div>
+        </div>
+      `;
+      div.onclick = () => selectLocation(poi.lat, poi.lng, poi.name);
+      box.appendChild(div);
+    });
+  }
+
+  // ═══ BƯỚC 2: Gọi API TrackAsia ═══
+  const loadingDiv = document.createElement('div');
+  loadingDiv.className = 'sug-item';
+  loadingDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tìm địa điểm khác...';
+  box.appendChild(loadingDiv);
+
   try {
-    const res = await fetchWorker(`/trackasia-search?query=${encodeURIComponent(query)}`); const data = await res.json();
+    const res = await fetchWorker(`/trackasia-search?query=${encodeURIComponent(query)}`);
+    const data = await res.json();
     const results = data.results || data.predictions || [];
+    loadingDiv.remove();
+
     if (results.length > 0) {
-      box.innerHTML = '';
+      const title2 = document.createElement('div');
+      title2.className = 'sug-section-title';
+      title2.innerHTML = '<i class="fas fa-map-marked-alt"></i> Địa điểm khác';
+      box.appendChild(title2);
+
       results.slice(0, 5).forEach(r => {
-        const div = document.createElement('div'); div.className = 'sug-item'; const name = r.formatted_address || r.name || 'Không tên'; const lat = r.geometry?.location?.lat || r.lat; const lng = r.geometry?.location?.lng || r.lng || r.lon;
-        div.innerHTML = `<i class="fas fa-map-marker-alt"></i><div>${name}</div>`; div.onclick = () => selectLocation(lat, lng, name); box.appendChild(div);
+        const div = document.createElement('div');
+        div.className = 'sug-item';
+        const name = r.formatted_address || r.name || 'Không tên';
+        const lat = r.geometry?.location?.lat || r.lat;
+        const lng = r.geometry?.location?.lng || r.lng || r.lon;
+        div.innerHTML = `<i class="fas fa-map-marker-alt"></i><div>${name}</div>`;
+        div.onclick = () => selectLocation(lat, lng, name);
+        box.appendChild(div);
       });
-    } else box.innerHTML = '<div class="sug-item">Không tìm thấy kết quả</div>';
-  } catch (e) { box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Lỗi kết nối</div>'; }
+    } else if (communityResults.length === 0) {
+      box.innerHTML = '<div class="sug-item">Không tìm thấy kết quả</div>';
+    }
+  } catch (e) {
+    loadingDiv.remove();
+    if (communityResults.length === 0) {
+      box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Lỗi kết nối</div>';
+    }
+  }
 }
 
 async function selectLocation(lat, lng, name) {
@@ -1606,6 +1810,7 @@ async function selectLocation(lat, lng, name) {
     <div style="min-width: 180px;">
       <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: var(--text);">${finalName}</div>
       <button onclick="event.stopPropagation(); openSavePlaceModal(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--success); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-bookmark"></i> Ghim địa điểm</button>
+      <button onclick="event.stopPropagation(); openPoiSheet(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: linear-gradient(135deg,#10b981,#059669); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-plus-circle"></i> Thêm địa điểm mới</button>
       <button onclick="event.stopPropagation(); goToLongPressLocation(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
       <button onclick="event.stopPropagation(); shareLocation(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fas fa-share-alt"></i> Chia sẻ</button>
     </div>
@@ -1698,9 +1903,6 @@ function startWatching() {
     
     checkReportProximity(lastUserPos.lat, lastUserPos.lng); checkOffRoute(lastUserPos.lat, lastUserPos.lng); checkArrival(lastUserPos.lat, lastUserPos.lng); updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
 
-    // ═══════════════════════════════════════════════════════
-    // LOGIC CẬP NHẬT TÊN ĐƯỜNG THÔNG MINH
-    // ═══════════════════════════════════════════════════════
     const now = Date.now();
     const distSinceLastGeo = lastReverseGeoPos ? calcDist(lastUserPos.lat, lastUserPos.lng, lastReverseGeoPos.lat, lastReverseGeoPos.lng) : 9999;
     const timeSinceLastGeo = now - lastReverseGeoTime;
@@ -1800,6 +2002,151 @@ async function loadHistory() {
       });
     } else list.innerHTML = '<div style="text-align:center; color:var(--text-muted);">Chưa có chuyến đi nào.</div>';
   } catch (e) { list.innerHTML = 'Lỗi tải lịch sử.'; }
+}
+
+// ═══════════════════════════════════════════════════════
+// COMMUNITY POI — LOGIC
+// ═══════════════════════════════════════════════════════
+
+/** Mở form thêm POI tại toạ độ cho trước */
+window.openPoiSheet = function(lat, lng, addressHint) {
+  if (!currentUser) { alert('Vui lòng đăng nhập để thêm địa điểm!'); return; }
+  tempPoiLatLng = { lat, lng };
+  tempPoiTag = null;
+
+  document.getElementById('poiCoords').textContent =
+    `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}${addressHint ? ' • ' + addressHint : ''}`;
+  document.getElementById('poiNameInput').value = '';
+  document.getElementById('poiSaveBtn').disabled = true;
+
+  document.querySelectorAll('.poi-tag-btn').forEach(b => b.classList.remove('active'));
+
+  document.getElementById('poiSheet').classList.add('open');
+  if (map) map.closePopup();
+
+  setTimeout(() => document.getElementById('poiNameInput').focus(), 350);
+};
+
+/** Đóng form */
+window.closePoiSheet = function() {
+  document.getElementById('poiSheet').classList.remove('open');
+  tempPoiLatLng = null;
+  tempPoiTag = null;
+};
+
+/** Chọn tag */
+window.selectPoiTag = function(tag, btn) {
+  tempPoiTag = tag;
+  document.querySelectorAll('.poi-tag-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  updatePoiSaveBtnState();
+};
+
+/** Cập nhật trạng thái nút Lưu */
+function updatePoiSaveBtnState() {
+  const name = document.getElementById('poiNameInput').value.trim();
+  const btn = document.getElementById('poiSaveBtn');
+  btn.disabled = !(tempPoiTag && name.length >= 2);
+}
+
+// Lắng nghe input tên
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('poiNameInput');
+  if (inp) inp.addEventListener('input', updatePoiSaveBtnState);
+});
+
+/** Gửi POI lên Firebase */
+window.submitCommunityPoi = async function() {
+  if (!currentUser) return alert('Chưa đăng nhập!');
+  if (!tempPoiLatLng || !tempPoiTag) return alert('Vui lòng chọn loại địa điểm!');
+  const name = document.getElementById('poiNameInput').value.trim();
+  if (name.length < 2) return alert('Tên địa điểm quá ngắn!');
+
+  const btn = document.getElementById('poiSaveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...';
+
+  try {
+    await push(ref(db, 'communityPois'), {
+      lat: tempPoiLatLng.lat,
+      lng: tempPoiLatLng.lng,
+      name: name,
+      tag: tempPoiTag,
+      uid: currentUser.uid,
+      authorName: currentUser.displayName || currentUser.email.split('@')[0],
+      timestamp: Date.now(),
+      upvotes: 0
+    });
+    closePoiSheet();
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#10b981,#059669);color:white;padding:14px 22px;border-radius:14px;font-weight:800;z-index:9999;box-shadow:0 10px 30px rgba(16,185,129,0.5);display:flex;gap:10px;align-items:center;';
+    t.innerHTML = '<i class="fas fa-check-circle"></i><span>Đã thêm địa điểm cộng đồng!</span>';
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
+  } catch (e) {
+    alert('Lỗi lưu: ' + e.message);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-check"></i> Lưu địa điểm';
+  }
+};
+
+/** Lắng nghe Firebase & vẽ marker */
+function initCommunityPois() {
+  onValue(ref(db, 'communityPois'), (snapshot) => {
+    communityPoisData = snapshot.val() || {};
+    renderCommunityPoisOnMap();
+  });
+}
+
+function renderCommunityPoisOnMap() {
+  communityPoiMarkers.forEach(m => { try { map.removeLayer(m); } catch(e){} });
+  communityPoiMarkers = [];
+
+  for (const key in communityPoisData) {
+    const poi = communityPoisData[key];
+    if (!poi || !poi.lat || !poi.lng) continue;
+    const conf = POI_TAG_CONFIG[poi.tag] || POI_TAG_CONFIG.supermarket;
+
+    const icon = L.divIcon({
+      html: `
+        <div class="community-poi-pin">
+          <i class="fas ${conf.icon}"></i>
+          <div class="verified-badge"><i class="fas fa-check"></i></div>
+        </div>
+      `,
+      className: '',
+      iconSize: [32, 32],
+      iconAnchor: [16, 32]
+    });
+
+    const marker = L.marker([poi.lat, poi.lng], { icon }).addTo(map);
+    marker.bindPopup(`
+      <div style="min-width:170px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+          <span style="background:${conf.color};color:white;padding:2px 8px;border-radius:10px;font-size:0.65rem;font-weight:800;">${conf.label}</span>
+          <span style="color:#3b82f6;font-size:0.65rem;font-weight:700;"><i class="fas fa-check-circle"></i> Cộng đồng</span>
+        </div>
+        <div style="font-weight:800;font-size:0.9rem;margin-bottom:8px;color:var(--text);">${escapeHtml(poi.name)}</div>
+        <button onclick="event.stopPropagation(); goToLongPressLocation(${poi.lat}, ${poi.lng}, '${escapeHtml(poi.name).replace(/'/g,"\\'")}')" style="width:100%;padding:8px;background:#3b82f6;color:white;border:none;border-radius:8px;font-weight:800;font-size:0.8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
+      </div>
+    `);
+    communityPoiMarkers.push(marker);
+  }
+}
+
+// Search helper: quét POI cộng đồng
+function searchCommunityPois(query) {
+  const q = query.toLowerCase().trim();
+  if (!q || q.length < 2) return [];
+  const results = [];
+  for (const key in communityPoisData) {
+    const poi = communityPoisData[key];
+    if (!poi || !poi.name) continue;
+    if (poi.name.toLowerCase().includes(q)) {
+      results.push({ key, ...poi });
+    }
+  }
+  return results.sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0)).slice(0, 5);
 }
 
 // Export
