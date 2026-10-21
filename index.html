@@ -92,12 +92,10 @@ body.light-mode .leaflet-container { background: #f1f5f9 !important; }
 .fab-report { position: fixed; bottom: calc(80px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, var(--danger), #f97316); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(239,68,68,0.4); transition: width 0.2s, height 0.2s, font-size 0.2s, opacity 0.2s, bottom 0.2s; }
 body.navigating #btnReport { width: 40px; height: 40px; font-size: 1rem; bottom: calc(90px + var(--safe-bottom)); opacity: 0.85; z-index: 600; }
 
-/* CUSTOM PIN */
 .custom-pin { background: white; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 6px rgba(0,0,0,0.3); border: 2px solid white; }
 .custom-pin i { transform: rotate(45deg); font-size: 0.8rem; }
 .custom-pin-close { position: absolute; top: -6px; right: -6px; background: var(--danger); color: white; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.55rem; cursor: pointer; border: 1.5px solid white; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
 
-/* MODALS */
 .route-options-modal, .report-modal, .profile-modal, .end-trip-modal { position: fixed; inset: 0; z-index: 2500; background: var(--bg); display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s ease-in-out; }
 .end-trip-modal { z-index: 3000; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; padding: 24px; transform: none; }
 .end-trip-modal.open { display: flex; }
@@ -163,8 +161,8 @@ body.navigating #btnReport { width: 40px; height: 40px; font-size: 1rem; bottom:
 input:checked + .slider { background-color: var(--primary); }
 input:checked + .slider:before { transform: translateX(20px); }
 
-.vehicle-selector { display: flex; gap: 8px; margin: 8px 0; }
-.vehicle-mode-btn { flex: 1; padding: 10px 6px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; color: var(--text-muted); font-weight: 700; font-size: 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; transition: all 0.2s; pointer-events: auto; }
+.vehicle-selector { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.vehicle-mode-btn { flex: 1 1 calc(25% - 8px); padding: 10px 6px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; color: var(--text-muted); font-weight: 700; font-size: 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; transition: all 0.2s; pointer-events: auto; }
 .vehicle-mode-btn.active { background: var(--primary); color: white; border-color: transparent; box-shadow: 0 3px 10px rgba(59,130,246,0.3); }
 .vehicle-mode-btn i { font-size: 1.15rem; }
 
@@ -259,6 +257,12 @@ input:checked + .slider:before { transform: translateX(20px); }
     <div class="vehicle-selector">
       <button class="vehicle-mode-btn active" data-mode="driving" onclick="setVehicleMode('driving', this)">
         <i class="fas fa-car"></i> Ô tô
+      </button>
+      <button class="vehicle-mode-btn" data-mode="driving-traffic" onclick="setVehicleMode('driving-traffic', this)">
+        <i class="fas fa-car-side"></i> Kẹt xe
+      </button>
+      <button class="vehicle-mode-btn" data-mode="hd" onclick="setVehicleMode('hd', this)">
+        <i class="fas fa-motorcycle"></i> Xe CN
       </button>
       <button class="vehicle-mode-btn" data-mode="truck" onclick="setVehicleMode('truck', this)">
         <i class="fas fa-truck"></i> Xe tải
@@ -439,7 +443,19 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
+const SECRET_KEY = 'drivekit_2026_secret'; // THAY BẰNG SECRET_KEY CỦA BRO
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
+
+// Hàm fetch wrapper tự động gắn Token
+async function fetchWorker(path, options = {}) {
+  return fetch(`${WORKER_URL}${path}`, {
+    ...options,
+    headers: {
+      'X-API-Key': SECRET_KEY,
+      ...(options.headers || {})
+    }
+  });
+}
 
 // --- STATE ---
 let map = null;
@@ -488,6 +504,10 @@ let savedPlacesData = {};
 let savedPlacesMarkers = [];
 let tempPinLatLng = null;
 let tempPinName = "";
+
+let lastReverseGeoTime = 0;
+let lastReverseGeoPos = null;
+let lastGeoStepIndex = -1;
 
 const ROUTE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 
@@ -544,7 +564,7 @@ function startFakeLoading() {
       isAppReadyToShow = true;
       if (loadInterval) clearInterval(loadInterval);
       document.getElementById('loadingPercent').textContent = `100%`;
-      document.getElementById('loadingText').textContent = "Đang mở ứng dụng (timeout)...";
+      document.getElementById('loadingText').textContent = "Đang mở ứng dụng...";
       setTimeout(() => {
         document.getElementById('loadingScreen').classList.add('hidden');
         if (currentUser) {
@@ -555,26 +575,17 @@ function startFakeLoading() {
         }
       }, 300);
     }
-  }, 8000); // Tăng lên 8s nếu mạng quá chậm
+  }, 8000);
 
   loadInterval = setInterval(() => {
     if (loadProgress < 95 && !isAppReadyToShow) {
       let step = 0;
       let text = "Đang khởi tạo...";
       
-      if (loadProgress < 20) {
-        step = 2; // Nhanh
-        text = "Đang kiểm tra kết nối...";
-      } else if (loadProgress < 50) {
-        step = 0.5; // Chậm
-        text = "Đang chờ tín hiệu GPS...";
-      } else if (loadProgress < 80) {
-        step = 0.2; // Rất chậm
-        text = "Đang tải bản đồ...";
-      } else {
-        step = 0.1; // Cực chậm
-        text = "Sắp xong rồi...";
-      }
+      if (loadProgress < 20) { step = 2; text = "Đang kiểm tra kết nối..."; }
+      else if (loadProgress < 50) { step = 0.5; text = "Đang chờ tín hiệu GPS..."; }
+      else if (loadProgress < 80) { step = 0.2; text = "Đang tải bản đồ..."; }
+      else { step = 0.1; text = "Sắp xong rồi..."; }
       
       updateLoadingProgress(loadProgress + step, text);
     }
@@ -868,7 +879,7 @@ function initMap() {
 
     let name = '';
     try {
-      const res = await fetch(`${WORKER_URL}/reverse-geocode?lat=${latlng.lat}&lng=${latlng.lng}`);
+      const res = await fetchWorker(`/reverse-geocode?lat=${latlng.lat}&lng=${latlng.lng}`);
       const data = await res.json();
       if (data.display_name) name = data.display_name.split(',').slice(0, 3).join(', ');
     } catch (e) {}
@@ -975,7 +986,7 @@ window.openQuickPin = function() {
   document.getElementById('savePlaceAddress').textContent = "Đang lấy địa chỉ...";
   document.getElementById('savePlaceModal').classList.add('open');
   
-  fetch(`${WORKER_URL}/reverse-geocode?lat=${lastUserPos.lat}&lng=${lastUserPos.lng}`)
+  fetchWorker(`/reverse-geocode?lat=${lastUserPos.lat}&lng=${lastUserPos.lng}`)
     .then(r => r.json())
     .then(data => {
       tempPinName = data.display_name ? data.display_name.split(',').slice(0, 3).join(', ') : `Vị trí GPS (${lastUserPos.lat.toFixed(4)}, ${lastUserPos.lng.toFixed(4)})`;
@@ -1032,8 +1043,8 @@ async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
   else if (mode === 'walking') apiMode = 'walking';
   else if (mode === 'bicycle') apiMode = 'cycling';
 
-  const url = `${WORKER_URL}/trackasia-route?origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&mode=${apiMode}`;
-  const res = await fetch(url);
+  const url = `/trackasia-route?origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&mode=${apiMode}`;
+  const res = await fetchWorker(url);
   const data = await res.json();
 
   if (data.status !== 'OK' || !data.routes || data.routes.length === 0) {
@@ -1074,16 +1085,16 @@ window.changeSort = function(mode) { currentSortMode = mode; if (startPoint && e
 
 window.fetchAndShowRouteOptions = async function() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
-  const modeLabel = currentVehicleMode === 'driving' ? 'ô tô' : currentVehicleMode === 'truck' ? 'xe tải' : currentVehicleMode === 'walking' ? 'đi bộ' : currentVehicleMode === 'bicycle' ? 'xe đạp' : 'xe máy';
+  const modeLabel = currentVehicleMode === 'driving' ? 'ô tô' : currentVehicleMode === 'driving-traffic' ? 'ô tô (kẹt xe)' : currentVehicleMode === 'truck' ? 'xe tải' : currentVehicleMode === 'hd' ? 'xe công nghệ' : currentVehicleMode === 'walking' ? 'đi bộ' : currentVehicleMode === 'bicycle' ? 'xe đạp' : 'xe máy';
   document.getElementById('routeOptionsBody').innerHTML = `<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px; color:var(--text-muted);">Đang tìm tuyến (${modeLabel})...</p></div>`;
   document.getElementById('routeOptionsModal').classList.add('open');
 
   const fromStr = `${startPoint.lng},${startPoint.lat}`; const toStr = `${endPoint.lng},${endPoint.lat}`;
-  const mapboxUrl = `${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}&alternatives=true&mode=${currentVehicleMode}`;
+  const mapboxUrl = `/mapbox-route?from=${fromStr}&to=${toStr}&alternatives=true&mode=${currentVehicleMode}`;
 
   const tasks = [ 
-    (currentVehicleMode === 'driving' || currentVehicleMode === 'walking' || currentVehicleMode === 'bicycle') 
-      ? fetch(mapboxUrl).then(r => r.json()) 
+    (currentVehicleMode === 'driving' || currentVehicleMode === 'driving-traffic' || currentVehicleMode === 'walking' || currentVehicleMode === 'bicycle') 
+      ? fetchWorker(mapboxUrl).then(r => r.json()) 
       : Promise.reject(new Error('skip')) 
   ];
   tasks.push(fetchTrackAsiaRouteNormalized(startPoint, endPoint, currentVehicleMode));
@@ -1258,9 +1269,9 @@ async function autoReroute(userLat, userLng) {
     let r;
     if (currentProvider === 'trackasia') {
       try { const ta = await fetchTrackAsiaRouteNormalized({ lat: userLat, lng: userLng }, endPoint, currentMode); r = ta[0]; }
-      catch (e) { const res = await fetch(`${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}&mode=${currentMode}`); const data = await res.json(); if (data.code !== 'Ok') throw new Error('no route'); r = { ...data.routes[0], provider: 'mapbox', mode: currentMode }; }
+      catch (e) { const res = await fetchWorker(`/mapbox-route?from=${fromStr}&to=${toStr}&mode=${currentMode}`); const data = await res.json(); if (data.code !== 'Ok') throw new Error('no route'); r = { ...data.routes[0], provider: 'mapbox', mode: currentMode }; }
     } else {
-      const res = await fetch(`${WORKER_URL}/mapbox-route?from=${fromStr}&to=${toStr}&mode=${currentMode}`); const data = await res.json(); if (data.code !== 'Ok') throw new Error('no route'); r = { ...data.routes[0], provider: 'mapbox', mode: currentMode };
+      const res = await fetchWorker(`/mapbox-route?from=${fromStr}&to=${toStr}&mode=${currentMode}`); const data = await res.json(); if (data.code !== 'Ok') throw new Error('no route'); r = { ...data.routes[0], provider: 'mapbox', mode: currentMode };
     }
     currentRouteData = r; voiceRouteSteps = r.legs[0].steps || []; voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
     currentRouteCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
@@ -1545,7 +1556,7 @@ async function doSearch(query) {
     if (query.includes('google.com/maps') || query.includes('goo.gl/maps')) {
       box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang giải mã link...</div>';
       try {
-        const res = await fetch(`${WORKER_URL}/resolve-gmaps?url=${encodeURIComponent(query)}`); const data = await res.json();
+        const res = await fetchWorker(`/resolve-gmaps?url=${encodeURIComponent(query)}`); const data = await res.json();
         if (data.success && data.coords) {
           box.innerHTML = ''; const div = document.createElement('div'); div.className = 'sug-item'; div.innerHTML = `<i class="fas fa-map-marker-alt"></i><div>${data.placeName || 'Vị trí từ Google Maps'}</div>`;
           div.onclick = () => selectLocation(data.coords.lat, data.coords.lng, data.placeName || 'Vị trí từ Google Maps'); box.appendChild(div);
@@ -1556,7 +1567,7 @@ async function doSearch(query) {
   }
   box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang tìm...</div>';
   try {
-    const res = await fetch(`${WORKER_URL}/trackasia-search?query=${encodeURIComponent(query)}`); const data = await res.json();
+    const res = await fetchWorker(`/trackasia-search?query=${encodeURIComponent(query)}`); const data = await res.json();
     const results = data.results || data.predictions || [];
     if (results.length > 0) {
       box.innerHTML = '';
@@ -1584,7 +1595,7 @@ async function selectLocation(lat, lng, name) {
 
   let finalName = name;
   try {
-    const res = await fetch(`${WORKER_URL}/reverse-geocode?lat=${lat}&lng=${lng}`);
+    const res = await fetchWorker(`/reverse-geocode?lat=${lat}&lng=${lng}`);
     const data = await res.json();
     if (data.display_name) {
       finalName = data.display_name.split(',').slice(0, 3).join(', ');
@@ -1623,7 +1634,7 @@ function refreshGPS() {
 }
 
 // ==========================================
-// SNAP-TO-ROAD + SPEED
+// SNAP-TO-ROAD + SPEED + GEO UPDATE LOGIC
 // ==========================================
 function getClosestPointOnSegment(p, a, b) {
   const atob = { x: b.lng - a.lng, y: b.lat - a.lat }; const atop = { x: p.lng - a.lng, y: p.lat - a.lat };
@@ -1684,7 +1695,47 @@ function startWatching() {
     if (lastUserPos && !newPos.heading) { const dy = newPos.lat - lastUserPos.lat, dx = newPos.lng - lastUserPos.lng; newPos.heading = 90 - (Math.atan2(dy, dx) * 180 / Math.PI); }
     lastUserPos = newPos; animateMarkerTo(lastUserPos);
     if (map) map.panTo([lastUserPos.lat, lastUserPos.lng], { animate: true, duration: 0.5 });
+    
     checkReportProximity(lastUserPos.lat, lastUserPos.lng); checkOffRoute(lastUserPos.lat, lastUserPos.lng); checkArrival(lastUserPos.lat, lastUserPos.lng); updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
+
+    // ═══════════════════════════════════════════════════════
+    // LOGIC CẬP NHẬT TÊN ĐƯỜNG THÔNG MINH
+    // ═══════════════════════════════════════════════════════
+    const now = Date.now();
+    const distSinceLastGeo = lastReverseGeoPos ? calcDist(lastUserPos.lat, lastUserPos.lng, lastReverseGeoPos.lat, lastReverseGeoPos.lng) : 9999;
+    const timeSinceLastGeo = now - lastReverseGeoTime;
+
+    let shouldUpdateByName = (smoothedSpeed * 3.6 < 3 && timeSinceLastGeo > 10000);
+    let shouldUpdateByDistance = (distSinceLastGeo > 150);
+    
+    let shouldUpdateByTurn = false;
+    if (voiceRouteSteps && voiceRouteSteps[voiceStepIndex]) {
+      const nextStep = voiceRouteSteps[voiceStepIndex];
+      if (nextStep.maneuver && nextStep.maneuver.location && lastGeoStepIndex !== voiceStepIndex) {
+        const distToTurn = calcDist(lastUserPos.lat, lastUserPos.lng, nextStep.maneuver.location[1], nextStep.maneuver.location[0]);
+        if (distToTurn < 30) {
+          shouldUpdateByTurn = true;
+          lastGeoStepIndex = voiceStepIndex;
+        }
+      }
+    }
+
+    if (shouldUpdateByDistance || shouldUpdateByName || shouldUpdateByTurn) {
+      lastReverseGeoTime = now;
+      lastReverseGeoPos = { lat: lastUserPos.lat, lng: lastUserPos.lng };
+      
+      fetchWorker(`/reverse-geocode?lat=${lastUserPos.lat}&lng=${lastUserPos.lng}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.display_name) {
+            const topInput = document.getElementById('topSearchInput');
+            if (topInput && document.activeElement !== topInput) {
+              const shortName = data.display_name.split(',').slice(0, 2).join(', ');
+              if (topInput.value !== shortName) topInput.value = shortName;
+            }
+          }
+        }).catch(e => console.warn('Lỗi cập nhật tên đường:', e));
+    }
   }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
 }
 
