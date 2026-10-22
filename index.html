@@ -173,7 +173,6 @@ input:checked + .slider:before { transform: translateX(20px); }
 .sort-bar { display: flex; gap: 8px; margin-bottom: 12px; }
 .sort-chip { padding: 6px 14px; border-radius: 20px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text-muted); font-size: 0.75rem; font-weight: 700; cursor: pointer; }
 .sort-chip.active { background: var(--primary); color: white; border-color: transparent; }
-.route-num-badge { background: white; border: 3px solid currentColor; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.85rem; box-shadow: 0 3px 8px rgba(0,0,0,0.3); }
 
 .end-trip-box { background: var(--card); border-radius: 20px; padding: 24px; max-width: 380px; width: 100%; border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: popIn 0.25s ease-out; }
 @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -1210,30 +1209,36 @@ async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
 
   const isSuccess = (data.code === 'Ok') || (data.status === 'OK');
   if (!isSuccess || !data.routes || data.routes.length === 0) {
-    if (apiMode === 'truck') return fetchTrackAsiaRouteNormalized(from, to, 'driving');
-    throw new Error('TrackAsia/Goong/ORS: ' + (data.status || data.code || 'no routes'));
+    throw new Error(data.details || data.error || 'Không có tuyến đường');
   }
 
   return data.routes.map(r => {
     const leg = r.legs?.[0] || {};
     let coords = [];
-    if (r.overview_polyline?.points) coords = decodePolyline(r.overview_polyline.points);
-    else if (r.geometry?.coordinates) coords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-    else if (leg.steps?.length) {
-      coords = leg.steps.flatMap(s => {
-        if (s.polyline?.points) return decodePolyline(s.polyline.points);
-        if (s.start_location && s.end_location) return [[s.start_location.lat, s.start_location.lng], [s.end_location.lat, s.end_location.lng]];
-        return [];
-      });
+    
+    // Đọc tọa độ
+    if (r.geometry?.coordinates) {
+      // ORS trả về [lat, lng] (Worker đã đảo sẵn), nhưng TrackAsia trả về [lng, lat]
+      // Ta kiểm tra xem tọa độ đầu tiên có lớn hơn 90 không (vĩ độ VN ~ 10-23)
+      if (r.geometry.coordinates[0][0] > 90) {
+         coords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+      } else {
+         coords = r.geometry.coordinates.map(([lat, lng]) => [lat, lng]);
+      }
     }
-    if (coords.length < 2) throw new Error('Invalid polyline');
 
-    const steps = (leg.steps || []).map(step => ({
-      distance: step.distance?.value || 0, duration: step.duration?.value || 0,
-      maneuver: { type: step.maneuver || 'straight', modifier: step.maneuver || '', instruction: (step.html_instructions || '').replace(/<[^>]*>/g, ''), location: [step.end_location?.lng ?? from.lng, step.end_location?.lat ?? from.lat] },
-    }));
+    // Lấy khoảng cách và thời gian (ORS dùng chữ distance.value / duration.value)
+    const dist = leg.distance?.value || r.distance || 0;
+    const dur = leg.duration?.value || r.duration || 0;
 
-    return { distance: leg.distance?.value || 0, duration: leg.duration?.value || 0, geometry: { coordinates: coords.map(([lat, lng]) => [lng, lat]) }, legs: [{ steps }], provider: 'trackasia', mode };
+    return { 
+      distance: dist, 
+      duration: dur, 
+      geometry: { coordinates: coords }, 
+      legs: [{ steps: [] }], 
+      provider: r.provider || 'unknown', 
+      mode: mode 
+    };
   });
 }
 
@@ -1288,10 +1293,21 @@ window.fetchAndShowRouteOptions = async function() {
     let routes = [...mapboxRoutes, ...trackasiaRoutes];
 
     if (routes.length === 0) {
-      bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Không tìm được tuyến nào cho <b>${modeLabel}</b>.</p><p style="font-size:0.8rem; margin-top:8px;">Có thể API của phương tiện này chưa được cấp quyền, hoặc khu vực này không có đường phù hợp.</p></div>`;
+      // Hiển thị lỗi chi tiết từ API
+      const testRes = await fetchWorker(`/trackasia-route?origin=${startPoint.lat},${startPoint.lng}&destination=${endPoint.lat},${endPoint.lng}&mode=${currentVehicleMode}`);
+      const errData = await testRes.json();
+      
+      bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);">
+        <i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i>
+        <p>Không tìm được tuyến nào cho <b>${modeLabel}</b>.</p>
+        <div style="font-size:0.8rem; margin-top:12px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; text-align:left; word-break:break-all;">
+          <b>Lỗi API:</b> ${errData.details || errData.error || 'Không rõ nguyên nhân'}
+        </div>
+      </div>`;
       return;
     }
 
+    // Sắp xếp tuyến ngắn nhất / nhanh nhất
     routes.sort((a, b) => currentSortMode === 'shortest' ? a.distance - b.distance : a.duration - b.duration);
     routes = routes.slice(0, 5); 
     alternativeRoutesData = routes;
@@ -1301,25 +1317,94 @@ window.fetchAndShowRouteOptions = async function() {
     if (window._routeBadges) window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = [];
 
     const allCoords = [];
+    
+    // Vẽ các tuyến đường
     routes.forEach((r, index) => {
-      const coords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]); allCoords.push(...coords);
-      const isBest = index === 0; const color = ROUTE_COLORS[index];
-      const layer = L.polyline(coords, { color, weight: isBest ? 8 : 4, opacity: isBest ? 1 : 0.55, dashArray: isBest ? '' : '8, 8', lineCap: 'round', lineJoin: 'round' }).addTo(map);
-      layer.on('click', () => selectRouteOption(index)); alternativeLayers.push(layer);
+      const coords = r.geometry.coordinates; 
+      allCoords.push(...coords);
+      
+      const isBest = index === 0; 
+      const color = ROUTE_COLORS[index];
+      
+      // Tuyến 1 (Tối ưu): Đậm, sáng, nét liền. Các tuyến khác: Mờ hơn, nét đứt
+      const layer = L.polyline(coords, { 
+        color: isBest ? color : '#94a3b8', 
+        weight: isBest ? 9 : 5, 
+        opacity: isBest ? 1 : 0.6, 
+        dashArray: isBest ? '' : '10, 10', 
+        lineCap: 'round', 
+        lineJoin: 'round' 
+      }).addTo(map);
+      
+      // Bấm vào đường để chọn tuyến
+      layer.on('click', () => selectRouteOption(index)); 
+      alternativeLayers.push(layer);
 
+      // Vẽ nhãn số (Badge) ở giữa đường
       const midIdx = Math.floor(coords.length / 2);
-      const badge = L.marker(coords[midIdx], { icon: L.divIcon({ html: `<div class="route-num-badge" style="color:${color};">${index + 1}</div>`, className: '', iconSize: [28, 28], iconAnchor: [14, 14] }), interactive: false, zIndexOffset: 1000 }).addTo(map);
+      
+      // Tạo icon nhãn số nổi bật
+      const badgeHtml = `
+        <div style="
+          background: ${isBest ? color : 'white'}; 
+          color: ${isBest ? 'white' : '#334155'}; 
+          border: 3px solid ${isBest ? 'white' : color}; 
+          border-radius: 50%; 
+          width: 32px; height: 32px; 
+          display: flex; align-items: center; justify-content: center; 
+          font-weight: 900; font-size: 0.9rem; 
+          box-shadow: 0 4px 10px rgba(0,0,0,0.4); 
+          cursor: pointer;
+          transform: ${isBest ? 'scale(1.1)' : 'scale(1)'};
+          transition: transform 0.2s;
+        " onclick="selectRouteOption(${index})">
+          ${index + 1}
+        </div>
+      `;
+      
+      const badge = L.marker(coords[midIdx], { 
+        icon: L.divIcon({ 
+          html: badgeHtml, 
+          className: '', 
+          iconSize: [32, 32], 
+          iconAnchor: [16, 16] 
+        }), 
+        interactive: true, 
+        zIndexOffset: 2000 - index // Đảm bảo nhãn tuyến 1 nằm trên cùng, không bị đè
+      }).addTo(map);
+      
+      // Bấm vào nhãn số cũng chọn tuyến
+      badge.on('click', () => selectRouteOption(index));
       window._routeBadges.push(badge);
     });
+    
     map.fitBounds(L.latLngBounds(allCoords), { padding: [50, 50] });
 
+    // Vẽ bảng danh sách tuyến đường bên dưới
     let html = `<div class="sort-bar"><button class="sort-chip ${currentSortMode === 'fastest' ? 'active' : ''}" onclick="changeSort('fastest')"><i class="fas fa-bolt"></i> Nhanh nhất</button><button class="sort-chip ${currentSortMode === 'shortest' ? 'active' : ''}" onclick="changeSort('shortest')"><i class="fas fa-route"></i> Ngắn nhất</button></div>`;
+    
     routes.forEach((r, index) => {
-      const dist = (r.distance / 1000).toFixed(1); const dur = Math.round(r.duration / 60); const isBest = index === 0; const color = ROUTE_COLORS[index];
-      html += `<div class="route-card ${isBest ? 'active' : ''}" onclick="selectRouteOption(${index})" style="border-left: 4px solid ${color};"><div class="info"><h3 style="display:flex; align-items:center; gap:8px;"><span style="background:${color}; color:white; width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem;">${index + 1}</span>Tuyến ${index + 1} ${isBest ? '(Ưu tiên)' : ''}</h3><p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p></div>${isBest ? '<span class="badge">⭐ Đề xuất</span>' : ''}</div>`;
+      const dist = (r.distance / 1000).toFixed(1); 
+      const dur = Math.round(r.duration / 60); 
+      const isBest = index === 0; 
+      const color = ROUTE_COLORS[index];
+      
+      html += `
+        <div class="route-card ${isBest ? 'active' : ''}" onclick="selectRouteOption(${index})" style="border-left: 4px solid ${color}; cursor: pointer;">
+          <div class="info">
+            <h3 style="display:flex; align-items:center; gap:8px;">
+              <span style="background:${color}; color:white; width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:900;">${index + 1}</span>
+              Tuyến ${index + 1} ${isBest ? '(Ưu tiên)' : ''}
+            </h3>
+            <p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p>
+          </div>
+          ${isBest ? '<span class="badge" style="background:linear-gradient(135deg, #f59e0b, #ef4444); color:white; box-shadow:0 2px 8px rgba(245,158,11,0.5);"><i class="fas fa-star"></i> Đề xuất</span>' : ''}
+        </div>
+      `;
     });
     bodyEl.innerHTML = html;
   } catch (error) {
+    console.error(error);
     bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Có lỗi xảy ra khi tìm tuyến.</p></div>`;
   }
 };
@@ -1332,7 +1417,7 @@ window.selectRouteOption = function(index) {
   alternativeLayers.forEach((l, i) => { if (i === index) l.setStyle({ color: '#3b82f6', weight: 8, opacity: 1, dashArray: '' }); else l.setStyle({ color: '#9ca3af', weight: 5, opacity: 0.5, dashArray: '10, 10' }); });
   alternativeLayers.forEach((l, i) => { if (i !== index) map.removeLayer(l); });
   currentRouteLayer = alternativeLayers[index]; alternativeLayers = [currentRouteLayer];
-  currentRouteData = selectedRoute; currentRouteCoords = selectedRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+  currentRouteData = selectedRoute; currentRouteCoords = selectedRoute.geometry.coordinates;
   if (window._routeBadges) { window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = []; }
   closeRouteOptions(); startNavigationHUD();
 };
@@ -1383,7 +1468,7 @@ window.switchToRoute = function(index) {
   if (!selectedRoute) return;
   const otherRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(otherRoutes));
-  currentRouteData = selectedRoute; currentRouteCoords = selectedRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+  currentRouteData = selectedRoute; currentRouteCoords = selectedRoute.geometry.coordinates;
   voiceRouteSteps = selectedRoute.legs[0].steps || []; voiceStepIndex = 0; lastSnapIndex = 0;
   if (currentRouteLayer) map.removeLayer(currentRouteLayer);
   currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
@@ -1456,14 +1541,14 @@ async function autoReroute(userLat, userLng) {
   const fromStr = `${userLng},${userLat}`; const toStr = `${endPoint.lng},${endPoint.lat}`;
   try {
     let r;
-    if (currentProvider === 'trackasia') {
+    if (currentProvider === 'trackasia' || currentProvider === 'ORS') {
       try { const ta = await fetchTrackAsiaRouteNormalized({ lat: userLat, lng: userLng }, endPoint, currentMode); r = ta[0]; }
       catch (e) { const res = await fetchWorker(`/mapbox-route?from=${fromStr}&to=${toStr}&mode=${currentMode}`); const data = await res.json(); if (data.code !== 'Ok') throw new Error('no route'); r = { ...data.routes[0], provider: 'mapbox', mode: currentMode }; }
     } else {
       const res = await fetchWorker(`/mapbox-route?from=${fromStr}&to=${toStr}&mode=${currentMode}`); const data = await res.json(); if (data.code !== 'Ok') throw new Error('no route'); r = { ...data.routes[0], provider: 'mapbox', mode: currentMode };
     }
     currentRouteData = r; voiceRouteSteps = r.legs[0].steps || []; voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
-    currentRouteCoords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    currentRouteCoords = r.geometry.coordinates;
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
     currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
     map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
