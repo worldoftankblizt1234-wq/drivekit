@@ -1581,7 +1581,6 @@ window.openEndTripModal = function() {
 window.closeEndTripModal = function() { document.getElementById('endTripModal').classList.remove('open'); };
 
 window.endTrip = async function(save) {
-  // Tự động dừng Live Track nếu đang share
   if (liveTrackRoomId) await stopLiveTracking();
 
   closeEndTripModal();
@@ -1826,7 +1825,6 @@ function closeDirections() {
   document.getElementById('mainLocateBtn').style.display = 'flex'; document.getElementById('mainDirBtn').style.display = 'flex';
   document.getElementById('btnReport').style.display = 'flex';
 
-  // Tự động xóa đường xanh nếu đang không trong chế độ dẫn đường
   if (document.getElementById('hud').classList.contains('hidden')) {
     if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
     alternativeLayers.forEach(l => { try { map.removeLayer(l); } catch (e) {} });
@@ -1849,11 +1847,7 @@ window.clearPoint = function(type) {
 
 function activateSearch(type) {
   searchContext = type;
-  
-  if (type !== 'view') {
-    document.getElementById('dirSheet').classList.add('open');
-  }
-
+  if (type !== 'view') document.getElementById('dirSheet').classList.add('open');
   document.querySelector('.fab-layers').style.display = 'none'; 
   document.getElementById('btnQuickPin').style.display = 'none';
   document.getElementById('mainLocateBtn').style.display = 'none'; 
@@ -2540,9 +2534,7 @@ function showZoomHint() {
   }, 2500);
 }
 
-// ═══════════════════════════════════════════════════════
-// LIVE TRACKING (HEARTBEAT 120S + TỰ ĐỘNG XÓA + THÔNG BÁO)
-// ═══════════════════════════════════════════════════════
+// LIVE TRACKING (HEARTBEAT 120S)
 if (localStorage.getItem('was_live_tracking') === 'true') {
   setTimeout(() => {
     alert('⚠️ Bạn đã bị ngắt kết nối quá lâu (quá 120 giây). Hệ thống đã tự động xóa dữ liệu chuyến đi trước đó. Chân thành xin lỗi vì sự bất tiện!');
