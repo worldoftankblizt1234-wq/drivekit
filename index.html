@@ -188,232 +188,60 @@ input:checked + .slider:before { transform: translateX(20px); }
 .end-trip-btn.cancel { background: transparent; color: var(--text-muted); border: 1px solid var(--border); margin-bottom: 0; }
 @keyframes ping { 75%, 100% { transform: scale(2.5); opacity: 0; } }
 
-/* ═══════════════════════════════════════════════════════
-   COMMUNITY POI — BOTTOM SHEET FORM
-   ═══════════════════════════════════════════════════════ */
-.poi-sheet {
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 2600;
-  background: var(--card); border-top-left-radius: 20px; border-top-right-radius: 20px;
-  padding: 0 16px calc(16px + var(--safe-bottom));
-  transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 -10px 40px rgba(0,0,0,0.3); border: 1px solid var(--border);
-  max-height: 90vh; overflow-y: auto;
-}
+/* COMMUNITY POI */
+.poi-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 2600; background: var(--card); border-top-left-radius: 20px; border-top-right-radius: 20px; padding: 0 16px calc(16px + var(--safe-bottom)); transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 -10px 40px rgba(0,0,0,0.3); border: 1px solid var(--border); max-height: 90vh; overflow-y: auto; }
 .poi-sheet.open { transform: translateY(0); }
-.poi-sheet h3 {
-  font-size: 1.1rem; font-weight: 800; color: var(--text);
-  margin-bottom: 4px; display: flex; align-items: center; gap: 8px;
-}
-.poi-sheet .poi-coords {
-  font-size: 0.75rem; color: var(--text-muted);
-  font-family: var(--font-mono); margin-bottom: 16px;
-}
-.poi-tag-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px;
-}
-.poi-tag-btn {
-  background: var(--bg-2); border: 2px solid var(--border);
-  border-radius: 12px; padding: 12px 6px;
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  color: var(--text-muted); font-weight: 700; font-size: 0.72rem;
-  cursor: pointer; transition: all 0.2s; text-align: center;
-}
+.poi-sheet h3 { font-size: 1.1rem; font-weight: 800; color: var(--text); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.poi-sheet .poi-coords { font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 16px; }
+.poi-tag-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+.poi-tag-btn { background: var(--bg-2); border: 2px solid var(--border); border-radius: 12px; padding: 12px 6px; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--text-muted); font-weight: 700; font-size: 0.72rem; cursor: pointer; transition: all 0.2s; text-align: center; }
 .poi-tag-btn i { font-size: 1.4rem; }
-.poi-tag-btn.active {
-  background: rgba(16,185,129,0.15); border-color: var(--success);
-  color: var(--success); box-shadow: 0 3px 12px rgba(16,185,129,0.3);
-}
-.poi-input-name {
-  width: 100%; padding: 14px 16px; background: var(--bg-2);
-  border: 1px solid var(--border); border-radius: 12px;
-  color: var(--text); font-size: 0.95rem; font-weight: 600; margin-bottom: 16px;
-}
+.poi-tag-btn.active { background: rgba(16,185,129,0.15); border-color: var(--success); color: var(--success); box-shadow: 0 3px 12px rgba(16,185,129,0.3); }
+.poi-input-name { width: 100%; padding: 14px 16px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; color: var(--text); font-size: 0.95rem; font-weight: 600; margin-bottom: 16px; }
 .poi-input-name:focus { border-color: var(--primary); }
 .poi-actions { display: flex; gap: 10px; }
-.poi-btn {
-  flex: 1; padding: 14px; border-radius: 12px; font-weight: 800; font-size: 0.95rem;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  cursor: pointer; transition: opacity 0.2s;
-}
+.poi-btn { flex: 1; padding: 14px; border-radius: 12px; font-weight: 800; font-size: 0.95rem; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: opacity 0.2s; }
 .poi-btn:active { opacity: 0.7; }
 .poi-btn.cancel { background: var(--bg-2); color: var(--text); border: 1px solid var(--border); }
 .poi-btn.save { background: var(--success); color: white; }
 .poi-btn.save:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* Marker POI cộng đồng với tick xanh */
-.community-poi-pin {
-  position: relative; width: 32px; height: 32px;
-  background: var(--success); border-radius: 50% 50% 50% 0;
-  transform: rotate(-45deg); display: flex; align-items: center; justify-content: center;
-  border: 2px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.35);
-}
+.community-poi-pin { position: relative; width: 32px; height: 32px; background: var(--success); border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.35); }
 .community-poi-pin i { transform: rotate(45deg); color: white; font-size: 0.85rem; }
-.community-poi-pin .verified-badge {
-  position: absolute; top: -4px; right: -4px;
-  width: 16px; height: 16px; background: #3b82f6; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  border: 1.5px solid white; transform: rotate(45deg);
-}
+.community-poi-pin .verified-badge { position: absolute; top: -4px; right: -4px; width: 16px; height: 16px; background: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1.5px solid white; transform: rotate(45deg); }
 .community-poi-pin .verified-badge i { font-size: 0.5rem; transform: rotate(0); }
-
-/* Marker đặc biệt cho Trạm dừng nghỉ */
-.community-poi-pin.rest-stop-pin {
-  width: 40px; height: 40px;
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-  border: 3px solid white;
-  box-shadow: 0 4px 12px rgba(59,130,246,0.6), 0 0 0 4px rgba(59,130,246,0.2);
-  animation: restStopPulse 2s ease-in-out infinite;
-}
-.community-poi-pin.rest-stop-pin i {
-  font-size: 1.1rem;
-}
-.community-poi-pin.rest-stop-pin .verified-badge {
-  width: 18px; height: 18px;
-  background: #10b981;
-}
-@keyframes restStopPulse {
-  0%, 100% { box-shadow: 0 4px 12px rgba(59,130,246,0.6), 0 0 0 4px rgba(59,130,246,0.2); }
-  50% { box-shadow: 0 4px 12px rgba(59,130,246,0.8), 0 0 0 8px rgba(59,130,246,0.1); }
-}
-
-/* Nút filter nhanh trạm dừng nghỉ */
-.fab-rest-stop-filter {
-  position: fixed;
-  bottom: calc(200px + var(--safe-bottom));
-  right: 16px;
-  z-index: 1000;
-  width: 50px; height: 50px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-  color: white;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.2rem;
-  box-shadow: 0 4px 15px rgba(59,130,246,0.5);
-  border: 2px solid white;
-  transition: transform 0.2s;
-}
+.community-poi-pin.rest-stop-pin { width: 40px; height: 40px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: 3px solid white; box-shadow: 0 4px 12px rgba(59,130,246,0.6), 0 0 0 4px rgba(59,130,246,0.2); animation: restStopPulse 2s ease-in-out infinite; }
+.community-poi-pin.rest-stop-pin i { font-size: 1.1rem; }
+.community-poi-pin.rest-stop-pin .verified-badge { width: 18px; height: 18px; background: #10b981; }
+@keyframes restStopPulse { 0%, 100% { box-shadow: 0 4px 12px rgba(59,130,246,0.6), 0 0 0 4px rgba(59,130,246,0.2); } 50% { box-shadow: 0 4px 12px rgba(59,130,246,0.8), 0 0 0 8px rgba(59,130,246,0.1); } }
+.fab-rest-stop-filter { position: fixed; bottom: calc(200px + var(--safe-bottom)); right: 16px; z-index: 1000; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; box-shadow: 0 4px 15px rgba(59,130,246,0.5); border: 2px solid white; transition: transform 0.2s; }
 .fab-rest-stop-filter:active { transform: scale(0.92); }
-.fab-rest-stop-filter.active {
-  background: linear-gradient(135deg, #10b981, #059669);
-  box-shadow: 0 4px 15px rgba(16,185,129,0.6);
-}
+.fab-rest-stop-filter.active { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 15px rgba(16,185,129,0.6); }
 body.navigating .fab-rest-stop-filter { display: none; }
-
-/* Badge "Trạm dừng nghỉ" trong popup */
-.rest-stop-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-  color: white; padding: 4px 10px; border-radius: 20px;
-  font-size: 0.7rem; font-weight: 800;
-  box-shadow: 0 2px 6px rgba(59,130,246,0.4);
-  margin-bottom: 8px;
-}
-
-/* Section ưu tiên trạm dừng nghỉ trong search */
-.sug-section-title.rest-stop-title {
-  color: #3b82f6;
-  background: rgba(59,130,246,0.08);
-  border-left: 3px solid #3b82f6;
-}
-
-/* Section heading trong suggestions */
-.sug-section-title {
-  padding: 10px 16px 6px; font-size: 0.7rem; font-weight: 800;
-  color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;
-  display: flex; align-items: center; gap: 6px;
-  background: var(--bg-2); border-bottom: 1px solid var(--border);
-}
+.rest-stop-badge { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 800; box-shadow: 0 2px 6px rgba(59,130,246,0.4); margin-bottom: 8px; }
+.sug-section-title.rest-stop-title { color: #3b82f6; background: rgba(59,130,246,0.08); border-left: 3px solid #3b82f6; }
+.sug-section-title { padding: 10px 16px 6px; font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; background: var(--bg-2); border-bottom: 1px solid var(--border); }
 .sug-section-title.community { color: var(--success); }
-
-/* Toast gợi ý zoom */
-.zoom-hint-toast {
-  position: fixed; bottom: calc(150px + var(--safe-bottom)); left: 50%;
-  transform: translateX(-50%);
-  background: rgba(15,23,42,0.95); color: white;
-  padding: 10px 16px; border-radius: 12px;
-  font-weight: 700; font-size: 0.8rem; z-index: 9999;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-  display: flex; gap: 8px; align-items: center;
-  border: 1px solid var(--border); pointer-events: none;
-}
-
-/* ═══════════════════════════════════════════════════════
-   POI DETAIL SHEET (Bottom Sheet chi tiết POI)
-   ═══════════════════════════════════════════════════════ */
-.poi-detail-sheet {
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 2650;
-  background: var(--card); border-top-left-radius: 20px; border-top-right-radius: 20px;
-  padding: 0 16px calc(16px + var(--safe-bottom));
-  transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 -10px 40px rgba(0,0,0,0.3); border: 1px solid var(--border);
-  max-height: 80vh; overflow-y: auto;
-}
+.zoom-hint-toast { position: fixed; bottom: calc(150px + var(--safe-bottom)); left: 50%; transform: translateX(-50%); background: rgba(15,23,42,0.95); color: white; padding: 10px 16px; border-radius: 12px; font-weight: 700; font-size: 0.8rem; z-index: 9999; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: flex; gap: 8px; align-items: center; border: 1px solid var(--border); pointer-events: none; }
+.poi-detail-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 2650; background: var(--card); border-top-left-radius: 20px; border-top-right-radius: 20px; padding: 0 16px calc(16px + var(--safe-bottom)); transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 -10px 40px rgba(0,0,0,0.3); border: 1px solid var(--border); max-height: 80vh; overflow-y: auto; }
 .poi-detail-sheet.open { transform: translateY(0); }
-
-/* Thanh kéo + hướng dẫn vuốt */
-.sheet-swipe-hint {
-  display: flex; flex-direction: column; align-items: center;
-  padding: 8px 0 4px; cursor: grab; position: sticky; top: 0;
-  background: var(--card); z-index: 2;
-}
+.sheet-swipe-hint { display: flex; flex-direction: column; align-items: center; padding: 8px 0 4px; cursor: grab; position: sticky; top: 0; background: var(--card); z-index: 2; }
 .sheet-swipe-hint:active { cursor: grabbing; }
-.sheet-swipe-bar {
-  width: 40px; height: 4px; background: var(--border);
-  border-radius: 4px; margin-bottom: 6px;
-}
-.sheet-swipe-text {
-  font-size: 0.65rem; color: var(--text-muted); font-weight: 700;
-  display: flex; align-items: center; gap: 4px; letter-spacing: 0.3px;
-}
+.sheet-swipe-bar { width: 40px; height: 4px; background: var(--border); border-radius: 4px; margin-bottom: 6px; }
+.sheet-swipe-text { font-size: 0.65rem; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; gap: 4px; letter-spacing: 0.3px; }
 .sheet-swipe-text i { font-size: 0.7rem; animation: swipeHintBounce 1.5s ease-in-out infinite; }
-@keyframes swipeHintBounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(3px); }
-}
-
-/* Nội dung chi tiết POI */
-.poi-detail-header {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 16px; margin-top: 4px;
-}
-.poi-detail-icon {
-  width: 48px; height: 48px; border-radius: 14px; display: flex;
-  align-items: center; justify-content: center; font-size: 1.4rem;
-  color: white; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-}
+@keyframes swipeHintBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+.poi-detail-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; margin-top: 4px; }
+.poi-detail-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; color: white; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
 .poi-detail-header-text { flex: 1; min-width: 0; }
-.poi-detail-name {
-  font-size: 1.15rem; font-weight: 800; color: var(--text);
-  line-height: 1.3; margin-bottom: 4px; word-break: break-word;
-}
-.poi-detail-tag-badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 10px; border-radius: 20px; font-size: 0.7rem;
-  font-weight: 800; color: white;
-}
-.poi-detail-coords {
-  background: var(--bg-2); border-radius: 12px; padding: 12px 14px;
-  margin-bottom: 16px; display: flex; align-items: center; gap: 10px;
-  border: 1px solid var(--border);
-}
+.poi-detail-name { font-size: 1.15rem; font-weight: 800; color: var(--text); line-height: 1.3; margin-bottom: 4px; word-break: break-word; }
+.poi-detail-tag-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 800; color: white; }
+.poi-detail-coords { background: var(--bg-2); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); }
 .poi-detail-coords i { color: var(--primary); font-size: 1.1rem; }
-.poi-detail-coords-text {
-  font-family: var(--font-mono); font-size: 0.8rem;
-  font-weight: 700; color: var(--text); flex: 1;
-}
-.poi-detail-meta {
-  font-size: 0.75rem; color: var(--text-muted); margin-bottom: 16px;
-  display: flex; flex-wrap: wrap; gap: 12px;
-}
+.poi-detail-coords-text { font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700; color: var(--text); flex: 1; }
+.poi-detail-meta { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 12px; }
 .poi-detail-meta span { display: flex; align-items: center; gap: 4px; }
-.poi-detail-actions {
-  display: flex; gap: 10px; margin-top: 4px;
-}
-.poi-detail-btn {
-  flex: 1; padding: 14px; border-radius: 12px; font-weight: 800;
-  font-size: 0.9rem; display: flex; align-items: center;
-  justify-content: center; gap: 8px; cursor: pointer;
-  transition: opacity 0.2s;
-}
+.poi-detail-actions { display: flex; gap: 10px; margin-top: 4px; }
+.poi-detail-btn { flex: 1; padding: 14px; border-radius: 12px; font-weight: 800; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: opacity 0.2s; }
 .poi-detail-btn:active { opacity: 0.7; }
 .poi-detail-btn.primary { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59,130,246,0.3); }
 .poi-detail-btn.share { background: var(--success); color: white; }
@@ -531,7 +359,7 @@ body.navigating .fab-rest-stop-filter { display: none; }
     <div id="truckWarning" class="hidden" style="background: rgba(245, 158, 11, 0.15); border: 1px solid var(--warning); border-radius: 8px; padding: 10px; margin-bottom: 10px; display: flex; gap: 8px; align-items: flex-start;">
       <i class="fas fa-exclamation-triangle" style="color: var(--warning); font-size: 1.1rem; margin-top: 2px;"></i>
       <div style="font-size: 0.75rem; color: var(--text); line-height: 1.4;">
-        <b style="color: var(--warning);">Lưu ý cho Xe tải:</b> Hệ thống đang dùng tạm tuyến đường của Ô tô. Vui lòng <b>tự quan sát biển báo cấm tải, giới hạn chiều cao và tải trọng</b> trên thực tế!
+        <b style="color: var(--warning);">Lưu ý cho Xe tải:</b> Bản đồ sử dụng dữ liệu OpenStreetMap (ORS). Vui lòng <b>tự quan sát biển báo cấm tải, giới hạn chiều cao và tải trọng</b> trên thực tế!
       </div>
     </div>
 
@@ -765,6 +593,7 @@ async function fetchWorker(path, options = {}) {
   });
 }
 
+// --- STATE ---
 let map = null;
 let currentUser = null;
 let startPoint = null;
@@ -1382,7 +1211,7 @@ async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
   const isSuccess = (data.code === 'Ok') || (data.status === 'OK');
   if (!isSuccess || !data.routes || data.routes.length === 0) {
     if (apiMode === 'truck') return fetchTrackAsiaRouteNormalized(from, to, 'driving');
-    throw new Error('TrackAsia/Goong: ' + (data.status || data.code || 'no routes'));
+    throw new Error('TrackAsia/Goong/ORS: ' + (data.status || data.code || 'no routes'));
   }
 
   return data.routes.map(r => {
@@ -1450,7 +1279,7 @@ window.fetchAndShowRouteOptions = async function() {
   }
 
   tasks.push(fetchTrackAsiaRouteNormalized(startPoint, endPoint, currentVehicleMode).catch(err => {
-    console.warn('Lỗi lấy tuyến từ Worker:', err);
+    console.warn('Lỗi lấy tuyến:', err);
     return [];
   }));
 
@@ -2017,7 +1846,7 @@ async function doSearch(query) {
       title2.innerHTML = '<i class="fas fa-map-marked-alt"></i> Địa điểm khác';
       box.appendChild(title2);
 
-      results.slice(0, 5).forEach(r => {
+      results.slice(0, 25).forEach(r => {
         const div = document.createElement('div');
         div.className = 'sug-item';
         const name = r.formatted_address || r.name || 'Không tên';
