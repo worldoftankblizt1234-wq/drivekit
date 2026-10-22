@@ -528,9 +528,12 @@ body.navigating .fab-rest-stop-filter { display: none; }
         <i class="fas fa-bicycle"></i> Xe đạp
       </button>
     </div>
-    <p style="font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-top: -4px; margin-bottom: 8px; line-height: 1.2;">
-      <i class="fas fa-info-circle"></i> Dữ liệu cấm tải tại VN có thể chưa cập nhật. Tài xế xe tải vui lòng chú ý biển báo thực tế!
-    </p>
+    <div id="truckWarning" class="hidden" style="background: rgba(245, 158, 11, 0.15); border: 1px solid var(--warning); border-radius: 8px; padding: 10px; margin-bottom: 10px; display: flex; gap: 8px; align-items: flex-start;">
+      <i class="fas fa-exclamation-triangle" style="color: var(--warning); font-size: 1.1rem; margin-top: 2px;"></i>
+      <div style="font-size: 0.75rem; color: var(--text); line-height: 1.4;">
+        <b style="color: var(--warning);">Lưu ý cho Xe tải:</b> Hệ thống đang dùng tạm tuyến đường của Ô tô. Vui lòng <b>tự quan sát biển báo cấm tải, giới hạn chiều cao và tải trọng</b> trên thực tế!
+      </div>
+    </div>
 
     <button class="btn-auth btn-email" style="margin-top:6px; margin-bottom:0;" onclick="fetchAndShowRouteOptions()">
       <i class="fas fa-search-location"></i> Xem tất cả tuyến đường
@@ -674,9 +677,6 @@ body.navigating .fab-rest-stop-filter { display: none; }
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════
-     POI DETAIL SHEET (Chi tiết POI cộng đồng)
-     ═══════════════════════════════════════════════════════ -->
 <div class="poi-detail-sheet" id="poiDetailSheet">
   <div class="sheet-swipe-hint" id="poiDetailSwipeHandle">
     <div class="sheet-swipe-bar"></div>
@@ -688,9 +688,6 @@ body.navigating .fab-rest-stop-filter { display: none; }
   <div id="poiDetailContent"></div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════
-     COMMUNITY POI — BOTTOM SHEET FORM
-     ═══════════════════════════════════════════════════════ -->
 <div class="poi-sheet" id="poiSheet">
   <div class="sheet-swipe-hint" id="poiSheetSwipeHandle">
     <div class="sheet-swipe-bar"></div>
@@ -822,9 +819,6 @@ let lastGeoStepIndex = -1;
 
 const ROUTE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 
-// ═══════════════════════════════════════════════════════
-// COMMUNITY POI STATE
-// ═══════════════════════════════════════════════════════
 let communityPoisData = {};
 let communityPoiMarkers = [];
 let tempPoiLatLng = null;
@@ -845,9 +839,6 @@ const POI_TAG_CONFIG = {
   hotel: { icon: 'fa-hotel', label: 'Khách sạn', color: '#dc2626' }
 };
 
-// ═══════════════════════════════════════════════════════
-// ZOOM THRESHOLDS — Ẩn marker khi zoom xa
-// ═══════════════════════════════════════════════════════
 const ZOOM_CONFIG = {
   communityPoi: 15,
   restStop: 13,
@@ -856,9 +847,6 @@ const ZOOM_CONFIG = {
   savedPlaceAlwaysShow: ['home', 'company']
 };
 
-// ==========================================
-// LOADING LOGIC
-// ==========================================
 let loadProgress = 0;
 let loadInterval = null;
 let isUserAuthChecked = false;
@@ -940,9 +928,6 @@ function startFakeLoading() {
 startFakeLoading();
 updateLoadingProgress(5, "Đang kiểm tra kết nối...");
 
-// ==========================================
-// FIREBASE AUTH
-// ==========================================
 onAuthStateChanged(auth, (user) => {
   isUserAuthChecked = true;
   
@@ -986,9 +971,6 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
-// ==========================================
-// INIT APP UI
-// ==========================================
 function initAppUI() {
   initTheme();
   initMap();
@@ -1032,9 +1014,6 @@ function initAppUI() {
   }
 }
 
-// ==========================================
-// THEME & TIME
-// ==========================================
 function initTheme() {
   if (localStorage.getItem('theme') === 'light') {
     document.body.classList.add('light-mode');
@@ -1055,9 +1034,6 @@ setInterval(() => {
   if (clockEl) clockEl.textContent = new Date().toLocaleTimeString('vi-VN');
 }, 1000);
 
-// ==========================================
-// AUTH BUTTONS
-// ==========================================
 function getAuthErrorMessage(errorCode) {
   switch (errorCode) {
     case 'auth/invalid-email': return 'Email không đúng định dạng.';
@@ -1128,9 +1104,6 @@ document.getElementById('btnGoogleAuth').addEventListener('click', async () => {
 
 function logout() { signOut(auth); closeMenu(); }
 
-// ==========================================
-// MAP INIT
-// ==========================================
 function initMap() {
   if (map) return;
   map = L.map('map', { center: initialCenter, zoom: initialZoom, zoomControl: false });
@@ -1263,9 +1236,6 @@ function initMap() {
   }
 }
 
-// ==========================================
-// SHARED LOCATION MARKER
-// ==========================================
 function showSharedLocationMarker(lat, lng, name, isDestination = false) {
   map.eachLayer(layer => {
     if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') {
@@ -1291,9 +1261,6 @@ function showSharedLocationMarker(lat, lng, name, isDestination = false) {
   map.flyTo([lat, lng], 16, { animate: true, duration: 1.5 });
 }
 
-// ==========================================
-// SAVED PLACES
-// ==========================================
 function initSavedPlaces() {
   if (!currentUser) return;
   onValue(ref(db, `users/${currentUser.uid}/savedPlaces`), (snapshot) => {
@@ -1386,9 +1353,6 @@ window.deleteSavedPlace = async function(key) {
   try { await remove(ref(db, `users/${currentUser.uid}/savedPlaces/${key}`)); } catch(e) { alert('Lỗi xoá: ' + e.message); }
 };
 
-// ==========================================
-// TRACKASIA ROUTING & FETCH
-// ==========================================
 function decodePolyline(str, precision = 5) {
   if (!str) return [];
   let index = 0, lat = 0, lng = 0;
@@ -1448,62 +1412,87 @@ window.setVehicleMode = function(mode, btn) {
   currentVehicleMode = mode;
   document.querySelectorAll('.vehicle-mode-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  if (startPoint && endPoint && document.getElementById('routeOptionsModal').classList.contains('open')) fetchAndShowRouteOptions();
+
+  const truckWarning = document.getElementById('truckWarning');
+  if (truckWarning) {
+    if (mode === 'truck') truckWarning.classList.remove('hidden');
+    else truckWarning.classList.add('hidden');
+  }
+
+  if (startPoint && endPoint && document.getElementById('routeOptionsModal').classList.contains('open')) {
+    fetchAndShowRouteOptions();
+  }
 };
 window.changeSort = function(mode) { currentSortMode = mode; if (startPoint && endPoint) fetchAndShowRouteOptions(); };
 
 window.fetchAndShowRouteOptions = async function() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
+  
   const modeLabel = currentVehicleMode === 'driving' ? 'ô tô' : currentVehicleMode === 'driving-traffic' ? 'ô tô (kẹt xe)' : currentVehicleMode === 'truck' ? 'xe tải' : currentVehicleMode === 'hd' ? 'xe công nghệ' : currentVehicleMode === 'walking' ? 'đi bộ' : currentVehicleMode === 'bicycle' ? 'xe đạp' : 'xe máy';
-  document.getElementById('routeOptionsBody').innerHTML = `<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px; color:var(--text-muted);">Đang tìm tuyến (${modeLabel})...</p></div>`;
+  
+  const bodyEl = document.getElementById('routeOptionsBody');
+  bodyEl.innerHTML = `<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px; color:var(--text-muted);">Đang tìm tuyến (${modeLabel})...</p></div>`;
   document.getElementById('routeOptionsModal').classList.add('open');
 
-  const fromStr = `${startPoint.lng},${startPoint.lat}`; const toStr = `${endPoint.lng},${endPoint.lat}`;
+  const fromStr = `${startPoint.lng},${startPoint.lat}`; 
+  const toStr = `${endPoint.lng},${endPoint.lat}`;
   const mapboxUrl = `/mapbox-route?from=${fromStr}&to=${toStr}&alternatives=true&mode=${currentVehicleMode}`;
 
-  const tasks = [
-    (currentVehicleMode === 'driving' || currentVehicleMode === 'driving-traffic' || currentVehicleMode === 'walking' || currentVehicleMode === 'bicycle')
-      ? fetchWorker(mapboxUrl).then(r => r.json())
-      : Promise.reject(new Error('skip'))
-  ];
-  tasks.push(fetchTrackAsiaRouteNormalized(startPoint, endPoint, currentVehicleMode));
-
-  const [mapboxResult, trackasiaResult] = await Promise.allSettled(tasks);
-  let routes = [];
-  if (mapboxResult.status === 'fulfilled' && mapboxResult.value.code === 'Ok' && mapboxResult.value.routes) routes.push(...mapboxResult.value.routes.map(r => ({ ...r, provider: 'mapbox', mode: currentVehicleMode })));
-  if (trackasiaResult.status === 'fulfilled') routes.push(...trackasiaResult.value);
-
-  if (routes.length === 0) {
-    document.getElementById('routeOptionsBody').innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Không tìm được tuyến nào.</p></div>`;
-    return;
+  const tasks = [];
+  
+  if (['driving', 'driving-traffic', 'walking', 'bicycle'].includes(currentVehicleMode)) {
+    tasks.push(fetchWorker(mapboxUrl).then(r => r.json()).then(data => {
+      if (data.code === 'Ok' && data.routes) return data.routes.map(r => ({ ...r, provider: 'mapbox', mode: currentVehicleMode }));
+      return [];
+    }).catch(() => []));
+  } else {
+    tasks.push(Promise.resolve([]));
   }
 
-  routes.sort((a, b) => currentSortMode === 'shortest' ? a.distance - b.distance : a.duration - b.duration);
-  routes = routes.slice(0, 5); alternativeRoutesData = routes;
+  tasks.push(fetchTrackAsiaRouteNormalized(startPoint, endPoint, currentVehicleMode).catch(err => {
+    console.warn('Lỗi lấy tuyến từ Worker:', err);
+    return [];
+  }));
 
-  if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
-  alternativeLayers.forEach(l => map.removeLayer(l)); alternativeLayers = [];
-  if (window._routeBadges) window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = [];
+  try {
+    const [mapboxRoutes, trackasiaRoutes] = await Promise.all(tasks);
+    let routes = [...mapboxRoutes, ...trackasiaRoutes];
 
-  const allCoords = [];
-  routes.forEach((r, index) => {
-    const coords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]); allCoords.push(...coords);
-    const isBest = index === 0; const color = ROUTE_COLORS[index];
-    const layer = L.polyline(coords, { color, weight: isBest ? 8 : 4, opacity: isBest ? 1 : 0.55, dashArray: isBest ? '' : '8, 8', lineCap: 'round', lineJoin: 'round' }).addTo(map);
-    layer.on('click', () => selectRouteOption(index)); alternativeLayers.push(layer);
+    if (routes.length === 0) {
+      bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Không tìm được tuyến nào cho <b>${modeLabel}</b>.</p><p style="font-size:0.8rem; margin-top:8px;">Có thể API của phương tiện này chưa được cấp quyền, hoặc khu vực này không có đường phù hợp.</p></div>`;
+      return;
+    }
 
-    const midIdx = Math.floor(coords.length / 2);
-    const badge = L.marker(coords[midIdx], { icon: L.divIcon({ html: `<div class="route-num-badge" style="color:${color};">${index + 1}</div>`, className: '', iconSize: [28, 28], iconAnchor: [14, 14] }), interactive: false, zIndexOffset: 1000 }).addTo(map);
-    window._routeBadges.push(badge);
-  });
-  map.fitBounds(L.latLngBounds(allCoords), { padding: [50, 50] });
+    routes.sort((a, b) => currentSortMode === 'shortest' ? a.distance - b.distance : a.duration - b.duration);
+    routes = routes.slice(0, 5); 
+    alternativeRoutesData = routes;
 
-  let html = `<div class="sort-bar"><button class="sort-chip ${currentSortMode === 'fastest' ? 'active' : ''}" onclick="changeSort('fastest')"><i class="fas fa-bolt"></i> Nhanh nhất</button><button class="sort-chip ${currentSortMode === 'shortest' ? 'active' : ''}" onclick="changeSort('shortest')"><i class="fas fa-route"></i> Ngắn nhất</button></div>`;
-  routes.forEach((r, index) => {
-    const dist = (r.distance / 1000).toFixed(1); const dur = Math.round(r.duration / 60); const isBest = index === 0; const color = ROUTE_COLORS[index]; const isTA = r.provider === 'trackasia';
-    html += `<div class="route-card ${isBest ? 'active' : ''}" onclick="selectRouteOption(${index})" style="border-left: 4px solid ${color};"><div class="info"><h3 style="display:flex; align-items:center; gap:8px;"><span style="background:${color}; color:white; width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem;">${index + 1}</span>Tuyến ${index + 1} ${isBest ? '(Ưu tiên)' : ''}</h3><p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p></div>${isBest ? '<span class="badge">⭐ Đề xuất</span>' : ''}</div>`;
-  });
-  document.getElementById('routeOptionsBody').innerHTML = html;
+    if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
+    alternativeLayers.forEach(l => map.removeLayer(l)); alternativeLayers = [];
+    if (window._routeBadges) window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = [];
+
+    const allCoords = [];
+    routes.forEach((r, index) => {
+      const coords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]); allCoords.push(...coords);
+      const isBest = index === 0; const color = ROUTE_COLORS[index];
+      const layer = L.polyline(coords, { color, weight: isBest ? 8 : 4, opacity: isBest ? 1 : 0.55, dashArray: isBest ? '' : '8, 8', lineCap: 'round', lineJoin: 'round' }).addTo(map);
+      layer.on('click', () => selectRouteOption(index)); alternativeLayers.push(layer);
+
+      const midIdx = Math.floor(coords.length / 2);
+      const badge = L.marker(coords[midIdx], { icon: L.divIcon({ html: `<div class="route-num-badge" style="color:${color};">${index + 1}</div>`, className: '', iconSize: [28, 28], iconAnchor: [14, 14] }), interactive: false, zIndexOffset: 1000 }).addTo(map);
+      window._routeBadges.push(badge);
+    });
+    map.fitBounds(L.latLngBounds(allCoords), { padding: [50, 50] });
+
+    let html = `<div class="sort-bar"><button class="sort-chip ${currentSortMode === 'fastest' ? 'active' : ''}" onclick="changeSort('fastest')"><i class="fas fa-bolt"></i> Nhanh nhất</button><button class="sort-chip ${currentSortMode === 'shortest' ? 'active' : ''}" onclick="changeSort('shortest')"><i class="fas fa-route"></i> Ngắn nhất</button></div>`;
+    routes.forEach((r, index) => {
+      const dist = (r.distance / 1000).toFixed(1); const dur = Math.round(r.duration / 60); const isBest = index === 0; const color = ROUTE_COLORS[index];
+      html += `<div class="route-card ${isBest ? 'active' : ''}" onclick="selectRouteOption(${index})" style="border-left: 4px solid ${color};"><div class="info"><h3 style="display:flex; align-items:center; gap:8px;"><span style="background:${color}; color:white; width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem;">${index + 1}</span>Tuyến ${index + 1} ${isBest ? '(Ưu tiên)' : ''}</h3><p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p></div>${isBest ? '<span class="badge">⭐ Đề xuất</span>' : ''}</div>`;
+    });
+    bodyEl.innerHTML = html;
+  } catch (error) {
+    bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Có lỗi xảy ra khi tìm tuyến.</p></div>`;
+  }
 };
 
 window.selectRouteOption = function(index) {
@@ -1654,9 +1643,6 @@ async function autoReroute(userLat, userLng) {
   } catch (e) { console.error('Lỗi Reroute:', e); } finally { isRerouting = false; }
 }
 
-// ==========================================
-// END TRIP
-// ==========================================
 window.openEndTripModal = function() {
   if (!currentRouteData) return;
   const totalDist = (currentRouteData.distance / 1000).toFixed(1);
@@ -1704,9 +1690,6 @@ window.endTrip = async function(save) {
   alert(save ? '✅ Đã lưu chuyến đi. Cảm ơn bạn đã dùng DriveKit!' : '🏁 Đã kết thúc chuyến đi.');
 };
 
-// ==========================================
-// REPORTS
-// ==========================================
 window.openReportMenu = function() { document.getElementById('reportModal').classList.add('open'); };
 window.closeReportMenu = function() { document.getElementById('reportModal').classList.remove('open'); };
 
@@ -1770,9 +1753,6 @@ function checkReportProximity(lat, lng) {
   }
 }
 
-// ==========================================
-// SHARE & SAVE ROUTE
-// ==========================================
 window.shareRoute = function() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
   const baseUrl = window.location.origin + window.location.pathname;
@@ -1851,9 +1831,6 @@ window.clearAllHistory = async function() { if (!confirm('Xoá TẤT CẢ lịch
 window.clearAllSavedRoutes = async function() { if (!confirm('Xoá TẤT CẢ lộ trình?')) return; try { await remove(ref(db, `users/${currentUser.uid}/savedRoutes`)); loadSavedRoutes(); } catch(e) {} };
 window.clearAllSharedLinks = async function() { if (!confirm('Xoá TẤT CẢ link?')) return; try { await remove(ref(db, `users/${currentUser.uid}/sharedLinks`)); loadSharedLinks(); } catch(e) {} };
 
-// ==========================================
-// UI HELPERS
-// ==========================================
 window.toggleLayerMenu = function() {
   const menu = document.getElementById('layerMenu');
   const isShowing = menu.classList.contains('show');
@@ -2115,9 +2092,6 @@ function refreshGPS() {
   }, (err) => { console.warn(err); });
 }
 
-// ==========================================
-// SNAP-TO-ROAD + SPEED + GEO UPDATE LOGIC
-// ==========================================
 function getClosestPointOnSegment(p, a, b) {
   const atob = { x: b.lng - a.lng, y: b.lat - a.lat }; const atop = { x: p.lng - a.lng, y: p.lat - a.lat };
   const len = atob.x * atob.x + atob.y * atob.y; const dot = atop.x * atob.x + atop.y * atob.y;
@@ -2241,7 +2215,6 @@ function calcDist(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// Swipe to close dir sheet
 let sheetTouchStartY = 0, isSwiping = false;
 const dirSheetEl = document.getElementById('dirSheet');
 dirSheetEl.addEventListener('touchstart', (e) => {
@@ -2262,7 +2235,6 @@ dirSheetEl.addEventListener('touchend', (e) => {
 
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' || e.key === 'Esc') closeDirections(); });
 
-// HISTORY
 async function saveHistory(start, end, distance) {
   if (!currentUser) return; await set(push(ref(db, `users/${currentUser.uid}/history`)), { startName: start.name, endName: end.name, distance, timestamp: Date.now() });
 }
@@ -2280,10 +2252,6 @@ async function loadHistory() {
     } else list.innerHTML = '<div style="text-align:center; color:var(--text-muted);">Chưa có chuyến đi nào.</div>';
   } catch (e) { list.innerHTML = 'Lỗi tải lịch sử.'; }
 }
-
-// ═══════════════════════════════════════════════════════
-// COMMUNITY POI — LOGIC
-// ═══════════════════════════════════════════════════════
 
 window.openPoiSheet = function(lat, lng, addressHint) {
   if (!currentUser) { alert('Vui lòng đăng nhập để thêm địa điểm!'); return; }
@@ -2450,9 +2418,6 @@ function searchCommunityPois(query) {
   }).slice(0, 5);
 }
 
-// ═══════════════════════════════════════════════════════
-// POI DETAIL SHEET — LOGIC
-// ═══════════════════════════════════════════════════════
 window.openPoiDetail = function(poiKey) {
   const poi = communityPoisData[poiKey];
   if (!poi) return;
@@ -2539,9 +2504,6 @@ function showDetailToast(msg) {
   setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2000);
 }
 
-// ═══════════════════════════════════════════════════════
-// SWIPE DOWN TO CLOSE (cho cả 2 sheet)
-// ═══════════════════════════════════════════════════════
 function setupSwipeDown(sheetId, handleId, closeFn) {
   const sheet = document.getElementById(sheetId);
   const handle = document.getElementById(handleId);
@@ -2601,9 +2563,6 @@ setTimeout(() => {
   setupSwipeDown('poiSheet', 'poiSheetSwipeHandle', () => closePoiSheet());
 }, 500);
 
-// ═══════════════════════════════════════════════════════
-// GỢI Ý ZOOM KHI MARKER BỊ ẨN
-// ═══════════════════════════════════════════════════════
 let zoomHintShown = false;
 function showZoomHint() {
   if (zoomHintShown) return;
@@ -2619,7 +2578,6 @@ function showZoomHint() {
   }, 2500);
 }
 
-// Export
 window.openDirections = openDirections; window.activateSearch = activateSearch; window.refreshGPS = refreshGPS; window.centerToLocation = centerToLocation; window.logout = logout; window.toggleLayerMenu = toggleLayerMenu; window.changeLayer = changeLayer; window.shareRoute = shareRoute; window.shareLocation = shareLocation; window.submitReport = submitReport; window.openReportMenu = openReportMenu; window.closeReportMenu = closeReportMenu; window.closeDirections = closeDirections;
 </script>
 </body>
