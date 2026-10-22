@@ -114,7 +114,6 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
-const SECRET_KEY = 'drivekit_2026_secret';
 
 let currentUser = null;
 let map = null;
@@ -154,12 +153,17 @@ window.resolveGmapsUrl = async function() {
   const url = document.getElementById('gmapsUrl').value.trim();
   if (!url) return showStatus('Vui lòng dán link Google Maps!', 'error');
 
-  showStatus('Đang giải mã link...', 'success'); // Dùng tạm màu xanh để báo đang xử lý
+  showStatus('Đang giải mã link...', 'success');
   
   try {
+    // Lấy Firebase Token (bắt buộc vì Worker đã bỏ Secret Key)
+    let token = '';
+    if (currentUser) token = await currentUser.getIdToken();
+
     const res = await fetch(`${WORKER_URL}/resolve-gmaps?url=${encodeURIComponent(url)}`, {
-      headers: { 'X-API-Key': SECRET_KEY }
+      headers: { 'Authorization': `Bearer ${token}` }
     });
+    
     const data = await res.json();
 
     if (data.success && data.coords) {
@@ -178,7 +182,7 @@ window.resolveGmapsUrl = async function() {
 
       showStatus('Đã lấy được tọa độ từ link!', 'success');
     } else {
-      showStatus('Không thể giải mã link này. Vui lòng tự click lên bản đồ.', 'error');
+      showStatus(data.error || 'Không thể giải mã link này. Vui lòng tự click lên bản đồ.', 'error');
     }
   } catch (err) {
     showStatus('Lỗi kết nối đến server.', 'error');
@@ -199,12 +203,12 @@ window.submitData = async function() {
   showStatus('Đang lưu lên Firebase...', 'success');
 
   try {
-    // Lưu vào đúng nhánh communityPois của app chính
+    // Lưu trực tiếp vào Firebase (không qua Worker để đơn giản hóa)
     await push(ref(db, 'communityPois'), {
       lat: lat,
       lng: lng,
       name: name,
-      tag: 'rest_stop', // Bắt buộc gắn tag trạm dừng nghỉ
+      tag: 'rest_stop',
       uid: currentUser.uid,
       authorName: currentUser.displayName || currentUser.email.split('@')[0] || 'Admin',
       timestamp: Date.now(),
@@ -234,14 +238,13 @@ function showStatus(msg, type) {
 // ═══ KHỞI TẠO & XÁC THỰC ═══
 initMap();
 
-// Tự động đăng nhập bằng tài khoản ẩn (hoặc bro tự thay đổi thông tin)
 onAuthStateChanged(auth, (user) => {
   if (user) {
     currentUser = user;
     console.log("Đã đăng nhập:", user.email);
   } else {
-    // Vì đây là tool admin nội bộ, mình sẽ code cứng tài khoản đăng nhập để bro đỡ phải gõ
-    // LƯU Ý: Bro cần tạo sẵn 1 tài khoản trên Firebase Auth (ví dụ: admin@drivekit.com / 123456)
+    // Đăng nhập tự động bằng tài khoản Admin
+    // LƯU Ý: Bro phải thay email và mật khẩu Firebase thật của bro vào đây
     signInWithEmailAndPassword(auth, 'anhminhadof123@gmail.com', 'matkhau_cua_bro') 
       .catch(err => {
         showStatus('Lỗi đăng nhập Admin. Hãy kiểm tra lại email/pass trong code!', 'error');
