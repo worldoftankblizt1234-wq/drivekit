@@ -20,8 +20,8 @@
   }
   body { font-family: 'Be Vietnam Pro', sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
   
-  /* SIDEBAR */
-  .sidebar { width: 400px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 10; box-shadow: 4px 0 15px rgba(0,0,0,0.2); }
+  /* SIDEBAR (CỘT TRÁI) */
+  .sidebar { width: 420px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 10; box-shadow: 4px 0 15px rgba(0,0,0,0.2); }
   .header { padding: 20px; border-bottom: 1px solid var(--border); }
   .header h1 { font-size: 1.2rem; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 8px; }
   .header p { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
@@ -29,29 +29,38 @@
   .form-body { padding: 20px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
   .form-group { display: flex; flex-direction: column; gap: 6px; }
   .form-group label { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); }
-  .form-control { width: 100%; padding: 12px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; }
+  .form-control { width: 100%; padding: 12px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; transition: border 0.2s; }
   .form-control:focus { border-color: var(--primary); outline: none; }
   
   .btn { padding: 14px; border-radius: 8px; font-weight: 800; font-size: 0.95rem; cursor: pointer; border: none; display: flex; justify-content: center; align-items: center; gap: 8px; transition: opacity 0.2s; }
   .btn:active { opacity: 0.7; }
   .btn-primary { background: var(--primary); color: white; }
   .btn-success { background: var(--success); color: white; }
+  .btn-success:disabled { background: #475569; cursor: not-allowed; }
   
   .help-text { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; margin-top: 4px; }
   
-  /* MAP */
+  /* MAP (CỘT PHẢI) */
   #map { flex: 1; background: #e5e5e5; z-index: 1; }
   
+  /* TRẠNG THÁI */
   .status-box { padding: 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; display: none; margin-top: 10px; }
   .status-success { background: rgba(16,185,129,0.15); border: 1px solid var(--success); color: var(--success); display: block; }
   .status-error { background: rgba(239,68,68,0.15); border: 1px solid var(--danger); color: var(--danger); display: block; }
-  
+  .status-loading { background: rgba(59,130,246,0.15); border: 1px solid var(--primary); color: var(--primary); display: block; }
+
+  /* CUSTOM MARKER */
   .custom-pin { background: #3b82f6; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 6px rgba(0,0,0,0.3); border: 2px solid white; }
   .custom-pin i { transform: rotate(45deg); color: white; font-size: 0.8rem; }
+  
+  /* DANH SÁCH NHANH */
+  .quick-list { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .quick-item { padding: 10px; background: var(--bg-2); border-radius: 8px; margin-bottom: 8px; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; }
 </style>
 </head>
 <body>
 
+<!-- CỘT TRÁI: FORM NHẬP LIỆU -->
 <div class="sidebar">
   <div class="header">
     <h1><i class="fas fa-bed" style="color: var(--primary);"></i> DriveKit Admin</h1>
@@ -61,12 +70,12 @@
   <div class="form-body">
     
     <div class="form-group">
-      <label>Dán link Google Maps (Tùy chọn)</label>
+      <label>Dán link Google Maps</label>
       <div style="display: flex; gap: 8px;">
         <input type="text" id="gmapsUrl" class="form-control" placeholder="https://maps.app.goo.gl/...">
-        <button class="btn btn-primary" onclick="resolveGmapsUrl()" style="padding: 0 16px;"><i class="fas fa-search-location"></i></button>
+        <button class="btn btn-primary" onclick="resolveGmapsUrl()" style="padding: 0 16px;" title="Trích xuất tọa độ"><i class="fas fa-search-location"></i></button>
       </div>
-      <div class="help-text">Hệ thống sẽ tự bóc tách tọa độ từ link này.</div>
+      <div class="help-text">Hệ thống sẽ tự bóc tách tọa độ từ link rút gọn của Google Maps.</div>
     </div>
 
     <div class="form-group">
@@ -75,22 +84,29 @@
     </div>
 
     <div class="form-group">
-      <label>Tọa độ</label>
+      <label>Tọa độ (Vĩ độ / Kinh độ)</label>
       <div style="display: flex; gap: 8px;">
-        <input type="text" id="poiLat" class="form-control" placeholder="Vĩ độ (Lat)">
-        <input type="text" id="poiLng" class="form-control" placeholder="Kinh độ (Lng)">
+        <input type="text" id="poiLat" class="form-control" placeholder="Vĩ độ (Lat)" oninput="updateMapFromInputs()">
+        <input type="text" id="poiLng" class="form-control" placeholder="Kinh độ (Lng)" oninput="updateMapFromInputs()">
       </div>
-      <div class="help-text">Hoặc click trực tiếp lên bản đồ bên phải để lấy tọa độ.</div>
+      <div class="help-text">Hoặc <b>click trực tiếp lên bản đồ</b> bên phải để lấy tọa độ.</div>
     </div>
 
-    <button class="btn btn-success" onclick="submitData()" style="margin-top: 10px;">
+    <button class="btn btn-success" id="btnSave" onclick="submitData()" style="margin-top: 10px;">
       <i class="fas fa-cloud-upload-alt"></i> Lưu lên Firebase
     </button>
 
     <div id="statusBox" class="status-box"></div>
+
+    <!-- Danh sách trạm vừa nhập (Session hiện tại) -->
+    <div class="quick-list" id="quickList" style="display: none;">
+      <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; display: block;">Đã thêm trong phiên này:</label>
+      <div id="quickListItems"></div>
+    </div>
   </div>
 </div>
 
+<!-- CỘT PHẢI: BẢN ĐỒ -->
 <div id="map"></div>
 
 <script type="module">
@@ -114,15 +130,18 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
+const SECRET_KEY = 'drivekit_2026_secret';
 
 let currentUser = null;
 let map = null;
 let currentMarker = null;
+let addedCount = 0;
 
 // ═══ KHỞI TẠO BẢN ĐỒ ═══
 function initMap() {
   map = L.map('map', { center: [21.0285, 105.8542], zoom: 6 });
   
+  // Dùng OSM cho nhẹ
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap',
     maxZoom: 19
@@ -153,17 +172,12 @@ window.resolveGmapsUrl = async function() {
   const url = document.getElementById('gmapsUrl').value.trim();
   if (!url) return showStatus('Vui lòng dán link Google Maps!', 'error');
 
-  showStatus('Đang giải mã link...', 'success');
+  showStatus('Đang giải mã link...', 'loading');
   
   try {
-    // Lấy Firebase Token (bắt buộc vì Worker đã bỏ Secret Key)
-    let token = '';
-    if (currentUser) token = await currentUser.getIdToken();
-
     const res = await fetch(`${WORKER_URL}/resolve-gmaps?url=${encodeURIComponent(url)}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 'X-API-Key': SECRET_KEY }
     });
-    
     const data = await res.json();
 
     if (data.success && data.coords) {
@@ -182,11 +196,25 @@ window.resolveGmapsUrl = async function() {
 
       showStatus('Đã lấy được tọa độ từ link!', 'success');
     } else {
-      showStatus(data.error || 'Không thể giải mã link này. Vui lòng tự click lên bản đồ.', 'error');
+      showStatus('Không thể giải mã link này. Vui lòng tự click lên bản đồ.', 'error');
     }
   } catch (err) {
     showStatus('Lỗi kết nối đến server.', 'error');
   }
+};
+
+window.updateMapFromInputs = function() {
+  const lat = parseFloat(document.getElementById('poiLat').value);
+  const lng = parseFloat(document.getElementById('poiLng').value);
+  if (isNaN(lat) || isNaN(lng)) return;
+
+  if (currentMarker) map.removeLayer(currentMarker);
+  const icon = L.divIcon({ 
+    html: '<div class="custom-pin" style="width: 30px; height: 30px;"><i class="fas fa-bed"></i></div>', 
+    className: '', iconSize: [30, 30], iconAnchor: [15, 30] 
+  });
+  currentMarker = L.marker([lat, lng], { icon }).addTo(map);
+  map.setView([lat, lng], 16);
 };
 
 window.submitData = async function() {
@@ -200,17 +228,19 @@ window.submitData = async function() {
     return showStatus('Vui lòng nhập đủ Tên và Tọa độ hợp lệ!', 'error');
   }
 
-  showStatus('Đang lưu lên Firebase...', 'success');
+  showStatus('Đang lưu lên Firebase...', 'loading');
+  const btn = document.getElementById('btnSave');
+  btn.disabled = true;
 
   try {
-    // Lưu trực tiếp vào Firebase (không qua Worker để đơn giản hóa)
+    // Lưu vào đúng nhánh communityPois của app chính với tag là 'rest_stop'
     await push(ref(db, 'communityPois'), {
       lat: lat,
       lng: lng,
       name: name,
       tag: 'rest_stop',
       uid: currentUser.uid,
-      authorName: currentUser.displayName || currentUser.email.split('@')[0] || 'Admin',
+      authorName: 'Admin',
       timestamp: Date.now(),
       upvotes: 0
     });
@@ -224,30 +254,53 @@ window.submitData = async function() {
     // Xóa marker
     if (currentMarker) { map.removeLayer(currentMarker); currentMarker = null; }
 
+    // Thêm vào danh sách phiên hiện tại
+    addToQuickList(name, lat, lng);
+
   } catch (err) {
     showStatus('Lỗi lưu Firebase: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
   }
 };
+
+function addToQuickList(name, lat, lng) {
+  addedCount++;
+  const list = document.getElementById('quickList');
+  const items = document.getElementById('quickListItems');
+  
+  list.style.display = 'block';
+  items.innerHTML += `
+    <div class="quick-item">
+      <div>
+        <b style="color:var(--text);">${name}</b><br>
+        <span style="font-size:0.75rem; color:var(--text-muted);">${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
+      </div>
+      <i class="fas fa-check-circle" style="color:var(--success);"></i>
+    </div>
+  `;
+}
 
 function showStatus(msg, type) {
   const box = document.getElementById('statusBox');
   box.textContent = msg;
-  box.className = 'status-box ' + (type === 'error' ? 'status-error' : 'status-success');
+  box.className = 'status-box status-' + type;
 }
 
 // ═══ KHỞI TẠO & XÁC THỰC ═══
 initMap();
 
+// Tự động đăng nhập bằng tài khoản Admin
 onAuthStateChanged(auth, (user) => {
   if (user) {
     currentUser = user;
     console.log("Đã đăng nhập:", user.email);
+    showStatus('Đã kết nối Firebase (Admin)', 'success');
   } else {
-    // Đăng nhập tự động bằng tài khoản Admin
-    // LƯU Ý: Bro phải thay email và mật khẩu Firebase thật của bro vào đây
-    signInWithEmailAndPassword(auth, 'anhminhadof123@gmail.com', 'matkhau_cua_bro') 
+    // LƯU Ý QUAN TRỌNG: Sửa lại email/pass của bro ở đây để tự động đăng nhập
+    signInWithEmailAndPassword(auth, 'anhminhadof123@gmail.com', 'MẬT_KHẨU_FIREBASE_CỦA_BRO') 
       .catch(err => {
-        showStatus('Lỗi đăng nhập Admin. Hãy kiểm tra lại email/pass trong code!', 'error');
+        showStatus('Lỗi đăng nhập Admin. Kiểm tra lại email/pass trong code!', 'error');
       });
   }
 });
