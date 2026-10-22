@@ -125,8 +125,8 @@ body.navigating #btnReport { width: 40px; height: 40px; font-size: 1rem; bottom:
 .input-group .dot { width: 8px; height: 8px; border-radius: 50%; }
 .input-group .dot.start { background: var(--success); }
 .input-group .dot.end { background: var(--danger); }
-.input-group input { flex: 1; background: transparent; color: var(--text); font-size: 0.9rem; font-weight: 600; pointer-events: none; }
-.btn-clear-input { width: 28px; height: 28px; border-radius: 50%; background: transparent; color: var(--text-muted); font-size: 0.9rem; display: flex; align-items: center; justify-content: center; }
+.input-group input { flex: 1; background: transparent; color: var(--text); font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+.btn-clear-input { width: 28px; height: 28px; border-radius: 50%; background: transparent; color: var(--text-muted); font-size: 0.9rem; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .suggestions-box { position: fixed; top: 70px; left: 16px; right: 16px; z-index: 1200; background: var(--card); border-radius: 12px; max-height: 300px; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.2); border: 1px solid var(--border); display: none; }
 .suggestions-box.show { display: block; }
 .sug-item { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; font-size: 0.9rem; color: var(--text); cursor: pointer; }
@@ -322,14 +322,14 @@ body.navigating .fab-rest-stop-filter { display: none; }
     <div class="dir-handle"></div>
     <div class="input-group" style="margin-top: 10px;">
       <div class="dot start"></div>
-      <input type="text" id="dirInputStart" placeholder="Điểm đi (Mặc định GPS)" readonly onclick="activateSearch('start')" />
-      <button class="btn-clear-input hidden" id="btnClearStart" onclick="clearPoint('start')"><i class="fas fa-times"></i></button>
+      <input type="text" id="dirInputStart" placeholder="Điểm đi (Mặc định GPS)" onclick="activateSearch('start')" />
+      <button class="btn-clear-input hidden" id="btnClearStart" onclick="event.stopPropagation(); clearPoint('start')"><i class="fas fa-times"></i></button>
       <button onclick="refreshGPS()"><i class="fas fa-location-arrow" style="color:var(--primary); font-size: 1rem;"></i></button>
     </div>
     <div class="input-group">
       <div class="dot end"></div>
-      <input type="text" id="dirInputEnd" placeholder="Điểm đến" readonly onclick="activateSearch('end')" />
-      <button class="btn-clear-input hidden" id="btnClearEnd" onclick="clearPoint('end')"><i class="fas fa-times"></i></button>
+      <input type="text" id="dirInputEnd" placeholder="Điểm đến" onclick="activateSearch('end')" />
+      <button class="btn-clear-input hidden" id="btnClearEnd" onclick="event.stopPropagation(); clearPoint('end')"><i class="fas fa-times"></i></button>
     </div>
 
     <div class="vehicle-selector">
@@ -1216,10 +1216,7 @@ async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
     const leg = r.legs?.[0] || {};
     let coords = [];
     
-    // Đọc tọa độ
     if (r.geometry?.coordinates) {
-      // ORS trả về [lat, lng] (Worker đã đảo sẵn), nhưng TrackAsia trả về [lng, lat]
-      // Ta kiểm tra xem tọa độ đầu tiên có lớn hơn 90 không (vĩ độ VN ~ 10-23)
       if (r.geometry.coordinates[0][0] > 90) {
          coords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
       } else {
@@ -1227,7 +1224,6 @@ async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
       }
     }
 
-    // Lấy khoảng cách và thời gian (ORS dùng chữ distance.value / duration.value)
     const dist = leg.distance?.value || r.distance || 0;
     const dur = leg.duration?.value || r.duration || 0;
 
@@ -1293,7 +1289,6 @@ window.fetchAndShowRouteOptions = async function() {
     let routes = [...mapboxRoutes, ...trackasiaRoutes];
 
     if (routes.length === 0) {
-      // Hiển thị lỗi chi tiết từ API
       const testRes = await fetchWorker(`/trackasia-route?origin=${startPoint.lat},${startPoint.lng}&destination=${endPoint.lat},${endPoint.lng}&mode=${currentVehicleMode}`);
       const errData = await testRes.json();
       
@@ -1307,7 +1302,6 @@ window.fetchAndShowRouteOptions = async function() {
       return;
     }
 
-    // Sắp xếp tuyến ngắn nhất / nhanh nhất
     routes.sort((a, b) => currentSortMode === 'shortest' ? a.distance - b.distance : a.duration - b.duration);
     routes = routes.slice(0, 5); 
     alternativeRoutesData = routes;
@@ -1318,7 +1312,6 @@ window.fetchAndShowRouteOptions = async function() {
 
     const allCoords = [];
     
-    // Vẽ các tuyến đường
     routes.forEach((r, index) => {
       const coords = r.geometry.coordinates; 
       allCoords.push(...coords);
@@ -1326,7 +1319,6 @@ window.fetchAndShowRouteOptions = async function() {
       const isBest = index === 0; 
       const color = ROUTE_COLORS[index];
       
-      // Tuyến 1 (Tối ưu): Đậm, sáng, nét liền. Các tuyến khác: Mờ hơn, nét đứt
       const layer = L.polyline(coords, { 
         color: isBest ? color : '#94a3b8', 
         weight: isBest ? 9 : 5, 
@@ -1336,14 +1328,11 @@ window.fetchAndShowRouteOptions = async function() {
         lineJoin: 'round' 
       }).addTo(map);
       
-      // Bấm vào đường để chọn tuyến
       layer.on('click', () => selectRouteOption(index)); 
       alternativeLayers.push(layer);
 
-      // Vẽ nhãn số (Badge) ở giữa đường
       const midIdx = Math.floor(coords.length / 2);
       
-      // Tạo icon nhãn số nổi bật
       const badgeHtml = `
         <div style="
           background: ${isBest ? color : 'white'}; 
@@ -1370,17 +1359,15 @@ window.fetchAndShowRouteOptions = async function() {
           iconAnchor: [16, 16] 
         }), 
         interactive: true, 
-        zIndexOffset: 2000 - index // Đảm bảo nhãn tuyến 1 nằm trên cùng, không bị đè
+        zIndexOffset: 2000 - index
       }).addTo(map);
       
-      // Bấm vào nhãn số cũng chọn tuyến
       badge.on('click', () => selectRouteOption(index));
       window._routeBadges.push(badge);
     });
     
     map.fitBounds(L.latLngBounds(allCoords), { padding: [50, 50] });
 
-    // Vẽ bảng danh sách tuyến đường bên dưới
     let html = `<div class="sort-bar"><button class="sort-chip ${currentSortMode === 'fastest' ? 'active' : ''}" onclick="changeSort('fastest')"><i class="fas fa-bolt"></i> Nhanh nhất</button><button class="sort-chip ${currentSortMode === 'shortest' ? 'active' : ''}" onclick="changeSort('shortest')"><i class="fas fa-route"></i> Ngắn nhất</button></div>`;
     
     routes.forEach((r, index) => {
@@ -1810,9 +1797,23 @@ function openDirections() {
 function closeDirections() {
   document.getElementById('dirSheet').classList.remove('open'); document.getElementById('dirSheet').style.transform = '';
   if (searchContext !== 'view') document.getElementById('suggestionsBox').classList.remove('show');
+  
   document.querySelector('.fab-layers').style.display = 'flex'; document.getElementById('btnQuickPin').style.display = 'flex';
   document.getElementById('mainLocateBtn').style.display = 'flex'; document.getElementById('mainDirBtn').style.display = 'flex';
   document.getElementById('btnReport').style.display = 'flex';
+
+  // Tự động xóa đường xanh nếu đang không trong chế độ dẫn đường
+  if (document.getElementById('hud').classList.contains('hidden')) {
+    if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
+    alternativeLayers.forEach(l => { try { map.removeLayer(l); } catch (e) {} });
+    alternativeLayers = [];
+    if (window._routeBadges) { 
+      window._routeBadges.forEach(m => map.removeLayer(m)); 
+      window._routeBadges = []; 
+    }
+    currentRouteCoords = [];
+    currentRouteData = null;
+  }
 }
 window.openMenu = function() { document.getElementById('profileModal').classList.add('open'); loadHistory(); loadSharedLinks(); loadSavedRoutes(); };
 window.closeMenu = function() { document.getElementById('profileModal').classList.remove('open'); }
@@ -1823,15 +1824,38 @@ window.clearPoint = function(type) {
 };
 
 function activateSearch(type) {
-  searchContext = type; if (type !== 'view') document.getElementById('dirSheet').classList.add('open');
-  const box = document.getElementById('suggestionsBox'); box.classList.add('show');
+  searchContext = type;
+  
+  if (type !== 'view') {
+    document.getElementById('dirSheet').classList.add('open');
+  }
+
+  document.querySelector('.fab-layers').style.display = 'none'; 
+  document.getElementById('btnQuickPin').style.display = 'none';
+  document.getElementById('mainLocateBtn').style.display = 'none'; 
+  document.getElementById('mainDirBtn').style.display = 'none';
+  document.getElementById('btnReport').style.display = 'none';
+
+  const box = document.getElementById('suggestionsBox'); 
+  box.classList.add('show');
   box.innerHTML = '<div class="sug-item">Nhập địa chỉ hoặc dán link Google Maps...</div>';
-  const input = document.getElementById('topSearchInput'); input.readOnly = false; input.value = ''; input.focus();
+  
+  const input = document.getElementById('topSearchInput'); 
+  input.readOnly = false; 
+  input.value = ''; 
+  input.focus();
+  
   document.getElementById('searchClearBtn').classList.add('hidden');
+  
   input.oninput = (e) => {
-    const q = e.target.value.trim(); if (q.length > 0) document.getElementById('searchClearBtn').classList.remove('hidden'); else document.getElementById('searchClearBtn').classList.add('hidden');
+    const q = e.target.value.trim(); 
+    if (q.length > 0) document.getElementById('searchClearBtn').classList.remove('hidden'); 
+    else document.getElementById('searchClearBtn').classList.add('hidden');
+    
     if (q.length < 2 && !q.startsWith('http')) return;
-    clearTimeout(window._searchTimer); window._searchTimer = setTimeout(() => doSearch(q), 500);
+    
+    clearTimeout(window._searchTimer); 
+    window._searchTimer = setTimeout(() => doSearch(q), 500);
   };
 }
 
