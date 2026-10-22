@@ -125,8 +125,8 @@ body.navigating #btnReport { width: 40px; height: 40px; font-size: 1rem; bottom:
 .input-group .dot { width: 8px; height: 8px; border-radius: 50%; }
 .input-group .dot.start { background: var(--success); }
 .input-group .dot.end { background: var(--danger); }
-.input-group input { flex: 1; background: transparent; color: var(--text); font-size: 0.9rem; font-weight: 600; cursor: pointer; }
-.btn-clear-input { width: 28px; height: 28px; border-radius: 50%; background: transparent; color: var(--text-muted); font-size: 0.9rem; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.input-group input { flex: 1; background: transparent; color: var(--text); font-size: 0.9rem; font-weight: 600; pointer-events: none; }
+.btn-clear-input { width: 28px; height: 28px; border-radius: 50%; background: transparent; color: var(--text-muted); font-size: 0.9rem; display: flex; align-items: center; justify-content: center; }
 .suggestions-box { position: fixed; top: 70px; left: 16px; right: 16px; z-index: 1200; background: var(--card); border-radius: 12px; max-height: 300px; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.2); border: 1px solid var(--border); display: none; }
 .suggestions-box.show { display: block; }
 .sug-item { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; font-size: 0.9rem; color: var(--text); cursor: pointer; }
@@ -158,6 +158,7 @@ body.navigating #btnReport { width: 40px; height: 40px; font-size: 1rem; bottom:
 .history-item .route { font-size: 0.9rem; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
 .profile-btn { width: 100%; padding: 14px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text); font-weight: 700; display: flex; align-items: center; justify-content: space-between; font-size: 0.95rem; margin-bottom: 10px; cursor: pointer; }
 .profile-btn.logout { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+.profile-btn.live-share { background: linear-gradient(135deg, #10b981, #059669) !important; color: white !important; border: none !important; box-shadow: 0 4px 15px rgba(16,185,129,0.3); }
 .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--border); transition: .4s; border-radius: 24px; }
@@ -432,6 +433,10 @@ body.navigating .fab-rest-stop-filter { display: none; }
     <div class="profile-time" id="profileTime">00:00:00</div>
   </div>
   <div class="profile-body">
+    <button class="profile-btn live-share" onclick="startLiveTracking()">
+      <span><i class="fas fa-satellite-dish"></i> Chia sẻ vị trí Realtime (7s)</span>
+      <i class="fas fa-chevron-right"></i>
+    </button>
     <button class="profile-btn" onclick="shareRoute()">
       <span><i class="fas fa-share-alt"></i> Chia sẻ lộ trình hiện tại</span>
       <i class="fas fa-chevron-right"></i>
@@ -585,10 +590,20 @@ const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 const SECRET_KEY = 'drivekit_2026_secret';
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
 
+// ═══ HÀM FETCH WORKER (GỬI KÈM SECRET KEY + FIREBASE TOKEN) ═══
 async function fetchWorker(path, options = {}) {
+  let token = '';
+  if (currentUser) {
+    token = await currentUser.getIdToken();
+  }
+  
   return fetch(`${WORKER_URL}${path}`, {
     ...options,
-    headers: { 'X-API-Key': SECRET_KEY, ...(options.headers || {}) }
+    headers: { 
+      'X-API-Key': SECRET_KEY,
+      'Authorization': `Bearer ${token}`,
+      ...(options.headers || {}) 
+    }
   });
 }
 
@@ -654,6 +669,14 @@ let restStopFilterActive = false;
 let restStopMarkers = [];
 let currentDetailPoi = null;
 
+// --- LIVE TRACKING STATE ---
+let liveTrackInterval = null;
+let liveTrackWatchId = null;
+let liveTrackRoomId = null;
+let isViewingLiveTrack = false;
+let liveTrackMarker = null;
+let liveAnimFrame = null;
+
 const POI_TAG_CONFIG = {
   supermarket: { icon: 'fa-shopping-cart', label: 'Siêu thị', color: '#10b981' },
   rest_stop: { icon: 'fa-bed', label: 'Trạm dừng nghỉ', color: '#3b82f6', featured: true },
@@ -674,6 +697,9 @@ const ZOOM_CONFIG = {
   savedPlaceAlwaysShow: ['home', 'company']
 };
 
+// ═══════════════════════════════════════════════════════════
+// KHỞI TẠO & XÁC THỰC (FIREBASE AUTH)
+// ═══════════════════════════════════════════════════════════
 let loadProgress = 0;
 let loadInterval = null;
 let isUserAuthChecked = false;
@@ -839,28 +865,17 @@ function initAppUI() {
       }
     }, 800);
   }
-}
 
-function initTheme() {
-  if (localStorage.getItem('theme') === 'light') {
-    document.body.classList.add('light-mode');
-    document.getElementById('themeToggle').checked = true;
+  // Kiểm tra xem có đang xem Live Track của người khác không?
+  const liveId = params.get('live');
+  if (liveId) {
+    setTimeout(() => { initLiveTrackingView(liveId); }, 1000);
   }
 }
-window.toggleTheme = function() {
-  if (document.getElementById('themeToggle').checked) {
-    document.body.classList.add('light-mode');
-    localStorage.setItem('theme', 'light');
-  } else {
-    document.body.classList.remove('light-mode');
-    localStorage.setItem('theme', 'dark');
-  }
-};
-setInterval(() => {
-  const clockEl = document.getElementById('profileTime');
-  if (clockEl) clockEl.textContent = new Date().toLocaleTimeString('vi-VN');
-}, 1000);
 
+// ==========================================
+// AUTH BUTTONS
+// ==========================================
 function getAuthErrorMessage(errorCode) {
   switch (errorCode) {
     case 'auth/invalid-email': return 'Email không đúng định dạng.';
@@ -931,6 +946,9 @@ document.getElementById('btnGoogleAuth').addEventListener('click', async () => {
 
 function logout() { signOut(auth); closeMenu(); }
 
+// ==========================================
+// MAP INIT
+// ==========================================
 function initMap() {
   if (map) return;
   map = L.map('map', { center: initialCenter, zoom: initialZoom, zoomControl: false });
@@ -1088,6 +1106,9 @@ function showSharedLocationMarker(lat, lng, name, isDestination = false) {
   map.flyTo([lat, lng], 16, { animate: true, duration: 1.5 });
 }
 
+// ==========================================
+// SAVED PLACES
+// ==========================================
 function initSavedPlaces() {
   if (!currentUser) return;
   onValue(ref(db, `users/${currentUser.uid}/savedPlaces`), (snapshot) => {
@@ -1169,7 +1190,7 @@ window.submitSavePlace = async function(type) {
   closeSavePlaceModal();
   try {
     await push(ref(db, `users/${currentUser.uid}/savedPlaces`), {
-      lat: tempPinLatLng.lat, lng: tempPinLatLng.lng, address: tempPinName, type: type, timestamp: Date.now()
+      lat: tempPinLatLng.lat, lng: tempPinLatLng.lng, address: tempPinName, type: type, timestamp: Date.now(), uid: currentUser.uid
     });
     alert('Đã ghim địa điểm cá nhân lên bản đồ!');
   } catch (e) { alert('Lỗi lưu địa điểm: ' + e.message); }
@@ -1180,6 +1201,9 @@ window.deleteSavedPlace = async function(key) {
   try { await remove(ref(db, `users/${currentUser.uid}/savedPlaces/${key}`)); } catch(e) { alert('Lỗi xoá: ' + e.message); }
 };
 
+// ==========================================
+// ROUTING & FETCH
+// ==========================================
 function decodePolyline(str, precision = 5) {
   if (!str) return [];
   let index = 0, lat = 0, lng = 0;
@@ -1289,6 +1313,7 @@ window.fetchAndShowRouteOptions = async function() {
     let routes = [...mapboxRoutes, ...trackasiaRoutes];
 
     if (routes.length === 0) {
+      // Hiển thị lỗi chi tiết từ API
       const testRes = await fetchWorker(`/trackasia-route?origin=${startPoint.lat},${startPoint.lng}&destination=${endPoint.lat},${endPoint.lng}&mode=${currentVehicleMode}`);
       const errData = await testRes.json();
       
@@ -1302,6 +1327,7 @@ window.fetchAndShowRouteOptions = async function() {
       return;
     }
 
+    // Sắp xếp tuyến ngắn nhất / nhanh nhất
     routes.sort((a, b) => currentSortMode === 'shortest' ? a.distance - b.distance : a.duration - b.duration);
     routes = routes.slice(0, 5); 
     alternativeRoutesData = routes;
@@ -1312,6 +1338,7 @@ window.fetchAndShowRouteOptions = async function() {
 
     const allCoords = [];
     
+    // Vẽ các tuyến đường
     routes.forEach((r, index) => {
       const coords = r.geometry.coordinates; 
       allCoords.push(...coords);
@@ -1319,6 +1346,7 @@ window.fetchAndShowRouteOptions = async function() {
       const isBest = index === 0; 
       const color = ROUTE_COLORS[index];
       
+      // Tuyến 1 (Tối ưu): Đậm, sáng, nét liền. Các tuyến khác: Mờ hơn, nét đứt
       const layer = L.polyline(coords, { 
         color: isBest ? color : '#94a3b8', 
         weight: isBest ? 9 : 5, 
@@ -1328,11 +1356,14 @@ window.fetchAndShowRouteOptions = async function() {
         lineJoin: 'round' 
       }).addTo(map);
       
+      // Bấm vào đường để chọn tuyến
       layer.on('click', () => selectRouteOption(index)); 
       alternativeLayers.push(layer);
 
+      // Vẽ nhãn số (Badge) ở giữa đường
       const midIdx = Math.floor(coords.length / 2);
       
+      // Tạo icon nhãn số nổi bật
       const badgeHtml = `
         <div style="
           background: ${isBest ? color : 'white'}; 
@@ -1359,15 +1390,17 @@ window.fetchAndShowRouteOptions = async function() {
           iconAnchor: [16, 16] 
         }), 
         interactive: true, 
-        zIndexOffset: 2000 - index
+        zIndexOffset: 2000 - index // Đảm bảo nhãn tuyến 1 nằm trên cùng, không bị đè
       }).addTo(map);
       
+      // Bấm vào nhãn số cũng chọn tuyến
       badge.on('click', () => selectRouteOption(index));
       window._routeBadges.push(badge);
     });
     
     map.fitBounds(L.latLngBounds(allCoords), { padding: [50, 50] });
 
+    // Vẽ bảng danh sách tuyến đường bên dưới
     let html = `<div class="sort-bar"><button class="sort-chip ${currentSortMode === 'fastest' ? 'active' : ''}" onclick="changeSort('fastest')"><i class="fas fa-bolt"></i> Nhanh nhất</button><button class="sort-chip ${currentSortMode === 'shortest' ? 'active' : ''}" onclick="changeSort('shortest')"><i class="fas fa-route"></i> Ngắn nhất</button></div>`;
     
     routes.forEach((r, index) => {
@@ -1760,9 +1793,9 @@ function changeLayer(type, btn) {
   document.getElementById('layerMenu').classList.remove('show');
   if (type === 'trackasia') {
     try {
-      currentMapLayer = L.trackasiaGL({ style: `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}` }).addTo(map);
+      currentMapLayer = L.trackasiaGL({ style: `${WORKER_URL}/trackasia-tiles/styles/v2/streets.json` }).addTo(map);
     } catch (error) {
-      currentMapLayer = L.tileLayer(`https://maps.track-asia.com/styles/v2/streets/{z}/{x}/{y}.png?key=${TRACKASIA_KEY}`, { maxZoom: 19, tileSize: 256 }).addTo(map);
+      currentMapLayer = L.tileLayer(`${WORKER_URL}/trackasia-tiles/styles/v2/streets/{z}/{x}/{y}.png`, { maxZoom: 19, tileSize: 256 }).addTo(map);
     }
   }
   else if (type === 'mapbox') currentMapLayer = L.tileLayer(`${WORKER_URL}/mapbox-tiles/{z}/{x}/{y}`, { maxZoom: 19, tileSize: 512, zoomOffset: -1 }).addTo(map);
