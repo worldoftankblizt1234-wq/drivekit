@@ -587,13 +587,13 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
-const SECRET_KEY = 'drivekit_2026_secret';
+// Đã xóa SECRET_KEY
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
 
 async function fetchWorker(path, options = {}) {
   return fetch(`${WORKER_URL}${path}`, {
     ...options,
-    headers: { 'X-API-Key': SECRET_KEY, ...(options.headers || {}) }
+    headers: { ...(options.headers || {}) } // Đã xóa X-API-Key
   });
 }
 
@@ -855,7 +855,6 @@ function initAppUI() {
     }, 800);
   }
 
-  // Kiểm tra xem có đang xem Live Track của người khác không?
   const liveId = params.get('live');
   if (liveId) {
     setTimeout(() => { initLiveTrackingView(liveId); }, 1000);
