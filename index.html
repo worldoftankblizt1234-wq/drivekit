@@ -594,16 +594,6 @@ const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
 async function fetchWorker(path, options = {}) {
   return fetch(`${WORKER_URL}${path}`, options);
 }
-  
-  return fetch(`${WORKER_URL}${path}`, {
-    ...options,
-    headers: { 
-      'X-API-Key': SECRET_KEY,
-      'Authorization': `Bearer ${token}`,
-      ...(options.headers || {}) 
-    }
-  });
-}
 
 // --- STATE ---
 let map = null;
