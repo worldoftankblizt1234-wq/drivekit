@@ -49,9 +49,12 @@ button { cursor: pointer; }
 /* MAP & UI */
 .layer-menu { position: fixed; bottom: calc(140px + var(--safe-bottom)); left: 16px; z-index: 2000; background: var(--card); border-radius: 12px; padding: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); border: 1px solid var(--border); display: none; flex-direction: column; gap: 4px; }
 .layer-menu.show { display: flex !important; z-index: 2100; }
-.layer-option { padding: 10px 14px; background: transparent; color: var(--text); border-radius: 8px; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 0.85rem; text-align: left; width: 100%; transition: 0.2s; }
+.layer-option { padding: 10px 14px; background: transparent; color: var(--text); border-radius: 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; font-weight: 600; font-size: 0.85rem; text-align: left; width: 100%; transition: 0.2s; }
 .layer-option:hover { background: var(--bg-2); }
 .layer-option.active { background: var(--primary); color: white; }
+.layer-option .layer-title { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.layer-option .layer-desc { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; margin-left: 24px; }
+.layer-option.active .layer-desc { color: rgba(255,255,255,0.8); }
 #map { position: fixed; inset: 0; z-index: 1; background: #e5e5e5; touch-action: none !important; }
 body.light-mode #map { background: #f1f5f9; }
 .leaflet-container { font-family: var(--font-main) !important; background: #e5e5e5 !important; }
@@ -191,16 +194,12 @@ input:checked + .slider:before { transform: translateX(20px); }
 .poi-sheet {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 2600;
   background: var(--card); border-top-left-radius: 20px; border-top-right-radius: 20px;
-  padding: 16px 16px calc(16px + var(--safe-bottom));
+  padding: 0 16px calc(16px + var(--safe-bottom));
   transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 -10px 40px rgba(0,0,0,0.3); border: 1px solid var(--border);
   max-height: 90vh; overflow-y: auto;
 }
 .poi-sheet.open { transform: translateY(0); }
-.poi-sheet-handle {
-  width: 40px; height: 4px; background: var(--border);
-  border-radius: 4px; margin: 0 auto 16px;
-}
 .poi-sheet h3 {
   font-size: 1.1rem; font-weight: 800; color: var(--text);
   margin-bottom: 4px; display: flex; align-items: center; gap: 8px;
@@ -338,37 +337,86 @@ body.navigating .fab-rest-stop-filter { display: none; }
   border: 1px solid var(--border); pointer-events: none;
 }
 
-/* Layer option với mô tả phụ */
-.layer-option {
-  padding: 10px 14px;
-  background: transparent;
-  color: var(--text);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  text-align: left;
-  width: 100%;
-  transition: 0.2s;
+/* ═══════════════════════════════════════════════════════
+   POI DETAIL SHEET (Bottom Sheet chi tiết POI)
+   ═══════════════════════════════════════════════════════ */
+.poi-detail-sheet {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 2650;
+  background: var(--card); border-top-left-radius: 20px; border-top-right-radius: 20px;
+  padding: 0 16px calc(16px + var(--safe-bottom));
+  transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.3); border: 1px solid var(--border);
+  max-height: 80vh; overflow-y: auto;
 }
-.layer-option:hover { background: var(--bg-2); }
-.layer-option.active { background: var(--primary); color: white; }
-.layer-option .layer-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
+.poi-detail-sheet.open { transform: translateY(0); }
+
+/* Thanh kéo + hướng dẫn vuốt */
+.sheet-swipe-hint {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 8px 0 4px; cursor: grab; position: sticky; top: 0;
+  background: var(--card); z-index: 2;
 }
-.layer-option .layer-desc {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  font-weight: 500;
-  margin-left: 24px;
+.sheet-swipe-hint:active { cursor: grabbing; }
+.sheet-swipe-bar {
+  width: 40px; height: 4px; background: var(--border);
+  border-radius: 4px; margin-bottom: 6px;
 }
-.layer-option.active .layer-desc { color: rgba(255,255,255,0.8); }
+.sheet-swipe-text {
+  font-size: 0.65rem; color: var(--text-muted); font-weight: 700;
+  display: flex; align-items: center; gap: 4px; letter-spacing: 0.3px;
+}
+.sheet-swipe-text i { font-size: 0.7rem; animation: swipeHintBounce 1.5s ease-in-out infinite; }
+@keyframes swipeHintBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(3px); }
+}
+
+/* Nội dung chi tiết POI */
+.poi-detail-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 16px; margin-top: 4px;
+}
+.poi-detail-icon {
+  width: 48px; height: 48px; border-radius: 14px; display: flex;
+  align-items: center; justify-content: center; font-size: 1.4rem;
+  color: white; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.poi-detail-header-text { flex: 1; min-width: 0; }
+.poi-detail-name {
+  font-size: 1.15rem; font-weight: 800; color: var(--text);
+  line-height: 1.3; margin-bottom: 4px; word-break: break-word;
+}
+.poi-detail-tag-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 20px; font-size: 0.7rem;
+  font-weight: 800; color: white;
+}
+.poi-detail-coords {
+  background: var(--bg-2); border-radius: 12px; padding: 12px 14px;
+  margin-bottom: 16px; display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--border);
+}
+.poi-detail-coords i { color: var(--primary); font-size: 1.1rem; }
+.poi-detail-coords-text {
+  font-family: var(--font-mono); font-size: 0.8rem;
+  font-weight: 700; color: var(--text); flex: 1;
+}
+.poi-detail-meta {
+  font-size: 0.75rem; color: var(--text-muted); margin-bottom: 16px;
+  display: flex; flex-wrap: wrap; gap: 12px;
+}
+.poi-detail-meta span { display: flex; align-items: center; gap: 4px; }
+.poi-detail-actions {
+  display: flex; gap: 10px; margin-top: 4px;
+}
+.poi-detail-btn {
+  flex: 1; padding: 14px; border-radius: 12px; font-weight: 800;
+  font-size: 0.9rem; display: flex; align-items: center;
+  justify-content: center; gap: 8px; cursor: pointer;
+  transition: opacity 0.2s;
+}
+.poi-detail-btn:active { opacity: 0.7; }
+.poi-detail-btn.primary { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59,130,246,0.3); }
+.poi-detail-btn.share { background: var(--success); color: white; }
 </style>
 </head>
 <body>
@@ -627,10 +675,30 @@ body.navigating .fab-rest-stop-filter { display: none; }
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
+     POI DETAIL SHEET (Chi tiết POI cộng đồng)
+     ═══════════════════════════════════════════════════════ -->
+<div class="poi-detail-sheet" id="poiDetailSheet">
+  <div class="sheet-swipe-hint" id="poiDetailSwipeHandle">
+    <div class="sheet-swipe-bar"></div>
+    <div class="sheet-swipe-text">
+      <span>Vuốt xuống để đóng</span>
+      <i class="fas fa-chevron-down"></i>
+    </div>
+  </div>
+  <div id="poiDetailContent"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
      COMMUNITY POI — BOTTOM SHEET FORM
      ═══════════════════════════════════════════════════════ -->
 <div class="poi-sheet" id="poiSheet">
-  <div class="poi-sheet-handle"></div>
+  <div class="sheet-swipe-hint" id="poiSheetSwipeHandle">
+    <div class="sheet-swipe-bar"></div>
+    <div class="sheet-swipe-text">
+      <span>Vuốt xuống để đóng</span>
+      <i class="fas fa-chevron-down"></i>
+    </div>
+  </div>
   <h3><i class="fas fa-map-marker-alt" style="color:var(--success);"></i> Thêm địa điểm cộng đồng</h3>
   <div class="poi-coords" id="poiCoords">—</div>
   <div class="poi-tag-grid" id="poiTagGrid">
@@ -763,6 +831,7 @@ let tempPoiLatLng = null;
 let tempPoiTag = null;
 let restStopFilterActive = false;
 let restStopMarkers = [];
+let currentDetailPoi = null;
 
 const POI_TAG_CONFIG = {
   supermarket: { icon: 'fa-shopping-cart', label: 'Siêu thị', color: '#10b981' },
@@ -1146,10 +1215,8 @@ function initMap() {
   map.on('zoomstart', () => { clearTouchMarker(); });
   mc.addEventListener('contextmenu', (e) => { e.preventDefault(); closeDirections(); });
 
-  // Đóng directions khi click vào map (không chặn FAB)
   map.on('click', () => { closeDirections(); });
 
-  // ═══ LẮNG NGHE ZOOM: Tự động ẩn/hiện marker theo mức zoom ═══
   let zoomRenderTimer = null;
   map.on('zoomend', () => {
     if (zoomRenderTimer) clearTimeout(zoomRenderTimer);
@@ -2028,7 +2095,6 @@ async function selectLocation(lat, lng, name) {
   `).openPopup();
 
   if (searchContext === 'view') {
-    // Đã vẽ marker ở trên rồi
   } else if (searchContext === 'start') {
     startPoint = { lat, lng, name: finalName };
     document.getElementById('dirInputStart').value = finalName;
@@ -2256,10 +2322,8 @@ function updatePoiSaveBtnState() {
   btn.disabled = !(tempPoiTag && name.length >= 2);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const inp = document.getElementById('poiNameInput');
-  if (inp) inp.addEventListener('input', updatePoiSaveBtnState);
-});
+const poiNameInputEl = document.getElementById('poiNameInput');
+if (poiNameInputEl) poiNameInputEl.addEventListener('input', updatePoiSaveBtnState);
 
 window.submitCommunityPoi = async function() {
   if (!currentUser) return alert('Chưa đăng nhập!');
@@ -2339,21 +2403,9 @@ function renderCommunityPoisOnMap() {
       zIndexOffset: isRestStop ? 500 : 0
     }).addTo(map);
 
-    const badgeHtml = isRestStop
-      ? `<div class="rest-stop-badge"><i class="fas fa-bed"></i> TRẠM DỪNG NGHỈ</div>`
-      : `<span style="background:${conf.color};color:white;padding:2px 8px;border-radius:10px;font-size:0.65rem;font-weight:800;">${conf.label}</span>`;
-
-    marker.bindPopup(`
-      <div style="min-width:200px;">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
-          ${badgeHtml}
-          <span style="color:#3b82f6;font-size:0.65rem;font-weight:700;"><i class="fas fa-check-circle"></i> Cộng đồng</span>
-        </div>
-        <div style="font-weight:800;font-size:0.95rem;margin-bottom:8px;color:var(--text);">${escapeHtml(poi.name)}</div>
-        ${isRestStop ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px;"><i class="fas fa-info-circle"></i> Địa điểm do cộng đồng tài xế đóng góp</div>` : ''}
-        <button onclick="event.stopPropagation(); goToLongPressLocation(${poi.lat}, ${poi.lng}, '${escapeHtml(poi.name).replace(/'/g,"\\'")}')" style="width:100%;padding:10px;background:#3b82f6;color:white;border:none;border-radius:8px;font-weight:800;font-size:0.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
-      </div>
-    `);
+    marker.on('click', () => {
+      openPoiDetail(key);
+    });
 
     communityPoiMarkers.push(marker);
     if (isRestStop) restStopMarkers.push(marker);
@@ -2397,6 +2449,157 @@ function searchCommunityPois(query) {
     return (b.upvotes || 0) - (a.upvotes || 0);
   }).slice(0, 5);
 }
+
+// ═══════════════════════════════════════════════════════
+// POI DETAIL SHEET — LOGIC
+// ═══════════════════════════════════════════════════════
+window.openPoiDetail = function(poiKey) {
+  const poi = communityPoisData[poiKey];
+  if (!poi) return;
+  currentDetailPoi = { key: poiKey, ...poi };
+
+  const conf = POI_TAG_CONFIG[poi.tag] || POI_TAG_CONFIG.supermarket;
+  const isRestStop = poi.tag === 'rest_stop';
+
+  const content = document.getElementById('poiDetailContent');
+  content.innerHTML = `
+    <div class="poi-detail-header">
+      <div class="poi-detail-icon" style="background: linear-gradient(135deg, ${conf.color}, ${conf.color}dd);">
+        <i class="fas ${conf.icon}"></i>
+      </div>
+      <div class="poi-detail-header-text">
+        <div class="poi-detail-name">${escapeHtml(poi.name)}</div>
+        <span class="poi-detail-tag-badge" style="background: ${conf.color};">
+          <i class="fas ${conf.icon}"></i> ${conf.label}
+          ${isRestStop ? ' • HOT' : ''}
+        </span>
+      </div>
+    </div>
+
+    <div class="poi-detail-coords">
+      <i class="fas fa-map-pin"></i>
+      <div class="poi-detail-coords-text">${poi.lat.toFixed(6)}, ${poi.lng.toFixed(6)}</div>
+      <button onclick="copyPoiCoords()" style="background:transparent; color:var(--primary); font-size:1.1rem; padding:4px;" title="Copy toạ độ">
+        <i class="fas fa-copy"></i>
+      </button>
+    </div>
+
+    <div class="poi-detail-meta">
+      <span><i class="fas fa-check-circle" style="color:#3b82f6;"></i> Địa điểm cộng đồng</span>
+      ${poi.authorName ? `<span><i class="fas fa-user"></i> ${escapeHtml(poi.authorName)}</span>` : ''}
+      ${poi.timestamp ? `<span><i class="fas fa-clock"></i> ${new Date(poi.timestamp).toLocaleDateString('vi-VN')}</span>` : ''}
+    </div>
+
+    <div class="poi-detail-actions">
+      <button class="poi-detail-btn primary" onclick="goToPoiFromDetail()">
+        <i class="fas fa-location-arrow"></i> Tới chỗ này
+      </button>
+      <button class="poi-detail-btn share" onclick="sharePoiFromDetail()">
+        <i class="fas fa-share-alt"></i> Chia sẻ
+      </button>
+    </div>
+  `;
+
+  document.getElementById('poiDetailSheet').classList.add('open');
+  if (map) map.closePopup();
+};
+
+window.closePoiDetail = function() {
+  document.getElementById('poiDetailSheet').classList.remove('open');
+  currentDetailPoi = null;
+};
+
+window.goToPoiFromDetail = function() {
+  if (!currentDetailPoi) return;
+  const { lat, lng, name } = currentDetailPoi;
+  closePoiDetail();
+  goToLongPressLocation(lat, lng, name);
+};
+
+window.sharePoiFromDetail = function() {
+  if (!currentDetailPoi) return;
+  shareLocation(currentDetailPoi.lat, currentDetailPoi.lng, currentDetailPoi.name);
+};
+
+window.copyPoiCoords = function() {
+  if (!currentDetailPoi) return;
+  const text = `${currentDetailPoi.lat.toFixed(6)}, ${currentDetailPoi.lng.toFixed(6)}`;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => showDetailToast('Đã copy toạ độ!'));
+  } else {
+    prompt('Copy toạ độ:', text);
+  }
+};
+
+function showDetailToast(msg) {
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#10b981,#059669);color:white;padding:12px 20px;border-radius:14px;font-weight:800;z-index:9999;box-shadow:0 10px 30px rgba(16,185,129,0.5);display:flex;gap:10px;align-items:center;font-size:0.85rem;';
+  t.innerHTML = `<i class="fas fa-check-circle"></i><span>${msg}</span>`;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2000);
+}
+
+// ═══════════════════════════════════════════════════════
+// SWIPE DOWN TO CLOSE (cho cả 2 sheet)
+// ═══════════════════════════════════════════════════════
+function setupSwipeDown(sheetId, handleId, closeFn) {
+  const sheet = document.getElementById(sheetId);
+  const handle = document.getElementById(handleId);
+  if (!sheet || !handle) return;
+
+  let startY = 0, currentY = 0, isDragging = false;
+
+  function onTouchStart(e) {
+    startY = e.touches[0].clientY;
+    currentY = startY;
+    isDragging = true;
+    sheet.style.transition = 'none';
+  }
+
+  function onTouchMove(e) {
+    if (!isDragging) return;
+    currentY = e.touches[0].clientY;
+    const deltaY = currentY - startY;
+    if (deltaY > 0) {
+      sheet.style.transform = `translateY(${deltaY}px)`;
+    }
+  }
+
+  function onTouchEnd() {
+    if (!isDragging) return;
+    isDragging = false;
+    sheet.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+    const deltaY = currentY - startY;
+    if (deltaY > 100) {
+      sheet.style.transform = '';
+      closeFn();
+    } else {
+      sheet.style.transform = '';
+    }
+  }
+
+  handle.addEventListener('touchstart', onTouchStart, { passive: true });
+  handle.addEventListener('touchmove', onTouchMove, { passive: true });
+  handle.addEventListener('touchend', onTouchEnd);
+
+  sheet.addEventListener('touchstart', (e) => {
+    const rect = sheet.getBoundingClientRect();
+    const touchY = e.touches[0].clientY - rect.top;
+    if (touchY < 60) {
+      onTouchStart(e);
+    }
+  }, { passive: true });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setupSwipeDown('poiDetailSheet', 'poiDetailSwipeHandle', () => closePoiDetail());
+  setupSwipeDown('poiSheet', 'poiSheetSwipeHandle', () => closePoiSheet());
+});
+
+setTimeout(() => {
+  setupSwipeDown('poiDetailSheet', 'poiDetailSwipeHandle', () => closePoiDetail());
+  setupSwipeDown('poiSheet', 'poiSheetSwipeHandle', () => closePoiSheet());
+}, 500);
 
 // ═══════════════════════════════════════════════════════
 // GỢI Ý ZOOM KHI MARKER BỊ ẨN
