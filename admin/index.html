@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>DriveKit Admin — Nhập Trạm Dừng Nghỉ</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0f172a; --bg-2: #1e293b; --card: #1e293b; --border: #334155;
+    --text: #f1f5f9; --text-muted: #94a3b8; --primary: #3b82f6; --success: #10b981; --danger: #ef4444;
+  }
+  body { font-family: 'Be Vietnam Pro', sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
+  
+  /* SIDEBAR */
+  .sidebar { width: 400px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 10; box-shadow: 4px 0 15px rgba(0,0,0,0.2); }
+  .header { padding: 20px; border-bottom: 1px solid var(--border); }
+  .header h1 { font-size: 1.2rem; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .header p { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+  
+  .form-body { padding: 20px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); }
+  .form-control { width: 100%; padding: 12px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; }
+  .form-control:focus { border-color: var(--primary); outline: none; }
+  
+  .btn { padding: 14px; border-radius: 8px; font-weight: 800; font-size: 0.95rem; cursor: pointer; border: none; display: flex; justify-content: center; align-items: center; gap: 8px; transition: opacity 0.2s; }
+  .btn:active { opacity: 0.7; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-success { background: var(--success); color: white; }
+  
+  .help-text { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; margin-top: 4px; }
+  
+  /* MAP */
+  #map { flex: 1; background: #e5e5e5; z-index: 1; }
+  
+  .status-box { padding: 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; display: none; margin-top: 10px; }
+  .status-success { background: rgba(16,185,129,0.15); border: 1px solid var(--success); color: var(--success); display: block; }
+  .status-error { background: rgba(239,68,68,0.15); border: 1px solid var(--danger); color: var(--danger); display: block; }
+  
+  .custom-pin { background: #3b82f6; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 6px rgba(0,0,0,0.3); border: 2px solid white; }
+  .custom-pin i { transform: rotate(45deg); color: white; font-size: 0.8rem; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="header">
+    <h1><i class="fas fa-bed" style="color: var(--primary);"></i> DriveKit Admin</h1>
+    <p>Hệ thống nhập liệu Trạm dừng nghỉ</p>
+  </div>
+  
+  <div class="form-body">
+    
+    <div class="form-group">
+      <label>Dán link Google Maps (Tùy chọn)</label>
+      <div style="display: flex; gap: 8px;">
+        <input type="text" id="gmapsUrl" class="form-control" placeholder="https://maps.app.goo.gl/...">
+        <button class="btn btn-primary" onclick="resolveGmapsUrl()" style="padding: 0 16px;"><i class="fas fa-search-location"></i></button>
+      </div>
+      <div class="help-text">Hệ thống sẽ tự bóc tách tọa độ từ link này.</div>
+    </div>
+
+    <div class="form-group">
+      <label>Tên Trạm dừng nghỉ</label>
+      <input type="text" id="poiName" class="form-control" placeholder="VD: Trạm dừng nghỉ Hải Vân">
+    </div>
+
+    <div class="form-group">
+      <label>Tọa độ</label>
+      <div style="display: flex; gap: 8px;">
+        <input type="text" id="poiLat" class="form-control" placeholder="Vĩ độ (Lat)">
+        <input type="text" id="poiLng" class="form-control" placeholder="Kinh độ (Lng)">
+      </div>
+      <div class="help-text">Hoặc click trực tiếp lên bản đồ bên phải để lấy tọa độ.</div>
+    </div>
+
+    <button class="btn btn-success" onclick="submitData()" style="margin-top: 10px;">
+      <i class="fas fa-cloud-upload-alt"></i> Lưu lên Firebase
+    </button>
+
+    <div id="statusBox" class="status-box"></div>
+  </div>
+</div>
+
+<div id="map"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// CẤU HÌNH FIREBASE
+const firebaseConfig = {
+  apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
+  authDomain: "drivekit-c88ef.firebaseapp.com",
+  databaseURL: "https://drivekit-c88ef-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "drivekit-c88ef",
+  storageBucket: "drivekit-c88ef.firebasestorage.app",
+  messagingSenderId: "1073887619343",
+  appId: "1:1073887619343:web:d89a872968bc4ee871f67a"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
+const SECRET_KEY = 'drivekit_2026_secret';
+
+let currentUser = null;
+let map = null;
+let currentMarker = null;
+
+// ═══ KHỞI TẠO BẢN ĐỒ ═══
+function initMap() {
+  map = L.map('map', { center: [21.0285, 105.8542], zoom: 6 });
+  
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Click map để lấy tọa độ
+  map.on('click', (e) => {
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+    
+    document.getElementById('poiLat').value = lat.toFixed(6);
+    document.getElementById('poiLng').value = lng.toFixed(6);
+
+    if (currentMarker) map.removeLayer(currentMarker);
+    const icon = L.divIcon({ 
+      html: '<div class="custom-pin" style="width: 30px; height: 30px;"><i class="fas fa-bed"></i></div>', 
+      className: '', iconSize: [30, 30], iconAnchor: [15, 30] 
+    });
+    currentMarker = L.marker([lat, lng], { icon }).addTo(map);
+  });
+
+  // Đánh dấu TP.HCM làm mặc định
+  setTimeout(() => map.setView([10.7626, 106.6602], 12), 500);
+}
+
+// ═══ XỬ LÝ LOGIC ═══
+window.resolveGmapsUrl = async function() {
+  const url = document.getElementById('gmapsUrl').value.trim();
+  if (!url) return showStatus('Vui lòng dán link Google Maps!', 'error');
+
+  showStatus('Đang giải mã link...', 'success'); // Dùng tạm màu xanh để báo đang xử lý
+  
+  try {
+    const res = await fetch(`${WORKER_URL}/resolve-gmaps?url=${encodeURIComponent(url)}`, {
+      headers: { 'X-API-Key': SECRET_KEY }
+    });
+    const data = await res.json();
+
+    if (data.success && data.coords) {
+      document.getElementById('poiLat').value = data.coords.lat.toFixed(6);
+      document.getElementById('poiLng').value = data.coords.lng.toFixed(6);
+      
+      const latlng = [data.coords.lat, data.coords.lng];
+      map.flyTo(latlng, 16, { animate: true, duration: 1.5 });
+      
+      if (currentMarker) map.removeLayer(currentMarker);
+      const icon = L.divIcon({ 
+        html: '<div class="custom-pin" style="width: 30px; height: 30px;"><i class="fas fa-bed"></i></div>', 
+        className: '', iconSize: [30, 30], iconAnchor: [15, 30] 
+      });
+      currentMarker = L.marker(latlng, { icon }).addTo(map);
+
+      showStatus('Đã lấy được tọa độ từ link!', 'success');
+    } else {
+      showStatus('Không thể giải mã link này. Vui lòng tự click lên bản đồ.', 'error');
+    }
+  } catch (err) {
+    showStatus('Lỗi kết nối đến server.', 'error');
+  }
+};
+
+window.submitData = async function() {
+  if (!currentUser) return showStatus('Lỗi: Chưa đăng nhập vào Firebase!', 'error');
+
+  const name = document.getElementById('poiName').value.trim();
+  const lat = parseFloat(document.getElementById('poiLat').value);
+  const lng = parseFloat(document.getElementById('poiLng').value);
+
+  if (!name || isNaN(lat) || isNaN(lng)) {
+    return showStatus('Vui lòng nhập đủ Tên và Tọa độ hợp lệ!', 'error');
+  }
+
+  showStatus('Đang lưu lên Firebase...', 'success');
+
+  try {
+    // Lưu vào đúng nhánh communityPois của app chính
+    await push(ref(db, 'communityPois'), {
+      lat: lat,
+      lng: lng,
+      name: name,
+      tag: 'rest_stop', // Bắt buộc gắn tag trạm dừng nghỉ
+      uid: currentUser.uid,
+      authorName: currentUser.displayName || currentUser.email.split('@')[0] || 'Admin',
+      timestamp: Date.now(),
+      upvotes: 0
+    });
+
+    showStatus('✅ Đã thêm thành công: ' + name, 'success');
+    
+    // Reset form
+    document.getElementById('poiName').value = '';
+    document.getElementById('gmapsUrl').value = '';
+    
+    // Xóa marker
+    if (currentMarker) { map.removeLayer(currentMarker); currentMarker = null; }
+
+  } catch (err) {
+    showStatus('Lỗi lưu Firebase: ' + err.message, 'error');
+  }
+};
+
+function showStatus(msg, type) {
+  const box = document.getElementById('statusBox');
+  box.textContent = msg;
+  box.className = 'status-box ' + (type === 'error' ? 'status-error' : 'status-success');
+}
+
+// ═══ KHỞI TẠO & XÁC THỰC ═══
+initMap();
+
+// Tự động đăng nhập bằng tài khoản ẩn (hoặc bro tự thay đổi thông tin)
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    currentUser = user;
+    console.log("Đã đăng nhập:", user.email);
+  } else {
+    // Vì đây là tool admin nội bộ, mình sẽ code cứng tài khoản đăng nhập để bro đỡ phải gõ
+    // LƯU Ý: Bro cần tạo sẵn 1 tài khoản trên Firebase Auth (ví dụ: admin@drivekit.com / 123456)
+    signInWithEmailAndPassword(auth, 'anhminhadof123@gmail.com', 'matkhau_cua_bro') 
+      .catch(err => {
+        showStatus('Lỗi đăng nhập Admin. Hãy kiểm tra lại email/pass trong code!', 'error');
+      });
+  }
+});
+</script>
+
+</body>
+</html>
