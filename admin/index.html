@@ -109,9 +109,6 @@
         <input type="text" id="poiGmapsUrl" class="form-control" placeholder="https://maps.app.goo.gl/... hoặc link có @lat,lng">
         <button class="btn btn-primary" id="btnResolvePoi" onclick="resolveRestStopUrl()" style="padding: 0 16px;" title="Trích xuất tọa độ"><i class="fas fa-search-location"></i></button>
       </div>
-      <div class="help-text" style="background: var(--bg-2); padding: 10px; border-radius: 8px; border-left: 3px solid var(--warning); margin-top: 8px;">
-        <b>⚠️ Lưu ý:</b> Nếu link rút gọn bị lỗi, hãy copy URL đầy đủ trên thanh địa chỉ (có chứa @lat,lng) rồi dán vào đây.
-      </div>
     </div>
 
     <div class="form-group">
@@ -136,7 +133,7 @@
 
   <div class="tab-content" id="tab-avoid">
     <div class="help-text" style="background: var(--bg-2); padding: 10px; border-radius: 8px; border-left: 3px solid var(--warning); color: var(--text);">
-      <i class="fas fa-info-circle" style="color: var(--warning);"></i> Dán link Google Maps hoặc <b>click trực tiếp lên bản đồ</b> để vẽ tuyến cấm.
+      <i class="fas fa-info-circle" style="color: var(--warning);"></i> Dán link Google Maps hoặc <b>click 2 điểm lên bản đồ</b> để vẽ tuyến cấm (tự động bám đường).
     </div>
 
     <button class="btn btn-outline" id="btnToggleDraw" onclick="toggleDrawMode()">
@@ -204,6 +201,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const GMAPS_WORKER_URL = 'https://gmaps-resolver.anhminhadof123.workers.dev';
+const MAIN_WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 
 let currentUser = null;
 let map = null;
@@ -215,6 +213,7 @@ let tempMarkerA = null;
 let tempMarkerB = null;
 let tempPolyline = null;
 let isDrawMode = false;
+let currentRouteWaypoints = null;
 
 window.doLogin = async function() {
   const email = document.getElementById('authEmail').value.trim();
@@ -280,6 +279,7 @@ window.toggleDrawMode = function() {
 
 window.resetZoneDrawing = function() {
   pointA = null; pointB = null;
+  currentRouteWaypoints = null;
   if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
   if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
   if (tempPolyline) { map.removeLayer(tempPolyline); tempPolyline = null; }
@@ -291,6 +291,26 @@ window.resetZoneDrawing = function() {
   document.getElementById('zoneEndUrl').value = '';
 };
 
+async function fetchSnappedRoute(lat1, lng1, lat2, lng2) {
+  showStatus('statusAvoid', 'Đang tìm đường bám đường thực tế...', 'loading');
+  try {
+    const res = await fetch(`${MAIN_WORKER_URL}/trackasia-route?origin=${lat1},${lng1}&destination=${lat2},${lng2}&mode=driving`);
+    const data = await res.json();
+    if (data.routes && data.routes.length > 0) {
+      let coords = [];
+      if (data.routes[0].geometry && data.routes[0].geometry.coordinates) {
+        const c0 = data.routes[0].geometry.coordinates[0];
+        if (c0[0] > 90 || c0[1] > 90) coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        else coords = data.routes[0].geometry.coordinates.map(c => [c[0], c[1]]);
+      }
+      return coords;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function initMap() {
   map = L.map('map', { center: [21.0285, 105.8542], zoom: 6 });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -298,7 +318,7 @@ function initMap() {
     maxZoom: 19
   }).addTo(map);
 
-  map.on('click', (e) => {
+  map.on('click', async (e) => {
     const activeTab = document.querySelector('.tab.active').id;
     const lat = e.latlng.lat;
     const lng = e.latlng.lng;
@@ -330,9 +350,20 @@ function initMap() {
         tempMarkerB = L.marker(pointB, { icon: L.divIcon({ html: '<div class="custom-pin pin-avoid-end" style="width: 30px; height: 30px;"><i class="fas fa-flag-checkered"></i></div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] }) }).addTo(map).bindPopup("Điểm cuối cấm").openPopup();
 
         if (tempPolyline) map.removeLayer(tempPolyline);
-        tempPolyline = L.polyline([pointA, pointB], { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
-        map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
         
+        // Lấy tọa độ bám đường
+        const snappedCoords = await fetchSnappedRoute(pointA.lat, pointA.lng, pointB.lat, pointB.lng);
+        if (snappedCoords && snappedCoords.length > 0) {
+          currentRouteWaypoints = snappedCoords;
+          tempPolyline = L.polyline(snappedCoords, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+          showStatus('statusAvoid', '✅ Đã bám đường thành công!', 'success');
+        } else {
+          currentRouteWaypoints = [[pointA.lat, pointA.lng], [pointB.lat, pointB.lng]];
+          tempPolyline = L.polyline(currentRouteWaypoints, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+          showStatus('statusAvoid', '⚠️ Không thể bám đường, vẽ đường chim bay!', 'error');
+        }
+        
+        map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
         toggleDrawMode();
       }
     }
@@ -460,7 +491,14 @@ window.resolveZoneUrl = async function(type) {
 
     if (pointA && pointB) {
       if (tempPolyline) map.removeLayer(tempPolyline);
-      tempPolyline = L.polyline([pointA, pointB], { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+      const snappedCoords = await fetchSnappedRoute(pointA.lat, pointA.lng, pointB.lat, pointB.lng);
+      if (snappedCoords && snappedCoords.length > 0) {
+        currentRouteWaypoints = snappedCoords;
+        tempPolyline = L.polyline(snappedCoords, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+      } else {
+        currentRouteWaypoints = [[pointA.lat, pointA.lng], [pointB.lat, pointB.lng]];
+        tempPolyline = L.polyline(currentRouteWaypoints, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+      }
       map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
     }
 
@@ -475,7 +513,7 @@ window.resolveZoneUrl = async function(type) {
 window.saveAvoidZone = async function() {
   if (!currentUser) return showStatus('statusAvoid', 'Lỗi: Chưa đăng nhập Firebase!', 'error');
   const name = document.getElementById('zoneName').value.trim();
-  if (!name || !pointA || !pointB) return showStatus('statusAvoid', 'Vui lòng nhập tên và đủ 2 điểm!', 'error');
+  if (!name || !pointA || !pointB || !currentRouteWaypoints) return showStatus('statusAvoid', 'Vui lòng nhập tên và đủ 2 điểm!', 'error');
 
   showStatus('statusAvoid', 'Đang lưu lên Firestore...', 'loading');
   try {
@@ -485,6 +523,7 @@ window.saveAvoidZone = async function() {
       lng1: pointA.lng,
       lat2: pointB.lat,
       lng2: pointB.lng,
+      waypoints: currentRouteWaypoints,
       timestamp: Date.now()
     });
     
@@ -503,6 +542,8 @@ function showStatus(id, msg, type) {
   box.textContent = msg;
   box.className = 'status-box status-' + type;
 }
+
 </script>
+
 </body>
 </html>
