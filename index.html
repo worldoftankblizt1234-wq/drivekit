@@ -641,8 +641,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getDatabase(app);       // RTDB — dùng cho Live GPS
-const fsdb = getFirestore(app);    // Firestore — dùng cho TOÀN BỘ data còn lại
+const db = getDatabase(app);
+const fsdb = getFirestore(app);
 
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
@@ -651,7 +651,6 @@ async function fetchWorker(path, options = {}) {
   return fetch(`${WORKER_URL}${path}`, { ...options, headers: { ...(options.headers || {}) } });
 }
 
-// ═══ STATE ═══
 let map = null;
 let currentUser = null;
 let startPoint = null;
@@ -695,18 +694,15 @@ let tempPoiTag = null;
 let restStopFilterActive = false;
 let currentDetailPoi = null;
 
-// ═══ DUAL-SOURCE MERGED DATA (Firestore + RTDB) ═══
-// Mỗi item có .source = 'firestore' | 'rtdb' và .id
-let allRestStops = [];        // FS: rest_stops + RTDB: communityPois (tag=rest_stop)
-let allCommunityPois = [];    // FS: community_pois + RTDB: communityPois (tag≠rest_stop)
-let allReports = {};           // FS: reports + RTDB: reports (keyed by id)
-let allAvoidZones = [];        // FS: avoid_zones + RTDB: avoid_zones
-let allSavedPlaces = {};       // FS: users/{uid}/savedPlaces + RTDB: users/{uid}/savedPlaces
-let allHistory = [];           // FS: users/{uid}/history + RTDB: users/{uid}/history
-let allSavedRoutes = [];       // FS: users/{uid}/savedRoutes + RTDB: users/{uid}/savedRoutes
-let allSharedLinks = [];       // localStorage only
+let allRestStops = [];
+let allCommunityPois = [];
+let allReports = {};
+let allAvoidZones = [];
+let allSavedPlaces = {};
+let allHistory = [];
+let allSavedRoutes = [];
+let allSharedLinks = [];
 
-// Internal raw stores
 let _fsRestStops = [], _rtdbRestStops = [];
 let _fsCommunityPois = [], _rtdbCommunityPois = [];
 let _fsReports = {}, _rtdbReports = {};
@@ -715,17 +711,14 @@ let _fsSavedPlaces = {}, _rtdbSavedPlaces = {};
 let _fsHistory = [], _rtdbHistory = [];
 let _fsSavedRoutes = [], _rtdbSavedRoutes = [];
 
-// Marker arrays
 let communityPoiMarkers = [];
 let restStopMarkers = [];
 let reportMarkers = [];
 let savedPlacesMarkers = [];
 let avoidZoneLayers = [];
 
-// Unsubscribers
 let _unsub = { fsRest:null, rtdbCommunity:null, fsPoi:null, fsReports:null, rtdbReports:null, fsAvoid:null, rtdbAvoid:null, fsSaved:null, rtdbSaved:null, fsHistory:null, rtdbHistory:null, fsRoutes:null, rtdbRoutes:null };
 
-// LIVE ROOM STATE (RTDB 6s)
 let liveEnabled = false;
 let liveRoomCode = null;
 let liveIsPublic = false;
@@ -983,7 +976,6 @@ function logout() { if (liveEnabled) stopLiveSession(); signOut(auth); closeMenu
 function initDualDataSubscriptions() {
   if (!currentUser) return;
 
-  // ── REST STOPS: FS rest_stops + RTDB communityPois (tag=rest_stop) ──
   _unsub.fsRest = onSnapshot(collection(fsdb, 'rest_stops'), snap => {
     _fsRestStops = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
     recomputeRestStops();
@@ -998,13 +990,11 @@ function initDualDataSubscriptions() {
     recomputeCommunityPois();
   }, err => console.warn('RTDB communityPois:', err));
 
-  // ── COMMUNITY POIs: FS community_pois + RTDB communityPois (tag≠rest_stop) ──
   _unsub.fsPoi = onSnapshot(collection(fsdb, 'community_pois'), snap => {
     _fsCommunityPois = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
     recomputeCommunityPois();
   }, err => console.warn('FS community_pois:', err));
 
-  // ── REPORTS: FS reports + RTDB reports ──
   _unsub.fsReports = onSnapshot(collection(fsdb, 'reports'), snap => {
     _fsReports = {};
     snap.docs.forEach(d => { _fsReports[d.id] = { id: d.id, _id: d.id, source: 'firestore', ...d.data() }; });
@@ -1018,7 +1008,6 @@ function initDualDataSubscriptions() {
     recomputeReports();
   }, err => console.warn('RTDB reports:', err));
 
-  // ── AVOID ZONES: FS avoid_zones + RTDB avoid_zones ──
   _unsub.fsAvoid = onSnapshot(collection(fsdb, 'avoid_zones'), snap => {
     _fsAvoidZones = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
     recomputeAvoidZones();
@@ -1030,7 +1019,6 @@ function initDualDataSubscriptions() {
     recomputeAvoidZones();
   }, err => console.warn('RTDB avoid_zones:', err));
 
-  // ── SAVED PLACES ──
   _unsub.fsSaved = onSnapshot(collection(fsdb, `users/${currentUser.uid}/savedPlaces`), snap => {
     _fsSavedPlaces = {};
     snap.docs.forEach(d => { _fsSavedPlaces[d.id] = { id: d.id, _id: d.id, source: 'firestore', ...d.data() }; });
@@ -1044,7 +1032,6 @@ function initDualDataSubscriptions() {
     recomputeSavedPlaces();
   }, err => console.warn('RTDB savedPlaces:', err));
 
-  // ── HISTORY ──
   _unsub.fsHistory = onSnapshot(collection(fsdb, `users/${currentUser.uid}/history`), snap => {
     _fsHistory = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
     recomputeHistory();
@@ -1056,7 +1043,6 @@ function initDualDataSubscriptions() {
     recomputeHistory();
   }, err => console.warn('RTDB history:', err));
 
-  // ── SAVED ROUTES ──
   _unsub.fsRoutes = onSnapshot(collection(fsdb, `users/${currentUser.uid}/savedRoutes`), snap => {
     _fsSavedRoutes = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
     recomputeSavedRoutes();
@@ -1069,37 +1055,16 @@ function initDualDataSubscriptions() {
   }, err => console.warn('RTDB savedRoutes:', err));
 }
 
-// ── MERGE + RENDER ──
-function recomputeRestStops() {
-  allRestStops = [..._fsRestStops, ..._rtdbRestStops];
-  renderCommunityPoisOnMap();
-  renderRestStopMarkers();
-}
-function recomputeCommunityPois() {
-  allCommunityPois = [..._fsCommunityPois, ..._rtdbCommunityPois];
-  renderCommunityPoisOnMap();
-}
-function recomputeReports() {
-  allReports = { ..._fsReports, ..._rtdbReports };
-  renderReportsOnMap();
-}
-function recomputeAvoidZones() {
-  allAvoidZones = [..._fsAvoidZones, ..._rtdbAvoidZones];
-  renderAvoidZonesOnMap();
-}
-function recomputeSavedPlaces() {
-  allSavedPlaces = { ..._fsSavedPlaces, ..._rtdbSavedPlaces };
-  renderSavedPlacesOnMap();
-}
-function recomputeHistory() {
-  allHistory = [..._fsHistory, ..._rtdbHistory].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-}
-function recomputeSavedRoutes() {
-  allSavedRoutes = [..._fsSavedRoutes, ..._rtdbSavedRoutes].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-}
+function recomputeRestStops() { allRestStops = [..._fsRestStops, ..._rtdbRestStops]; renderCommunityPoisOnMap(); renderRestStopMarkers(); }
+function recomputeCommunityPois() { allCommunityPois = [..._fsCommunityPois, ..._rtdbCommunityPois]; renderCommunityPoisOnMap(); }
+function recomputeReports() { allReports = { ..._fsReports, ..._rtdbReports }; renderReportsOnMap(); }
+function recomputeAvoidZones() { allAvoidZones = [..._fsAvoidZones, ..._rtdbAvoidZones]; renderAvoidZonesOnMap(); }
+function recomputeSavedPlaces() { allSavedPlaces = { ..._fsSavedPlaces, ..._rtdbSavedPlaces }; renderSavedPlacesOnMap(); }
+function recomputeHistory() { allHistory = [..._fsHistory, ..._rtdbHistory].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); }
+function recomputeSavedRoutes() { allSavedRoutes = [..._fsSavedRoutes, ..._rtdbSavedRoutes].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); }
 
 // ═══════════════════════════════════════════════════════════
-// MAP
+// MAP & UI INTERACTION (FIXED)
 // ═══════════════════════════════════════════════════════════
 function initMap() {
   if (map) return;
@@ -1168,7 +1133,14 @@ function initMap() {
   map.on('dragstart', () => { clearTouchMarker(); });
   map.on('zoomstart', () => { clearTouchMarker(); });
   mc.addEventListener('contextmenu', (e) => { e.preventDefault(); closeDirections(); });
-  map.on('click', () => { closeDirections(); });
+  
+  map.on('click', () => { 
+    closeDirections(); 
+    // Khi click map, nếu thanh search đang mở thì tắt nó đi
+    if (document.getElementById('suggestionsBox').classList.contains('show')) {
+      closeSearch();
+    }
+  });
 
   let zoomRenderTimer = null;
   map.on('zoomend', () => {
@@ -1219,9 +1191,6 @@ function showSharedLocationMarker(lat, lng, name, isDestination = false) {
   map.flyTo([lat, lng], 16, { animate: true, duration: 1.5 });
 }
 
-// ═══════════════════════════════════════════════════════════
-// RENDER: SAVED PLACES (FS + RTDB merged)
-// ═══════════════════════════════════════════════════════════
 function renderSavedPlacesOnMap() {
   savedPlacesMarkers.forEach(m => { try { map.removeLayer(m); } catch(e){} });
   savedPlacesMarkers = [];
@@ -1286,9 +1255,6 @@ window.deleteSavedPlace = async function(source, id) {
   } catch(e) { alert('Lỗi xoá: ' + e.message); }
 };
 
-// ═══════════════════════════════════════════════════════════
-// RENDER: REST STOPS (FS + RTDB merged) — cùng style
-// ═══════════════════════════════════════════════════════════
 function renderRestStopMarkers() {
   restStopMarkers.forEach(m => { try { map.removeLayer(m); } catch(e){} });
   restStopMarkers = [];
@@ -1306,9 +1272,6 @@ function renderRestStopMarkers() {
   });
 }
 
-// ═══════════════════════════════════════════════════════════
-// RENDER: COMMUNITY POIs (FS + RTDB merged, tag≠rest_stop)
-// ═══════════════════════════════════════════════════════════
 function renderCommunityPoisOnMap() {
   communityPoiMarkers.forEach(m => { try { map.removeLayer(m); } catch(e){} });
   communityPoiMarkers = [];
@@ -1327,9 +1290,6 @@ function renderCommunityPoisOnMap() {
   });
 }
 
-// ═══════════════════════════════════════════════════════════
-// RENDER: REPORTS (FS + RTDB)
-// ═══════════════════════════════════════════════════════════
 function renderReportsOnMap() {
   reportMarkers.forEach(m => { try { map.removeLayer(m); } catch(e){} });
   reportMarkers = [];
@@ -1355,9 +1315,6 @@ function renderReportsOnMap() {
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-// RENDER: AVOID ZONES (FS + RTDB)
-// ═══════════════════════════════════════════════════════════
 function renderAvoidZonesOnMap() {
   avoidZoneLayers.forEach(l => { try { map.removeLayer(l); } catch(e){} });
   avoidZoneLayers = [];
@@ -1377,9 +1334,6 @@ function renderAvoidZonesOnMap() {
   });
 }
 
-// ═══════════════════════════════════════════════════════════
-// REPORT SUBMIT (Firestore only)
-// ═══════════════════════════════════════════════════════════
 window.openReportMenu = function() { document.getElementById('reportModal').classList.add('open'); };
 window.closeReportMenu = function() { document.getElementById('reportModal').classList.remove('open'); };
 
@@ -1398,9 +1352,6 @@ window.submitReport = async function(type) {
   } catch (e) { alert('Lỗi: ' + e.message); }
 };
 
-// ═══════════════════════════════════════════════════════════
-// ROUTES / NAVIGATION (giữ nguyên)
-// ═══════════════════════════════════════════════════════════
 async function fetchTrackAsiaRouteNormalized(from, to, mode = 'driving') {
   let apiMode = 'driving';
   if (mode === 'motorcycle') apiMode = 'motorcycling';
@@ -1438,14 +1389,19 @@ window.setVehicleMode = function(mode, btn) {
 window.changeSort = function(mode) { currentSortMode = mode; if (startPoint && endPoint) fetchAndShowRouteOptions(); };
 
 window.fetchAndShowRouteOptions = async function() {
-  if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
+  if (!startPoint || !endPoint || !startPoint.lat || !endPoint.lat) {
+    return alert('Vui lòng chọn đủ Điểm đi và Điểm đến hợp lệ!');
+  }
+
   const modeLabel = currentVehicleMode === 'driving' ? 'ô tô' : currentVehicleMode === 'driving-traffic' ? 'ô tô (kẹt xe)' : currentVehicleMode === 'truck' ? 'xe tải' : currentVehicleMode === 'hd' ? 'xe công nghệ' : currentVehicleMode === 'walking' ? 'đi bộ' : currentVehicleMode === 'bicycle' ? 'xe đạp' : 'xe máy';
   const bodyEl = document.getElementById('routeOptionsBody');
   bodyEl.innerHTML = `<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px; color:var(--text-muted);">Đang tìm tuyến (${modeLabel})...</p></div>`;
   document.getElementById('routeOptionsModal').classList.add('open');
+  
   const fromStr = `${startPoint.lng},${startPoint.lat}`;
   const toStr = `${endPoint.lng},${endPoint.lat}`;
   const mapboxUrl = `/mapbox-route?from=${fromStr}&to=${toStr}&alternatives=true&mode=${currentVehicleMode}`;
+  
   const tasks = [];
   if (['driving', 'driving-traffic', 'walking', 'bicycle'].includes(currentVehicleMode)) {
     tasks.push(fetchWorker(mapboxUrl).then(r => r.json()).then(data => {
@@ -1454,21 +1410,34 @@ window.fetchAndShowRouteOptions = async function() {
     }).catch(() => []));
   } else tasks.push(Promise.resolve([]));
   tasks.push(fetchTrackAsiaRouteNormalized(startPoint, endPoint, currentVehicleMode).catch(err => { console.warn('Lỗi lấy tuyến:', err); return []; }));
+  
   try {
     const [mapboxRoutes, trackasiaRoutes] = await Promise.all(tasks);
     let routes = [...mapboxRoutes, ...trackasiaRoutes];
+
+    // Lọc bỏ các tuyến bị lỗi tọa độ
+    routes = routes.filter(r => {
+      const coords = r.geometry?.coordinates;
+      if (!coords || coords.length === 0) return false;
+      if (coords[0][0] === 0 && coords[0][1] === 0) return false;
+      return true;
+    });
+
     if (routes.length === 0) {
       const testRes = await fetchWorker(`/trackasia-route?origin=${startPoint.lat},${startPoint.lng}&destination=${endPoint.lat},${endPoint.lng}&mode=${currentVehicleMode}`);
       const errData = await testRes.json();
-      bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Không tìm được tuyến nào cho <b>${modeLabel}</b>.</p><div style="font-size:0.8rem; margin-top:12px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; text-align:left; word-break:break-all;"><b>Lỗi API:</b> ${errData.details || errData.error || 'Không rõ nguyên nhân'}</div></div>`;
+      bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Không tìm được tuyến đường hợp lệ.</p><div style="font-size:0.8rem; margin-top:12px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; text-align:left; word-break:break-all;"><b>Lỗi từ Worker:</b> ${errData.details || errData.error || 'Không có dữ liệu trả về'}</div></div>`;
       return;
     }
+    
     routes.sort((a, b) => currentSortMode === 'shortest' ? a.distance - b.distance : a.duration - b.duration);
     routes = routes.slice(0, 5);
     alternativeRoutesData = routes;
+    
     if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
     alternativeLayers.forEach(l => map.removeLayer(l)); alternativeLayers = [];
     if (window._routeBadges) window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = [];
+    
     const allCoords = [];
     routes.forEach((r, index) => {
       const coords = r.geometry.coordinates;
@@ -1484,6 +1453,7 @@ window.fetchAndShowRouteOptions = async function() {
       badge.on('click', () => selectRouteOption(index));
       window._routeBadges.push(badge);
     });
+    
     map.fitBounds(L.latLngBounds(allCoords), { padding: [50, 50] });
     let html = `<div class="sort-bar"><button class="sort-chip ${currentSortMode === 'fastest' ? 'active' : ''}" onclick="changeSort('fastest')"><i class="fas fa-bolt"></i> Nhanh nhất</button><button class="sort-chip ${currentSortMode === 'shortest' ? 'active' : ''}" onclick="changeSort('shortest')"><i class="fas fa-route"></i> Ngắn nhất</button></div>`;
     routes.forEach((r, index) => {
@@ -1503,19 +1473,30 @@ window.fetchAndShowRouteOptions = async function() {
 window.selectRouteOption = function(index) {
   const selectedRoute = alternativeRoutesData[index];
   if (!selectedRoute) return;
+
+  if (!selectedRoute.geometry || !selectedRoute.geometry.coordinates || selectedRoute.geometry.coordinates.length === 0) {
+    return alert('Lỗi: Tuyến đường này không có dữ liệu tọa độ. Vui lòng chọn phương tiện khác!');
+  }
+
   const unselectedRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(unselectedRoutes));
   alternativeLayers.forEach((l, i) => { if (i === index) l.setStyle({ color: '#3b82f6', weight: 8, opacity: 1, dashArray: '' }); else l.setStyle({ color: '#9ca3af', weight: 5, opacity: 0.5, dashArray: '10, 10' }); });
   alternativeLayers.forEach((l, i) => { if (i !== index) map.removeLayer(l); });
   currentRouteLayer = alternativeLayers[index]; alternativeLayers = [currentRouteLayer];
   currentRouteData = selectedRoute; currentRouteCoords = selectedRoute.geometry.coordinates;
+  
   if (window._routeBadges) { window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = []; }
-  closeRouteOptions(); startNavigationHUD();
+  closeRouteOptions(); 
+  startNavigationHUD();
 };
 
 window.closeRouteOptions = function() { document.getElementById('routeOptionsModal').classList.remove('open'); };
 
 function startNavigationHUD() {
+  if (!currentRouteData || !currentRouteCoords || currentRouteCoords.length === 0) {
+    return alert('Không thể bắt đầu dẫn đường do thiếu dữ liệu tuyến!');
+  }
+  
   closeDirections();
   document.getElementById('searchBar').classList.add('hidden');
   document.getElementById('mainMenuBtn').classList.add('hidden');
@@ -1555,6 +1536,9 @@ window.openAlternativeRoutes = function() {
 window.switchToRoute = function(index) {
   const selectedRoute = alternativeRoutesData[index];
   if (!selectedRoute) return;
+  if (!selectedRoute.geometry || !selectedRoute.geometry.coordinates || selectedRoute.geometry.coordinates.length === 0) {
+    return alert('Lỗi: Tuyến đường này không có dữ liệu tọa độ!');
+  }
   const otherRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(otherRoutes));
   currentRouteData = selectedRoute; currentRouteCoords = selectedRoute.geometry.coordinates;
@@ -1695,9 +1679,6 @@ window.endTrip = async function(save) {
   alert(save ? '✅ Đã lưu chuyến đi. Cảm ơn bạn đã dùng DriveKit!' : '🏁 Đã kết thúc chuyến đi.');
 };
 
-// ═══════════════════════════════════════════════════════════
-// SAVE TO FIRESTORE HELPERS
-// ═══════════════════════════════════════════════════════════
 async function saveHistoryToFirestore(start, end, distance) {
   if (!currentUser) return;
   try {
@@ -1707,9 +1688,6 @@ async function saveHistoryToFirestore(start, end, distance) {
   } catch(e) { console.warn('Lỗi lưu history:', e); }
 }
 
-// ═══════════════════════════════════════════════════════════
-// SHARE / LOCATION
-// ═══════════════════════════════════════════════════════════
 window.shareRoute = function() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
   const baseUrl = window.location.origin + window.location.pathname;
@@ -1727,9 +1705,6 @@ window.shareLocation = function(lat, lng, name) {
   else navigator.clipboard.writeText(shareUrl).then(() => alert('Đã copy link địa điểm!')).catch(() => prompt('Copy link này:', shareUrl));
 };
 
-// ═══════════════════════════════════════════════════════════
-// SHARED LINKS (localStorage only)
-// ═══════════════════════════════════════════════════════════
 function saveSharedLinkToStorage(fromName, toName, url) {
   const links = JSON.parse(localStorage.getItem('sharedLinks') || '[]');
   links.unshift({ fromName, toName, url, timestamp: Date.now() });
@@ -1764,9 +1739,6 @@ window.clearAllSharedLinks = function() {
   loadSharedLinksFromStorage();
 };
 
-// ═══════════════════════════════════════════════════════════
-// HISTORY / SAVED ROUTES (load from merged arrays)
-// ═══════════════════════════════════════════════════════════
 async function loadHistory() {
   const list = document.getElementById('historyList'); if (!list) return;
   if (allHistory.length === 0) {
@@ -1834,9 +1806,6 @@ window.clearAllSavedRoutes = async function() {
   } catch(e) { console.warn(e); }
 };
 
-// ═══════════════════════════════════════════════════════════
-// MENU / DIRECTIONS
-// ═══════════════════════════════════════════════════════════
 window.openMenu = function() { document.getElementById('profileModal').classList.add('open'); loadHistory(); loadSavedRoutes(); loadSharedLinksFromStorage(); };
 window.closeMenu = function() { document.getElementById('profileModal').classList.remove('open'); };
 
@@ -1850,14 +1819,20 @@ function openDirections() {
   document.querySelector('.fab-layers').style.display = 'none'; document.getElementById('btnQuickPin').style.display = 'none';
   document.getElementById('mainLocateBtn').style.display = 'none'; document.getElementById('mainDirBtn').style.display = 'none';
   document.getElementById('btnReport').style.display = 'none';
+  document.getElementById('btnRestStopFilter').style.display = 'none';
 }
 
 function closeDirections() {
   document.getElementById('dirSheet').classList.remove('open'); document.getElementById('dirSheet').style.transform = '';
   if (searchContext !== 'view') document.getElementById('suggestionsBox').classList.remove('show');
-  document.querySelector('.fab-layers').style.display = 'flex'; document.getElementById('btnQuickPin').style.display = 'flex';
-  document.getElementById('mainLocateBtn').style.display = 'flex'; document.getElementById('mainDirBtn').style.display = 'flex';
-  document.getElementById('btnReport').style.display = 'flex';
+  
+  if (!document.body.classList.contains('navigating')) {
+    document.querySelector('.fab-layers').style.display = 'flex'; document.getElementById('btnQuickPin').style.display = 'flex';
+    document.getElementById('mainLocateBtn').style.display = 'flex'; document.getElementById('mainDirBtn').style.display = 'flex';
+    document.getElementById('btnReport').style.display = 'flex';
+    document.getElementById('btnRestStopFilter').style.display = 'flex';
+  }
+  
   if (document.getElementById('hud').classList.contains('hidden')) {
     if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
     alternativeLayers.forEach(l => { try { map.removeLayer(l); } catch (e) {} });
@@ -1867,15 +1842,14 @@ function closeDirections() {
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-// SEARCH
-// ═══════════════════════════════════════════════════════════
 function activateSearch(type) {
   searchContext = type;
   if (type !== 'view') document.getElementById('dirSheet').classList.add('open');
   document.querySelector('.fab-layers').style.display = 'none'; document.getElementById('btnQuickPin').style.display = 'none';
   document.getElementById('mainLocateBtn').style.display = 'none'; document.getElementById('mainDirBtn').style.display = 'none';
   document.getElementById('btnReport').style.display = 'none';
+  document.getElementById('btnRestStopFilter').style.display = 'none';
+  
   const box = document.getElementById('suggestionsBox');
   box.classList.add('show');
   box.innerHTML = '<div class="sug-item">Nhập địa chỉ hoặc dán link Google Maps...</div>';
@@ -1892,7 +1866,25 @@ function activateSearch(type) {
   };
 }
 
-function closeSearch() { document.getElementById('suggestionsBox').classList.remove('show'); document.getElementById('topSearchInput').readOnly = true; }
+function closeSearch() {
+  document.getElementById('suggestionsBox').classList.remove('show');
+  document.getElementById('topSearchInput').readOnly = true;
+  
+  if (!document.getElementById('dirSheet').classList.contains('open') && !document.body.classList.contains('navigating')) {
+    document.querySelector('.fab-layers').style.display = 'flex';
+    document.getElementById('btnQuickPin').style.display = 'flex';
+    document.getElementById('mainLocateBtn').style.display = 'flex';
+    document.getElementById('mainDirBtn').style.display = 'flex';
+    document.getElementById('btnReport').style.display = 'flex';
+    document.getElementById('btnRestStopFilter').style.display = 'flex';
+  }
+}
+
+window.clearTopSearch = function() {
+  document.getElementById('topSearchInput').value = ''; document.getElementById('searchClearBtn').classList.add('hidden'); clearPoint('end');
+  map.eachLayer(layer => { if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') map.removeLayer(layer); });
+  closeSearch();
+};
 
 async function doSearch(query) {
   const box = document.getElementById('suggestionsBox');
@@ -1918,14 +1910,13 @@ async function doSearch(query) {
   const q = query.toLowerCase().trim();
   box.innerHTML = '';
 
-  // Search rest stops (từ cả 2 nguồn merged)
   const restStopMatches = allRestStops.filter(p => p.name && p.name.toLowerCase().includes(q));
   if (restStopMatches.length > 0) {
     const title = document.createElement('div');
     title.className = 'sug-section-title rest-stop-title';
-    title.innerHTML = '<i class="fas fa-bed"></i> Trạm dừng nghỉ';
+    title.innerHTML = `<i class="fas fa-bed"></i> Trạm dừng nghỉ (${restStopMatches.length})`;
     box.appendChild(title);
-    restStopMatches.slice(0, 5).forEach(poi => {
+    restStopMatches.forEach(poi => {
       const div = document.createElement('div');
       div.className = 'sug-item';
       div.innerHTML = `<i class="fas fa-bed" style="color:#3b82f6;font-size:1.1rem;"></i><div style="flex:1;"><div style="font-weight:700;">${escapeHtml(poi.name)}</div><div style="font-size:0.7rem;color:#3b82f6;font-weight:700;margin-top:2px;"><i class="fas fa-bed"></i> Trạm dừng nghỉ</div></div>`;
@@ -1934,14 +1925,13 @@ async function doSearch(query) {
     });
   }
 
-  // Search community POIs (merged)
   const poiMatches = allCommunityPois.filter(p => p.name && p.name.toLowerCase().includes(q));
   if (poiMatches.length > 0) {
     const title = document.createElement('div');
     title.className = 'sug-section-title community';
-    title.innerHTML = '<i class="fas fa-users"></i> Địa điểm cộng đồng';
+    title.innerHTML = `<i class="fas fa-users"></i> Địa điểm cộng đồng (${poiMatches.length})`;
     box.appendChild(title);
-    poiMatches.slice(0, 5).forEach(poi => {
+    poiMatches.forEach(poi => {
       const conf = POI_TAG_CONFIG[poi.tag] || POI_TAG_CONFIG.supermarket;
       const div = document.createElement('div');
       div.className = 'sug-item';
@@ -1965,7 +1955,7 @@ async function doSearch(query) {
       title2.className = 'sug-section-title';
       title2.innerHTML = '<i class="fas fa-map-marked-alt"></i> Địa điểm khác';
       box.appendChild(title2);
-      results.slice(0, 25).forEach(r => {
+      results.slice(0, 50).forEach(r => {
         const div = document.createElement('div');
         div.className = 'sug-item';
         const name = r.formatted_address || r.name || 'Không tên';
@@ -2006,9 +1996,6 @@ async function selectLocation(lat, lng, name) {
   else if (searchContext === 'end') { endPoint = { lat, lng, name: finalName }; document.getElementById('dirInputEnd').value = finalName; document.getElementById('topSearchInput').value = finalName; document.getElementById('btnClearEnd').classList.remove('hidden'); }
 }
 
-// ═══════════════════════════════════════════════════════════
-// GPS WATCHING (navigation)
-// ═══════════════════════════════════════════════════════════
 function refreshGPS() {
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(pos => {
@@ -2120,9 +2107,6 @@ function calcDist(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// ═══════════════════════════════════════════════════════════
-// LAYERS
-// ═══════════════════════════════════════════════════════════
 window.toggleLayerMenu = function() {
   const menu = document.getElementById('layerMenu');
   const isShowing = menu.classList.contains('show');
@@ -2168,14 +2152,7 @@ window.goToLongPressLocation = function(lat, lng, name) {
 
 function escapeHtml(text) { return String(text || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
 function centerToLocation() { if (lastUserPos) map.flyTo([lastUserPos.lat, lastUserPos.lng], 18, { animate: true, duration: 1.5 }); else refreshGPS(); }
-window.clearTopSearch = function() {
-  document.getElementById('topSearchInput').value = ''; document.getElementById('searchClearBtn').classList.add('hidden'); clearPoint('end');
-  map.eachLayer(layer => { if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') map.removeLayer(layer); });
-};
 
-// ═══════════════════════════════════════════════════════════
-// POI CREATION (Firestore only)
-// ═══════════════════════════════════════════════════════════
 window.openPoiSheet = function(lat, lng, addressHint) {
   if (!currentUser) { alert('Vui lòng đăng nhập để thêm địa điểm!'); return; }
   tempPoiLatLng = { lat, lng }; tempPoiTag = null;
@@ -2226,9 +2203,6 @@ window.submitCommunityPoi = async function() {
   } catch (e) { alert('Lỗi lưu: ' + e.message); btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Lưu địa điểm'; }
 };
 
-// ═══════════════════════════════════════════════════════════
-// POI DETAIL
-// ═══════════════════════════════════════════════════════════
 window.openPoiDetail = function(source, id) {
   const poi = [...allCommunityPois, ...allRestStops].find(p => p._id === id && p.source === source);
   if (!poi) return;
@@ -2278,9 +2252,6 @@ function showDetailToast(msg) {
   setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2000);
 }
 
-// ═══════════════════════════════════════════════════════════
-// SWIPE DOWN / REST STOP FILTER
-// ═══════════════════════════════════════════════════════════
 function setupSwipeDown(sheetId, handleId, closeFn) {
   const sheet = document.getElementById(sheetId);
   const handle = document.getElementById(handleId);
@@ -2334,9 +2305,6 @@ window.toggleRestStopFilter = function() {
   setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2000);
 };
 
-// ═══════════════════════════════════════════════════════════
-// LIVE ROOM — RTDB 6s + INTERPOLATION
-// ═══════════════════════════════════════════════════════════
 function liveLerp(a, b, t) { return a + (b - a) * t; }
 function liveEase(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2; }
 function liveHaversine(lat1, lng1, lat2, lng2) {
