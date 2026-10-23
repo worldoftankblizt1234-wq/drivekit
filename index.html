@@ -1373,6 +1373,12 @@ window.selectRouteOption = function(index) {
   if (!selectedRoute.geometry || !selectedRoute.geometry.coordinates || selectedRoute.geometry.coordinates.length === 0) {
     return alert('Lỗi: Tuyến đường này không có dữ liệu tọa độ. Vui lòng chọn phương tiện khác!');
   }
+  if (!selectedRoute.legs || !Array.isArray(selectedRoute.legs) || selectedRoute.legs.length === 0) {
+    selectedRoute.legs = [{ steps: [] }];
+  }
+  if (!selectedRoute.legs[0].steps) {
+    selectedRoute.legs[0].steps = [];
+  }
   const unselectedRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(unselectedRoutes));
   alternativeLayers.forEach((l, i) => { if (i === index) l.setStyle({ color: '#3b82f6', weight: 8, opacity: 1, dashArray: '' }); else l.setStyle({ color: '#9ca3af', weight: 5, opacity: 0.5, dashArray: '10, 10' }); });
@@ -1392,12 +1398,17 @@ function startNavigationHUD() {
     return;
   }
   try {
+    if (!currentRouteData.legs || !Array.isArray(currentRouteData.legs) || currentRouteData.legs.length === 0) {
+      currentRouteData.legs = [{ steps: [] }];
+    }
+    if (!currentRouteData.legs[0].steps) {
+      currentRouteData.legs[0].steps = [];
+    }
     closeDirections();
     document.body.classList.add('navigating');
     document.getElementById('hud').classList.remove('hidden');
     updateUIState();
-    const legs = currentRouteData.legs || [];
-    voiceRouteSteps = (legs.length > 0 && legs[0].steps) ? legs[0].steps : [];
+    voiceRouteSteps = currentRouteData.legs[0].steps;
     voiceStepIndex = 0; lastSnapIndex = 0; tripStartTime = Date.now(); arrivalHandled = false;
     const dist = currentRouteData.distance || 0;
     const dur = currentRouteData.duration || 0;
@@ -1436,10 +1447,16 @@ window.switchToRoute = function(index) {
   if (!selectedRoute.geometry || !selectedRoute.geometry.coordinates || selectedRoute.geometry.coordinates.length === 0) {
     return alert('Lỗi: Tuyến đường này không có dữ liệu tọa độ!');
   }
+  if (!selectedRoute.legs || !Array.isArray(selectedRoute.legs) || selectedRoute.legs.length === 0) {
+    selectedRoute.legs = [{ steps: [] }];
+  }
+  if (!selectedRoute.legs[0].steps) {
+    selectedRoute.legs[0].steps = [];
+  }
   const otherRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(otherRoutes));
   currentRouteData = selectedRoute; currentRouteCoords = selectedRoute.geometry.coordinates;
-  voiceRouteSteps = selectedRoute.legs[0].steps || []; voiceStepIndex = 0; lastSnapIndex = 0;
+  voiceRouteSteps = selectedRoute.legs[0].steps; voiceStepIndex = 0; lastSnapIndex = 0;
   if (currentRouteLayer) map.removeLayer(currentRouteLayer);
   currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
   map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
@@ -1511,7 +1528,13 @@ async function autoReroute(userLat, userLng) {
     } else {
       const res = await fetchWorker(`/mapbox-route?from=${fromStr}&to=${toStr}&mode=${currentMode}`); const data = await res.json(); if (data.code !== 'Ok') throw new Error('no route'); r = { ...data.routes[0], provider: 'mapbox', mode: currentMode };
     }
-    currentRouteData = r; voiceRouteSteps = r.legs[0].steps || []; voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
+    if (!r.legs || !Array.isArray(r.legs) || r.legs.length === 0) {
+      r.legs = [{ steps: [] }];
+    }
+    if (!r.legs[0].steps) {
+      r.legs[0].steps = [];
+    }
+    currentRouteData = r; voiceRouteSteps = r.legs[0].steps; voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
     currentRouteCoords = r.geometry.coordinates;
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
     currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
