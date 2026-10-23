@@ -19,12 +19,10 @@
   }
   body { font-family: 'Be Vietnam Pro', sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
   
-  /* SIDEBAR */
   .sidebar { width: 420px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 10; box-shadow: 4px 0 15px rgba(0,0,0,0.2); }
   .header { padding: 20px; border-bottom: 1px solid var(--border); }
   .header h1 { font-size: 1.2rem; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 8px; }
   
-  /* TABS */
   .tabs { display: flex; border-bottom: 1px solid var(--border); }
   .tab { flex: 1; padding: 15px; text-align: center; font-weight: 700; font-size: 0.9rem; cursor: pointer; color: var(--text-muted); background: var(--bg-2); transition: 0.2s; display: flex; flex-direction: column; align-items: center; gap: 5px; }
   .tab:hover { background: var(--border); }
@@ -32,7 +30,6 @@
   .tab-content { display: none; padding: 20px; flex: 1; overflow-y: auto; flex-direction: column; gap: 16px; }
   .tab-content.active { display: flex; }
 
-  /* FORMS */
   .form-group { display: flex; flex-direction: column; gap: 6px; }
   .form-group label { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); }
   .form-control { width: 100%; padding: 12px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; transition: border 0.2s; }
@@ -44,31 +41,26 @@
   .btn-primary { background: var(--primary); color: white; }
   .btn-success { background: var(--success); color: white; }
   .btn-danger { background: var(--danger); color: white; }
-  .btn-warning { background: var(--warning); color: white; }
   .btn-outline { background: transparent; border: 1px dashed var(--border); color: var(--text-muted); }
   .btn-outline.active { border-color: var(--warning); color: var(--warning); background: rgba(245, 158, 11, 0.1); }
   .btn:disabled { background: #475569; cursor: not-allowed; }
   
   .help-text { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; margin-top: 4px; }
   
-  /* MAP */
   #map { flex: 1; background: #e5e5e5; z-index: 1; cursor: crosshair; }
   #map.no-draw { cursor: grab; }
   
-  /* TRẠNG THÁI */
   .status-box { padding: 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; display: none; margin-top: 10px; text-align: center; white-space: pre-wrap; line-height: 1.4; }
   .status-success { background: rgba(16,185,129,0.15); border: 1px solid var(--success); color: var(--success); display: block; }
   .status-error { background: rgba(239,68,68,0.15); border: 1px solid var(--danger); color: var(--danger); display: block; }
   .status-loading { background: rgba(59,130,246,0.15); border: 1px solid var(--primary); color: var(--primary); display: block; }
 
-  /* CUSTOM MARKER */
   .custom-pin { border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 6px rgba(0,0,0,0.3); border: 2px solid white; }
   .custom-pin i { transform: rotate(45deg); color: white; font-size: 0.8rem; }
   .pin-rest-stop { background: var(--primary); }
   .pin-avoid-start { background: var(--warning); }
   .pin-avoid-end { background: var(--danger); }
 
-  /* AUTH SCREEN */
   .auth-screen { position: fixed; inset: 0; z-index: 9999; background: var(--bg); display: flex; align-items: center; justify-content: center; }
   .auth-box { background: var(--card); padding: 32px; border-radius: 16px; width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 1px solid var(--border); }
   .auth-box h2 { font-size: 1.4rem; margin-bottom: 8px; text-align: center; }
@@ -116,6 +108,9 @@
       <div style="display: flex; gap: 8px;">
         <input type="text" id="poiGmapsUrl" class="form-control" placeholder="https://maps.app.goo.gl/... hoặc link có @lat,lng">
         <button class="btn btn-primary" id="btnResolvePoi" onclick="resolveRestStopUrl()" style="padding: 0 16px;" title="Trích xuất tọa độ"><i class="fas fa-search-location"></i></button>
+      </div>
+      <div class="help-text" style="background: var(--bg-2); padding: 10px; border-radius: 8px; border-left: 3px solid var(--warning); margin-top: 8px;">
+        <b>⚠️ Lưu ý:</b> Nếu link rút gọn bị lỗi, hãy copy URL đầy đủ trên thanh địa chỉ (có chứa @lat,lng) rồi dán vào đây.
       </div>
     </div>
 
@@ -508,8 +503,6 @@ function showStatus(id, msg, type) {
   box.textContent = msg;
   box.className = 'status-box status-' + type;
 }
-
 </script>
-
 </body>
 </html>
