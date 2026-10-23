@@ -1136,7 +1136,6 @@ function initMap() {
   
   map.on('click', () => { 
     closeDirections(); 
-    // Khi click map, nếu thanh search đang mở thì tắt nó đi
     if (document.getElementById('suggestionsBox').classList.contains('show')) {
       closeSearch();
     }
@@ -1418,9 +1417,11 @@ window.fetchAndShowRouteOptions = async function() {
     // Lọc bỏ các tuyến bị lỗi tọa độ
     routes = routes.filter(r => {
       const coords = r.geometry?.coordinates;
-      if (!coords || coords.length === 0) return false;
-      if (coords[0][0] === 0 && coords[0][1] === 0) return false;
-      return true;
+      if (!coords || coords.length < 2) return false;
+      return coords.every(c => {
+        const lat = c[0], lng = c[1];
+        return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && !(lat === 0 && lng === 0);
+      });
     });
 
     if (routes.length === 0) {
@@ -1494,28 +1495,45 @@ window.closeRouteOptions = function() { document.getElementById('routeOptionsMod
 
 function startNavigationHUD() {
   if (!currentRouteData || !currentRouteCoords || currentRouteCoords.length === 0) {
-    return alert('Không thể bắt đầu dẫn đường do thiếu dữ liệu tuyến!');
+    alert('Không thể bắt đầu dẫn đường do thiếu dữ liệu tuyến!');
+    document.getElementById('hud').classList.add('hidden');
+    document.body.classList.remove('navigating');
+    return;
   }
   
-  closeDirections();
-  document.getElementById('searchBar').classList.add('hidden');
-  document.getElementById('mainMenuBtn').classList.add('hidden');
-  document.getElementById('mainLocateBtn').classList.add('hidden');
-  document.getElementById('mainDirBtn').classList.add('hidden');
-  document.getElementById('btnQuickPin').classList.add('hidden');
-  document.querySelector('.fab-layers').classList.add('hidden');
-  const restStopBtn = document.getElementById('btnRestStopFilter');
-  if (restStopBtn) restStopBtn.classList.add('hidden');
-  document.getElementById('btnReport').classList.remove('hidden');
-  document.body.classList.add('navigating');
-  document.getElementById('hud').classList.remove('hidden');
-  voiceRouteSteps = currentRouteData.legs[0].steps || [];
-  voiceStepIndex = 0; lastSnapIndex = 0; tripStartTime = Date.now(); arrivalHandled = false;
-  document.getElementById('hudRemainDist').textContent = (currentRouteData.distance / 1000).toFixed(1) + ' km';
-  document.getElementById('hudRemainTime').textContent = Math.round(currentRouteData.duration / 60) + ' phút';
-  document.getElementById('hudNextStopName').textContent = endPoint.name;
-  startWatching(); startVoice(); saveHistoryToFirestore(startPoint, endPoint, currentRouteData.distance);
-  if (lastUserPos) updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
+  try {
+    closeDirections();
+    document.getElementById('searchBar').classList.add('hidden');
+    document.getElementById('mainMenuBtn').classList.add('hidden');
+    document.getElementById('mainLocateBtn').classList.add('hidden');
+    document.getElementById('mainDirBtn').classList.add('hidden');
+    document.getElementById('btnQuickPin').classList.add('hidden');
+    document.querySelector('.fab-layers').classList.add('hidden');
+    const restStopBtn = document.getElementById('btnRestStopFilter');
+    if (restStopBtn) restStopBtn.classList.add('hidden');
+    document.getElementById('btnReport').classList.remove('hidden');
+    
+    document.body.classList.add('navigating');
+    document.getElementById('hud').classList.remove('hidden');
+    
+    const legs = currentRouteData.legs || [];
+    voiceRouteSteps = (legs.length > 0 ? legs[0].steps : []) || [];
+    
+    voiceStepIndex = 0; lastSnapIndex = 0; tripStartTime = Date.now(); arrivalHandled = false;
+    document.getElementById('hudRemainDist').textContent = ((currentRouteData.distance || 0) / 1000).toFixed(1) + ' km';
+    document.getElementById('hudRemainTime').textContent = Math.round((currentRouteData.duration || 0) / 60) + ' phút';
+    document.getElementById('hudNextStopName').textContent = endPoint?.name || 'Điểm đến';
+    
+    startWatching(); 
+    startVoice(); 
+    saveHistoryToFirestore(startPoint, endPoint, currentRouteData.distance || 0);
+    if (lastUserPos) updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
+  } catch (err) {
+    console.error('Lỗi khởi động dẫn đường:', err);
+    alert('Lỗi khởi động dẫn đường. Vui lòng thử tìm tuyến khác!');
+    document.getElementById('hud').classList.add('hidden');
+    document.body.classList.remove('navigating');
+  }
 }
 
 window.openAlternativeRoutes = function() {
@@ -1631,7 +1649,14 @@ async function autoReroute(userLat, userLng) {
 }
 
 window.openEndTripModal = function() {
-  if (!currentRouteData) return;
+  if (!currentRouteData) {
+    alert('Dữ liệu chuyến đi bị lỗi. Hệ thống sẽ đóng chế độ dẫn đường.');
+    document.getElementById('hud').classList.add('hidden');
+    document.body.classList.remove('navigating');
+    if(watchId) navigator.geolocation.clearWatch(watchId);
+    return;
+  }
+  
   const totalDist = (currentRouteData.distance / 1000).toFixed(1);
   const elapsedSec = tripStartTime ? (Date.now() - tripStartTime) / 1000 : currentRouteData.duration;
   const elapsedMin = Math.max(1, Math.round(elapsedSec / 60));
@@ -1910,6 +1935,7 @@ async function doSearch(query) {
   const q = query.toLowerCase().trim();
   box.innerHTML = '';
 
+  // 1. TÌM TRẠM DỪNG NGHỈ (KHÔNG GIỚI HẠN 5 KẾT QUẢ)
   const restStopMatches = allRestStops.filter(p => p.name && p.name.toLowerCase().includes(q));
   if (restStopMatches.length > 0) {
     const title = document.createElement('div');
@@ -1925,6 +1951,7 @@ async function doSearch(query) {
     });
   }
 
+  // 2. TÌM ĐỊA ĐIỂM CỘNG ĐỒNG KHÁC
   const poiMatches = allCommunityPois.filter(p => p.name && p.name.toLowerCase().includes(q));
   if (poiMatches.length > 0) {
     const title = document.createElement('div');
@@ -1945,6 +1972,8 @@ async function doSearch(query) {
   loadingDiv.className = 'sug-item';
   loadingDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tìm địa điểm khác...';
   box.appendChild(loadingDiv);
+  
+  // 3. TÌM TRÊN TRACKASIA API
   try {
     const res = await fetchWorker(`/trackasia-search?query=${encodeURIComponent(query)}`);
     const data = await res.json();
@@ -2056,10 +2085,29 @@ function animateMarkerTo(targetPos) {
 
 function startWatching() {
   if (watchId) navigator.geolocation.clearWatch(watchId);
+  
+  let lastPosForSpeed = null;
+  let lastTimeForSpeed = null;
+  
   watchId = navigator.geolocation.watchPosition(pos => {
-    const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, speed: pos.coords.speed || 0, accuracy: pos.coords.accuracy || 10, heading: pos.coords.heading };
-    if (newPos.speed !== null) smoothedSpeed = (0.2 * newPos.speed) + (0.8 * smoothedSpeed);
+    const now = Date.now();
+    let speed = pos.coords.speed;
+    
+    // Nếu GPS không trả về speed, tự tính từ quãng đường và thời gian
+    if ((speed === null || isNaN(speed)) && lastPosForSpeed && lastTimeForSpeed) {
+      const dist = calcDist(lastPosForSpeed.lat, lastPosForSpeed.lng, pos.coords.latitude, pos.coords.longitude);
+      const time = (now - lastTimeForSpeed) / 1000;
+      if (time > 0) speed = dist / time;
+    }
+    
+    lastPosForSpeed = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    lastTimeForSpeed = now;
+    
+    const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, speed: speed || 0, accuracy: pos.coords.accuracy || 10, heading: pos.coords.heading };
+    
+    smoothedSpeed = (0.2 * newPos.speed) + (0.8 * smoothedSpeed);
     document.getElementById('hudSpeed').textContent = Math.round(smoothedSpeed * 3.6) + ' km/h';
+    
     if (lastUserPos && !newPos.heading) { const dy = newPos.lat - lastUserPos.lat, dx = newPos.lng - lastUserPos.lng; newPos.heading = 90 - (Math.atan2(dy, dx) * 180 / Math.PI); }
     lastUserPos = newPos; animateMarkerTo(lastUserPos);
     if (map) map.panTo([lastUserPos.lat, lastUserPos.lng], { animate: true, duration: 0.5 });
