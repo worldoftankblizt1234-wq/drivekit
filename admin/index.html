@@ -52,7 +52,7 @@
   #map { flex: 1; background: #e5e5e5; z-index: 1; }
   
   /* TRẠNG THÁI */
-  .status-box { padding: 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; display: none; margin-top: 10px; text-align: center; white-space: pre-wrap; }
+  .status-box { padding: 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; display: none; margin-top: 10px; text-align: center; white-space: pre-wrap; line-height: 1.4; }
   .status-success { background: rgba(16,185,129,0.15); border: 1px solid var(--success); color: var(--success); display: block; }
   .status-error { background: rgba(239,68,68,0.15); border: 1px solid var(--danger); color: var(--danger); display: block; }
   .status-loading { background: rgba(59,130,246,0.15); border: 1px solid var(--primary); color: var(--primary); display: block; }
@@ -115,7 +115,7 @@
       <label>Dán link Google Maps</label>
       <div style="display: flex; gap: 8px;">
         <input type="text" id="poiGmapsUrl" class="form-control" placeholder="https://maps.app.goo.gl/... hoặc link có @lat,lng">
-        <button class="btn btn-primary" onclick="resolveRestStopUrl()" style="padding: 0 16px;" title="Trích xuất tọa độ"><i class="fas fa-search-location"></i></button>
+        <button class="btn btn-primary" id="btnResolvePoi" onclick="resolveRestStopUrl()" style="padding: 0 16px;" title="Trích xuất tọa độ"><i class="fas fa-search-location"></i></button>
       </div>
       <div class="help-text" style="background: var(--bg-2); padding: 10px; border-radius: 8px; border-left: 3px solid var(--warning); margin-top: 8px;">
         <b>⚠️ Lưu ý:</b> Link rút gọn (maps.app.goo.gl) có thể bị Google chặn. Nếu giải mã lỗi, hãy mở link trên trình duyệt, copy <b>URL đầy đủ trên thanh địa chỉ</b> (có chứa @lat,lng) rồi dán vào đây.
@@ -157,7 +157,7 @@
       <label>Điểm đầu (Link GMap)</label>
       <div style="display: flex; gap: 8px;">
         <input type="text" id="zoneStartUrl" class="form-control" placeholder="Dán link điểm đầu...">
-        <button class="btn btn-primary" onclick="resolveZoneUrl('start')" style="padding: 0 16px;"><i class="fas fa-search-location"></i></button>
+        <button class="btn btn-primary" id="btnResolveZoneStart" onclick="resolveZoneUrl('start')" style="padding: 0 16px;"><i class="fas fa-search-location"></i></button>
       </div>
     </div>
     
@@ -165,7 +165,7 @@
       <label>Điểm cuối (Link GMap)</label>
       <div style="display: flex; gap: 8px;">
         <input type="text" id="zoneEndUrl" class="form-control" placeholder="Dán link điểm cuối...">
-        <button class="btn btn-primary" onclick="resolveZoneUrl('end')" style="padding: 0 16px;"><i class="fas fa-search-location"></i></button>
+        <button class="btn btn-primary" id="btnResolveZoneEnd" onclick="resolveZoneUrl('end')" style="padding: 0 16px;"><i class="fas fa-search-location"></i></button>
       </div>
     </div>
 
@@ -221,7 +221,9 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
+// WORKER URLS
+const MAIN_WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
+const GMAPS_WORKER_URL = 'https://gmaps-resolver.anhminhadof123.workers.dev';
 
 let currentUser = null;
 let map = null;
@@ -304,16 +306,25 @@ function initMap() {
   });
 }
 
-// ═══ XỬ LÝ LINK GMAP (GỌI WORKER MỚI) ═══
+// ═══ XỬ LÝ LINK GMAP (GỌI WORKER RIÊNG) ═══
 async function getCoordsFromGmapsUrl(url) {
   if (!url) return { success: false, error: 'Chưa dán link' };
   try {
-    const res = await fetch(`${WORKER_URL}/resolve-gmaps?url=${encodeURIComponent(url)}`);
+    const res = await fetch(`${GMAPS_WORKER_URL}?url=${encodeURIComponent(url)}`);
     const data = await res.json();
-    if (data.success && data.coords) return { success: true, coords: data.coords, source: data.source };
-    return { success: false, error: data.error || data.hint || 'Không thể giải mã link này' };
+    
+    if (data.success && data.coords) {
+      return { success: true, coords: data.coords, source: data.source };
+    }
+    
+    // Xử lý lỗi hiển thị ra màn hình
+    let errorMsg = data.error || 'Không thể giải mã link này';
+    if (res.status === 422 || errorMsg.includes('Không thể giải mã')) {
+       errorMsg = 'Link rút gọn bị Google chặn! Vui lòng mở link trên trình duyệt, copy URL dài (có @lat,lng) và dán lại.';
+    }
+    return { success: false, error: errorMsg };
   } catch (e) {
-    return { success: false, error: 'Lỗi kết nối tới Worker: ' + e.message };
+    return { success: false, error: 'Lỗi kết nối tới Server: ' + e.message };
   }
 }
 
@@ -322,7 +333,10 @@ window.resolveRestStopUrl = async function() {
   const url = document.getElementById('poiGmapsUrl').value.trim();
   if (!url) return showStatus('statusRestStop', 'Vui lòng dán link!', 'error');
 
+  const btn = document.getElementById('btnResolvePoi');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
   showStatus('statusRestStop', 'Đang giải mã link...', 'loading');
+  
   const result = await getCoordsFromGmapsUrl(url);
 
   if (result.success) {
@@ -341,6 +355,8 @@ window.resolveRestStopUrl = async function() {
   } else {
     showStatus('statusRestStop', '❌ ' + result.error, 'error');
   }
+  
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-search-location"></i>';
 };
 
 window.updateRestStopMapFromInputs = function() {
@@ -396,7 +412,11 @@ window.resolveZoneUrl = async function(type) {
   const url = urlInput.value.trim();
   if (!url) return showStatus('statusAvoid', 'Vui lòng dán link GMap!', 'error');
 
+  const btnId = type === 'start' ? 'btnResolveZoneStart' : 'btnResolveZoneEnd';
+  const btn = document.getElementById(btnId);
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
   showStatus('statusAvoid', 'Đang giải mã link...', 'loading');
+  
   const result = await getCoordsFromGmapsUrl(url);
 
   if (result.success) {
@@ -417,7 +437,6 @@ window.resolveZoneUrl = async function(type) {
       tempMarkerB = L.marker(pointB, { icon: L.divIcon({ html: '<div class="custom-pin pin-avoid-end" style="width: 30px; height: 30px;"><i class="fas fa-flag-checkered"></i></div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] }) }).addTo(map).bindPopup("Điểm cuối cấm").openPopup();
     }
 
-    // Nếu đã có đủ 2 điểm, vẽ đường đứt nét nối lại
     if (pointA && pointB) {
       if (tempPolyline) map.removeLayer(tempPolyline);
       tempPolyline = L.polyline([pointA, pointB], { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
@@ -428,6 +447,8 @@ window.resolveZoneUrl = async function(type) {
   } else {
     showStatus('statusAvoid', '❌ ' + result.error, 'error');
   }
+  
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-search-location"></i>';
 };
 
 window.saveAvoidZone = async function() {
