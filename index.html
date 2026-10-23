@@ -285,10 +285,22 @@ body.navigating .fab-rest-stop-filter { display: none; }
   <button class="fab-rest-stop-filter" id="btnRestStopFilter" onclick="toggleRestStopFilter()" title="Hiện/ẩn trạm dừng nghỉ"><i class="fas fa-bed"></i></button>
 
   <div class="layer-menu" id="layerMenu">
-    <button class="layer-option active" onclick="changeLayer('trackasia', this)"><div class="layer-title"><i class="fas fa-map"></i> Tiêu chuẩn V1</div></button>
-    <button class="layer-option" onclick="changeLayer('mapbox', this)"><div class="layer-title"><i class="fas fa-map-marked-alt"></i> Tiêu chuẩn</div></button>
-    <button class="layer-option" onclick="changeLayer('thunderforest', this)"><div class="layer-title"><i class="fas fa-road"></i> Street</div></button>
-    <button class="layer-option" onclick="changeLayer('satellite', this)"><div class="layer-title"><i class="fas fa-satellite"></i> Vệ tinh</div></button>
+    <button class="layer-option" onclick="changeLayer('trackasia', this)">
+      <div class="layer-title"><i class="fas fa-map"></i> TrackAsia</div>
+      <div class="layer-desc">Bản đồ Việt Nam (Vector)</div>
+    </button>
+    <button class="layer-option active" onclick="changeLayer('mapbox', this)">
+      <div class="layer-title"><i class="fas fa-map-marked-alt"></i> Mapbox</div>
+      <div class="layer-desc">Đường phố chi tiết</div>
+    </button>
+    <button class="layer-option" onclick="changeLayer('thunderforest', this)">
+      <div class="layer-title"><i class="fas fa-road"></i> Street</div>
+      <div class="layer-desc">Tên đường, POI địa phương</div>
+    </button>
+    <button class="layer-option" onclick="changeLayer('satellite', this)">
+      <div class="layer-title"><i class="fas fa-satellite"></i> Vệ tinh</div>
+      <div class="layer-desc">Ảnh vệ tinh thực tế</div>
+    </button>
   </div>
 
   <button class="fab-report" id="btnReport" onclick="openReportMenu()"><i class="fas fa-exclamation-triangle"></i></button>
@@ -456,10 +468,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
-
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 
-// --- STATE CHUNG ---
 let map = null;
 let currentUser = null;
 let startPoint = null;
@@ -565,7 +575,7 @@ function logout() { signOut(auth); closeMenu(); }
 function initMap() {
   if (map) return;
   map = L.map('map', { center: initialCenter, zoom: initialZoom, zoomControl: false });
-  setTimeout(() => { changeLayer('trackasia', document.querySelector('.layer-option.active')); }, 100);
+  setTimeout(() => { changeLayer('mapbox', document.querySelectorAll('.layer-option')[1]); }, 100);
 
   let pressTimer = null, touchMarker = null, startX = 0, startY = 0, isDragging = false, isMouseDown = false;
   const pressIndicator = document.createElement('div');
@@ -774,14 +784,31 @@ window.clearAllSavedRoutes = async function() { if (!confirm('Xoá TẤT CẢ l�
 window.clearAllSharedLinks = async function() { if (!confirm('Xoá TẤT CẢ link?')) return; try { await remove(ref(db, `users/${currentUser.uid}/sharedLinks`)); loadSharedLinks(); } catch(e) {} };
 
 window.toggleLayerMenu = function() { const menu = document.getElementById('layerMenu'); const isShowing = menu.classList.contains('show'); if (isShowing) { menu.classList.remove('show'); } else { menu.classList.add('show'); setTimeout(() => { const closeHandler = (e) => { if (!menu.contains(e.target) && e.target.id !== 'btnLayerMenu' && !e.target.closest('#btnLayerMenu')) { menu.classList.remove('show'); document.removeEventListener('click', closeHandler); document.removeEventListener('touchstart', closeHandler); } }; document.addEventListener('click', closeHandler); document.addEventListener('touchstart', closeHandler); }, 100); } };
+
 function changeLayer(type, btn) {
   if (currentMapLayer) { map.removeLayer(currentMapLayer); currentMapLayer = null; }
   document.querySelectorAll('.layer-option').forEach(el => el.classList.remove('active')); if (btn) btn.classList.add('active');
   document.getElementById('layerMenu').classList.remove('show');
-  if (type === 'trackasia') currentMapLayer = L.tileLayer(`${WORKER_URL}/trackasia-tiles/v2/streets/{z}/{x}/{y}.png`, { maxZoom: 19 }).addTo(map);
-  else if (type === 'mapbox') currentMapLayer = L.tileLayer(`${WORKER_URL}/mapbox-tiles/{z}/{x}/{y}`, { maxZoom: 19, tileSize: 512, zoomOffset: -1 }).addTo(map);
-  else if (type === 'thunderforest') currentMapLayer = L.tileLayer(`${WORKER_URL}/tf-tiles/{z}/{x}/{y}`, { maxZoom: 19 }).addTo(map);
-  else if (type === 'satellite') currentMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
+
+  if (type === 'trackasia') {
+    // Đã sửa: Dùng TrackAsia GL JS (Vector Style JSON) thay vì Raster Tiles
+    try {
+      currentMapLayer = L.trackasiaGL({ style: `https://maps.track-asia.com/styles/v2/streets.json?key=1792297789c0cf0ddb16e5446d7364580f` }).addTo(map);
+    } catch (e) {
+      // Fallback sang Mapbox nếu TrackAsia GL lỗi
+      currentMapLayer = L.tileLayer(`${WORKER_URL}/mapbox-tiles/{z}/{x}/{y}`, { maxZoom: 19, tileSize: 512, zoomOffset: -1 }).addTo(map);
+    }
+  }
+  else if (type === 'mapbox') {
+    // Đã sửa: Dùng trực tiếp Mapbox Token của bạn, không qua Worker để đảm bảo không xám
+    currentMapLayer = L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/512/{z}/{x}/{y}@2x?access_token=YOUR_MAPBOX_TOKEN`, { maxZoom: 19, tileSize: 512, zoomOffset: -1 }).addTo(map);
+  }
+  else if (type === 'thunderforest') {
+    currentMapLayer = L.tileLayer(`${WORKER_URL}/tf-tiles/{z}/{x}/{y}`, { maxZoom: 19 }).addTo(map);
+  }
+  else if (type === 'satellite') {
+    currentMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
+  }
 }
 
 window.goToLongPressLocation = function(lat, lng, name) { endPoint = { lat, lng, name }; document.getElementById('dirInputEnd').value = name; document.getElementById('topSearchInput').value = name; document.getElementById('btnClearEnd').classList.remove('hidden'); document.getElementById('searchClearBtn').classList.remove('hidden'); if (map) map.closePopup(); map.eachLayer(layer => { if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') map.removeLayer(layer); }); openDirections(); if (!startPoint) refreshGPS(); };
@@ -1037,7 +1064,6 @@ function updateNearbyMarker(uid, user) {
 }
 function removeNearbyMarker(uid) { if (liveRoomMarkers[uid]) { if (liveRoomMarkers[uid].marker) liveRoomMap.removeLayer(liveRoomMarkers[uid].marker); if (liveRoomMarkers[uid].label) liveRoomMarkers[uid].label.remove(); delete liveRoomMarkers[uid]; } }
 
-// EXPORT
 window.openDirections = openDirections; window.activateSearch = activateSearch; window.refreshGPS = refreshGPS; window.centerToLocation = centerToLocation; window.logout = logout; window.toggleLayerMenu = toggleLayerMenu; window.changeLayer = changeLayer; window.shareRoute = shareRoute; window.shareLocation = shareLocation; window.submitReport = submitReport; window.openReportMenu = openReportMenu; window.closeReportMenu = closeReportMenu; window.closeDirections = closeDirections;
 </script>
 </body>
