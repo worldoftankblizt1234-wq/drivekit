@@ -109,6 +109,9 @@
         <input type="text" id="poiGmapsUrl" class="form-control" placeholder="https://maps.app.goo.gl/... hoặc link có @lat,lng">
         <button class="btn btn-primary" id="btnResolvePoi" onclick="resolveRestStopUrl()" style="padding: 0 16px;" title="Trích xuất tọa độ"><i class="fas fa-search-location"></i></button>
       </div>
+      <div class="help-text" style="background: var(--bg-2); padding: 10px; border-radius: 8px; border-left: 3px solid var(--warning); margin-top: 8px;">
+        <b>⚠️ Lưu ý:</b> Nếu link rút gọn bị lỗi, hãy copy URL đầy đủ trên thanh địa chỉ (có chứa @lat,lng) rồi dán vào đây.
+      </div>
     </div>
 
     <div class="form-group">
@@ -351,7 +354,6 @@ function initMap() {
 
         if (tempPolyline) map.removeLayer(tempPolyline);
         
-        // Lấy tọa độ bám đường
         const snappedCoords = await fetchSnappedRoute(pointA.lat, pointA.lng, pointB.lat, pointB.lng);
         if (snappedCoords && snappedCoords.length > 0) {
           currentRouteWaypoints = snappedCoords;
@@ -523,7 +525,7 @@ window.saveAvoidZone = async function() {
       lng1: pointA.lng,
       lat2: pointB.lat,
       lng2: pointB.lng,
-      waypoints: currentRouteWaypoints,
+      waypoints: JSON.stringify(currentRouteWaypoints), // SỬA LỖI TẠI ĐÂY
       timestamp: Date.now()
     });
     
