@@ -241,7 +241,6 @@ body.navigating .fab-rest-stop-filter { display: none; }
 .poi-detail-btn.primary { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59,130,246,0.3); }
 .poi-detail-btn.share { background: var(--success); color: white; }
 
-/* LIVE ROOM */
 .live-badge-status { padding: 3px 10px; border-radius: 12px; font-size: 0.65rem; font-weight: 800; background: var(--border); color: var(--text-muted); text-transform: uppercase; }
 .live-badge-status.on { background: #10b981; color: white; box-shadow: 0 0 10px rgba(16,185,129,0.5); animation: livePulse 1.5s infinite; }
 @keyframes livePulse { 0%, 100% { box-shadow: 0 0 10px rgba(16,185,129,0.5); } 50% { box-shadow: 0 0 20px rgba(16,185,129,0.9); } }
@@ -261,6 +260,13 @@ body.navigating .fab-rest-stop-filter { display: none; }
 .live-other-pin { width: 34px; height: 34px; background: var(--primary); border-radius: 50%; border: 2px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
 .live-other-pin.public { background: var(--warning); }
 .live-other-pin i { color: white; font-size: 0.8rem; }
+.avoid-zone-pin { width: 36px; height: 36px; background: linear-gradient(135deg, #ef4444, #b91c1c); border-radius: 50%; border: 2px solid white; box-shadow: 0 3px 8px rgba(239,68,68,0.5); display: flex; align-items: center; justify-content: center; }
+.avoid-zone-pin i { color: white; font-size: 0.9rem; }
+.admin-reststop-pin { position: relative; width: 42px; height: 42px; background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 12px rgba(245,158,11,0.7), 0 0 0 4px rgba(245,158,11,0.25); animation: adminRestPulse 2s ease-in-out infinite; }
+.admin-reststop-pin i { transform: rotate(45deg); color: white; font-size: 1.15rem; }
+.admin-reststop-pin .admin-badge { position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; background: #8b5cf6; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; transform: rotate(45deg); }
+.admin-reststop-pin .admin-badge i { font-size: 0.6rem; transform: rotate(0); }
+@keyframes adminRestPulse { 0%, 100% { box-shadow: 0 4px 12px rgba(245,158,11,0.7), 0 0 0 4px rgba(245,158,11,0.25); } 50% { box-shadow: 0 4px 12px rgba(245,158,11,0.9), 0 0 0 8px rgba(245,158,11,0.1); } }
 </style>
 </head>
 <body>
@@ -629,6 +635,7 @@ body.navigating .fab-rest-stop-filter { display: none; }
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getDatabase, ref, push, set, get, child, onValue, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
@@ -643,6 +650,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
+const fsdb = getFirestore(app);
 
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
@@ -702,6 +710,12 @@ let tempPoiTag = null;
 let restStopFilterActive = false;
 let restStopMarkers = [];
 let currentDetailPoi = null;
+
+// FIRESTORE ADMIN DATA
+let adminRestStops = [];
+let adminRestStopMarkers = [];
+let adminAvoidZones = [];
+let adminAvoidZoneLayers = [];
 
 // LIVE ROOM STATE
 let liveEnabled = false;
@@ -849,6 +863,8 @@ function initAppUI() {
   initReports();
   initSavedPlaces();
   initCommunityPois();
+  initAdminRestStops();
+  initAdminAvoidZones();
   if (lastUserPos) {
     if (!startPoint) {
       startPoint = { lat: lastUserPos.lat, lng: lastUserPos.lng, name: 'Vị trí của tôi' };
@@ -1034,6 +1050,8 @@ function initMap() {
       if (typeof renderCommunityPoisOnMap === 'function') renderCommunityPoisOnMap();
       if (typeof renderSavedPlacesOnMap === 'function') renderSavedPlacesOnMap();
       if (typeof renderReportsOnMap === 'function') renderReportsOnMap();
+      if (typeof renderAdminRestStopsOnMap === 'function') renderAdminRestStopsOnMap();
+      if (typeof renderAdminAvoidZonesOnMap === 'function') renderAdminAvoidZonesOnMap();
       const z = map.getZoom();
       if (z < Math.min(ZOOM_CONFIG.communityPoi, ZOOM_CONFIG.savedPlace, ZOOM_CONFIG.report)) showZoomHint();
     }, 150);
@@ -1102,6 +1120,61 @@ function renderSavedPlacesOnMap() {
     marker.bindPopup(`<b>${place.address.split(',')[0]}</b>`);
     savedPlacesMarkers.push(marker);
   }
+}
+
+// ═══ FIRESTORE: ADMIN REST STOPS ═══
+function initAdminRestStops() {
+  onSnapshot(collection(fsdb, 'rest_stops'), (snap) => {
+    adminRestStops = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderAdminRestStopsOnMap();
+  }, (err) => console.warn('Firestore rest_stops error:', err));
+}
+
+function renderAdminRestStopsOnMap() {
+  adminRestStopMarkers.forEach(m => { try { map.removeLayer(m); } catch(e){} });
+  adminRestStopMarkers = [];
+  const z = map ? map.getZoom() : 17;
+  if (z < ZOOM_CONFIG.restStop) return;
+  adminRestStops.forEach(poi => {
+    if (!poi.lat || !poi.lng) return;
+    const icon = L.divIcon({
+      html: `<div class="admin-reststop-pin"><i class="fas fa-bed"></i><div class="admin-badge"><i class="fas fa-crown"></i></div></div>`,
+      className: '', iconSize: [42, 42], iconAnchor: [21, 42]
+    });
+    const marker = L.marker([poi.lat, poi.lng], { icon, zIndexOffset: 700 }).addTo(map);
+    marker.bindPopup(`<b>👑 ${escapeHtml(poi.name || 'Trạm dừng nghỉ')}</b><br><small style="color:#8b5cf6;font-weight:700;">✓ Admin xác nhận</small>`);
+    adminRestStopMarkers.push(marker);
+  });
+}
+
+// ═══ FIRESTORE: ADMIN AVOID ZONES ═══
+function initAdminAvoidZones() {
+  onSnapshot(collection(fsdb, 'avoid_zones'), (snap) => {
+    adminAvoidZones = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderAdminAvoidZonesOnMap();
+  }, (err) => console.warn('Firestore avoid_zones error:', err));
+}
+
+function renderAdminAvoidZonesOnMap() {
+  adminAvoidZoneLayers.forEach(l => { try { map.removeLayer(l); } catch(e){} });
+  adminAvoidZoneLayers = [];
+  adminAvoidZones.forEach(zone => {
+    if (!zone.lat1 || !zone.lng1 || !zone.lat2 || !zone.lng2) return;
+    const line = L.polyline(
+      [[zone.lat1, zone.lng1], [zone.lat2, zone.lng2]],
+      { color: '#ef4444', weight: 8, opacity: 0.85, dashArray: '12, 12', lineCap: 'round' }
+    ).addTo(map);
+    const midLat = (zone.lat1 + zone.lat2) / 2;
+    const midLng = (zone.lng1 + zone.lng2) / 2;
+    const icon = L.divIcon({
+      html: `<div class="avoid-zone-pin"><i class="fas fa-ban"></i></div>`,
+      className: '', iconSize: [36, 36], iconAnchor: [18, 18]
+    });
+    const marker = L.marker([midLat, midLng], { icon, zIndexOffset: 500 }).addTo(map);
+    marker.bindPopup(`<b>🚫 ${escapeHtml(zone.name || 'Tuyến đường cấm')}</b><br><small style="color:#ef4444;font-weight:700;">Admin đánh dấu</small>`);
+    adminAvoidZoneLayers.push(line);
+    adminAvoidZoneLayers.push(marker);
+  });
 }
 
 window.openSavePlaceModal = function(lat, lng, addr) {
@@ -2463,7 +2536,6 @@ async function initViewerLiveRoom(roomCode) {
       handleViewerDisconnect(roomCode, false);
       return;
     }
-    // Hiển thị tất cả member trong room
     members.forEach(m => {
       const existing = liveMemberMarkers[m.uid];
       if (existing) {
@@ -2477,7 +2549,6 @@ async function initViewerLiveRoom(roomCode) {
         map.flyTo([m.lat, m.lng], 16, { animate: true, duration: 1.5 });
       }
     });
-    // Xóa marker của người rời
     Object.keys(liveMemberMarkers).forEach(uid => {
       if (!members.some(m => m.uid === uid)) {
         if (liveMemberAnimStates[uid]?.animId) cancelAnimationFrame(liveMemberAnimStates[uid].animId);
