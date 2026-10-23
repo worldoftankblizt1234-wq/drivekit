@@ -52,7 +52,7 @@
   #map { flex: 1; background: #e5e5e5; z-index: 1; }
   
   /* TRẠNG THÁI */
-  .status-box { padding: 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; display: none; margin-top: 10px; text-align: center; }
+  .status-box { padding: 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; display: none; margin-top: 10px; text-align: center; white-space: pre-wrap; }
   .status-success { background: rgba(16,185,129,0.15); border: 1px solid var(--success); color: var(--success); display: block; }
   .status-error { background: rgba(239,68,68,0.15); border: 1px solid var(--danger); color: var(--danger); display: block; }
   .status-loading { background: rgba(59,130,246,0.15); border: 1px solid var(--primary); color: var(--primary); display: block; }
@@ -63,9 +63,34 @@
   .pin-rest-stop { background: var(--primary); }
   .pin-avoid-start { background: var(--warning); }
   .pin-avoid-end { background: var(--danger); }
+
+  /* AUTH SCREEN */
+  .auth-screen { position: fixed; inset: 0; z-index: 9999; background: var(--bg); display: flex; align-items: center; justify-content: center; }
+  .auth-box { background: var(--card); padding: 32px; border-radius: 16px; width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 1px solid var(--border); }
+  .auth-box h2 { font-size: 1.4rem; margin-bottom: 8px; text-align: center; }
+  .auth-box p { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; text-align: center; }
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
+
+<!-- MÀN HÌNH ĐĂNG NHẬP -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-box">
+    <h2><i class="fas fa-shield-alt" style="color:var(--primary);"></i> Admin Login</h2>
+    <p>Đăng nhập bằng tài khoản Firebase</p>
+    <div class="form-group" style="margin-bottom: 12px;">
+      <input type="email" id="authEmail" class="form-control" placeholder="Email..." />
+    </div>
+    <div class="form-group" style="margin-bottom: 16px;">
+      <input type="password" id="authPassword" class="form-control" placeholder="Mật khẩu..." />
+    </div>
+    <div id="authError" class="status-box status-error"></div>
+    <button class="btn btn-primary" id="btnLogin" onclick="doLogin()" style="width: 100%;">
+      <i class="fas fa-sign-in-alt"></i> Đăng nhập
+    </button>
+  </div>
+</div>
 
 <!-- CỘT TRÁI: SIDEBAR -->
 <div class="sidebar">
@@ -89,8 +114,11 @@
     <div class="form-group">
       <label>Dán link Google Maps</label>
       <div style="display: flex; gap: 8px;">
-        <input type="text" id="poiGmapsUrl" class="form-control" placeholder="https://maps.app.goo.gl/...">
+        <input type="text" id="poiGmapsUrl" class="form-control" placeholder="https://maps.app.goo.gl/... hoặc link có @lat,lng">
         <button class="btn btn-primary" onclick="resolveRestStopUrl()" style="padding: 0 16px;" title="Trích xuất tọa độ"><i class="fas fa-search-location"></i></button>
+      </div>
+      <div class="help-text" style="background: var(--bg-2); padding: 10px; border-radius: 8px; border-left: 3px solid var(--warning); margin-top: 8px;">
+        <b>⚠️ Lưu ý:</b> Link rút gọn (maps.app.goo.gl) có thể bị Google chặn. Nếu giải mã lỗi, hãy mở link trên trình duyệt, copy <b>URL đầy đủ trên thanh địa chỉ</b> (có chứa @lat,lng) rồi dán vào đây.
       </div>
     </div>
 
@@ -176,7 +204,6 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-// Import Firestore SDK
 import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // CẤU HÌNH FIREBASE
@@ -192,7 +219,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app); // Khởi tạo Firestore
+const db = getFirestore(app);
 
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 
@@ -207,6 +234,36 @@ let tempMarkerA = null;
 let tempMarkerB = null;
 let tempPolyline = null;
 
+// ═══ ĐĂNG NHẬP ═══
+window.doLogin = async function() {
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPassword').value;
+  if (!email || !pass) return showStatus('authError', 'Nhập đủ email và mật khẩu!', 'error');
+
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang đăng nhập...';
+  document.getElementById('authError').style.display = 'none';
+
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch (error) {
+    document.getElementById('authError').style.display = 'block';
+    document.getElementById('authError').textContent = 'Lỗi: ' + (error.code || error.message);
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Đăng nhập';
+  }
+};
+
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    currentUser = user;
+    document.getElementById('authScreen').classList.add('hidden');
+    if (!map) initMap();
+  } else {
+    currentUser = null;
+    document.getElementById('authScreen').classList.remove('hidden');
+  }
+});
+
 // ═══ CHUYỂN TAB ═══
 window.switchTab = function(tabId) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -215,7 +272,7 @@ window.switchTab = function(tabId) {
   document.getElementById('tab-btn-' + tabId.replace('tab-', '')).classList.add('active');
   document.getElementById(tabId).classList.add('active');
 
-  // Xoá marker khi chuyển tab
+  // Xoá marker tạm khi chuyển tab
   if (tempMarkerA) map.removeLayer(tempMarkerA);
   if (tempMarkerB) map.removeLayer(tempMarkerB);
   if (tempPolyline) map.removeLayer(tempPolyline);
@@ -247,15 +304,17 @@ function initMap() {
   });
 }
 
-// ═══ XỬ LÝ LINK GMAP ═══
+// ═══ XỬ LÝ LINK GMAP (GỌI WORKER MỚI) ═══
 async function getCoordsFromGmapsUrl(url) {
-  if (!url) return null;
+  if (!url) return { success: false, error: 'Chưa dán link' };
   try {
     const res = await fetch(`${WORKER_URL}/resolve-gmaps?url=${encodeURIComponent(url)}`);
     const data = await res.json();
-    if (data.success && data.coords) return data.coords;
-  } catch(e) { console.warn("Lỗi giải mã Gmap:", e); }
-  return null;
+    if (data.success && data.coords) return { success: true, coords: data.coords, source: data.source };
+    return { success: false, error: data.error || data.hint || 'Không thể giải mã link này' };
+  } catch (e) {
+    return { success: false, error: 'Lỗi kết nối tới Worker: ' + e.message };
+  }
 }
 
 // ═══ TAB 1: TRẠM DỪNG NGHỈ ═══
@@ -264,9 +323,10 @@ window.resolveRestStopUrl = async function() {
   if (!url) return showStatus('statusRestStop', 'Vui lòng dán link!', 'error');
 
   showStatus('statusRestStop', 'Đang giải mã link...', 'loading');
-  const coords = await getCoordsFromGmapsUrl(url);
+  const result = await getCoordsFromGmapsUrl(url);
 
-  if (coords) {
+  if (result.success) {
+    const coords = result.coords;
     document.getElementById('poiLat').value = coords.lat.toFixed(6);
     document.getElementById('poiLng').value = coords.lng.toFixed(6);
     
@@ -277,9 +337,9 @@ window.resolveRestStopUrl = async function() {
     const icon = L.divIcon({ html: '<div class="custom-pin pin-rest-stop" style="width: 30px; height: 30px;"><i class="fas fa-bed"></i></div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] });
     currentRestStopMarker = L.marker(latlng, { icon }).addTo(map);
 
-    showStatus('statusRestStop', 'Đã lấy được tọa độ!', 'success');
+    showStatus('statusRestStop', `✅ Đã lấy được tọa độ (Nguồn: ${result.source || 'direct'})`, 'success');
   } else {
-    showStatus('statusRestStop', 'Không thể giải mã link này.', 'error');
+    showStatus('statusRestStop', '❌ ' + result.error, 'error');
   }
 };
 
@@ -308,7 +368,6 @@ window.submitRestStop = async function() {
   btn.disabled = true;
 
   try {
-    // Thay vì push vào RTDB, chuyển sang addDoc vào Firestore
     await addDoc(collection(db, "rest_stops"), {
       lat: lat,
       lng: lng,
@@ -338,9 +397,10 @@ window.resolveZoneUrl = async function(type) {
   if (!url) return showStatus('statusAvoid', 'Vui lòng dán link GMap!', 'error');
 
   showStatus('statusAvoid', 'Đang giải mã link...', 'loading');
-  const coords = await getCoordsFromGmapsUrl(url);
+  const result = await getCoordsFromGmapsUrl(url);
 
-  if (coords) {
+  if (result.success) {
+    const coords = result.coords;
     if (type === 'start') {
       pointA = L.latLng(coords.lat, coords.lng);
       document.getElementById('zoneLat1').value = coords.lat.toFixed(6);
@@ -364,9 +424,9 @@ window.resolveZoneUrl = async function(type) {
       map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
     }
 
-    showStatus('statusAvoid', 'Đã lấy được tọa độ!', 'success');
+    showStatus('statusAvoid', '✅ Đã lấy được tọa độ!', 'success');
   } else {
-    showStatus('statusAvoid', 'Không thể giải mã link này.', 'error');
+    showStatus('statusAvoid', '❌ ' + result.error, 'error');
   }
 };
 
@@ -375,9 +435,8 @@ window.saveAvoidZone = async function() {
   const name = document.getElementById('zoneName').value.trim();
   if (!name || !pointA || !pointB) return showStatus('statusAvoid', 'Vui lòng nhập tên và đủ 2 link GMap!', 'error');
 
-  showStatus('statusAvoid', 'Đang lưu lên Firestore...', 'success');
+  showStatus('statusAvoid', 'Đang lưu lên Firestore...', 'loading');
   try {
-    // Thay vì push vào RTDB, chuyển sang addDoc vào Firestore
     await addDoc(collection(db, "avoid_zones"), {
       name: name,
       lat1: pointA.lat,
@@ -409,22 +468,11 @@ window.saveAvoidZone = async function() {
 // ═══ HÀM PHỤ TRỢ ═══
 function showStatus(id, msg, type) {
   const box = document.getElementById(id);
+  if (!box) return;
   box.textContent = msg;
   box.className = 'status-box status-' + type;
 }
 
-// ═══ KHỞI TẠO ═══
-initMap();
-
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    currentUser = user;
-    console.log("Admin đã đăng nhập");
-  } else {
-    // LƯU Ý: Bạn cần thay 'MẬT_KHẨU_FIREBASE_CỦA_BRO' bằng mật khẩu thật
-    signInWithEmailAndPassword(auth, 'anhminhadof123@gmail.com', 'MẬT_KHẨU_FIREBASE_CỦA_BRO').catch(e => console.error(e));
-  }
-});
 </script>
 
 </body>
