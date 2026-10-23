@@ -1397,17 +1397,20 @@ function startNavigationHUD() {
     document.getElementById('hud').classList.remove('hidden');
     updateUIState();
     const legs = currentRouteData.legs || [];
-    voiceRouteSteps = (legs.length > 0 ? legs[0].steps : []) || [];
+    voiceRouteSteps = (legs.length > 0 && legs[0].steps) ? legs[0].steps : [];
     voiceStepIndex = 0; lastSnapIndex = 0; tripStartTime = Date.now(); arrivalHandled = false;
-    document.getElementById('hudRemainDist').textContent = ((currentRouteData.distance || 0) / 1000).toFixed(1) + ' km';
-    document.getElementById('hudRemainTime').textContent = Math.round((currentRouteData.duration || 0) / 60) + ' phút';
+    const dist = currentRouteData.distance || 0;
+    const dur = currentRouteData.duration || 0;
+    document.getElementById('hudRemainDist').textContent = (dist / 1000).toFixed(1) + ' km';
+    document.getElementById('hudRemainTime').textContent = Math.round(dur / 60) + ' phút';
     document.getElementById('hudNextStopName').textContent = endPoint?.name || 'Điểm đến';
     startWatching(); 
     startVoice(); 
-    saveHistoryToFirestore(startPoint, endPoint, currentRouteData.distance || 0);
+    saveHistoryToFirestore(startPoint, endPoint, dist);
     if (lastUserPos) updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
   } catch (err) {
-    alert('Lỗi khởi động dẫn đường. Vui lòng thử tìm tuyến khác!');
+    console.error('Lỗi khởi động dẫn đường:', err);
+    alert('Lỗi khởi động dẫn đường: ' + err.message + '. Vui lòng thử tìm tuyến khác!');
     document.getElementById('hud').classList.add('hidden');
     document.body.classList.remove('navigating');
     updateUIState();
