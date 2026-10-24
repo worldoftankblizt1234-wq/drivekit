@@ -238,13 +238,12 @@ let pointA = null;
 let pointB = null;
 let tempMarkerA = null;
 let tempMarkerB = null;
-let tempPolyline = null; // FeatureGroup chứa các đoạn
+let tempPolyline = null;
 let isDrawMode = false;
 let isFreehandMode = false;
-let currentRouteWaypoints = null; // Mảng chứa MultiLineString
+let currentRouteWaypoints = null;
 let zoneInputTimeout = null;
 
-// BIẾN QUAN TRỌNG ĐÃ ĐƯỢC KHAI BÁO LẠI
 let isFreehandDrawing = false;
 let activeFreehandPolyline = null;
 let currentFreehandStroke = [];
@@ -320,6 +319,7 @@ window.toggleDrawMode = function() {
     btn.classList.add('active');
     btn.innerHTML = '<i class="fas fa-mouse-pointer"></i> Đang click 2 điểm...';
     resetZoneDrawing();
+    showStatus('statusAvoid', '💡 Click A -> B để nối đường.', 'loading');
   } else {
     btn.classList.remove('active');
     btn.innerHTML = '<i class="fas fa-pen"></i> Click 2 điểm';
@@ -336,7 +336,7 @@ window.toggleFreehandMode = function() {
     btn.classList.add('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Đang vẽ tự do...';
     resetZoneDrawing();
-    showStatus('statusAvoid', '💡 Kéo để di chuyển map. Giữ Shift (PC) hoặc Nhấn giữ 0.5s (Mobile) để vẽ. Ấn phím C để cắt đoạn.', 'loading');
+    showStatus('statusAvoid', '💡 Click A -> B để nối. Hoặc giữ Shift (PC) / nhấn giữ (Mobile) + kéo để vẽ tự do. Ấn phím C để cắt.', 'loading');
   } else {
     btn.classList.remove('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Vẽ tự do';
@@ -508,7 +508,8 @@ function initMap() {
       const icon = L.divIcon({ html: '<div class="custom-pin pin-rest-stop" style="width: 30px; height: 30px;"><i class="fas fa-bed"></i></div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] });
       currentRestStopMarker = L.marker([lat, lng], { icon }).addTo(map);
     } 
-    else if (activeTab === 'tab-btn-avoid' && isDrawMode) {
+    else if (activeTab === 'tab-btn-avoid' && (isDrawMode || isFreehandMode)) {
+      // CHỖ NÀY ĐÃ ĐƯỢC SỬA: Cho phép click A -> B hoạt động ở cả 2 chế độ
       if (!pointA) {
         pointA = L.latLng(lat, lng);
         document.getElementById('zoneLat1').value = lat.toFixed(6);
@@ -560,6 +561,12 @@ function initMap() {
   function startFreehandDrawing(latlng) {
     isFreehandDrawing = true;
     map.dragging.disable();
+    
+    // Xóa điểm A, B nếu đang chờ click
+    pointA = null; pointB = null;
+    if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
+    if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
+
     currentFreehandStroke = [latlng];
     activeFreehandPolyline = L.polyline(currentFreehandStroke, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
   }
@@ -595,7 +602,6 @@ function initMap() {
     currentFreehandStroke = [];
   }
 
-  // Sự kiện Chuột (PC)
   map.on('mousedown', (e) => {
     if (!isFreehandMode) return;
     startLatLng = e.latlng;
@@ -638,7 +644,6 @@ function initMap() {
     if (isFreehandDrawing) finishFreehandDrawing();
   });
 
-  // Sự kiện Cảm ứng (Mobile)
   map.on('touchstart', (e) => {
     if (!isFreehandMode) return;
     startLatLng = e.latlng;
@@ -679,11 +684,20 @@ function initMap() {
 
 // Lắng nghe phím C để cắt
 document.addEventListener('keydown', (e) => {
-  if (e.key.toLowerCase() === 'c' && isFreehandMode) {
+  if (e.key.toLowerCase() === 'c' && (isFreehandMode || isDrawMode)) {
     if (isFreehandDrawing) {
       finishFreehandDrawing();
-      showStatus('statusAvoid', '✂️ Đã cắt nét vẽ. Bạn có thể di chuyển bản đồ và vẽ đoạn mới.', 'success');
     }
+    // Reset điểm A, B nếu có
+    pointA = null; pointB = null;
+    if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
+    if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
+    document.getElementById('zoneLat1').value = '';
+    document.getElementById('zoneLng1').value = '';
+    document.getElementById('zoneLat2').value = '';
+    document.getElementById('zoneLng2').value = '';
+    
+    showStatus('statusAvoid', '✂️ Đã cắt nét vẽ. Bạn có thể chọn điểm mới hoặc vẽ tiếp.', 'success');
   }
 });
 
