@@ -83,9 +83,9 @@ body.navigating #btnReport { width: 40px; height: 40px; font-size: 1rem; bottom:
 .custom-pin { background: white; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 6px rgba(0,0,0,0.3); border: 2px solid white; }
 .custom-pin i { transform: rotate(45deg); font-size: 0.8rem; }
 .custom-pin-close { position: absolute; top: -6px; right: -6px; background: var(--danger); color: white; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.55rem; cursor: pointer; border: 1.5px solid white; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-.route-options-modal, .report-modal, .profile-modal, .end-trip-modal { position: fixed; inset: 0; z-index: 2500; background: var(--bg); display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s ease-in-out; }
-.end-trip-modal { z-index: 3000; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; padding: 24px; transform: none; }
-.end-trip-modal.open { display: flex; }
+.route-options-modal, .report-modal, .profile-modal, .end-trip-modal, .client-vehicle-modal { position: fixed; inset: 0; z-index: 2500; background: var(--bg); display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s ease-in-out; }
+.end-trip-modal, .client-vehicle-modal { z-index: 4000; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; padding: 24px; transform: none; }
+.end-trip-modal.open, .client-vehicle-modal.open { display: flex; }
 .profile-modal { transform: translateX(100%); }
 .route-options-modal.open, .report-modal.open, .profile-modal.open { transform: translate(0); }
 .route-options-header, .report-header { padding: calc(20px + var(--safe-top)) 24px 20px; display: flex; justify-content: space-between; align-items: center; }
@@ -398,7 +398,6 @@ body.navigating .fab-rest-stop-filter { display: none; }
       <button class="btn-clear-input hidden" id="btnClearEnd" onclick="event.stopPropagation(); clearPoint('end')"><i class="fas fa-times"></i></button>
     </div>
     <div class="vehicle-selector">
-      <!-- ĐÃ XOÁ CLASS ACTIVE MẶC ĐỊNH Ở NÚT Ô TÔ -->
       <button class="vehicle-mode-btn" data-mode="driving" onclick="setVehicleMode('driving', this)"><i class="fas fa-car"></i> Ô tô</button>
       <button class="vehicle-mode-btn" data-mode="driving-traffic" onclick="setVehicleMode('driving-traffic', this)"><i class="fas fa-car-side"></i> Kẹt xe</button>
       <button class="vehicle-mode-btn" data-mode="hd" onclick="setVehicleMode('hd', this)"><i class="fas fa-motorcycle"></i> Xe CN</button>
@@ -612,6 +611,20 @@ body.navigating .fab-rest-stop-filter { display: none; }
     <button class="end-trip-btn cancel" onclick="closeSavePlaceModal()"><i class="fas fa-times"></i> Huỷ</button>
   </div>
 </div>
+<div class="client-vehicle-modal" id="clientVehicleModal">
+  <div class="end-trip-box">
+    <h2>🚗 Chọn phương tiện</h2>
+    <p style="text-align: center; color: var(--text-muted); margin-bottom: 16px; font-size: 0.9rem;">Host đã bắt đầu chuyến đi. Hãy chọn phương tiện của bạn!</p>
+    <div class="vehicle-selector" style="flex-direction: column;">
+      <button class="vehicle-mode-btn" style="flex: none; padding: 15px; font-size: 1rem; flex-direction: row; gap: 12px;" onclick="selectClientVehicle('driving')"><i class="fas fa-car"></i> Ô tô</button>
+      <button class="vehicle-mode-btn" style="flex: none; padding: 15px; font-size: 1rem; flex-direction: row; gap: 12px;" onclick="selectClientVehicle('motorcycle')"><i class="fas fa-motorcycle"></i> Xe máy</button>
+      <button class="vehicle-mode-btn" style="flex: none; padding: 15px; font-size: 1rem; flex-direction: row; gap: 12px;" onclick="selectClientVehicle('truck')"><i class="fas fa-truck"></i> Xe tải</button>
+      <button class="vehicle-mode-btn" style="flex: none; padding: 15px; font-size: 1rem; flex-direction: row; gap: 12px;" onclick="selectClientVehicle('hd')"><i class="fas fa-motorcycle"></i> Xe công nghệ</button>
+      <button class="vehicle-mode-btn" style="flex: none; padding: 15px; font-size: 1rem; flex-direction: row; gap: 12px;" onclick="selectClientVehicle('walking')"><i class="fas fa-walking"></i> Đi bộ</button>
+      <button class="vehicle-mode-btn" style="flex: none; padding: 15px; font-size: 1rem; flex-direction: row; gap: 12px;" onclick="selectClientVehicle('bicycle')"><i class="fas fa-bicycle"></i> Xe đạp</button>
+    </div>
+  </div>
+</div>
 <div class="poi-detail-sheet" id="poiDetailSheet">
   <div class="sheet-swipe-hint" id="poiDetailSwipeHandle">
     <div class="sheet-swipe-bar"></div>
@@ -712,8 +725,7 @@ let voiceEnabled = true;
 let voiceRouteSteps = null;
 let voiceStepIndex = 0;
 let voiceCheckTimer = null;
-// ĐÃ SỬA THÀNH NONE
-let currentVehicleMode = 'none'; 
+let currentVehicleMode = 'none';
 let currentSortMode = 'fastest';
 let tripStartTime = null;
 let arrivalHandled = false;
@@ -762,12 +774,14 @@ let liveGpsInterval = null;
 let liveHeartbeatInterval = null;
 let liveRoomUnsub = null;
 let livePublicUnsub = null;
+let liveNavUnsub = null;
 let liveRoomMembers = [];
 let livePublicUsers = [];
 let liveMemberMarkers = {};
 let liveMyMarker = null;
 let liveMyAnimState = null;
 let liveMemberAnimStates = {};
+let liveNavLayer = null;
 const LIVE_GPS_INTERVAL = 6000;
 const LIVE_ANIM_DURATION = 6000;
 const LIVE_HEARTBEAT_TIMEOUT = 120000;
@@ -998,7 +1012,7 @@ btnSubmitAuth.addEventListener('click', async () => {
   try {
     if (isRegisterMode) await createUserWithEmailAndPassword(auth, email, pass);
     else await signInWithEmailAndPassword(auth, email, pass);
-    window.location.reload(); // F5 SAU KHI THÀNH CÔNG
+    window.location.reload();
   } catch (err) { authError.textContent = getAuthErrorMessage(err.code); authError.style.display = 'block'; }
   finally { btnSubmitAuth.disabled = false; btnSubmitAuth.textContent = isRegisterMode ? 'Đăng ký tài khoản' : 'Đăng nhập'; }
 });
@@ -1006,28 +1020,25 @@ btnSubmitAuth.addEventListener('click', async () => {
 document.getElementById('btnGoogleAuth').addEventListener('click', async () => {
   try { 
     await signInWithPopup(auth, new GoogleAuthProvider()); 
-    window.location.reload(); // F5 SAU KHI ĐĂNG NHẬP GOOGLE
+    window.location.reload();
   }
   catch (e) { authError.textContent = getAuthErrorMessage(e.code); authError.style.display = 'block'; }
 });
 
 async function logout() { 
-  if (liveEnabled) stopLiveSession(); 
+  if (liveEnabled) await stopLiveSession(); 
   await signOut(auth); 
-  window.location.reload(); // F5 SAU KHI ĐĂNG XUẤT
+  window.location.reload();
   closeMenu(); 
 }
 
-// Hàm lấy dữ liệu từ cache (LocalStorage) để tiết kiệm Reads
 async function getCachedFirestoreData(collectionName, cacheKey, ttlMs, isUserSub = false) {
   const now = Date.now();
   const cachedStr = localStorage.getItem(cacheKey);
   if (cachedStr) {
     try {
       const cached = JSON.parse(cachedStr);
-      if (now - cached.timestamp < ttlMs) {
-        return cached.data; // Dùng cache, 0 reads
-      }
+      if (now - cached.timestamp < ttlMs) return cached.data;
     } catch (e) {}
   }
   try {
@@ -1059,42 +1070,20 @@ window.clearAppCache = function() {
 function initDualDataSubscriptions() {
   if (!currentUser) return;
 
-  // 1. FIRESTORE (Dùng Cache - TTL 24h cho địa điểm, 1h cho báo cáo)
-  getCachedFirestoreData('rest_stops', 'cache_rest_stops', 24 * 60 * 60 * 1000).then(data => {
-    _fsRestStops = data; recomputeRestStops();
-  });
-  getCachedFirestoreData('community_pois', 'cache_community_pois', 24 * 60 * 60 * 1000).then(data => {
-    _fsCommunityPois = data; recomputeCommunityPois();
-  });
-  getCachedFirestoreData('reports', 'cache_reports', 60 * 60 * 1000).then(data => {
-    _fsReports = {};
-    data.forEach(d => { _fsReports[d.id] = d; });
-    recomputeReports();
-  });
-  getCachedFirestoreData('avoid_zones', 'cache_avoid_zones', 24 * 60 * 60 * 1000).then(data => {
-    _fsAvoidZones = data; recomputeAvoidZones();
-  });
-  getCachedFirestoreData('savedPlaces', 'cache_saved_places_' + currentUser.uid, 60 * 60 * 1000, true).then(data => {
-    _fsSavedPlaces = {};
-    data.forEach(d => { _fsSavedPlaces[d.id] = d; });
-    recomputeSavedPlaces();
-  });
-  getCachedFirestoreData('history', 'cache_history_' + currentUser.uid, 60 * 60 * 1000, true).then(data => {
-    _fsHistory = data; recomputeHistory();
-  });
-  getCachedFirestoreData('savedRoutes', 'cache_saved_routes_' + currentUser.uid, 60 * 60 * 1000, true).then(data => {
-    _fsSavedRoutes = data; recomputeSavedRoutes();
-  });
+  getCachedFirestoreData('rest_stops', 'cache_rest_stops', 24 * 60 * 60 * 1000).then(data => { _fsRestStops = data; recomputeRestStops(); });
+  getCachedFirestoreData('community_pois', 'cache_community_pois', 24 * 60 * 60 * 1000).then(data => { _fsCommunityPois = data; recomputeCommunityPois(); });
+  getCachedFirestoreData('reports', 'cache_reports', 60 * 60 * 1000).then(data => { _fsReports = {}; data.forEach(d => { _fsReports[d.id] = d; }); recomputeReports(); });
+  getCachedFirestoreData('avoid_zones', 'cache_avoid_zones', 24 * 60 * 60 * 1000).then(data => { _fsAvoidZones = data; recomputeAvoidZones(); });
+  getCachedFirestoreData('savedPlaces', 'cache_saved_places_' + currentUser.uid, 60 * 60 * 1000, true).then(data => { _fsSavedPlaces = {}; data.forEach(d => { _fsSavedPlaces[d.id] = d; }); recomputeSavedPlaces(); });
+  getCachedFirestoreData('history', 'cache_history_' + currentUser.uid, 60 * 60 * 1000, true).then(data => { _fsHistory = data; recomputeHistory(); });
+  getCachedFirestoreData('savedRoutes', 'cache_saved_routes_' + currentUser.uid, 60 * 60 * 1000, true).then(data => { _fsSavedRoutes = data; recomputeSavedRoutes(); });
 
-
-  // 2. REALTIME DATABASE (Giữ nguyên realtime bằng onValue)
   _unsub.rtdbCommunity = onValue(ref(db, 'communityPois'), snap => {
     const data = snap.val() || {};
     const all = Object.entries(data).map(([k, v]) => ({ _id: k, id: k, ...v }));
     _rtdbRestStops = all.filter(p => p.tag === 'rest_stop').map(p => ({ ...p, source: 'rtdb' }));
     _rtdbCommunityPois = all.filter(p => p.tag !== 'rest_stop').map(p => ({ ...p, source: 'rtdb' }));
-    recomputeRestStops();
-    recomputeCommunityPois();
+    recomputeRestStops(); recomputeCommunityPois();
   }, err => console.warn('RTDB communityPois:', err));
 
   _unsub.rtdbReports = onValue(ref(db, 'reports'), snap => {
@@ -1161,26 +1150,14 @@ function updateUIState() {
   const fabRestStop = document.getElementById('btnRestStopFilter');
 
   if (isDirOpen || isSearchBoxShow) {
-    fabLocate.style.display = 'none';
-    fabDir.style.display = 'none';
-    fabLayers.style.display = 'none';
-    fabQuickPin.style.display = 'none';
-    fabReport.style.display = 'none';
-    fabRestStop.style.display = 'none';
+    fabLocate.style.display = 'none'; fabDir.style.display = 'none'; fabLayers.style.display = 'none';
+    fabQuickPin.style.display = 'none'; fabReport.style.display = 'none'; fabRestStop.style.display = 'none';
   } else if (isNav) {
-    fabLocate.style.display = 'none';
-    fabDir.style.display = 'none';
-    fabLayers.style.display = 'none';
-    fabQuickPin.style.display = 'none';
-    fabReport.style.display = 'flex';
-    fabRestStop.style.display = 'none';
+    fabLocate.style.display = 'none'; fabDir.style.display = 'none'; fabLayers.style.display = 'none';
+    fabQuickPin.style.display = 'none'; fabReport.style.display = 'flex'; fabRestStop.style.display = 'none';
   } else {
-    fabLocate.style.display = 'flex';
-    fabDir.style.display = 'flex';
-    fabLayers.style.display = 'flex';
-    fabQuickPin.style.display = 'flex';
-    fabReport.style.display = 'flex';
-    fabRestStop.style.display = 'flex';
+    fabLocate.style.display = 'flex'; fabDir.style.display = 'flex'; fabLayers.style.display = 'flex';
+    fabQuickPin.style.display = 'flex'; fabReport.style.display = 'flex'; fabRestStop.style.display = 'flex';
   }
 }
 
@@ -1319,12 +1296,9 @@ function renderSavedPlacesOnMap() {
   savedPlacesMarkers = [];
   const currentZoom = map ? map.getZoom() : 17;
   const icons = {
-    home: { icon: 'fa-home', color: '#10b981' },
-    cafe: { icon: 'fa-coffee', color: '#f59e0b' },
-    restaurant: { icon: 'fa-utensils', color: '#ef4444' },
-    company: { icon: 'fa-building', color: '#3b82f6' },
-    school: { icon: 'fa-school', color: '#8b5cf6' },
-    other: { icon: 'fa-map-marker-alt', color: '#64748b' }
+    home: { icon: 'fa-home', color: '#10b981' }, cafe: { icon: 'fa-coffee', color: '#f59e0b' },
+    restaurant: { icon: 'fa-utensils', color: '#ef4444' }, company: { icon: 'fa-building', color: '#3b82f6' },
+    school: { icon: 'fa-school', color: '#8b5cf6' }, other: { icon: 'fa-map-marker-alt', color: '#64748b' }
   };
   for (const key in allSavedPlaces) {
     const place = allSavedPlaces[key];
@@ -1441,69 +1415,40 @@ function renderReportsOnMap() {
 function renderAvoidZonesOnMap() {
   avoidZoneLayers.forEach(l => { try { map.removeLayer(l); } catch(e){} });
   avoidZoneLayers = [];
-  
   const now = Date.now();
-
   allAvoidZones.forEach(zone => {
     if (!zone.lat1 || !zone.lng1 || !zone.lat2 || !zone.lng2) return;
-
-    // KIỂM TRA THỜI GIAN CẤM
     if (zone.startTime || zone.endTime) {
       if (zone.startTime && now < zone.startTime) return;
       if (zone.endTime && now > zone.endTime) return;
     }
-
     let polylineCoords = [];
-    
     if (zone.waypoints) {
       try {
         const parsed = typeof zone.waypoints === 'string' ? JSON.parse(zone.waypoints) : zone.waypoints;
-        if (Array.isArray(parsed) && parsed.length > 1) {
-          polylineCoords = parsed;
-        }
+        if (Array.isArray(parsed) && parsed.length > 1) polylineCoords = parsed;
       } catch (e) {}
     }
-
-    if (polylineCoords.length === 0) {
-      polylineCoords = [[zone.lat1, zone.lng1], [zone.lat2, zone.lng2]];
-    }
-
-    const line = L.polyline(
-      polylineCoords,
-      { color: '#ef4444', weight: 8, opacity: 0.85, dashArray: '12, 12', lineCap: 'round', lineJoin: 'round' }
-    ).addTo(map);
-    
+    if (polylineCoords.length === 0) polylineCoords = [[zone.lat1, zone.lng1], [zone.lat2, zone.lng2]];
+    const line = L.polyline(polylineCoords, { color: '#ef4444', weight: 8, opacity: 0.85, dashArray: '12, 12', lineCap: 'round', lineJoin: 'round' }).addTo(map);
     const midIdx = Math.floor(polylineCoords.length / 2);
     const midLat = polylineCoords[midIdx][0];
     const midLng = polylineCoords[midIdx][1];
-    
     const icon = L.divIcon({ html: `<div class="avoid-zone-pin"><i class="fas fa-ban"></i></div>`, className: '', iconSize: [36, 36], iconAnchor: [18, 18] });
     const marker = L.marker([midLat, midLng], { icon, zIndexOffset: 400 }).addTo(map);
-    
-    // TẠO CHUỖI HIỂN THỊ CHI TIẾT
     let detailHtml = '';
-    
-    // 1. Thời gian
     if (zone.startTime || zone.endTime) {
       const s = zone.startTime ? new Date(zone.startTime).toLocaleString('vi-VN', {hour: '2-digit', minute:'2-digit', day: '2-digit', month: '2-digit'}) : '...';
       const e = zone.endTime ? new Date(zone.endTime).toLocaleString('vi-VN', {hour: '2-digit', minute:'2-digit', day: '2-digit', month: '2-digit'}) : '...';
       detailHtml += `<br><small style="color:var(--warning)"><i class="fas fa-clock"></i> Cấm: ${s} - ${e}</small>`;
     }
-
-    // 2. Loại xe bị cấm
     if (zone.bannedVehicles && Array.isArray(zone.bannedVehicles) && zone.bannedVehicles.length > 0) {
-      const vehicleNames = {
-        'car': 'Ô tô', 'motorcycle': 'Xe máy', 'truck': 'Xe tải', 
-        'hd': 'Xe CN', 'bicycle': 'Xe đạp', 'walking': 'Đi bộ'
-      };
+      const vehicleNames = { 'car': 'Ô tô', 'motorcycle': 'Xe máy', 'truck': 'Xe tải', 'hd': 'Xe CN', 'bicycle': 'Xe đạp', 'walking': 'Đi bộ' };
       const bannedList = zone.bannedVehicles.map(v => vehicleNames[v] || v).join(', ');
       detailHtml += `<br><small style="color:var(--danger); font-weight:bold"><i class="fas fa-car"></i> Cấm: ${bannedList}</small>`;
     }
-
     marker.bindPopup(`<b>🚫 ${escapeHtml(zone.name || 'Tuyến đường cấm')}</b>${detailHtml}`);
-    
-    avoidZoneLayers.push(line);
-    avoidZoneLayers.push(marker);
+    avoidZoneLayers.push(line); avoidZoneLayers.push(marker);
   });
 }
 
@@ -1518,9 +1463,7 @@ window.submitReport = async function(type) {
   else if (type === 'traffic') ttl = 1800000;
   else if (type === 'bridge_collapse' || type === 'road_collapse') ttl = 604800000;
   try {
-    await addDoc(collection(fsdb, 'reports'), {
-      lat: lastUserPos.lat, lng: lastUserPos.lng, type, timestamp: now, expiresAt: now + ttl, uid: currentUser.uid
-    });
+    await addDoc(collection(fsdb, 'reports'), { lat: lastUserPos.lat, lng: lastUserPos.lng, type, timestamp: now, expiresAt: now + ttl, uid: currentUser.uid });
     alert('Cảm ơn bạn! Báo cáo đã được gửi.');
   } catch (e) { alert('Lỗi: ' + e.message); }
 };
@@ -1534,19 +1477,16 @@ window.setVehicleMode = function(mode, btn) {
     if (mode === 'truck') truckWarning.classList.remove('hidden');
     else truckWarning.classList.add('hidden');
   }
+  // Nếu đang live, cập nhật vehicle lên Firebase
+  if (liveEnabled && liveRoomCode) pushLivePositionToRTDB();
   if (startPoint && endPoint && document.getElementById('routeOptionsModal').classList.contains('open')) fetchAndShowRouteOptions();
 };
 
 window.changeSort = function(mode) { currentSortMode = mode; if (startPoint && endPoint) fetchAndShowRouteOptions(); };
 
 window.fetchAndShowRouteOptions = async function() {
-  if (!startPoint || !endPoint || !startPoint.lat || !endPoint.lat) {
-    return alert('Vui lòng chọn đủ Điểm đi và Điểm đến hợp lệ!');
-  }
-  
-  // TỰ ĐỘNG FALLBACK NẾU CHƯA CHỌN XE
+  if (!startPoint || !endPoint || !startPoint.lat || !endPoint.lat) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến hợp lệ!');
   const modeToFetch = currentVehicleMode === 'none' ? 'driving' : currentVehicleMode;
-  
   const modeLabel = modeToFetch === 'driving' ? 'ô tô' : modeToFetch === 'driving-traffic' ? 'ô tô (kẹt xe)' : modeToFetch === 'truck' ? 'xe tải' : modeToFetch === 'hd' ? 'xe công nghệ' : modeToFetch === 'walking' ? 'đi bộ' : modeToFetch === 'bicycle' ? 'xe đạp' : 'xe máy';
   const bodyEl = document.getElementById('routeOptionsBody');
   bodyEl.innerHTML = `<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px; color:var(--text-muted);">Đang tìm tuyến (${modeLabel})...</p></div>`;
@@ -1560,53 +1500,33 @@ window.fetchAndShowRouteOptions = async function() {
         let coords = [];
         if (r.geometry && r.geometry.coordinates) {
           const c0 = r.geometry.coordinates[0];
-          if (Math.abs(c0[0]) > 90) {
-            coords = r.geometry.coordinates.map(c => [c[1], c[0]]);
-          } else {
-            coords = r.geometry.coordinates.map(c => [c[0], c[1]]);
-          }
+          if (Math.abs(c0[0]) > 90) coords = r.geometry.coordinates.map(c => [c[1], c[0]]);
+          else coords = r.geometry.coordinates.map(c => [c[0], c[1]]);
         }
         let dist = 0, dur = 0, steps = [];
         if (r.legs && r.legs[0]) {
           dist = r.legs[0].distance?.value || r.legs[0].distance || 0;
           dur = r.legs[0].duration?.value || r.legs[0].duration || 0;
           steps = r.legs[0].steps || [];
-        } else {
-          dist = r.distance || 0;
-          dur = r.duration || 0;
-        }
-        return {
-          ...r,
-          geometry: { coordinates: coords },
-          distance: dist,
-          duration: dur,
-          legs: [{ steps: steps }],
-          provider: r.provider || 'Worker',
-          mode: modeToFetch // Dùng mode đã fallback
-        };
+        } else { dist = r.distance || 0; dur = r.duration || 0; }
+        return { ...r, geometry: { coordinates: coords }, distance: dist, duration: dur, legs: [{ steps }], provider: r.provider || 'Worker', mode: modeToFetch };
       });
     }
     routes = routes.filter(r => {
       const coords = r.geometry?.coordinates;
       if (!coords || coords.length < 2) return false;
-      return coords.every(c => {
-        const lat = c[0], lng = c[1];
-        return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && !(lat === 0 && lng === 0);
-      });
+      return coords.every(c => c[0] >= -90 && c[0] <= 90 && c[1] >= -180 && c[1] <= 180 && !(c[0] === 0 && c[1] === 0));
     });
-    
     if (routes.length === 0) {
-      bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Không tìm được tuyến đường hợp lệ.</p><div style="font-size:0.8rem; margin-top:12px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; text-align:left; word-break:break-all;"><b>Lỗi:</b> ${data.error || 'Không có dữ liệu trả về'}</div></div>`;
+      bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Không tìm được tuyến đường hợp lệ.</p></div>`;
       return;
     }
-    
     routes.sort((a, b) => currentSortMode === 'shortest' ? a.distance - b.distance : a.duration - b.duration);
     routes = routes.slice(0, 5);
     alternativeRoutesData = routes;
     if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
     alternativeLayers.forEach(l => map.removeLayer(l)); alternativeLayers = [];
     if (window._routeBadges) window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = [];
-    
     const allCoords = [];
     routes.forEach((r, index) => {
       const coords = r.geometry.coordinates;
@@ -1617,12 +1537,11 @@ window.fetchAndShowRouteOptions = async function() {
       layer.on('click', () => selectRouteOption(index));
       alternativeLayers.push(layer);
       const midIdx = Math.floor(coords.length / 2);
-      const badgeHtml = `<div style="background: ${isBest ? color : 'white'}; color: ${isBest ? 'white' : '#334155'}; border: 3px solid ${isBest ? 'white' : color}; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.9rem; box-shadow: 0 4px 10px rgba(0,0,0,0.4); cursor: pointer; transform: ${isBest ? 'scale(1.1)' : 'scale(1)'}; transition: transform 0.2s;" onclick="selectRouteOption(${index})">${index + 1}</div>`;
+      const badgeHtml = `<div style="background: ${isBest ? color : 'white'}; color: ${isBest ? 'white' : '#334155'}; border: 3px solid ${isBest ? 'white' : color}; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.9rem; box-shadow: 0 4px 10px rgba(0,0,0,0.4); cursor: pointer;" onclick="selectRouteOption(${index})">${index + 1}</div>`;
       const badge = L.marker(coords[midIdx], { icon: L.divIcon({ html: badgeHtml, className: '', iconSize: [32, 32], iconAnchor: [16, 16] }), interactive: true, zIndexOffset: 2000 - index }).addTo(map);
       badge.on('click', () => selectRouteOption(index));
       window._routeBadges.push(badge);
     });
-    
     map.fitBounds(L.latLngBounds(allCoords), { padding: [50, 50] });
     let html = `<div class="sort-bar"><button class="sort-chip ${currentSortMode === 'fastest' ? 'active' : ''}" onclick="changeSort('fastest')"><i class="fas fa-bolt"></i> Nhanh nhất</button><button class="sort-chip ${currentSortMode === 'shortest' ? 'active' : ''}" onclick="changeSort('shortest')"><i class="fas fa-route"></i> Ngắn nhất</button></div>`;
     routes.forEach((r, index) => {
@@ -1630,33 +1549,25 @@ window.fetchAndShowRouteOptions = async function() {
       const dur = Math.round(r.duration / 60);
       const isBest = index === 0;
       const color = ROUTE_COLORS[index];
-      html += `<div class="route-card ${isBest ? 'active' : ''}" onclick="selectRouteOption(${index})" style="border-left: 4px solid ${color}; cursor: pointer;"><div class="info"><h3 style="display:flex; align-items:center; gap:8px;"><span style="background:${color}; color:white; width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:900;">${index + 1}</span>Tuyến ${index + 1} ${isBest ? '(Ưu tiên)' : ''} <span style="font-size:0.6rem; background:var(--bg-2); padding:2px 6px; border-radius:4px; color:var(--text-muted);">${r.provider}</span></h3><p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p></div>${isBest ? '<span class="badge" style="background:linear-gradient(135deg, #f59e0b, #ef4444); color:white; box-shadow:0 2px 8px rgba(245,158,11,0.5);"><i class="fas fa-star"></i> Đề xuất</span>' : ''}</div>`;
+      html += `<div class="route-card ${isBest ? 'active' : ''}" onclick="selectRouteOption(${index})" style="border-left: 4px solid ${color}; cursor: pointer;"><div class="info"><h3 style="display:flex; align-items:center; gap:8px;"><span style="background:${color}; color:white; width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:900;">${index + 1}</span>Tuyến ${index + 1} ${isBest ? '(Ưu tiên)' : ''} <span style="font-size:0.6rem; background:var(--bg-2); padding:2px 6px; border-radius:4px; color:var(--text-muted);">${r.provider}</span></h3><p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p></div>${isBest ? '<span class="badge" style="background:linear-gradient(135deg, #f59e0b, #ef4444); color:white;"><i class="fas fa-star"></i> Đề xuất</span>' : ''}</div>`;
     });
     bodyEl.innerHTML = html;
   } catch (error) {
-    console.error('Lỗi lấy tuyến:', error);
-    bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Có lỗi xảy ra khi tìm tuyến. Vui lòng thử lại.</p></div>`;
+    bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><p>Có lỗi xảy ra khi tìm tuyến. Vui lòng thử lại.</p></div>`;
   }
 };
 
 window.selectRouteOption = function(index) {
   const selectedRoute = alternativeRoutesData[index];
   if (!selectedRoute) return;
-  if (!selectedRoute.geometry || !selectedRoute.geometry.coordinates || selectedRoute.geometry.coordinates.length === 0) {
-    return alert('Lỗi: Tuyến đường này không có dữ liệu tọa độ. Vui lòng chọn phương tiện khác!');
-  }
-  if (!selectedRoute.legs || !Array.isArray(selectedRoute.legs) || selectedRoute.legs.length === 0) {
-    selectedRoute.legs = [{ steps: [] }];
-  }
-  if (!selectedRoute.legs[0].steps) {
-    selectedRoute.legs[0].steps = [];
-  }
+  if (!selectedRoute.geometry?.coordinates?.length) return alert('Lỗi: Tuyến đường không có dữ liệu!');
+  if (!selectedRoute.legs || !Array.isArray(selectedRoute.legs) || selectedRoute.legs.length === 0) selectedRoute.legs = [{ steps: [] }];
+  if (!selectedRoute.legs[0].steps) selectedRoute.legs[0].steps = [];
   
   const unselectedRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(unselectedRoutes));
   alternativeLayers.forEach((l, i) => { if (i === index) l.setStyle({ color: '#3b82f6', weight: 8, opacity: 1, dashArray: '' }); else l.setStyle({ color: '#9ca3af', weight: 5, opacity: 0.5, dashArray: '10, 10' }); });
   alternativeLayers.forEach((l, i) => { if (i !== index) map.removeLayer(l); });
-  
   currentRouteLayer = alternativeLayers[index]; alternativeLayers = [currentRouteLayer];
   currentRouteData = selectedRoute; currentRouteCoords = selectedRoute.geometry.coordinates;
   if (window._routeBadges) { window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = []; }
@@ -1674,36 +1585,34 @@ function startNavigationHUD() {
     return;
   }
   try {
-    if (!currentRouteData.legs || !Array.isArray(currentRouteData.legs) || currentRouteData.legs.length === 0) {
-      currentRouteData.legs = [{ steps: [] }];
-    }
-    if (!currentRouteData.legs[0].steps) {
-      currentRouteData.legs[0].steps = [];
-    }
-    
+    if (!currentRouteData.legs || !Array.isArray(currentRouteData.legs) || currentRouteData.legs.length === 0) currentRouteData.legs = [{ steps: [] }];
+    if (!currentRouteData.legs[0].steps) currentRouteData.legs[0].steps = [];
     document.getElementById('dirSheet').classList.remove('open');
     if (searchContext !== 'view') document.getElementById('suggestionsBox').classList.remove('show');
-    
     document.body.classList.add('navigating');
     document.getElementById('hud').classList.remove('hidden');
     updateUIState();
-    
     voiceRouteSteps = currentRouteData.legs[0].steps;
     voiceStepIndex = 0; lastSnapIndex = 0; tripStartTime = Date.now(); arrivalHandled = false;
     const dist = currentRouteData.distance || 0;
     const dur = currentRouteData.duration || 0;
-    
     document.getElementById('hudRemainDist').textContent = (dist / 1000).toFixed(1) + ' km';
     document.getElementById('hudRemainTime').textContent = Math.round(dur / 60) + ' phút';
     document.getElementById('hudNextStopName').textContent = endPoint?.name || 'Điểm đến';
-    
     startWatching(); 
     startVoice(); 
     saveHistoryToFirestore(startPoint, endPoint, dist);
     if (lastUserPos) updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
+    
+    // THÔNG BÁO NAVIGATION CHO CẢ PHÒNG LIVE
+    if (liveEnabled && liveRoomCode && isLiveHost) {
+      set(ref(db, `live_rooms/${liveRoomCode}/navigation`), {
+        endLat: endPoint.lat, endLng: endPoint.lng, endName: endPoint.name,
+        routeCoords: currentRouteCoords, startTime: Date.now(), hostVehicle: currentVehicleMode
+      }).catch(()=>{});
+    }
   } catch (err) {
-    console.error('Lỗi khởi động dẫn đường:', err);
-    alert('Lỗi khởi động dẫn đường: ' + err.message + '. Vui lòng thử tìm tuyến khác!');
+    alert('Lỗi khởi động: ' + err.message);
     document.getElementById('hud').classList.add('hidden');
     document.body.classList.remove('navigating');
     updateUIState();
@@ -1712,9 +1621,9 @@ function startNavigationHUD() {
 
 window.openAlternativeRoutes = function() {
   const stored = localStorage.getItem('alternativeRoutes');
-  if (!stored) return alert('Không có tuyến đường phụ nào được lưu!');
+  if (!stored) return alert('Không có tuyến phụ nào!');
   const routes = JSON.parse(stored);
-  if (routes.length === 0) return alert('Không có tuyến đường phụ nào!');
+  if (routes.length === 0) return alert('Không có tuyến phụ nào!');
   alternativeRoutesData = [currentRouteData, ...routes];
   let html = '';
   alternativeRoutesData.forEach((r, index) => {
@@ -1728,15 +1637,9 @@ window.openAlternativeRoutes = function() {
 window.switchToRoute = function(index) {
   const selectedRoute = alternativeRoutesData[index];
   if (!selectedRoute) return;
-  if (!selectedRoute.geometry || !selectedRoute.geometry.coordinates || selectedRoute.geometry.coordinates.length === 0) {
-    return alert('Lỗi: Tuyến đường này không có dữ liệu tọa độ!');
-  }
-  if (!selectedRoute.legs || !Array.isArray(selectedRoute.legs) || selectedRoute.legs.length === 0) {
-    selectedRoute.legs = [{ steps: [] }];
-  }
-  if (!selectedRoute.legs[0].steps) {
-    selectedRoute.legs[0].steps = [];
-  }
+  if (!selectedRoute.geometry?.coordinates?.length) return alert('Lỗi: Tuyến không có dữ liệu!');
+  if (!selectedRoute.legs || !Array.isArray(selectedRoute.legs) || selectedRoute.legs.length === 0) selectedRoute.legs = [{ steps: [] }];
+  if (!selectedRoute.legs[0].steps) selectedRoute.legs[0].steps = [];
   const otherRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(otherRoutes));
   currentRouteData = selectedRoute; currentRouteCoords = selectedRoute.geometry.coordinates;
@@ -1754,7 +1657,7 @@ function updateNextManeuverHUD(lat, lng) {
   let nextStep = null; let minDist = Infinity;
   for (let i = Math.max(0, voiceStepIndex); i < Math.min(voiceRouteSteps.length, voiceStepIndex + 5); i++) {
     const step = voiceRouteSteps[i];
-    if (!step || !step.maneuver || !step.maneuver.location) continue;
+    if (!step?.maneuver?.location) continue;
     const d = calcDist(lat, lng, step.maneuver.location[1], step.maneuver.location[0]);
     if (d > 5 && d < minDist) { minDist = d; nextStep = step; }
   }
@@ -1789,7 +1692,7 @@ function triggerArrival() {
 
 function showArrivalToast() {
   const toast = document.createElement('div'); toast.id = 'arrivalToast';
-  toast.style.cssText = `position: fixed; top: calc(80px + var(--safe-top)); left: 50%; transform: translateX(-50%) translateY(-30px); background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 16px 24px; border-radius: 16px; font-weight: 800; font-size: 1rem; z-index: 9999; box-shadow: 0 10px 40px rgba(16,185,129,0.5); display: flex; align-items: center; gap: 12px; opacity: 0; transition: all 0.3s ease-out; pointer-events: none;`;
+  toast.style.cssText = `position: fixed; top: calc(80px + var(--safe-top)); left: 50%; transform: translateX(-50%) translateY(-30px); background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 16px 24px; border-radius: 16px; font-weight: 800; font-size: 1rem; z-index: 9999; display: flex; align-items: center; gap: 12px; opacity: 0; transition: all 0.3s ease-out;`;
   toast.innerHTML = `<i class="fas fa-flag-checkered" style="font-size:1.5rem;"></i><span>Đã đến nơi! 🎉</span>`;
   document.body.appendChild(toast); if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
   requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateX(-50%) translateY(0)'; });
@@ -1809,7 +1712,7 @@ function checkOffRoute(userLat, userLng) {
 async function autoReroute(userLat, userLng) {
   if (isRerouting) return; isRerouting = true;
   const currentProvider = currentRouteData?.provider || 'mapbox'; 
-  const currentMode = currentRouteData?.mode || (currentVehicleMode === 'none' ? 'driving' : currentVehicleMode); // Fallback
+  const currentMode = currentRouteData?.mode || (currentVehicleMode === 'none' ? 'driving' : currentVehicleMode);
   const fromStr = `${userLng},${userLat}`; const toStr = `${endPoint.lng},${endPoint.lat}`;
   try {
     let r;
@@ -1819,14 +1722,8 @@ async function autoReroute(userLat, userLng) {
     } else {
       const res = await fetchWorker(`/mapbox-route?from=${fromStr}&to=${toStr}&mode=${currentMode}`); const data = await res.json(); if (data.code !== 'Ok') throw new Error('no route'); r = { ...data.routes[0], provider: 'mapbox', mode: currentMode };
     }
-    
-    if (!r.legs || !Array.isArray(r.legs) || r.legs.length === 0) {
-      r.legs = [{ steps: [] }];
-    }
-    if (!r.legs[0].steps) {
-      r.legs[0].steps = [];
-    }
-    
+    if (!r.legs || !Array.isArray(r.legs) || r.legs.length === 0) r.legs = [{ steps: [] }];
+    if (!r.legs[0].steps) r.legs[0].steps = [];
     currentRouteData = r; voiceRouteSteps = r.legs[0].steps; voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
     currentRouteCoords = r.geometry.coordinates;
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
@@ -1839,7 +1736,7 @@ async function autoReroute(userLat, userLng) {
 
 window.openEndTripModal = function() {
   if (!currentRouteData) {
-    alert('Dữ liệu chuyến đi bị lỗi. Hệ thống sẽ đóng chế độ dẫn đường.');
+    alert('Dữ liệu chuyến đi bị lỗi.');
     document.getElementById('hud').classList.add('hidden');
     document.body.classList.remove('navigating');
     if(watchId) navigator.geolocation.clearWatch(watchId);
@@ -1869,20 +1766,23 @@ window.endTrip = async function(save) {
       });
     } catch (e) {}
   }
+  // XOÁ NAVIGATION KHỎI LIVE ROOM NẾU LÀ HOST
+  if (liveEnabled && liveRoomCode && isLiveHost) {
+    remove(ref(db, `live_rooms/${liveRoomCode}/navigation`)).catch(()=>{});
+  }
   if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
   if (voiceCheckTimer) { clearInterval(voiceCheckTimer); voiceCheckTimer = null; }
   if (window.speechSynthesis) speechSynthesis.cancel();
   if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
   alternativeLayers.forEach(l => { try { map.removeLayer(l); } catch (e) {} }); alternativeLayers = [];
   if (window._routeBadges) { window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = []; }
-  
   currentRouteCoords = []; currentRouteData = null; alternativeRoutesData = []; voiceRouteSteps = null; voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0; isRerouting = false; tripStartTime = null; arrivalHandled = false; warnedReports.clear(); localStorage.removeItem('alternativeRoutes');
   document.body.classList.remove('navigating');
   document.getElementById('hud').classList.add('hidden');
   updateUIState();
   document.getElementById('dirInputEnd').value = ''; document.getElementById('topSearchInput').value = ''; document.getElementById('btnClearEnd').classList.add('hidden'); document.getElementById('searchClearBtn').classList.add('hidden'); endPoint = null;
   if (lastUserPos) map.flyTo([lastUserPos.lat, lastUserPos.lng], 16, { animate: true, duration: 1 });
-  alert(save ? '✅ Đã lưu chuyến đi. Cảm ơn bạn đã dùng DriveKit!' : '🏁 Đã kết thúc chuyến đi.');
+  alert(save ? '✅ Đã lưu chuyến đi.' : '🏁 Đã kết thúc chuyến đi.');
 };
 
 async function saveHistoryToFirestore(start, end, distance) {
@@ -1891,7 +1791,7 @@ async function saveHistoryToFirestore(start, end, distance) {
     await addDoc(collection(fsdb, `users/${currentUser.uid}/history`), {
       startName: start.name, endName: end.name, distance, timestamp: Date.now()
     });
-  } catch(e) { console.warn('Lỗi lưu history:', e); }
+  } catch(e) {}
 }
 
 window.shareRoute = function() {
@@ -1984,32 +1884,29 @@ window.reloadSavedRoute = function(source, id) {
 };
 
 window.deleteItem = async function(type, source, id) {
-  if (!confirm('Bạn có chắc muốn xoá mục này?')) return;
+  if (!confirm('Xác nhận xoá?')) return;
   try {
-    if (source === 'firestore') {
-      await deleteDoc(doc(fsdb, `users/${currentUser.uid}/${type}/${id}`));
-    } else {
-      await remove(ref(db, `users/${currentUser.uid}/${type}/${id}`));
-    }
+    if (source === 'firestore') await deleteDoc(doc(fsdb, `users/${currentUser.uid}/${type}/${id}`));
+    else await remove(ref(db, `users/${currentUser.uid}/${type}/${id}`));
   } catch (e) { alert('Lỗi xoá: ' + e.message); }
 };
 
 window.clearAllHistory = async function() {
-  if (!confirm('Xoá TẤT CẢ lịch sử? (cả 2 nguồn)')) return;
+  if (!confirm('Xoá TẤT CẢ lịch sử?')) return;
   try {
     const fsSnap = await getDocs(collection(fsdb, `users/${currentUser.uid}/history`));
     for (const d of fsSnap.docs) await deleteDoc(d.ref);
     await remove(ref(db, `users/${currentUser.uid}/history`));
-  } catch(e) { console.warn(e); }
+  } catch(e) {}
 };
 
 window.clearAllSavedRoutes = async function() {
-  if (!confirm('Xoá TẤT CẢ lộ trình? (cả 2 nguồn)')) return;
+  if (!confirm('Xoá TẤT CẢ lộ trình?')) return;
   try {
     const fsSnap = await getDocs(collection(fsdb, `users/${currentUser.uid}/savedRoutes`));
     for (const d of fsSnap.docs) await deleteDoc(d.ref);
     await remove(ref(db, `users/${currentUser.uid}/savedRoutes`));
-  } catch(e) { console.warn(e); }
+  } catch(e) {}
 };
 
 window.openMenu = function() { document.getElementById('profileModal').classList.add('open'); loadHistory(); loadSavedRoutes(); loadSharedLinksFromStorage(); };
@@ -2096,7 +1993,6 @@ async function doSearch(query) {
   }
   const q = query.toLowerCase().trim();
   box.innerHTML = '';
-  
   const restStopMatches = allRestStops.filter(p => p.name && p.name.toLowerCase().includes(q));
   if (restStopMatches.length > 0) {
     const title = document.createElement('div');
@@ -2111,7 +2007,6 @@ async function doSearch(query) {
       box.appendChild(div);
     });
   }
-  
   const poiMatches = allCommunityPois.filter(p => p.name && p.name.toLowerCase().includes(q));
   if (poiMatches.length > 0) {
     const title = document.createElement('div');
@@ -2127,12 +2022,10 @@ async function doSearch(query) {
       box.appendChild(div);
     });
   }
-  
   const loadingDiv = document.createElement('div');
   loadingDiv.className = 'sug-item';
   loadingDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tìm địa điểm khác...';
   box.appendChild(loadingDiv);
-  
   try {
     const res = await fetchWorker(`/trackasia-search?query=${encodeURIComponent(query)}`);
     const data = await res.json();
@@ -2179,7 +2072,6 @@ async function selectLocation(lat, lng, name) {
       <button onclick="event.stopPropagation(); goToLongPressLocation(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
       <button onclick="event.stopPropagation(); shareLocation(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fas fa-share-alt"></i> Chia sẻ</button>
     </div>`).openPopup();
-  
   if (searchContext === 'view') {}
   else if (searchContext === 'start') { startPoint = { lat, lng, name: finalName }; document.getElementById('dirInputStart').value = finalName; document.getElementById('btnClearStart').classList.remove('hidden'); }
   else if (searchContext === 'end') { endPoint = { lat, lng, name: finalName }; document.getElementById('dirInputEnd').value = finalName; document.getElementById('topSearchInput').value = finalName; document.getElementById('btnClearEnd').classList.remove('hidden'); }
@@ -2245,8 +2137,7 @@ function animateMarkerTo(targetPos) {
 
 function startWatching() {
   if (watchId) navigator.geolocation.clearWatch(watchId);
-  let lastPosForSpeed = null;
-  let lastTimeForSpeed = null;
+  let lastPosForSpeed = null; let lastTimeForSpeed = null;
   watchId = navigator.geolocation.watchPosition(pos => {
     const now = Date.now();
     let speed = pos.coords.speed;
@@ -2261,15 +2152,9 @@ function startWatching() {
     smoothedSpeed = (0.2 * newPos.speed) + (0.8 * smoothedSpeed);
     document.getElementById('hudSpeed').textContent = Math.round(smoothedSpeed * 3.6) + ' km/h';
     if (lastUserPos && !newPos.heading) { const dy = newPos.lat - lastUserPos.lat, dx = newPos.lng - lastUserPos.lng; newPos.heading = 90 - (Math.atan2(dy, dx) * 180 / Math.PI); }
-    
     lastUserPos = newPos; 
     animateMarkerTo(lastUserPos);
-    
-    // Giữ marker (xe) luôn ở chính giữa màn hình (Khóa Camera)
-    if (map) {
-      map.setView([lastUserPos.lat, lastUserPos.lng], map.getZoom(), { animate: false });
-    }
-    
+    if (map) map.setView([lastUserPos.lat, lastUserPos.lng], map.getZoom(), { animate: false });
     checkReportProximity(lastUserPos.lat, lastUserPos.lng); checkOffRoute(lastUserPos.lat, lastUserPos.lng); checkArrival(lastUserPos.lat, lastUserPos.lng); updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
   }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
 }
@@ -2281,11 +2166,7 @@ function checkReportProximity(lat, lng) {
     if (calcDist(lat, lng, rep.lat, rep.lng) < 300) {
       warnedReports.add(key);
       let msg = 'sự cố';
-      if (rep.type === 'police') msg = 'CSGT';
-      else if (rep.type === 'accident') msg = 'tai nạn';
-      else if (rep.type === 'traffic') msg = 'kẹt xe';
-      else if (rep.type === 'flood') msg = 'ngập nước';
-      else if (rep.type === 'pothole') msg = 'ổ gà';
+      if (rep.type === 'police') msg = 'CSGT'; else if (rep.type === 'accident') msg = 'tai nạn'; else if (rep.type === 'traffic') msg = 'kẹt xe'; else if (rep.type === 'flood') msg = 'ngập nước'; else if (rep.type === 'pothole') msg = 'ổ gà';
       speak(`Chú ý, phía trước có báo cáo ${msg}`);
     }
   }
@@ -2301,7 +2182,7 @@ function startVoice() {
   voiceCheckTimer = setInterval(() => {
     if (!lastUserPos || !voiceRouteSteps) return;
     for (let i = voiceStepIndex; i < Math.min(voiceRouteSteps.length, voiceStepIndex + 3); i++) {
-      const step = voiceRouteSteps[i]; if (!step || !step.maneuver || !step.maneuver.location) continue;
+      const step = voiceRouteSteps[i]; if (!step?.maneuver?.location) continue;
       const d = calcDist(lastUserPos.lat, lastUserPos.lng, step.maneuver.location[1], step.maneuver.location[0]);
       if (d < 50) { speak(step.maneuver.instruction); voiceStepIndex = i + 1; break; }
     }
@@ -2316,8 +2197,7 @@ function calcDist(lat1, lng1, lat2, lng2) {
 
 window.toggleLayerMenu = function() {
   const menu = document.getElementById('layerMenu');
-  const isShowing = menu.classList.contains('show');
-  if (isShowing) menu.classList.remove('show');
+  if (menu.classList.contains('show')) menu.classList.remove('show');
   else {
     menu.classList.add('show');
     setTimeout(() => {
@@ -2383,8 +2263,7 @@ window.selectPoiTag = function(tag, btn) {
 
 function updatePoiSaveBtnState() {
   const name = document.getElementById('poiNameInput').value.trim();
-  const btn = document.getElementById('poiSaveBtn');
-  btn.disabled = !(tempPoiTag && name.length >= 2);
+  document.getElementById('poiSaveBtn').disabled = !(tempPoiTag && name.length >= 2);
 }
 
 const poiNameInputEl = document.getElementById('poiNameInput');
@@ -2401,12 +2280,11 @@ window.submitCommunityPoi = async function() {
     const collectionName = tempPoiTag === 'rest_stop' ? 'rest_stops' : 'community_pois';
     await addDoc(collection(fsdb, collectionName), {
       lat: tempPoiLatLng.lat, lng: tempPoiLatLng.lng, name: name, tag: tempPoiTag,
-      uid: currentUser.uid, authorName: currentUser.displayName || currentUser.email.split('@')[0],
-      timestamp: Date.now(), upvotes: 0
+      uid: currentUser.uid, authorName: currentUser.displayName || currentUser.email.split('@')[0], timestamp: Date.now(), upvotes: 0
     });
     closePoiSheet();
     const t = document.createElement('div');
-    t.style.cssText = 'position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#10b981,#059669);color:white;padding:14px 22px;border-radius:14px;font-weight:800;z-index:9999;box-shadow:0 10px 30px rgba(16,185,129,0.5);display:flex;gap:10px;align-items:center;';
+    t.style.cssText = 'position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#10b981,#059669);color:white;padding:14px 22px;border-radius:14px;font-weight:800;z-index:9999;display:flex;gap:10px;align-items:center;';
     t.innerHTML = '<i class="fas fa-check-circle"></i><span>Đã thêm địa điểm!</span>';
     document.body.appendChild(t); setTimeout(() => t.remove(), 2500);
   } catch (e) { alert('Lỗi lưu: ' + e.message); btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Lưu địa điểm'; }
@@ -2431,11 +2309,6 @@ window.openPoiDetail = function(source, id) {
       <div class="poi-detail-coords-text">${poi.lat.toFixed(6)}, ${poi.lng.toFixed(6)}</div>
       <button onclick="copyPoiCoords()" style="background:transparent; color:var(--primary); font-size:1.1rem; padding:4px;" title="Copy toạ độ"><i class="fas fa-copy"></i></button>
     </div>
-    <div class="poi-detail-meta">
-      <span><i class="fas fa-check-circle" style="color:#3b82f6;"></i> Địa điểm cộng đồng</span>
-      ${poi.authorName ? `<span><i class="fas fa-user"></i> ${escapeHtml(poi.authorName)}</span>` : ''}
-      ${poi.timestamp ? `<span><i class="fas fa-clock"></i> ${new Date(poi.timestamp).toLocaleDateString('vi-VN')}</span>` : ''}
-    </div>
     <div class="poi-detail-actions">
       <button class="poi-detail-btn primary" onclick="goToPoiFromDetail()"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
       <button class="poi-detail-btn share" onclick="sharePoiFromDetail()"><i class="fas fa-share-alt"></i> Chia sẻ</button>
@@ -2457,7 +2330,7 @@ window.copyPoiCoords = function() {
 
 function showDetailToast(msg) {
   const t = document.createElement('div');
-  t.style.cssText = 'position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#10b981,#059669);color:white;padding:12px 20px;border-radius:14px;font-weight:800;z-index:9999;box-shadow:0 10px 30px rgba(16,185,129,0.5);display:flex;gap:10px;align-items:center;font-size:0.85rem;';
+  t.style.cssText = 'position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#10b981,#059669);color:white;padding:12px 20px;border-radius:14px;font-weight:800;z-index:9999;display:flex;gap:10px;align-items:center;font-size:0.85rem;';
   t.innerHTML = `<i class="fas fa-check-circle"></i><span>${msg}</span>`;
   document.body.appendChild(t);
   setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2000);
@@ -2493,8 +2366,7 @@ setTimeout(() => {
 
 let zoomHintShown = false;
 function showZoomHint() {
-  if (zoomHintShown) return;
-  zoomHintShown = true;
+  if (zoomHintShown) return; zoomHintShown = true;
   const t = document.createElement('div');
   t.className = 'zoom-hint-toast';
   t.innerHTML = '<i class="fas fa-search-plus" style="color:var(--primary);"></i><span>Zoom gần hơn để xem địa điểm</span>';
@@ -2509,10 +2381,8 @@ window.toggleRestStopFilter = function() {
   renderRestStopMarkers();
   renderCommunityPoisOnMap();
   const t = document.createElement('div');
-  t.style.cssText = `position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:${restStopFilterActive ? 'linear-gradient(135deg,#3b82f6,#1d4ed8)' : 'linear-gradient(135deg,#64748b,#475569)'};color:white;padding:12px 20px;border-radius:14px;font-weight:800;z-index:9999;box-shadow:0 10px 30px rgba(59,130,246,0.5);display:flex;gap:10px;align-items:center;font-size:0.85rem;`;
-  t.innerHTML = restStopFilterActive 
-    ? `<i class="fas fa-bed"></i><span>Đang hiện ${restStopMarkers.length} trạm dừng nghỉ</span>`
-    : `<i class="fas fa-eye"></i><span>Đã hiện tất cả địa điểm</span>`;
+  t.style.cssText = `position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:${restStopFilterActive ? 'linear-gradient(135deg,#3b82f6,#1d4ed8)' : 'linear-gradient(135deg,#64748b,#475569)'};color:white;padding:12px 20px;border-radius:14px;font-weight:800;z-index:9999;display:flex;gap:10px;align-items:center;font-size:0.85rem;`;
+  t.innerHTML = restStopFilterActive ? `<i class="fas fa-bed"></i><span>Đang hiện ${restStopMarkers.length} trạm dừng nghỉ</span>` : `<i class="fas fa-eye"></i><span>Đã hiện tất cả địa điểm</span>`;
   document.body.appendChild(t);
   setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2000);
 };
@@ -2571,7 +2441,6 @@ async function startLiveSession() {
     async (pos) => {
       lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
       startLiveGpsLoop();
-      // ĐÃ XOÁ LỆNH createLiveRoom Ở ĐÂY. CHỈ BẬT GPS, KHÔNG TẠO PHÒNG.
     },
     (err) => { alert('Không lấy được GPS. Hãy bật định vị!'); document.getElementById('liveToggleSwitch').checked = false; liveEnabled = false; updateLiveUI(); },
     { enableHighAccuracy: true, timeout: 15000 }
@@ -2596,18 +2465,22 @@ function startLiveGpsLoop() {
   }, LIVE_GPS_INTERVAL);
 }
 
+// TẮT LIVE: XOÁ TOÀN BỘ DATA
 async function stopLiveSession() {
   liveEnabled = false;
   if (liveGpsInterval) { clearInterval(liveGpsInterval); liveGpsInterval = null; }
   if (liveHeartbeatInterval) { clearInterval(liveHeartbeatInterval); liveHeartbeatInterval = null; }
   if (liveRoomUnsub) { liveRoomUnsub(); liveRoomUnsub = null; }
   if (livePublicUnsub) { livePublicUnsub(); livePublicUnsub = null; }
+  if (liveNavUnsub) { liveNavUnsub(); liveNavUnsub = null; }
   
   if (currentUser && liveRoomCode) {
+    // Xoá member của mình
     await remove(ref(db, `live_rooms/${liveRoomCode}/members/${currentUser.uid}`)).catch(()=>{});
+    // Xoá public user
     await remove(ref(db, `public_users/${currentUser.uid}`)).catch(()=>{});
     
-    // Tự động xoá cả phòng nếu là Host
+    // Nếu là Host: Xoá TOÀN BỘ phòng (gồm members, navigation, ...)
     if (isLiveHost) {
       await remove(ref(db, `live_rooms/${liveRoomCode}`)).catch(()=>{});
     }
@@ -2618,6 +2491,7 @@ async function stopLiveSession() {
   liveMemberMarkers = {}; liveMemberAnimStates = {};
   if (liveMyAnimState?.animId) cancelAnimationFrame(liveMyAnimState.animId);
   if (liveMyMarker) { try { map.removeLayer(liveMyMarker); } catch(e){} liveMyMarker = null; }
+  if (liveNavLayer) { try { map.removeLayer(liveNavLayer); } catch(e){} liveNavLayer = null; }
   liveMyAnimState = null;
   
   liveRoomCode = null; liveIsPublic = false; liveRoomMembers = []; livePublicUsers = [];
@@ -2702,17 +2576,12 @@ function setupLiveUI() {
 window.createLiveRoom = async function(silent) {
   if (!currentUser) return;
   if (liveRoomCode) return alert('Bạn đang ở trong một phòng rồi!');
-  
   const code = generateLiveRoomCode();
   liveRoomCode = code; liveIsPublic = false;
-  isLiveHost = true; // Đánh dấu là chủ phòng
-  
+  isLiveHost = true;
   try {
     await set(ref(db, `live_rooms/${code}`), { hostUid: currentUser.uid, hostName: currentUser.displayName || currentUser.email.split('@')[0], isPublic: false, createdAt: Date.now() });
-    
-    // Nếu chủ phòng mất mạng, tự xoá cả phòng
     onDisconnect(ref(db, `live_rooms/${code}`)).remove(); 
-    
     const memberRef = ref(db, `live_rooms/${code}/members/${currentUser.uid}`);
     onDisconnect(memberRef).remove();
     const publicRef = ref(db, `public_users/${currentUser.uid}`);
@@ -2720,8 +2589,7 @@ window.createLiveRoom = async function(silent) {
     if (lastUserPos) await pushLivePositionToRTDB();
     subscribeLiveRoom();
     updateLiveUI();
-    setupLiveUI(); // Hiện Banner mũi tên
-    
+    setupLiveUI();
     if (liveHeartbeatInterval) clearInterval(liveHeartbeatInterval);
     liveHeartbeatInterval = setInterval(() => { if (liveRoomCode && currentUser) pushLivePositionToRTDB(); }, 15000);
     if (!silent) alert('Đã tạo phòng: ' + code);
@@ -2737,7 +2605,7 @@ window.joinLiveRoom = async function() {
     const snap = await get(ref(db, `live_rooms/${code}`));
     if (!snap.exists()) return alert('Không tìm thấy phòng: ' + code);
     liveRoomCode = code; liveIsPublic = false;
-    isLiveHost = false; // Thành viên tham gia
+    isLiveHost = false;
     const memberRef = ref(db, `live_rooms/${code}/members/${currentUser.uid}`);
     onDisconnect(memberRef).remove();
     const publicRef = ref(db, `public_users/${currentUser.uid}`);
@@ -2746,8 +2614,7 @@ window.joinLiveRoom = async function() {
     if (lastUserPos) await pushLivePositionToRTDB();
     subscribeLiveRoom();
     updateLiveUI();
-    setupLiveUI(); // Hiện Banner mũi tên
-    
+    setupLiveUI();
     if (liveHeartbeatInterval) clearInterval(liveHeartbeatInterval);
     liveHeartbeatInterval = setInterval(() => { if (liveRoomCode && currentUser) pushLivePositionToRTDB(); }, 15000);
     alert('Đã vào phòng: ' + code);
@@ -2783,24 +2650,18 @@ async function pushLivePositionToRTDB() {
   if (!currentUser || !lastUserPos || !liveRoomCode) return;
   const ts = Date.now();
   const data = { 
-    lat: lastUserPos.lat, 
-    lng: lastUserPos.lng, 
+    lat: lastUserPos.lat, lng: lastUserPos.lng, 
     name: currentUser.displayName || currentUser.email.split('@')[0], 
-    vehicle: currentVehicleMode, // Lưu phương tiện
-    isPublic: liveIsPublic, 
-    lastPing: ts 
+    vehicle: currentVehicleMode, isPublic: liveIsPublic, lastPing: ts 
   };
   set(ref(db, `live_rooms/${liveRoomCode}/members/${currentUser.uid}`), data).catch(()=>{});
   if (liveIsPublic) set(ref(db, `public_users/${currentUser.uid}`), { ...data, roomCode: liveRoomCode }).catch(()=>{});
 }
 
 function updateLivePlayerControls() {
-  // Cập nhật mảng activeLiveUsers từ liveRoomMembers (bao gồm cả bản thân)
   activeLiveUsers = [...liveRoomMembers];
-  
   const controls = document.getElementById('liveViewerControls');
   if (!controls) return;
-  
   if (activeLiveUsers.length > 1) {
     controls.style.display = 'flex';
     const centerText = document.getElementById('liveCenterText');
@@ -2819,9 +2680,26 @@ function subscribeLiveRoom() {
     const data = snap.val() || {};
     const now = Date.now();
     liveRoomMembers = Object.entries(data).map(([uid, m]) => ({ uid, ...m })).filter(m => !m.lastPing || (now - m.lastPing) < LIVE_HEARTBEAT_TIMEOUT);
-    renderLiveMembers(); 
-    renderLiveMemberMarkers();
-    updateLivePlayerControls(); // Cập nhật mũi tên
+    renderLiveMembers(); renderLiveMemberMarkers(); updateLivePlayerControls();
+  });
+  
+  // LẮNG NGHE NAVIGATION (nếu là Client, sẽ hiện bảng chọn xe)
+  if (liveNavUnsub) liveNavUnsub();
+  liveNavUnsub = onValue(ref(db, `live_rooms/${liveRoomCode}/navigation`), (snap) => {
+    if (!snap.exists() || isLiveHost) return;
+    const navData = snap.val();
+    // Vẽ route của Host lên map cho Client thấy
+    if (navData.routeCoords && navData.routeCoords.length > 0) {
+      if (liveNavLayer) map.removeLayer(liveNavLayer);
+      liveNavLayer = L.polyline(navData.routeCoords, { color: '#8b5cf6', weight: 6, opacity: 0.7, dashArray: '8, 8' }).addTo(map);
+      if (navData.endLat && navData.endLng) {
+        map.flyTo([navData.endLat, navData.endLng], 14, { animate: true, duration: 1.5 });
+      }
+    }
+    // Nếu client chưa chọn xe thì hiện modal
+    if (currentVehicleMode === 'none' && !document.getElementById('clientVehicleModal').classList.contains('open')) {
+      document.getElementById('clientVehicleModal').classList.add('open');
+    }
   });
 }
 
@@ -2850,8 +2728,7 @@ function renderLiveMembers() {
   ];
   if (all.length === 0) {
     listEl.innerHTML = '<div style="text-align:center; padding:16px; color:var(--text-muted); font-size:0.75rem;"><i class="fas fa-users" style="font-size:1.5rem; opacity:0.3; display:block; margin-bottom:6px;"></i>Chưa có ai</div>';
-    countEl.textContent = '0';
-    return;
+    countEl.textContent = '0'; return;
   }
   countEl.textContent = all.length;
   listEl.innerHTML = all.map(m => {
@@ -2918,21 +2795,14 @@ async function initViewerLiveRoom(roomCode) {
   hud.innerHTML = `<i class="fas fa-satellite-dish fa-spin"></i> Phòng: ${roomCode}`;
   document.body.appendChild(hud);
 
-  setupLiveUI(); // Gọi hàm tạo UI chung
+  setupLiveUI();
   
   const membersRef = ref(db, `live_rooms/${roomCode}/members`);
   onValue(membersRef, (snap) => {
     const data = snap.val() || {};
     const now = Date.now();
-    
-    activeLiveUsers = Object.entries(data)
-      .map(([uid, m]) => ({ uid, ...m }))
-      .filter(m => !m.lastPing || (now - m.lastPing) < LIVE_HEARTBEAT_TIMEOUT);
-
-    if (activeLiveUsers.length === 0) { 
-      handleViewerDisconnect(roomCode, false); 
-      return; 
-    }
+    activeLiveUsers = Object.entries(data).map(([uid, m]) => ({ uid, ...m })).filter(m => !m.lastPing || (now - m.lastPing) < LIVE_HEARTBEAT_TIMEOUT);
+    if (activeLiveUsers.length === 0) { handleViewerDisconnect(roomCode, false); return; }
 
     const controls = document.getElementById('liveViewerControls');
     if (activeLiveUsers.length > 1) {
@@ -2968,17 +2838,45 @@ async function initViewerLiveRoom(roomCode) {
     });
 
     if (activeLiveUsers.length > 0 && liveMemberMarkers[activeLiveUsers[0].uid]) {
-      const firstUser = activeLiveUsers[0];
-      map.flyTo([firstUser.lat, firstUser.lng], 16, { animate: true, duration: 1.5 });
+      map.flyTo([activeLiveUsers[0].lat, activeLiveUsers[0].lng], 16, { animate: true, duration: 1.5 });
+    }
+  });
+
+  // Lắng nghe navigation
+  onValue(ref(db, `live_rooms/${roomCode}/navigation`), (snap) => {
+    if (!snap.exists()) return;
+    const navData = snap.val();
+    if (navData.routeCoords && navData.routeCoords.length > 0) {
+      if (liveNavLayer) map.removeLayer(liveNavLayer);
+      liveNavLayer = L.polyline(navData.routeCoords, { color: '#8b5cf6', weight: 6, opacity: 0.7, dashArray: '8, 8' }).addTo(map);
+    }
+    if (navData.endLat && navData.endLng) map.flyTo([navData.endLat, navData.endLng], 14, { animate: true, duration: 1.5 });
+    if (currentVehicleMode === 'none' && !document.getElementById('clientVehicleModal').classList.contains('open')) {
+      document.getElementById('clientVehicleModal').classList.add('open');
     }
   });
 }
+
+// Client chọn xe từ modal
+window.selectClientVehicle = function(vehicle) {
+  currentVehicleMode = vehicle;
+  document.getElementById('clientVehicleModal').classList.remove('open');
+  // Cập nhật lên Firebase
+  if (liveEnabled && liveRoomCode && currentUser) {
+    set(ref(db, `live_rooms/${liveRoomCode}/members/${currentUser.uid}/vehicle`), vehicle).catch(()=>{});
+  }
+  // Cập nhật UI trong menu
+  document.querySelectorAll('.vehicle-mode-btn').forEach(b => {
+    b.classList.remove('active');
+    if (b.getAttribute('data-mode') === vehicle) b.classList.add('active');
+  });
+  alert('Đã chọn phương tiện: ' + vehicle);
+};
 
 window.switchLiveUser = function(dir) {
   if (activeLiveUsers.length <= 1) return;
   currentLiveIndex = (currentLiveIndex + dir + activeLiveUsers.length) % activeLiveUsers.length;
   const targetUser = activeLiveUsers[currentLiveIndex];
-  
   if (liveMemberMarkers[targetUser.uid]) {
     map.flyTo([targetUser.lat, targetUser.lng], 16, { animate: true, duration: 1 });
     liveMemberMarkers[targetUser.uid].openPopup();
@@ -2989,47 +2887,34 @@ window.switchLiveUser = function(dir) {
 function showLiveInfoCard(user) {
   const infoCard = document.getElementById('liveInfoCard');
   if (!infoCard) return;
-  
   document.getElementById('infoName').innerHTML = escapeHtml(user.name || 'Không tên');
-  
-  // SỬA LẠI PHẦN NÀY: NẾU KHÔNG CHỌN THÌ HIỆN CHƯA CHỌN
   let vehicleLabel = 'Chưa chọn';
   let vIcon = 'fa-question-circle';
-  
   if (user.vehicle === 'driving' || user.vehicle === 'driving-traffic') { vehicleLabel = 'Ô tô'; vIcon = 'fa-car'; }
   else if (user.vehicle === 'motorcycle' || user.vehicle === 'hd') { vehicleLabel = 'Xe máy'; vIcon = 'fa-motorcycle'; }
   else if (user.vehicle === 'truck') { vehicleLabel = 'Xe tải'; vIcon = 'fa-truck'; }
   else if (user.vehicle === 'walking') { vehicleLabel = 'Đi bộ'; vIcon = 'fa-walking'; }
   else if (user.vehicle === 'bicycle') { vehicleLabel = 'Xe đạp'; vIcon = 'fa-bicycle'; }
-  
   document.getElementById('infoVehicle').innerHTML = `<i class="fas ${vIcon}"></i> ${vehicleLabel}`;
-  
   infoCard.classList.add('show');
-  
   clearTimeout(window._infoCardTimer);
-  window._infoCardTimer = setTimeout(() => {
-    infoCard.classList.remove('show');
-  }, 4000);
+  window._infoCardTimer = setTimeout(() => { infoCard.classList.remove('show'); }, 4000);
 }
 
 function handleViewerDisconnect(roomCode, isTimeout) {
   if (!isViewingLiveTrack) return;
   isViewingLiveTrack = false;
-  
   Object.keys(liveMemberMarkers).forEach(uid => {
     if (liveMemberAnimStates[uid]?.animId) cancelAnimationFrame(liveMemberAnimStates[uid].animId);
     try { map.removeLayer(liveMemberMarkers[uid]); } catch(e){}
   });
-  liveMemberMarkers = {}; liveMemberAnimStates = {};
-  activeLiveUsers = [];
-
+  liveMemberMarkers = {}; liveMemberAnimStates = {}; activeLiveUsers = [];
   const hud = document.getElementById('liveHud');
   if (hud) {
     hud.style.borderColor = 'var(--danger)'; hud.style.color = 'var(--danger)';
     hud.innerHTML = isTimeout ? `<i class="fas fa-exclamation-triangle"></i> Mất kết nối` : `<i class="fas fa-times-circle"></i> Phòng đã đóng`;
     setTimeout(() => hud.remove(), 5000);
   }
-  
   const controls = document.getElementById('liveViewerControls');
   if (controls) controls.style.display = 'none';
   const infoCard = document.getElementById('liveInfoCard');
