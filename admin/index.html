@@ -8,10 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-
-<!-- Đổi CDN Leaflet sang unpkg để tránh bị chặn -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -44,11 +42,11 @@
   .btn-danger { background: var(--danger); color: white; }
   .btn-outline { background: transparent; border: 1px dashed var(--border); color: var(--text-muted); }
   .btn-outline.active { border-color: var(--warning); color: var(--warning); background: rgba(245, 158, 11, 0.1); }
-  .btn:disabled { background: #475569; cursor: not-allowed; opacity: 0.5; }
+  .btn:disabled { background: #475569; cursor: not-allowed; }
   
   .help-text { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; margin-top: 4px; }
   
-  #map { flex: 1; background: #1a1a2e; z-index: 1; cursor: crosshair; }
+  #map { flex: 1; background: #e5e5e5; z-index: 1; cursor: crosshair; }
   #map.no-draw { cursor: grab; }
   #map.freehand { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="%233b82f6" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>') 0 24, crosshair !important; }
 
@@ -74,20 +72,6 @@
   .auth-box h2 { font-size: 1.4rem; margin-bottom: 8px; text-align: center; }
   .auth-box p { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; text-align: center; }
   .hidden { display: none !important; }
-
-  .history-bar { display: flex; gap: 8px; margin-bottom: 4px; }
-  .btn-history { flex: 1; padding: 10px; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; border: 1px solid var(--border); background: var(--bg-2); color: var(--text); display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; }
-  .btn-history:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
-  .btn-history:disabled { opacity: 0.35; cursor: not-allowed; }
-  .btn-history .count-badge { font-size: 0.65rem; background: var(--border); padding: 1px 6px; border-radius: 10px; }
-
-  .progress-banner { display: none; padding: 10px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; background: rgba(59,130,246,0.12); border: 1px dashed var(--primary); color: var(--primary); margin-bottom: 8px; align-items: center; gap: 8px; justify-content: space-between; }
-  .progress-banner.show { display: flex; }
-  .progress-banner button { background: transparent; border: 1px solid var(--primary); color: var(--primary); padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
-  .progress-banner button:hover { background: rgba(59,130,246,0.2); }
-
-  /* Leaflet container fix */
-  .leaflet-container { background: #1a1a2e !important; }
 </style>
 </head>
 <body>
@@ -154,29 +138,12 @@
   </div>
 
   <div class="tab-content" id="tab-avoid">
-    <div class="progress-banner" id="progressBanner">
-      <span><i class="fas fa-save"></i> Có tiến trình vẽ đã lưu</span>
-      <div style="display:flex; gap:6px;">
-        <button onclick="restoreProgress()"><i class="fas fa-undo"></i> Khôi phục</button>
-        <button onclick="discardProgress()" style="border-color:var(--danger); color:var(--danger);"><i class="fas fa-times"></i></button>
-      </div>
-    </div>
-
     <div style="display: flex; gap: 8px; margin-bottom: 8px;">
       <button class="btn btn-outline" id="btnToggleDraw" onclick="toggleDrawMode()" style="flex:1;">
         <i class="fas fa-pen"></i> Click 2 điểm
       </button>
       <button class="btn btn-outline" id="btnToggleFreehand" onclick="toggleFreehandMode()" style="flex:1;">
         <i class="fas fa-paint-brush"></i> Vẽ tự do
-      </button>
-    </div>
-
-    <div class="history-bar">
-      <button class="btn-history" id="btnUndo" onclick="undoStroke()" disabled>
-        <i class="fas fa-undo"></i> Back <span class="count-badge" id="undoCount">0</span>
-      </button>
-      <button class="btn-history" id="btnRedo" onclick="redoStroke()" disabled>
-        <i class="fas fa-redo"></i> Next <span class="count-badge" id="redoCount">0</span>
       </button>
     </div>
 
@@ -231,7 +198,7 @@
       <i class="fas fa-save"></i> Lưu Tuyến Đường Cấm
     </button>
     <button class="btn btn-outline" onclick="resetZoneDrawing()" style="margin-top: 4px;">
-      <i class="fas fa-trash"></i> Xóa toàn bộ nét vẽ
+      <i class="fas fa-undo"></i> Xóa nét vẽ hiện tại
     </button>
     <div id="statusAvoid" class="status-box"></div>
   </div>
@@ -247,6 +214,7 @@ import { getFirestore, collection, addDoc, doc, setDoc } from "https://www.gstat
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
   authDomain: "drivekit-c88ef.firebaseapp.com",
+  databaseURL: "https://drivekit-c88ef-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "drivekit-c88ef",
   storageBucket: "drivekit-c88ef.firebasestorage.app",
   messagingSenderId: "1073887619343",
@@ -259,7 +227,6 @@ const db = getFirestore(app);
 
 const GMAPS_WORKER_URL = 'https://gmaps-resolver.anhminhadof123.workers.dev';
 const MAIN_WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
-const LS_KEY = 'drivekit_avoid_progress_v1';
 
 let currentUser = null;
 let map = null;
@@ -274,133 +241,12 @@ let isDrawMode = false;
 let isFreehandMode = false;
 let currentRouteWaypoints = null;
 
-let historyStack = [];
-let redoStack = [];
-
 let isFreehandDrawing = false;
 let activeFreehandPolyline = null;
 let currentFreehandStroke = [];
 let startLatLng = null; 
 let isFreehandCut = false;
 
-let saveProgressTimeout = null;
-
-// Double-tap detection
-let _lastTapTime = 0;
-let _lastTapLatLng = null;
-const DOUBLE_TAP_MS = 320;
-const DOUBLE_TAP_DIST = 40;
-
-// ---------- History helpers ----------
-function deepCopyWaypoints(wp) {
-  if (!wp) return null;
-  return JSON.parse(JSON.stringify(wp));
-}
-
-function pushHistory() {
-  historyStack.push(deepCopyWaypoints(currentRouteWaypoints));
-  if (historyStack.length > 50) historyStack.shift();
-  redoStack = [];
-  updateHistoryButtons();
-  saveProgress();
-}
-
-function updateHistoryButtons() {
-  const btnUndo = document.getElementById('btnUndo');
-  const btnRedo = document.getElementById('btnRedo');
-  const undoCount = document.getElementById('undoCount');
-  const redoCount = document.getElementById('redoCount');
-  if (!btnUndo || !btnRedo) return;
-  
-  btnUndo.disabled = historyStack.length === 0;
-  btnRedo.disabled = redoStack.length === 0;
-  undoCount.textContent = historyStack.length;
-  redoCount.textContent = redoStack.length;
-}
-
-window.undoStroke = function() {
-  if (historyStack.length === 0) return;
-  redoStack.push(deepCopyWaypoints(currentRouteWaypoints));
-  currentRouteWaypoints = historyStack.pop();
-  updateDrawnPolylines();
-  updateHistoryButtons();
-  saveProgress();
-  showStatus('statusAvoid', '↩️ Đã hoàn tác bước vẽ trước', 'loading');
-};
-
-window.redoStroke = function() {
-  if (redoStack.length === 0) return;
-  historyStack.push(deepCopyWaypoints(currentRouteWaypoints));
-  currentRouteWaypoints = redoStack.pop();
-  updateDrawnPolylines();
-  updateHistoryButtons();
-  saveProgress();
-  showStatus('statusAvoid', '↪️ Đã làm lại bước vẽ', 'loading');
-};
-
-// ---------- Auto-save progress ----------
-function saveProgress() {
-  clearTimeout(saveProgressTimeout);
-  saveProgressTimeout = setTimeout(() => {
-    try {
-      if (!currentRouteWaypoints || currentRouteWaypoints.length === 0) {
-        localStorage.removeItem(LS_KEY);
-        hideProgressBanner();
-        return;
-      }
-      const data = {
-        waypoints: currentRouteWaypoints,
-        history: historyStack,
-        redo: redoStack,
-        savedAt: Date.now()
-      };
-      localStorage.setItem(LS_KEY, JSON.stringify(data));
-    } catch (e) {
-      console.warn('Không lưu được tiến trình:', e);
-    }
-  }, 400);
-}
-
-function loadProgressFromStorage() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch(e) { return null; }
-}
-
-window.restoreProgress = function() {
-  const data = loadProgressFromStorage();
-  if (!data || !data.waypoints) return;
-  currentRouteWaypoints = data.waypoints;
-  historyStack = data.history || [];
-  redoStack = data.redo || [];
-  updateDrawnPolylines();
-  updateHistoryButtons();
-  hideProgressBanner();
-  
-  if (tempPolyline && currentRouteWaypoints && currentRouteWaypoints.length > 0) {
-    try { map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] }); } catch(e) {}
-  }
-  showStatus('statusAvoid', '✅ Đã khôi phục tiến trình vẽ trước đó!', 'success');
-};
-
-window.discardProgress = function() {
-  localStorage.removeItem(LS_KEY);
-  hideProgressBanner();
-  showStatus('statusAvoid', 'Đã xóa tiến trình đã lưu', 'loading');
-};
-
-function showProgressBanner() {
-  const banner = document.getElementById('progressBanner');
-  if (banner) banner.classList.add('show');
-}
-function hideProgressBanner() {
-  const banner = document.getElementById('progressBanner');
-  if (banner) banner.classList.remove('show');
-}
-
-// ---------- Firebase ----------
 async function updateVersion(collectionName) {
   try {
     const metaRef = doc(db, "system_meta", "version");
@@ -431,17 +277,12 @@ onAuthStateChanged(auth, (user) => {
     currentUser = user;
     document.getElementById('authScreen').classList.add('hidden');
     if (!map) initMap();
-    const saved = loadProgressFromStorage();
-    if (saved && saved.waypoints && saved.waypoints.length > 0) {
-      showProgressBanner();
-    }
   } else {
     currentUser = null;
     document.getElementById('authScreen').classList.remove('hidden');
   }
 });
 
-// ---------- Tab / Mode ----------
 window.switchTab = function(tabId) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -492,14 +333,11 @@ window.toggleFreehandMode = function() {
     btn.classList.add('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Đang vẽ tự do...';
     resetZoneDrawing();
-    if (map) map.doubleClickZoom.disable();
-    showStatus('statusAvoid', '💡 Kéo để di chuyển map. Giữ Shift (PC) hoặc Nhấn giữ 0.3s (Mobile) để vẽ. Chạm 2 lần liên tiếp (double-tap) để CẮT NÉT.', 'loading');
+    showStatus('statusAvoid', '💡 Kéo để di chuyển map. Giữ Shift (PC) hoặc Nhấn giữ 0.5s (Mobile) để vẽ. Ấn phím C để cắt đoạn (tạo nét mới rời rạc).', 'loading');
   } else {
     btn.classList.remove('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Vẽ tự do';
-    if (map) map.doubleClickZoom.enable();
-    saveProgress();
-    showStatus('statusAvoid', 'Đã tắt chế độ vẽ tự do (tiến trình được lưu)', 'loading');
+    showStatus('statusAvoid', 'Đã tắt chế độ vẽ tự do', 'loading');
   }
   updateMapCursorClass();
 };
@@ -508,8 +346,6 @@ window.resetZoneDrawing = function() {
   pointA = null; pointB = null;
   currentRouteWaypoints = null;
   isFreehandCut = false;
-  historyStack = [];
-  redoStack = [];
   
   if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
   if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
@@ -523,10 +359,6 @@ window.resetZoneDrawing = function() {
   document.getElementById('zoneStartTime').value = '';
   document.getElementById('zoneEndTime').value = '';
   document.querySelectorAll('.zone-vehicle').forEach(cb => cb.checked = false);
-  
-  updateHistoryButtons();
-  localStorage.removeItem(LS_KEY);
-  hideProgressBanner();
 };
 
 function updateDrawnPolylines() {
@@ -604,7 +436,6 @@ window.updateZoneMapFromInputs = function() {
       currentRouteWaypoints.push(newSegment);
       
       updateDrawnPolylines();
-      pushHistory();
       map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
       
       pointA = null; pointB = null;
@@ -654,73 +485,11 @@ async function fetchSnappedRoute(lat1, lng1, lat2, lng2) {
   }
 }
 
-// Double-tap detection
-function checkDoubleTap(latlng, originalEvent) {
-  const now = Date.now();
-  const timeSince = now - _lastTapTime;
-  
-  let distPx = Infinity;
-  if (_lastTapLatLng) {
-    const p1 = map.latLngToContainerPoint(_lastTapLatLng);
-    const p2 = map.latLngToContainerPoint(latlng);
-    distPx = p1.distanceTo(p2);
-  }
-  
-  if (timeSince < DOUBLE_TAP_MS && distPx < DOUBLE_TAP_DIST) {
-    _lastTapTime = 0;
-    _lastTapLatLng = null;
-    return true;
-  }
-  
-  _lastTapTime = now;
-  _lastTapLatLng = latlng;
-  return false;
-}
-
 function initMap() {
-  // Khởi tạo map
-  map = L.map('map', { 
-    center: [21.0285, 105.8542], 
-    zoom: 6,
-    preferCanvas: true
-  });
-  
-  // ===== TILE LAYER: CARTO (ổn định, không bị chặn) =====
-  // CARTO Voyager - sáng, rõ, phù hợp admin
-  const cartoLayer = L.tileLayer(
-    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 20,
-      crossOrigin: true
-    }
-  );
-  
-  // Fallback: nếu CARTO fail, thử OSM France
-  const osmFrLayer = L.tileLayer(
-    'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
-    {
-      attribution: '&copy; OpenStreetMap contributors, Tiles style by HOT',
-      maxZoom: 19,
-      crossOrigin: true
-    }
-  );
-  
-  // Thêm CARTO làm layer chính
-  cartoLayer.addTo(map);
-  
-  // Xử lý lỗi tile: nếu 1 tile CARTO fail → thử load OSM France
-  let cartoFailed = 0;
-  cartoLayer.on('tileerror', () => {
-    cartoFailed++;
-    if (cartoFailed === 3) {
-      console.warn('[Map] CARTO tiles failed, switching to OSM France fallback');
-      map.removeLayer(cartoLayer);
-      osmFrLayer.addTo(map);
-      showStatus('statusAvoid', '⚠️ Đã chuyển sang tile dự phòng (OSM France)', 'loading');
-    }
-  });
+  map = L.map('map', { center: [21.0285, 105.8542], zoom: 6 });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap', maxZoom: 19
+  }).addTo(map);
 
   tempPolyline = L.featureGroup().addTo(map);
 
@@ -772,7 +541,6 @@ function initMap() {
         currentRouteWaypoints.push(newSegment);
         
         updateDrawnPolylines();
-        pushHistory();
         map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
 
         pointA = null; pointB = null;
@@ -833,7 +601,6 @@ function initMap() {
       }
       
       updateDrawnPolylines();
-      pushHistory();
       
       const firstPt = currentRouteWaypoints[0][0];
       const lastSeg = currentRouteWaypoints[currentRouteWaypoints.length - 1];
@@ -849,7 +616,6 @@ function initMap() {
     isFreehandCut = false;
   }
 
-  // PC mouse events
   map.on('mousedown', (e) => {
     if (!isFreehandMode) return;
     startLatLng = e.latlng;
@@ -892,28 +658,8 @@ function initMap() {
     if (isFreehandDrawing) finishFreehandDrawing();
   });
 
-  // PC double-click to cut
-  map.on('dblclick', (e) => {
-    if (!isFreehandMode) return;
-    L.DomEvent.preventDefault(e.originalEvent);
-    L.DomEvent.stopPropagation(e.originalEvent);
-    if (isFreehandDrawing) finishFreehandDrawing();
-    isFreehandCut = true;
-    showStatus('statusAvoid', '✂️ Đã cắt nét (double-click). Nét tiếp theo sẽ tách rời.', 'success');
-  });
-
-  // Mobile touch events
   map.on('touchstart', (e) => {
     if (!isFreehandMode) return;
-    
-    if (checkDoubleTap(e.latlng, e.originalEvent)) {
-      L.DomEvent.preventDefault(e.originalEvent);
-      if (isFreehandDrawing) finishFreehandDrawing();
-      isFreehandCut = true;
-      showStatus('statusAvoid', '✂️ Đã cắt nét (double-tap). Nét tiếp theo sẽ tách rời.', 'success');
-      return;
-    }
-    
     startLatLng = e.latlng;
     
     window._longPressTimer = setTimeout(() => {
@@ -948,14 +694,8 @@ function initMap() {
     startLatLng = null;
     if (isFreehandDrawing) finishFreehandDrawing();
   });
-  
-  updateHistoryButtons();
-  
-  // Đảm bảo map render đúng kích thước (fix map xám do container chưa có size)
-  setTimeout(() => { map.invalidateSize(); }, 200);
 }
 
-// Phím tắt
 document.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() === 'c' && isFreehandMode) {
     if (isFreehandDrawing) {
@@ -963,37 +703,6 @@ document.addEventListener('keydown', (e) => {
     }
     isFreehandCut = true;
     showStatus('statusAvoid', '✂️ Đã cắt nét vẽ. Nét tiếp theo sẽ tạo một đoạn mới rời rạc.', 'success');
-  }
-  
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-    if (isFreehandMode || isDrawMode) {
-      e.preventDefault();
-      undoStroke();
-    }
-  }
-  if ((e.ctrlKey || e.metaKey) && ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y')) {
-    if (isFreehandMode || isDrawMode) {
-      e.preventDefault();
-      redoStroke();
-    }
-  }
-});
-
-// Lưu tiến trình khi rời trang
-window.addEventListener('beforeunload', (e) => {
-  if (currentRouteWaypoints && currentRouteWaypoints.length > 0) {
-    try {
-      const data = {
-        waypoints: currentRouteWaypoints,
-        history: historyStack,
-        redo: redoStack,
-        savedAt: Date.now()
-      };
-      localStorage.setItem(LS_KEY, JSON.stringify(data));
-    } catch(e) {}
-    e.preventDefault();
-    e.returnValue = '';
-    return '';
   }
 });
 
