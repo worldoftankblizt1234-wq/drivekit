@@ -157,11 +157,11 @@
       <label style="color: var(--success);"><i class="fas fa-clock"></i> Thời gian cấm (Không bắt buộc)</label>
       <div style="display: flex; gap: 8px; margin-top: 6px;">
         <div style="flex:1;">
-          <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Từ lúc (Bỏ trống = Bây giờ):</div>
+          <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Từ lúc:</div>
           <input type="datetime-local" id="zoneStartTime" class="form-control">
         </div>
         <div style="flex:1;">
-          <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Đến lúc (Bỏ trống = Mãi mãi):</div>
+          <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Đến lúc:</div>
           <input type="datetime-local" id="zoneEndTime" class="form-control">
         </div>
       </div>
@@ -200,7 +200,7 @@
       <i class="fas fa-save"></i> Lưu Tuyến Đường Cấm
     </button>
     <button class="btn btn-outline" onclick="resetZoneDrawing()" style="margin-top: 4px;">
-      <i class="fas fa-undo"></i> Xóa nét vẽ hiện tại
+      <i class="fas fa-undo"></i> Xóa toàn bộ nét vẽ
     </button>
     <div id="statusAvoid" class="status-box"></div>
   </div>
@@ -244,10 +244,10 @@ let isFreehandMode = false;
 let currentRouteWaypoints = null;
 let zoneInputTimeout = null;
 
+// Biến cho việc vẽ tự do (NỐI TIẾP)
 let isFreehandDrawing = false;
-let freehandPoints = [];
+let freehandPoints = []; // Mảng L.LatLng
 let freehandPolyline = null;
-let tempFreehandPoints = [];
 let startLatLng = null;
 
 window.doLogin = async function() {
@@ -329,7 +329,7 @@ window.toggleFreehandMode = function() {
     btn.classList.add('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Đang vẽ tự do...';
     resetZoneDrawing();
-    showStatus('statusAvoid', '💡 Kéo để di chuyển map. Giữ Shift (PC) hoặc Nhấn giữ 0.5s (Mobile) để vẽ.', 'loading');
+    showStatus('statusAvoid', '💡 Kéo để di chuyển map. Giữ Shift (PC) hoặc Nhấn giữ 0.5s (Mobile) để vẽ nối tiếp.', 'loading');
   } else {
     btn.classList.remove('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Vẽ tự do';
@@ -341,12 +341,13 @@ window.toggleFreehandMode = function() {
 window.resetZoneDrawing = function() {
   pointA = null; pointB = null;
   currentRouteWaypoints = null;
-  freehandPoints = [];
-  tempFreehandPoints = [];
   
   if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
   if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
   if (tempPolyline) { map.removeLayer(tempPolyline); tempPolyline = null; }
+  
+  // Xoá nét vẽ tự do
+  freehandPoints = [];
   if (freehandPolyline) { map.removeLayer(freehandPolyline); freehandPolyline = null; }
   
   document.getElementById('zoneLat1').value = '';
@@ -503,28 +504,39 @@ function initMap() {
     }
   });
 
-  // LOGIC VẼ TỰ DO: VỪA KÉO MAP VỪA VẼ
+  // LOGIC VẼ TỰ DO NỐI TIẾP
   function startFreehandDrawing(latlng) {
     isFreehandDrawing = true;
-    tempFreehandPoints = [latlng];
     map.dragging.disable(); // Khóa kéo map
-    if (freehandPolyline) map.removeLayer(freehandPolyline);
-    freehandPolyline = L.polyline(tempFreehandPoints, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+    
+    if (!freehandPolyline) {
+      // Nét vẽ đầu tiên
+      freehandPoints = [latlng];
+      freehandPolyline = L.polyline(freehandPoints, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+    } else {
+      // Nối tiếp vào nét vẽ cũ
+      const lastPoint = freehandPoints[freehandPoints.length - 1];
+      if (latlng.distanceTo(lastPoint) > 1) {
+        freehandPoints.push(latlng);
+        freehandPolyline.setLatLngs(freehandPoints);
+      }
+    }
   }
 
   function finishFreehandDrawing() {
     isFreehandDrawing = false;
     map.dragging.enable(); // Mở khóa kéo map
-    if (tempFreehandPoints.length > 1) {
-      freehandPoints = [...tempFreehandPoints];
+    
+    if (freehandPoints.length > 1) {
       currentRouteWaypoints = freehandPoints.map(p => [p.lat, p.lng]);
-      showStatus('statusAvoid', '✅ Đã ghi nhận nét vẽ tay!', 'success');
+      showStatus('statusAvoid', '✅ Đã ghi nhận nét vẽ! Bạn có thể vẽ tiếp hoặc bấm Lưu.', 'success');
       
-      const midIdx = Math.floor(freehandPoints.length / 2);
-      document.getElementById('zoneLat1').value = freehandPoints[0].lat.toFixed(6);
-      document.getElementById('zoneLng1').value = freehandPoints[0].lng.toFixed(6);
-      document.getElementById('zoneLat2').value = freehandPoints[midIdx].lat.toFixed(6);
-      document.getElementById('zoneLng2').value = freehandPoints[midIdx].lng.toFixed(6);
+      const firstPt = freehandPoints[0];
+      const lastPt = freehandPoints[freehandPoints.length - 1];
+      document.getElementById('zoneLat1').value = firstPt.lat.toFixed(6);
+      document.getElementById('zoneLng1').value = firstPt.lng.toFixed(6);
+      document.getElementById('zoneLat2').value = lastPt.lat.toFixed(6);
+      document.getElementById('zoneLng2').value = lastPt.lng.toFixed(6);
     }
   }
 
@@ -533,13 +545,11 @@ function initMap() {
     if (!isFreehandMode) return;
     startLatLng = e.latlng;
     
-    // Nếu giữ Shift hoặc Alt -> Vẽ ngay lập tức
     if (e.originalEvent.shiftKey || e.originalEvent.altKey) {
       startFreehandDrawing(e.latlng);
       return;
     }
     
-    // Nếu không giữ phím -> Đợi 300ms (Long Press)
     window._longPressTimer = setTimeout(() => {
       if (startLatLng) startFreehandDrawing(startLatLng);
     }, 300);
@@ -548,7 +558,6 @@ function initMap() {
   map.on('mousemove', (e) => {
     if (!isFreehandMode) return;
     
-    // Nếu đang đếm ngược mà di chuyển chuột > 10px -> Hủy vẽ (cho phép kéo map)
     if (window._longPressTimer && !isFreehandDrawing) {
       if (startLatLng && startLatLng.distanceTo(e.latlng) > 10) {
         clearTimeout(window._longPressTimer);
@@ -557,12 +566,11 @@ function initMap() {
       }
     }
     
-    // Nếu đang trong trạng thái vẽ
     if (isFreehandDrawing) {
-      const lastPoint = tempFreehandPoints[tempFreehandPoints.length - 1];
+      const lastPoint = freehandPoints[freehandPoints.length - 1];
       if (e.latlng.distanceTo(lastPoint) > 3) {
-        tempFreehandPoints.push(e.latlng);
-        freehandPolyline.setLatLngs(tempFreehandPoints);
+        freehandPoints.push(e.latlng);
+        freehandPolyline.setLatLngs(freehandPoints);
       }
     }
   });
@@ -597,10 +605,10 @@ function initMap() {
     }
     
     if (isFreehandDrawing) {
-      const lastPoint = tempFreehandPoints[tempFreehandPoints.length - 1];
+      const lastPoint = freehandPoints[freehandPoints.length - 1];
       if (e.latlng.distanceTo(lastPoint) > 3) {
-        tempFreehandPoints.push(e.latlng);
-        freehandPolyline.setLatLngs(tempFreehandPoints);
+        freehandPoints.push(e.latlng);
+        freehandPolyline.setLatLngs(freehandPoints);
       }
     }
   });
