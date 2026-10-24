@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+l<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="UTF-8" />
@@ -240,6 +240,7 @@ let tempPolyline = null;
 let isDrawMode = false;
 let isFreehandMode = false;
 let currentRouteWaypoints = null;
+let zoneInputTimeout = null;
 
 let isFreehandDrawing = false;
 let activeFreehandPolyline = null;
@@ -304,7 +305,6 @@ function updateMapCursorClass() {
   const mapEl = document.getElementById('map');
   mapEl.className = '';
   if (isFreehandMode) mapEl.classList.add('freehand');
-  else if (isDrawMode) mapEl.classList.add('no-draw');
   else mapEl.classList.add('no-draw');
 }
 
@@ -333,7 +333,7 @@ window.toggleFreehandMode = function() {
     btn.classList.add('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Đang vẽ tự do...';
     resetZoneDrawing();
-    showStatus('statusAvoid', '💡 Kéo để di chuyển map. Giữ Shift (PC) hoặc Nhấn giữ 0.5s (Mobile) để vẽ. Ấn phím C để cắt đoạn (tạo nét mới rời rạc).', 'loading');
+    showStatus('statusAvoid', '💡 Kéo để di chuyển map. Giữ Shift (PC) hoặc Nhấn giữ 0.5s (Mobile) để vẽ. Ấn phím C để cắt đoạn.', 'loading');
   } else {
     btn.classList.remove('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Vẽ tự do';
