@@ -8,8 +8,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Đổi CDN Leaflet sang unpkg để tránh bị chặn -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -46,7 +48,7 @@
   
   .help-text { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; margin-top: 4px; }
   
-  #map { flex: 1; background: #e5e5e5; z-index: 1; cursor: crosshair; }
+  #map { flex: 1; background: #1a1a2e; z-index: 1; cursor: crosshair; }
   #map.no-draw { cursor: grab; }
   #map.freehand { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="%233b82f6" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>') 0 24, crosshair !important; }
 
@@ -73,18 +75,19 @@
   .auth-box p { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; text-align: center; }
   .hidden { display: none !important; }
 
-  /* Undo/Redo toolbar */
   .history-bar { display: flex; gap: 8px; margin-bottom: 4px; }
   .btn-history { flex: 1; padding: 10px; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; border: 1px solid var(--border); background: var(--bg-2); color: var(--text); display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; }
   .btn-history:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
   .btn-history:disabled { opacity: 0.35; cursor: not-allowed; }
   .btn-history .count-badge { font-size: 0.65rem; background: var(--border); padding: 1px 6px; border-radius: 10px; }
 
-  /* Save progress banner */
   .progress-banner { display: none; padding: 10px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; background: rgba(59,130,246,0.12); border: 1px dashed var(--primary); color: var(--primary); margin-bottom: 8px; align-items: center; gap: 8px; justify-content: space-between; }
   .progress-banner.show { display: flex; }
   .progress-banner button { background: transparent; border: 1px solid var(--primary); color: var(--primary); padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
   .progress-banner button:hover { background: rgba(59,130,246,0.2); }
+
+  /* Leaflet container fix */
+  .leaflet-container { background: #1a1a2e !important; }
 </style>
 </head>
 <body>
@@ -151,7 +154,6 @@
   </div>
 
   <div class="tab-content" id="tab-avoid">
-    <!-- Banner khôi phục tiến trình -->
     <div class="progress-banner" id="progressBanner">
       <span><i class="fas fa-save"></i> Có tiến trình vẽ đã lưu</span>
       <div style="display:flex; gap:6px;">
@@ -169,7 +171,6 @@
       </button>
     </div>
 
-    <!-- Undo / Redo -->
     <div class="history-bar">
       <button class="btn-history" id="btnUndo" onclick="undoStroke()" disabled>
         <i class="fas fa-undo"></i> Back <span class="count-badge" id="undoCount">0</span>
@@ -273,7 +274,6 @@ let isDrawMode = false;
 let isFreehandMode = false;
 let currentRouteWaypoints = null;
 
-// Undo/Redo history
 let historyStack = [];
 let redoStack = [];
 
@@ -285,11 +285,11 @@ let isFreehandCut = false;
 
 let saveProgressTimeout = null;
 
-// ---------- Double-tap detection ----------
+// Double-tap detection
 let _lastTapTime = 0;
 let _lastTapLatLng = null;
 const DOUBLE_TAP_MS = 320;
-const DOUBLE_TAP_DIST = 40; // pixel
+const DOUBLE_TAP_DIST = 40;
 
 // ---------- History helpers ----------
 function deepCopyWaypoints(wp) {
@@ -492,7 +492,6 @@ window.toggleFreehandMode = function() {
     btn.classList.add('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Đang vẽ tự do...';
     resetZoneDrawing();
-    // Tắt zoom bằng double-tap để không xung đột
     if (map) map.doubleClickZoom.disable();
     showStatus('statusAvoid', '💡 Kéo để di chuyển map. Giữ Shift (PC) hoặc Nhấn giữ 0.3s (Mobile) để vẽ. Chạm 2 lần liên tiếp (double-tap) để CẮT NÉT.', 'loading');
   } else {
@@ -655,12 +654,11 @@ async function fetchSnappedRoute(lat1, lng1, lat2, lng2) {
   }
 }
 
-// Hàm phát hiện double-tap dùng chung cho cả mouse và touch
+// Double-tap detection
 function checkDoubleTap(latlng, originalEvent) {
   const now = Date.now();
   const timeSince = now - _lastTapTime;
   
-  // Tính khoảng cách pixel để tránh nhầm khi 2 lần chạm xa nhau
   let distPx = Infinity;
   if (_lastTapLatLng) {
     const p1 = map.latLngToContainerPoint(_lastTapLatLng);
@@ -669,7 +667,6 @@ function checkDoubleTap(latlng, originalEvent) {
   }
   
   if (timeSince < DOUBLE_TAP_MS && distPx < DOUBLE_TAP_DIST) {
-    // Double-tap!
     _lastTapTime = 0;
     _lastTapLatLng = null;
     return true;
@@ -681,10 +678,49 @@ function checkDoubleTap(latlng, originalEvent) {
 }
 
 function initMap() {
-  map = L.map('map', { center: [21.0285, 105.8542], zoom: 6 });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap', maxZoom: 19
-  }).addTo(map);
+  // Khởi tạo map
+  map = L.map('map', { 
+    center: [21.0285, 105.8542], 
+    zoom: 6,
+    preferCanvas: true
+  });
+  
+  // ===== TILE LAYER: CARTO (ổn định, không bị chặn) =====
+  // CARTO Voyager - sáng, rõ, phù hợp admin
+  const cartoLayer = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 20,
+      crossOrigin: true
+    }
+  );
+  
+  // Fallback: nếu CARTO fail, thử OSM France
+  const osmFrLayer = L.tileLayer(
+    'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+    {
+      attribution: '&copy; OpenStreetMap contributors, Tiles style by HOT',
+      maxZoom: 19,
+      crossOrigin: true
+    }
+  );
+  
+  // Thêm CARTO làm layer chính
+  cartoLayer.addTo(map);
+  
+  // Xử lý lỗi tile: nếu 1 tile CARTO fail → thử load OSM France
+  let cartoFailed = 0;
+  cartoLayer.on('tileerror', () => {
+    cartoFailed++;
+    if (cartoFailed === 3) {
+      console.warn('[Map] CARTO tiles failed, switching to OSM France fallback');
+      map.removeLayer(cartoLayer);
+      osmFrLayer.addTo(map);
+      showStatus('statusAvoid', '⚠️ Đã chuyển sang tile dự phòng (OSM France)', 'loading');
+    }
+  });
 
   tempPolyline = L.featureGroup().addTo(map);
 
@@ -856,7 +892,7 @@ function initMap() {
     if (isFreehandDrawing) finishFreehandDrawing();
   });
 
-  // PC double-click để cắt nét (khi đang vẽ tự do)
+  // PC double-click to cut
   map.on('dblclick', (e) => {
     if (!isFreehandMode) return;
     L.DomEvent.preventDefault(e.originalEvent);
@@ -870,7 +906,6 @@ function initMap() {
   map.on('touchstart', (e) => {
     if (!isFreehandMode) return;
     
-    // Phát hiện double-tap
     if (checkDoubleTap(e.latlng, e.originalEvent)) {
       L.DomEvent.preventDefault(e.originalEvent);
       if (isFreehandDrawing) finishFreehandDrawing();
@@ -915,6 +950,9 @@ function initMap() {
   });
   
   updateHistoryButtons();
+  
+  // Đảm bảo map render đúng kích thước (fix map xám do container chưa có size)
+  setTimeout(() => { map.invalidateSize(); }, 200);
 }
 
 // Phím tắt
