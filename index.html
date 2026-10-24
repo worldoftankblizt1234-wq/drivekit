@@ -782,6 +782,7 @@ let liveMyMarker = null;
 let liveMyAnimState = null;
 let liveMemberAnimStates = {};
 let liveNavLayer = null;
+let currentLiveNavData = null; // Lưu trữ dữ liệu navigation của host
 const LIVE_GPS_INTERVAL = 6000;
 const LIVE_ANIM_DURATION = 6000;
 const LIVE_HEARTBEAT_TIMEOUT = 120000;
@@ -2535,7 +2536,7 @@ async function stopLiveSession() {
   liveMyAnimState = null;
   
   liveRoomCode = null; liveIsPublic = false; liveRoomMembers = []; livePublicUsers = [];
-  isLiveHost = false;
+  isLiveHost = false; currentLiveNavData = null;
   
   const controls = document.getElementById('liveViewerControls');
   if (controls) controls.style.display = 'none';
@@ -2727,6 +2728,8 @@ function subscribeLiveRoom() {
   liveNavUnsub = onValue(ref(db, `live_rooms/${liveRoomCode}/navigation`), (snap) => {
     if (!snap.exists() || isLiveHost) return;
     const navData = snap.val();
+    currentLiveNavData = navData; // Lưu lại để dùng khi chọn xe
+    
     if (navData.routeCoords && navData.routeCoords.length > 0) {
       if (liveNavLayer) map.removeLayer(liveNavLayer);
       liveNavLayer = L.polyline(navData.routeCoords, { color: '#8b5cf6', weight: 6, opacity: 0.7, dashArray: '8, 8' }).addTo(map);
@@ -2880,6 +2883,7 @@ async function initViewerLiveRoom(roomCode) {
   onValue(ref(db, `live_rooms/${roomCode}/navigation`), (snap) => {
     if (!snap.exists()) return;
     const navData = snap.val();
+    currentLiveNavData = navData;
     if (navData.routeCoords && navData.routeCoords.length > 0) {
       if (liveNavLayer) map.removeLayer(liveNavLayer);
       liveNavLayer = L.polyline(navData.routeCoords, { color: '#8b5cf6', weight: 6, opacity: 0.7, dashArray: '8, 8' }).addTo(map);
@@ -2901,7 +2905,34 @@ window.selectClientVehicle = function(vehicle) {
     b.classList.remove('active');
     if (b.getAttribute('data-mode') === vehicle) b.classList.add('active');
   });
-  alert('Đã chọn phương tiện: ' + vehicle);
+
+  // LOGIC MỚI: VÀO CHẾ ĐỘ CHỈ ĐƯỜNG NGAY LẬP TỨC
+  if (currentLiveNavData && currentLiveNavData.routeCoords) {
+    if (lastUserPos) {
+      startPoint = { lat: lastUserPos.lat, lng: lastUserPos.lng, name: 'Vị trí của tôi' };
+    }
+    endPoint = { lat: currentLiveNavData.endLat, lng: currentLiveNavData.endLng, name: currentLiveNavData.endName || 'Điểm đến của Host' };
+    currentRouteCoords = currentLiveNavData.routeCoords;
+    
+    // Tạo object currentRouteData giả lập để tương thích với HUD
+    currentRouteData = {
+      distance: 0, // Không cần tính toán lại
+      duration: 0,
+      geometry: { coordinates: currentRouteCoords },
+      legs: [{ steps: [] }],
+      provider: 'live_host',
+      mode: currentVehicleMode
+    };
+
+    if (currentRouteLayer) map.removeLayer(currentRouteLayer);
+    currentRouteLayer = L.polyline(currentRouteCoords, { color: '#8b5cf6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+    
+    // Gọi HUD
+    startNavigationHUD();
+    alert('Đã bắt đầu dẫn đường theo lộ trình của Host!');
+  } else {
+    alert('Đã chọn phương tiện: ' + vehicle + '. Vui lòng chờ Host bắt đầu chuyến đi.');
+  }
 };
 
 window.switchLiveUser = function(dir) {
@@ -2939,7 +2970,7 @@ function handleViewerDisconnect(roomCode, isTimeout) {
     if (liveMemberAnimStates[uid]?.animId) cancelAnimationFrame(liveMemberAnimStates[uid].animId);
     try { map.removeLayer(liveMemberMarkers[uid]); } catch(e){}
   });
-  liveMemberMarkers = {}; liveMemberAnimStates = {}; activeLiveUsers = [];
+  liveMemberMarkers = {}; liveMemberAnimStates = {}; activeLiveUsers = []; currentLiveNavData = null;
   const hud = document.getElementById('liveHud');
   if (hud) {
     hud.style.borderColor = 'var(--danger)'; hud.style.color = 'var(--danger)';
