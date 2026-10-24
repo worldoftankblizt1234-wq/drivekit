@@ -1603,7 +1603,20 @@ window.fetchAndShowRouteOptions = async function() {
     });
 
     if (routes.length === 0) {
-      bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Không tìm được tuyến đường hợp lệ.</p><div style="font-size:0.8rem; margin-top:12px; color:var(--text-muted); background:rgba(255,255,255,0.05); padding:12px; border-radius:8px;"><b>Lỗi:</b> ${data.error || 'API không trả về khoảng cách hoặc tuyến đường quá dài (vượt quá giới hạn). Vui lòng chia nhỏ hành trình.'}</div></div>`;
+      // Lấy lỗi chi tiết từ Worker (nếu có)
+      let errorDetails = data.error || 'Không có dữ liệu trả về';
+      if (data.details && Array.isArray(data.details)) {
+        errorDetails = data.details.join('<br>• ');
+        errorDetails = '• ' + errorDetails;
+      }
+      
+      bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);">
+        <i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i>
+        <p>Không tìm được tuyến đường hợp lệ.</p>
+        <div style="font-size:0.8rem; margin-top:12px; color:var(--text-muted); background:rgba(255,255,255,0.05); padding:12px; border-radius:8px; text-align:left; word-break:break-word;">
+          <b>Chi tiết lỗi:</b><br>${errorDetails}
+        </div>
+      </div>`;
       return;
     }
     
