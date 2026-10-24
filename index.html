@@ -1431,43 +1431,65 @@ function renderAvoidZonesOnMap() {
   avoidZoneLayers.forEach(l => { try { map.removeLayer(l); } catch(e){} });
   avoidZoneLayers = [];
   
+  const now = Date.now();
+
   allAvoidZones.forEach(zone => {
     if (!zone.lat1 || !zone.lng1 || !zone.lat2 || !zone.lng2) return;
 
+    // KIỂM TRA THỜI GIAN CẤM
+    if (zone.startTime || zone.endTime) {
+      if (zone.startTime && now < zone.startTime) return;
+      if (zone.endTime && now > zone.endTime) return;
+    }
+
     let polylineCoords = [];
     
-    // 1. Ưu tiên đọc mảng waypoints (đường uốn lượn bám cua) do Admin lưu
     if (zone.waypoints) {
       try {
-        // Vì Admin lưu dạng JSON String nên phải parse ra
         const parsed = typeof zone.waypoints === 'string' ? JSON.parse(zone.waypoints) : zone.waypoints;
         if (Array.isArray(parsed) && parsed.length > 1) {
           polylineCoords = parsed;
         }
-      } catch (e) {
-        console.warn("Lỗi parse waypoints của vùng cấm:", e);
-      }
+      } catch (e) {}
     }
 
-    // 2. Nếu không có waypoints (dữ liệu cũ), mới fallback vẽ đường thẳng
     if (polylineCoords.length === 0) {
       polylineCoords = [[zone.lat1, zone.lng1], [zone.lat2, zone.lng2]];
     }
 
-    // Vẽ đường Polyline theo đúng tọa độ (đường bộ uốn lượn)
     const line = L.polyline(
       polylineCoords,
       { color: '#ef4444', weight: 8, opacity: 0.85, dashArray: '12, 12', lineCap: 'round', lineJoin: 'round' }
     ).addTo(map);
     
-    // Đặt cái biển báo cấm ở giữa đường
     const midIdx = Math.floor(polylineCoords.length / 2);
     const midLat = polylineCoords[midIdx][0];
     const midLng = polylineCoords[midIdx][1];
     
     const icon = L.divIcon({ html: `<div class="avoid-zone-pin"><i class="fas fa-ban"></i></div>`, className: '', iconSize: [36, 36], iconAnchor: [18, 18] });
     const marker = L.marker([midLat, midLng], { icon, zIndexOffset: 400 }).addTo(map);
-    marker.bindPopup(`<b>🚫 ${escapeHtml(zone.name || 'Tuyến đường cấm')}</b>`);
+    
+    // TẠO CHUỖI HIỂN THỊ CHI TIẾT
+    let detailHtml = '';
+    
+    // 1. Thời gian
+    if (zone.startTime || zone.endTime) {
+      const s = zone.startTime ? new Date(zone.startTime).toLocaleString('vi-VN', {hour: '2-digit', minute:'2-digit', day: '2-digit', month: '2-digit'}) : '...';
+      const e = zone.endTime ? new Date(zone.endTime).toLocaleString('vi-VN', {hour: '2-digit', minute:'2-digit', day: '2-digit', month: '2-digit'}) : '...';
+      detailHtml += `<br><small style="color:var(--warning)"><i class="fas fa-clock"></i> Cấm: ${s} - ${e}</small>`;
+    }
+
+    // 2. Loại xe bị cấm
+    if (zone.bannedVehicles && Array.isArray(zone.bannedVehicles) && zone.bannedVehicles.length > 0) {
+      const vehicleNames = {
+        'car': 'Ô tô', 'motorcycle': 'Xe máy', 'truck': 'Xe tải', 
+        'hd': 'Xe CN', 'bicycle': 'Xe đạp', 'walking': 'Đi bộ'
+      };
+      const bannedList = zone.bannedVehicles.map(v => vehicleNames[v] || v).join(', ');
+      detailHtml += `<br><small style="color:var(--danger); font-weight:bold"><i class="fas fa-car"></i> Cấm: ${bannedList}</small>`;
+    }
+
+    marker.bindPopup(`<b>🚫 ${escapeHtml(zone.name || 'Tuyến đường cấm')}</b>${detailHtml}`);
     
     avoidZoneLayers.push(line);
     avoidZoneLayers.push(marker);
@@ -2535,8 +2557,8 @@ async function startLiveSession() {
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
       lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-      await createLiveRoom(true);
       startLiveGpsLoop();
+      // ĐÃ XOÁ LỆNH createLiveRoom Ở ĐÂY. CHỈ BẬT GPS, KHÔNG TẠO PHÒNG.
     },
     (err) => { alert('Không lấy được GPS. Hãy bật định vị!'); document.getElementById('liveToggleSwitch').checked = false; liveEnabled = false; updateLiveUI(); },
     { enableHighAccuracy: true, timeout: 15000 }
@@ -2587,6 +2609,13 @@ async function stopLiveSession() {
   
   liveRoomCode = null; liveIsPublic = false; liveRoomMembers = []; livePublicUsers = [];
   isLiveHost = false;
+  
+  // Dọn dẹp UI player
+  const controls = document.getElementById('liveViewerControls');
+  if (controls) controls.style.display = 'none';
+  const infoCard = document.getElementById('liveInfoCard');
+  if (infoCard) infoCard.classList.remove('show');
+  
   updateLiveUI();
 }
 
@@ -2624,8 +2653,44 @@ function updateLiveUI() {
   }
 }
 
+function setupLiveUI() {
+  let controls = document.getElementById('liveViewerControls');
+  if (!controls) {
+    controls = document.createElement('div');
+    controls.id = 'liveViewerControls';
+    controls.className = 'live-viewer-controls';
+    controls.style.display = 'none';
+    controls.innerHTML = `
+      <div class="live-arrow" onclick="switchLiveUser(-1)"><i class="fas fa-chevron-left"></i></div>
+      <div class="live-center-text" id="liveCenterText">
+        Click vô 2 bên mũi tên để chuyển<br><span class="sub">user</span>
+      </div>
+      <div class="live-arrow" onclick="switchLiveUser(1)"><i class="fas fa-chevron-right"></i></div>
+    `;
+    document.body.appendChild(controls);
+  }
+  
+  let infoCard = document.getElementById('liveInfoCard');
+  if (!infoCard) {
+    infoCard = document.createElement('div');
+    infoCard.id = 'liveInfoCard';
+    infoCard.className = 'live-info-card';
+    infoCard.innerHTML = `
+      <h3>Thông tin User</h3>
+      <div class="live-info-row"><span class="label"><i class="fas fa-user"></i> Tên:</span><span class="value" id="infoName">—</span></div>
+      <div class="live-info-row"><span class="label"><i class="fas fa-car"></i> Phương tiện:</span><span class="value" id="infoVehicle">—</span></div>
+      <div class="live-info-row"><span class="label"><i class="fas fa-door-open"></i> Mã room:</span><span class="value" id="infoRoom" style="color:var(--success); font-family:var(--font-mono); font-size:1.2rem;"></span></div>
+      <button onclick="document.getElementById('liveInfoCard').classList.remove('show')" style="width:100%; margin-top:15px; padding:12px; background:var(--primary); color:white; border:none; border-radius:10px; font-weight:800; cursor:pointer;">Đóng</button>
+    `;
+    document.body.appendChild(infoCard);
+  }
+  document.getElementById('infoRoom').textContent = liveRoomCode || '------';
+}
+
 window.createLiveRoom = async function(silent) {
   if (!currentUser) return;
+  if (liveRoomCode) return alert('Bạn đang ở trong một phòng rồi!');
+  
   const code = generateLiveRoomCode();
   liveRoomCode = code; liveIsPublic = false;
   isLiveHost = true; // Đánh dấu là chủ phòng
@@ -2643,6 +2708,8 @@ window.createLiveRoom = async function(silent) {
     if (lastUserPos) await pushLivePositionToRTDB();
     subscribeLiveRoom();
     updateLiveUI();
+    setupLiveUI(); // Hiện Banner mũi tên
+    
     if (liveHeartbeatInterval) clearInterval(liveHeartbeatInterval);
     liveHeartbeatInterval = setInterval(() => { if (liveRoomCode && currentUser) pushLivePositionToRTDB(); }, 15000);
     if (!silent) alert('Đã tạo phòng: ' + code);
@@ -2651,6 +2718,7 @@ window.createLiveRoom = async function(silent) {
 
 window.joinLiveRoom = async function() {
   if (!currentUser) return alert('Vui lòng đăng nhập!');
+  if (liveRoomCode) return alert('Bạn đang ở trong một phòng rồi!');
   const code = document.getElementById('liveJoinCodeInput').value.trim().toUpperCase();
   if (code.length !== 6) return alert('Mã phòng phải 6 ký tự!');
   try {
@@ -2666,6 +2734,8 @@ window.joinLiveRoom = async function() {
     if (lastUserPos) await pushLivePositionToRTDB();
     subscribeLiveRoom();
     updateLiveUI();
+    setupLiveUI(); // Hiện Banner mũi tên
+    
     if (liveHeartbeatInterval) clearInterval(liveHeartbeatInterval);
     liveHeartbeatInterval = setInterval(() => { if (liveRoomCode && currentUser) pushLivePositionToRTDB(); }, 15000);
     alert('Đã vào phòng: ' + code);
@@ -2712,6 +2782,24 @@ async function pushLivePositionToRTDB() {
   if (liveIsPublic) set(ref(db, `public_users/${currentUser.uid}`), { ...data, roomCode: liveRoomCode }).catch(()=>{});
 }
 
+function updateLivePlayerControls() {
+  // Cập nhật mảng activeLiveUsers từ liveRoomMembers (bao gồm cả bản thân)
+  activeLiveUsers = [...liveRoomMembers];
+  
+  const controls = document.getElementById('liveViewerControls');
+  if (!controls) return;
+  
+  if (activeLiveUsers.length > 1) {
+    controls.style.display = 'flex';
+    const centerText = document.getElementById('liveCenterText');
+    if (centerText) centerText.style.display = 'flex';
+  } else {
+    controls.style.display = 'none';
+    const centerText = document.getElementById('liveCenterText');
+    if (centerText) centerText.style.display = 'none';
+  }
+}
+
 function subscribeLiveRoom() {
   if (!liveRoomCode) return;
   if (liveRoomUnsub) liveRoomUnsub();
@@ -2719,7 +2807,9 @@ function subscribeLiveRoom() {
     const data = snap.val() || {};
     const now = Date.now();
     liveRoomMembers = Object.entries(data).map(([uid, m]) => ({ uid, ...m })).filter(m => !m.lastPing || (now - m.lastPing) < LIVE_HEARTBEAT_TIMEOUT);
-    renderLiveMembers(); renderLiveMemberMarkers();
+    renderLiveMembers(); 
+    renderLiveMemberMarkers();
+    updateLivePlayerControls(); // Cập nhật mũi tên
   });
 }
 
@@ -2816,38 +2906,8 @@ async function initViewerLiveRoom(roomCode) {
   hud.innerHTML = `<i class="fas fa-satellite-dish fa-spin"></i> Phòng: ${roomCode}`;
   document.body.appendChild(hud);
 
-  // UI Điều hướng User (Mũi tên 2 bên)
-  let controls = document.getElementById('liveViewerControls');
-  if (!controls) {
-    controls = document.createElement('div');
-    controls.id = 'liveViewerControls';
-    controls.className = 'live-viewer-controls';
-    controls.innerHTML = `
-      <div class="live-arrow" onclick="switchLiveUser(-1)"><i class="fas fa-chevron-left"></i></div>
-      <div class="live-center-text" id="liveCenterText">
-        Click vô 2 bên mũi tên để chuyển<br><span class="sub">user</span>
-      </div>
-      <div class="live-arrow" onclick="switchLiveUser(1)"><i class="fas fa-chevron-right"></i></div>
-    `;
-    document.body.appendChild(controls);
-  }
-
-  // UI Thẻ thông tin (Tên + Phương tiện + Mã Room)
-  let infoCard = document.getElementById('liveInfoCard');
-  if (!infoCard) {
-    infoCard = document.createElement('div');
-    infoCard.id = 'liveInfoCard';
-    infoCard.className = 'live-info-card';
-    infoCard.innerHTML = `
-      <h3>Thông tin User</h3>
-      <div class="live-info-row"><span class="label"><i class="fas fa-user"></i> Tên:</span><span class="value" id="infoName">—</span></div>
-      <div class="live-info-row"><span class="label"><i class="fas fa-car"></i> Phương tiện:</span><span class="value" id="infoVehicle">—</span></div>
-      <div class="live-info-row"><span class="label"><i class="fas fa-door-open"></i> Mã room:</span><span class="value" id="infoRoom" style="color:var(--success); font-family:var(--font-mono); font-size:1.2rem;">${roomCode}</span></div>
-      <button onclick="document.getElementById('liveInfoCard').classList.remove('show')" style="width:100%; margin-top:15px; padding:12px; background:var(--primary); color:white; border:none; border-radius:10px; font-weight:800; cursor:pointer;">Đóng</button>
-    `;
-    document.body.appendChild(infoCard);
-  }
-
+  setupLiveUI(); // Gọi hàm tạo UI chung
+  
   const membersRef = ref(db, `live_rooms/${roomCode}/members`);
   onValue(membersRef, (snap) => {
     const data = snap.val() || {};
@@ -2862,10 +2922,14 @@ async function initViewerLiveRoom(roomCode) {
       return; 
     }
 
-    const centerText = document.getElementById('liveCenterText');
+    const controls = document.getElementById('liveViewerControls');
     if (activeLiveUsers.length > 1) {
+      if (controls) controls.style.display = 'flex';
+      const centerText = document.getElementById('liveCenterText');
       if (centerText) centerText.style.display = 'flex';
     } else {
+      if (controls) controls.style.display = 'none';
+      const centerText = document.getElementById('liveCenterText');
       if (centerText) centerText.style.display = 'none';
       currentLiveIndex = 0;
     }
