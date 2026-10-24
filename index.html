@@ -398,7 +398,8 @@ body.navigating .fab-rest-stop-filter { display: none; }
       <button class="btn-clear-input hidden" id="btnClearEnd" onclick="event.stopPropagation(); clearPoint('end')"><i class="fas fa-times"></i></button>
     </div>
     <div class="vehicle-selector">
-      <button class="vehicle-mode-btn active" data-mode="driving" onclick="setVehicleMode('driving', this)"><i class="fas fa-car"></i> Ô tô</button>
+      <!-- ĐÃ XOÁ CLASS ACTIVE MẶC ĐỊNH Ở NÚT Ô TÔ -->
+      <button class="vehicle-mode-btn" data-mode="driving" onclick="setVehicleMode('driving', this)"><i class="fas fa-car"></i> Ô tô</button>
       <button class="vehicle-mode-btn" data-mode="driving-traffic" onclick="setVehicleMode('driving-traffic', this)"><i class="fas fa-car-side"></i> Kẹt xe</button>
       <button class="vehicle-mode-btn" data-mode="hd" onclick="setVehicleMode('hd', this)"><i class="fas fa-motorcycle"></i> Xe CN</button>
       <button class="vehicle-mode-btn" data-mode="truck" onclick="setVehicleMode('truck', this)"><i class="fas fa-truck"></i> Xe tải</button>
@@ -711,7 +712,8 @@ let voiceEnabled = true;
 let voiceRouteSteps = null;
 let voiceStepIndex = 0;
 let voiceCheckTimer = null;
-let currentVehicleMode = 'driving';
+// ĐÃ SỬA THÀNH NONE
+let currentVehicleMode = 'none'; 
 let currentSortMode = 'fastest';
 let tripStartTime = null;
 let arrivalHandled = false;
@@ -754,7 +756,7 @@ let _unsub = { fsRest:null, rtdbCommunity:null, fsPoi:null, fsReports:null, rtdb
 
 let liveEnabled = false;
 let liveRoomCode = null;
-let isLiveHost = false; // Phân biệt chủ phòng
+let isLiveHost = false;
 let liveIsPublic = false;
 let liveGpsInterval = null;
 let liveHeartbeatInterval = null;
@@ -770,8 +772,8 @@ const LIVE_GPS_INTERVAL = 6000;
 const LIVE_ANIM_DURATION = 6000;
 const LIVE_HEARTBEAT_TIMEOUT = 120000;
 let isViewingLiveTrack = false;
-let activeLiveUsers = []; // Danh sách user đang xem
-let currentLiveIndex = 0; // Vị trí user đang xem
+let activeLiveUsers = [];
+let currentLiveIndex = 0;
 
 const POI_TAG_CONFIG = {
   supermarket: { icon: 'fa-shopping-cart', label: 'Siêu thị', color: '#10b981' },
@@ -996,16 +998,25 @@ btnSubmitAuth.addEventListener('click', async () => {
   try {
     if (isRegisterMode) await createUserWithEmailAndPassword(auth, email, pass);
     else await signInWithEmailAndPassword(auth, email, pass);
+    window.location.reload(); // F5 SAU KHI THÀNH CÔNG
   } catch (err) { authError.textContent = getAuthErrorMessage(err.code); authError.style.display = 'block'; }
   finally { btnSubmitAuth.disabled = false; btnSubmitAuth.textContent = isRegisterMode ? 'Đăng ký tài khoản' : 'Đăng nhập'; }
 });
 
 document.getElementById('btnGoogleAuth').addEventListener('click', async () => {
-  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+  try { 
+    await signInWithPopup(auth, new GoogleAuthProvider()); 
+    window.location.reload(); // F5 SAU KHI ĐĂNG NHẬP GOOGLE
+  }
   catch (e) { authError.textContent = getAuthErrorMessage(e.code); authError.style.display = 'block'; }
 });
 
-function logout() { if (liveEnabled) stopLiveSession(); signOut(auth); closeMenu(); }
+async function logout() { 
+  if (liveEnabled) stopLiveSession(); 
+  await signOut(auth); 
+  window.location.reload(); // F5 SAU KHI ĐĂNG XUẤT
+  closeMenu(); 
+}
 
 // Hàm lấy dữ liệu từ cache (LocalStorage) để tiết kiệm Reads
 async function getCachedFirestoreData(collectionName, cacheKey, ttlMs, isUserSub = false) {
@@ -1532,12 +1543,16 @@ window.fetchAndShowRouteOptions = async function() {
   if (!startPoint || !endPoint || !startPoint.lat || !endPoint.lat) {
     return alert('Vui lòng chọn đủ Điểm đi và Điểm đến hợp lệ!');
   }
-  const modeLabel = currentVehicleMode === 'driving' ? 'ô tô' : currentVehicleMode === 'driving-traffic' ? 'ô tô (kẹt xe)' : currentVehicleMode === 'truck' ? 'xe tải' : currentVehicleMode === 'hd' ? 'xe công nghệ' : currentVehicleMode === 'walking' ? 'đi bộ' : currentVehicleMode === 'bicycle' ? 'xe đạp' : 'xe máy';
+  
+  // TỰ ĐỘNG FALLBACK NẾU CHƯA CHỌN XE
+  const modeToFetch = currentVehicleMode === 'none' ? 'driving' : currentVehicleMode;
+  
+  const modeLabel = modeToFetch === 'driving' ? 'ô tô' : modeToFetch === 'driving-traffic' ? 'ô tô (kẹt xe)' : modeToFetch === 'truck' ? 'xe tải' : modeToFetch === 'hd' ? 'xe công nghệ' : modeToFetch === 'walking' ? 'đi bộ' : modeToFetch === 'bicycle' ? 'xe đạp' : 'xe máy';
   const bodyEl = document.getElementById('routeOptionsBody');
   bodyEl.innerHTML = `<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px; color:var(--text-muted);">Đang tìm tuyến (${modeLabel})...</p></div>`;
   document.getElementById('routeOptionsModal').classList.add('open');
   try {
-    const res = await fetchWorker(`/trackasia-route?origin=${startPoint.lat},${startPoint.lng}&destination=${endPoint.lat},${endPoint.lng}&mode=${currentVehicleMode}`);
+    const res = await fetchWorker(`/trackasia-route?origin=${startPoint.lat},${startPoint.lng}&destination=${endPoint.lat},${endPoint.lng}&mode=${modeToFetch}`);
     const data = await res.json();
     let routes = [];
     if (data.code === 'Ok' || data.status === 'OK') {
@@ -1545,7 +1560,6 @@ window.fetchAndShowRouteOptions = async function() {
         let coords = [];
         if (r.geometry && r.geometry.coordinates) {
           const c0 = r.geometry.coordinates[0];
-          // FIX: Chỉ đảo ngược nếu phần tử đầu tiên là Kinh độ (giá trị tuyệt đối > 90)
           if (Math.abs(c0[0]) > 90) {
             coords = r.geometry.coordinates.map(c => [c[1], c[0]]);
           } else {
@@ -1568,7 +1582,7 @@ window.fetchAndShowRouteOptions = async function() {
           duration: dur,
           legs: [{ steps: steps }],
           provider: r.provider || 'Worker',
-          mode: currentVehicleMode
+          mode: modeToFetch // Dùng mode đã fallback
         };
       });
     }
@@ -1667,7 +1681,6 @@ function startNavigationHUD() {
       currentRouteData.legs[0].steps = [];
     }
     
-    // FIX: Không dùng closeDirections() ở đây vì nó sẽ xóa currentRouteData
     document.getElementById('dirSheet').classList.remove('open');
     if (searchContext !== 'view') document.getElementById('suggestionsBox').classList.remove('show');
     
@@ -1795,7 +1808,8 @@ function checkOffRoute(userLat, userLng) {
 
 async function autoReroute(userLat, userLng) {
   if (isRerouting) return; isRerouting = true;
-  const currentProvider = currentRouteData?.provider || 'mapbox'; const currentMode = currentRouteData?.mode || 'driving';
+  const currentProvider = currentRouteData?.provider || 'mapbox'; 
+  const currentMode = currentRouteData?.mode || (currentVehicleMode === 'none' ? 'driving' : currentVehicleMode); // Fallback
   const fromStr = `${userLng},${userLat}`; const toStr = `${endPoint.lng},${endPoint.lat}`;
   try {
     let r;
@@ -2186,7 +2200,6 @@ function getClosestPointOnSegment(p, a, b) {
 }
 
 function getUserIcon(heading) {
-  // Tăng kích thước icon lên 40x40 để làm tâm điểm màn hình
   const svgIcon = `<div style="transform: rotate(${heading || 0}deg); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L22 20L12 16L2 20L12 2Z" fill="#10b981" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg></div>`;
   return L.divIcon({ html: svgIcon, className: '', iconSize: [40, 40], iconAnchor: [20, 20] });
 }
@@ -2610,7 +2623,6 @@ async function stopLiveSession() {
   liveRoomCode = null; liveIsPublic = false; liveRoomMembers = []; livePublicUsers = [];
   isLiveHost = false;
   
-  // Dọn dẹp UI player
   const controls = document.getElementById('liveViewerControls');
   if (controls) controls.style.display = 'none';
   const infoCard = document.getElementById('liveInfoCard');
@@ -2980,8 +2992,10 @@ function showLiveInfoCard(user) {
   
   document.getElementById('infoName').innerHTML = escapeHtml(user.name || 'Không tên');
   
-  let vehicleLabel = 'Không rõ';
-  let vIcon = 'fa-car';
+  // SỬA LẠI PHẦN NÀY: NẾU KHÔNG CHỌN THÌ HIỆN CHƯA CHỌN
+  let vehicleLabel = 'Chưa chọn';
+  let vIcon = 'fa-question-circle';
+  
   if (user.vehicle === 'driving' || user.vehicle === 'driving-traffic') { vehicleLabel = 'Ô tô'; vIcon = 'fa-car'; }
   else if (user.vehicle === 'motorcycle' || user.vehicle === 'hd') { vehicleLabel = 'Xe máy'; vIcon = 'fa-motorcycle'; }
   else if (user.vehicle === 'truck') { vehicleLabel = 'Xe tải'; vIcon = 'fa-truck'; }
