@@ -334,48 +334,82 @@ window.resetZoneDrawing = function() {
   document.getElementById('zoneEndTime').value = '';
 };
 
-// Hàm cập nhật bản đồ khi gõ tay tọa độ (Dành cho click 2 điểm)
+// ==========================================
+// HÀM CẬP NHẬT TỌA ĐỘ TỪ BÀN PHÍM (ĐÃ FIX)
+// ==========================================
 window.updateZoneMapFromInputs = function() {
-  if (isFreehandMode) return; // Không chạy khi đang vẽ tay
+  // Chuyển dấu phẩy thành dấu chấm (để parseFloat hiểu đúng)
+  const lat1Str = document.getElementById('zoneLat1').value.replace(/,/g, '.');
+  const lng1Str = document.getElementById('zoneLng1').value.replace(/,/g, '.');
+  const lat2Str = document.getElementById('zoneLat2').value.replace(/,/g, '.');
+  const lng2Str = document.getElementById('zoneLng2').value.replace(/,/g, '.');
 
-  clearTimeout(zoneInputTimeout);
-  zoneInputTimeout = setTimeout(async () => {
-    const lat1 = parseFloat(document.getElementById('zoneLat1').value);
-    const lng1 = parseFloat(document.getElementById('zoneLng1').value);
-    const lat2 = parseFloat(document.getElementById('zoneLat2').value);
-    const lng2 = parseFloat(document.getElementById('zoneLng2').value);
+  const lat1 = parseFloat(lat1Str);
+  const lng1 = parseFloat(lng1Str);
+  const lat2 = parseFloat(lat2Str);
+  const lng2 = parseFloat(lng2Str);
 
-    if (!isNaN(lat1) && !isNaN(lng1)) {
-      pointA = L.latLng(lat1, lng1);
-      if (tempMarkerA) map.removeLayer(tempMarkerA);
-      tempMarkerA = L.marker(pointA, { icon: L.divIcon({ html: '<div class="custom-pin pin-avoid-start" style="width: 30px; height: 30px;"><i class="fas fa-map-marker-alt"></i></div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] }) }).addTo(map).bindPopup("Điểm đầu");
-    } else {
-      pointA = null;
-      if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
+  // 1. KIỂM TRA VÀ VẼ ĐIỂM ĐẦU (A)
+  if (!isNaN(lat1) && !isNaN(lng1) && lat1 >= -90 && lat1 <= 90 && lng1 >= -180 && lng1 <= 180) {
+    pointA = L.latLng(lat1, lng1);
+    if (tempMarkerA) map.removeLayer(tempMarkerA);
+    tempMarkerA = L.marker(pointA, { icon: L.divIcon({ html: '<div class="custom-pin pin-avoid-start" style="width: 30px; height: 30px;"><i class="fas fa-map-marker-alt"></i></div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] }) }).addTo(map).bindPopup("Điểm đầu");
+    
+    // Nếu chưa có điểm B, bay tới điểm A ngay lập tức
+    if (isNaN(lat2) || isNaN(lng2)) {
+      map.flyTo([lat1, lng1], 15, { animate: true, duration: 1 });
     }
+  } else {
+    pointA = null;
+    if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
+  }
 
-    if (!isNaN(lat2) && !isNaN(lng2)) {
-      pointB = L.latLng(lat2, lng2);
-      if (tempMarkerB) map.removeLayer(tempMarkerB);
-      tempMarkerB = L.marker(pointB, { icon: L.divIcon({ html: '<div class="custom-pin pin-avoid-end" style="width: 30px; height: 30px;"><i class="fas fa-flag-checkered"></i></div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] }) }).addTo(map).bindPopup("Điểm cuối");
-    } else {
-      pointB = null;
-      if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
-    }
+  // 2. KIỂM TRA VÀ VẼ ĐIỂM CUỐI (B)
+  if (!isNaN(lat2) && !isNaN(lng2) && lat2 >= -90 && lat2 <= 90 && lng2 >= -180 && lng2 <= 180) {
+    pointB = L.latLng(lat2, lng2);
+    if (tempMarkerB) map.removeLayer(tempMarkerB);
+    tempMarkerB = L.marker(pointB, { icon: L.divIcon({ html: '<div class="custom-pin pin-avoid-end" style="width: 30px; height: 30px;"><i class="fas fa-flag-checkered"></i></div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] }) }).addTo(map).bindPopup("Điểm cuối");
+  } else {
+    pointB = null;
+    if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
+  }
 
-    if (pointA && pointB) {
+  // 3. NẾU CÓ ĐỦ CẢ 2 ĐIỂM -> TỰ ĐỘNG BÁM ĐƯỜNG VÀ ZOOM VỪA VẶN
+  if (pointA && pointB) {
+    clearTimeout(window._zoneDrawTimer);
+    window._zoneDrawTimer = setTimeout(async () => {
       if (tempPolyline) map.removeLayer(tempPolyline);
+      showStatus('statusAvoid', 'Đang tìm đường...', 'loading');
+      
       const snappedCoords = await fetchSnappedRoute(pointA.lat, pointA.lng, pointB.lat, pointB.lng);
       if (snappedCoords && snappedCoords.length > 0) {
         currentRouteWaypoints = snappedCoords;
         tempPolyline = L.polyline(snappedCoords, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+        showStatus('statusAvoid', '✅ Đã bám đường thành công!', 'success');
       } else {
         currentRouteWaypoints = [[pointA.lat, pointA.lng], [pointB.lat, pointB.lng]];
         tempPolyline = L.polyline(currentRouteWaypoints, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+        showStatus('statusAvoid', '⚠️ Không thể bám đường, vẽ đường chim bay!', 'error');
       }
       map.fitBounds([[lat1, lng1], [lat2, lng2]], { padding: [50, 50] });
-    }
-  }, 1000);
+    }, 800);
+  }
+};
+
+window.updateRestStopMapFromInputs = function() {
+  const latStr = document.getElementById('poiLat').value.replace(/,/g, '.');
+  const lngStr = document.getElementById('poiLng').value.replace(/,/g, '.');
+  
+  const lat = parseFloat(latStr);
+  const lng = parseFloat(lngStr);
+  
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
+
+  if (currentRestStopMarker) map.removeLayer(currentRestStopMarker);
+  const icon = L.divIcon({ html: '<div class="custom-pin pin-rest-stop" style="width: 30px; height: 30px;"><i class="fas fa-bed"></i></div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] });
+  currentRestStopMarker = L.marker([lat, lng], { icon }).addTo(map);
+  
+  map.flyTo([lat, lng], 16, { animate: true, duration: 1 });
 };
 
 async function fetchSnappedRoute(lat1, lng1, lat2, lng2) {
@@ -575,23 +609,12 @@ window.resolveRestStopUrl = async function() {
   btn.disabled = false; btn.innerHTML = '<i class="fas fa-search-location"></i>';
 };
 
-window.updateRestStopMapFromInputs = function() {
-  const lat = parseFloat(document.getElementById('poiLat').value);
-  const lng = parseFloat(document.getElementById('poiLng').value);
-  if (isNaN(lat) || isNaN(lng)) return;
-
-  if (currentRestStopMarker) map.removeLayer(currentRestStopMarker);
-  const icon = L.divIcon({ html: '<div class="custom-pin pin-rest-stop" style="width: 30px; height: 30px;"><i class="fas fa-bed"></i></div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] });
-  currentRestStopMarker = L.marker([lat, lng], { icon }).addTo(map);
-  map.setView([lat, lng], 16);
-};
-
 window.submitRestStop = async function() {
   if (!currentUser) return showStatus('statusRestStop', 'Lỗi: Chưa đăng nhập Firebase!', 'error');
 
   const name = document.getElementById('poiName').value.trim();
-  const lat = parseFloat(document.getElementById('poiLat').value);
-  const lng = parseFloat(document.getElementById('poiLng').value);
+  const lat = parseFloat(document.getElementById('poiLat').value.replace(/,/g, '.'));
+  const lng = parseFloat(document.getElementById('poiLng').value.replace(/,/g, '.'));
 
   if (!name || isNaN(lat) || isNaN(lng)) return showStatus('statusRestStop', 'Vui lòng nhập đủ Tên và Tọa độ!', 'error');
 
