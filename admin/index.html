@@ -97,7 +97,7 @@
 <div class="sidebar">
   <div class="header">
     <h1><i class="fas fa-shield-alt" style="color: var(--primary);"></i> DriveKit Admin</h1>
-    <p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Dữ liệu lưu vào Firestore</p>
+    <p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Dữ liệu lưu vào Firestore & RTDB</p>
   </div>
   
   <div class="tabs">
@@ -129,6 +129,7 @@
         <input type="text" id="poiLat" class="form-control" placeholder="Vĩ độ (Lat)" oninput="updateRestStopMapFromInputs()">
         <input type="text" id="poiLng" class="form-control" placeholder="Kinh độ (Lng)" oninput="updateRestStopMapFromInputs()">
       </div>
+      <div class="help-text">Hoặc <b>click lên bản đồ</b> để lấy tọa độ.</div>
     </div>
 
     <button class="btn btn-success" id="btnSaveRestStop" onclick="submitRestStop()">
@@ -200,7 +201,7 @@
       <i class="fas fa-save"></i> Lưu Tuyến Đường Cấm
     </button>
     <button class="btn btn-outline" onclick="resetZoneDrawing()" style="margin-top: 4px;">
-      <i class="fas fa-undo"></i> Xóa toàn bộ nét vẽ
+      <i class="fas fa-undo"></i> Xóa nét vẽ hiện tại
     </button>
     <div id="statusAvoid" class="status-box"></div>
   </div>
@@ -211,7 +212,8 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
@@ -226,6 +228,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const rtdb = getDatabase(app);
 
 const GMAPS_WORKER_URL = 'https://gmaps-resolver.anhminhadof123.workers.dev';
 const MAIN_WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
@@ -244,11 +247,19 @@ let isFreehandMode = false;
 let currentRouteWaypoints = null;
 let zoneInputTimeout = null;
 
-// Biến cho việc vẽ tự do (NỐI TIẾP)
+// Biến cho việc vẽ tự do
 let isFreehandDrawing = false;
-let freehandPoints = []; // Mảng L.LatLng
+let freehandPoints = [];
 let freehandPolyline = null;
 let startLatLng = null;
+
+// Hàm cập nhật Version để Client biết có data mới
+async function updateVersion(collectionName) {
+  try {
+    const metaRef = doc(db, "system_meta", "version");
+    await setDoc(metaRef, { [collectionName]: Date.now() }, { merge: true });
+  } catch(e) { console.warn("Lỗi cập nhật version:", e); }
+}
 
 window.doLogin = async function() {
   const email = document.getElementById('authEmail').value.trim();
@@ -341,13 +352,10 @@ window.toggleFreehandMode = function() {
 window.resetZoneDrawing = function() {
   pointA = null; pointB = null;
   currentRouteWaypoints = null;
-  
+  freehandPoints = [];
   if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
   if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
   if (tempPolyline) { map.removeLayer(tempPolyline); tempPolyline = null; }
-  
-  // Xoá nét vẽ tự do
-  freehandPoints = [];
   if (freehandPolyline) { map.removeLayer(freehandPolyline); freehandPolyline = null; }
   
   document.getElementById('zoneLat1').value = '';
@@ -507,14 +515,12 @@ function initMap() {
   // LOGIC VẼ TỰ DO NỐI TIẾP
   function startFreehandDrawing(latlng) {
     isFreehandDrawing = true;
-    map.dragging.disable(); // Khóa kéo map
+    map.dragging.disable();
     
     if (!freehandPolyline) {
-      // Nét vẽ đầu tiên
       freehandPoints = [latlng];
       freehandPolyline = L.polyline(freehandPoints, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
     } else {
-      // Nối tiếp vào nét vẽ cũ
       const lastPoint = freehandPoints[freehandPoints.length - 1];
       if (latlng.distanceTo(lastPoint) > 1) {
         freehandPoints.push(latlng);
@@ -525,7 +531,7 @@ function initMap() {
 
   function finishFreehandDrawing() {
     isFreehandDrawing = false;
-    map.dragging.enable(); // Mở khóa kéo map
+    map.dragging.enable();
     
     if (freehandPoints.length > 1) {
       currentRouteWaypoints = freehandPoints.map(p => [p.lat, p.lng]);
@@ -673,22 +679,31 @@ window.submitRestStop = async function() {
 
   if (!name || isNaN(lat) || isNaN(lng)) return showStatus('statusRestStop', 'Vui lòng nhập đủ Tên và Tọa độ!', 'error');
 
-  showStatus('statusRestStop', 'Đang lưu lên Firestore...', 'loading');
+  showStatus('statusRestStop', 'Đang lưu...', 'loading');
   const btn = document.getElementById('btnSaveRestStop');
   btn.disabled = true;
 
   try {
-    await addDoc(collection(db, "rest_stops"), {
+    const payload = {
       lat: lat, lng: lng, name: name, tag: 'rest_stop',
       uid: currentUser.uid, authorName: 'Admin', timestamp: Date.now(), upvotes: 0
-    });
+    };
     
+    // 1. Lưu vào Firestore
+    const docRef = await addDoc(collection(db, "rest_stops"), payload);
+    
+    // 2. Lưu vào RTDB để Client realtime
+    await set(ref(rtdb, `communityPois/${docRef.id}`), payload);
+    
+    // 3. Cập nhật Version
+    await updateVersion('rest_stops');
+
     showStatus('statusRestStop', '✅ Đã lưu: ' + name, 'success');
     document.getElementById('poiName').value = '';
     document.getElementById('poiGmapsUrl').value = '';
     if (currentRestStopMarker) { map.removeLayer(currentRestStopMarker); currentRestStopMarker = null; }
   } catch (err) {
-    showStatus('statusRestStop', 'Lỗi Firestore: ' + err.message, 'error');
+    showStatus('statusRestStop', 'Lỗi: ' + err.message, 'error');
   } finally {
     btn.disabled = false;
   }
@@ -717,9 +732,9 @@ window.saveAvoidZone = async function() {
   if (startTimeVal) startTime = new Date(startTimeVal).getTime();
   if (endTimeVal) endTime = new Date(endTimeVal).getTime();
 
-  showStatus('statusAvoid', 'Đang lưu lên Firestore...', 'loading');
+  showStatus('statusAvoid', 'Đang lưu...', 'loading');
   try {
-    await addDoc(collection(db, "avoid_zones"), {
+    const payload = {
       name: name,
       lat1: firstPoint[0],
       lng1: firstPoint[1],
@@ -730,14 +745,23 @@ window.saveAvoidZone = async function() {
       endTime: endTime,
       bannedVehicles: bannedVehicles,
       timestamp: Date.now()
-    });
+    };
+
+    // 1. Lưu vào Firestore
+    const docRef = await addDoc(collection(db, "avoid_zones"), payload);
+
+    // 2. Lưu vào RTDB
+    await set(ref(rtdb, `avoid_zones/${docRef.id}`), payload);
+
+    // 3. Cập nhật Version
+    await updateVersion('avoid_zones');
     
     showStatus('statusAvoid', '✅ Đã lưu đoạn cấm thành công!', 'success');
     
     resetZoneDrawing();
     document.getElementById('zoneName').value = '';
   } catch (err) {
-    showStatus('statusAvoid', 'Lỗi Firestore: ' + err.message, 'error');
+    showStatus('statusAvoid', 'Lỗi: ' + err.message, 'error');
   }
 };
 
