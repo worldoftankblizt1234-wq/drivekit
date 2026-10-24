@@ -1499,7 +1499,6 @@ function renderAvoidZonesOnMap() {
         }
       });
       line = L.featureGroup(layers).addTo(map);
-      
       const firstLine = polylineCoords[0];
       const midIdx = Math.floor(firstLine.length / 2);
       midLat = firstLine[midIdx][0];
@@ -1562,15 +1561,18 @@ window.changeSort = function(mode) { currentSortMode = mode; if (startPoint && e
 
 window.fetchAndShowRouteOptions = async function() {
   if (!startPoint || !endPoint || !startPoint.lat || !endPoint.lat) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến hợp lệ!');
+  
   const modeToFetch = currentVehicleMode === 'none' ? 'driving' : currentVehicleMode;
   const modeLabel = modeToFetch === 'driving' ? 'ô tô' : modeToFetch === 'driving-traffic' ? 'ô tô (kẹt xe)' : modeToFetch === 'truck' ? 'xe tải' : modeToFetch === 'hd' ? 'xe công nghệ' : modeToFetch === 'walking' ? 'đi bộ' : modeToFetch === 'bicycle' ? 'xe đạp' : 'xe máy';
   const bodyEl = document.getElementById('routeOptionsBody');
   bodyEl.innerHTML = `<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px; color:var(--text-muted);">Đang tìm tuyến (${modeLabel})...</p></div>`;
   document.getElementById('routeOptionsModal').classList.add('open');
+  
   try {
     const res = await fetchWorker(`/trackasia-route?origin=${startPoint.lat},${startPoint.lng}&destination=${endPoint.lat},${endPoint.lng}&mode=${modeToFetch}`);
     const data = await res.json();
     let routes = [];
+    
     if (data.code === 'Ok' || data.status === 'OK') {
       routes = (data.routes || []).map(r => {
         let coords = [];
@@ -1584,19 +1586,27 @@ window.fetchAndShowRouteOptions = async function() {
           dist = r.legs[0].distance?.value || r.legs[0].distance || 0;
           dur = r.legs[0].duration?.value || r.legs[0].duration || 0;
           steps = r.legs[0].steps || [];
-        } else { dist = r.distance || 0; dur = r.duration || 0; }
+        } else { 
+          dist = r.distance || 0; 
+          dur = r.duration || 0; 
+        }
         return { ...r, geometry: { coordinates: coords }, distance: dist, duration: dur, legs: [{ steps }], provider: r.provider || 'Worker', mode: modeToFetch };
       });
     }
+
+    // BỘ LỌC QUAN TRỌNG: Chặn tuyến đường có khoảng cách = 0 hoặc tọa độ lỗi
     routes = routes.filter(r => {
+      if (!r.distance || r.distance <= 0) return false; 
       const coords = r.geometry?.coordinates;
       if (!coords || coords.length < 2) return false;
       return coords.every(c => c[0] >= -90 && c[0] <= 90 && c[1] >= -180 && c[1] <= 180 && !(c[0] === 0 && c[1] === 0));
     });
+
     if (routes.length === 0) {
-      bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Không tìm được tuyến đường hợp lệ.</p></div>`;
+      bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Không tìm được tuyến đường hợp lệ.</p><div style="font-size:0.8rem; margin-top:12px; color:var(--text-muted); background:rgba(255,255,255,0.05); padding:12px; border-radius:8px;"><b>Lỗi:</b> ${data.error || 'API không trả về khoảng cách hoặc tuyến đường quá dài (vượt quá giới hạn). Vui lòng chia nhỏ hành trình.'}</div></div>`;
       return;
     }
+    
     routes.sort((a, b) => currentSortMode === 'shortest' ? a.distance - b.distance : a.duration - b.duration);
     routes = routes.slice(0, 5);
     alternativeRoutesData = routes;
@@ -2550,7 +2560,6 @@ async function stopLiveSession() {
   if (currentUser && liveRoomCode) {
     await remove(ref(db, `live_rooms/${liveRoomCode}/members/${currentUser.uid}`)).catch(()=>{});
     await remove(ref(db, `public_users/${currentUser.uid}`)).catch(()=>{});
-    
     if (isLiveHost) {
       await remove(ref(db, `live_rooms/${liveRoomCode}`)).catch(()=>{});
     }
@@ -2943,12 +2952,10 @@ window.selectClientVehicle = function(vehicle) {
     currentRouteCoords = currentLiveNavData.routeCoords;
     
     currentRouteData = {
-      distance: 0,
-      duration: 0,
+      distance: 0, duration: 0,
       geometry: { coordinates: currentRouteCoords },
       legs: [{ steps: [] }],
-      provider: 'live_host',
-      mode: currentVehicleMode
+      provider: 'live_host', mode: currentVehicleMode
     };
 
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
