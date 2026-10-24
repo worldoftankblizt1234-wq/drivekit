@@ -782,7 +782,7 @@ let liveMyMarker = null;
 let liveMyAnimState = null;
 let liveMemberAnimStates = {};
 let liveNavLayer = null;
-let currentLiveNavData = null; // Lưu trữ dữ liệu navigation của host
+let currentLiveNavData = null;
 const LIVE_GPS_INTERVAL = 6000;
 const LIVE_ANIM_DURATION = 6000;
 const LIVE_HEARTBEAT_TIMEOUT = 120000;
@@ -1470,18 +1470,47 @@ function renderAvoidZonesOnMap() {
       if (zone.startTime && now < zone.startTime) return;
       if (zone.endTime && now > zone.endTime) return;
     }
+    
     let polylineCoords = [];
+    let isMulti = false;
+    
     if (zone.waypoints) {
       try {
         const parsed = typeof zone.waypoints === 'string' ? JSON.parse(zone.waypoints) : zone.waypoints;
-        if (Array.isArray(parsed) && parsed.length > 1) polylineCoords = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          isMulti = Array.isArray(parsed[0][0]);
+          polylineCoords = parsed;
+        }
       } catch (e) {}
     }
-    if (polylineCoords.length === 0) polylineCoords = [[zone.lat1, zone.lng1], [zone.lat2, zone.lng2]];
-    const line = L.polyline(polylineCoords, { color: '#ef4444', weight: 8, opacity: 0.85, dashArray: '12, 12', lineCap: 'round', lineJoin: 'round' }).addTo(map);
-    const midIdx = Math.floor(polylineCoords.length / 2);
-    const midLat = polylineCoords[midIdx][0];
-    const midLng = polylineCoords[midIdx][1];
+
+    if (polylineCoords.length === 0) {
+      polylineCoords = [[zone.lat1, zone.lng1], [zone.lat2, zone.lng2]];
+    }
+
+    let line;
+    let midLat, midLng;
+    
+    if (isMulti) {
+      const layers = [];
+      polylineCoords.forEach(lineCoords => {
+        if (lineCoords.length > 0) {
+          layers.push(L.polyline(lineCoords, { color: '#ef4444', weight: 8, opacity: 0.85, dashArray: '12, 12', lineCap: 'round', lineJoin: 'round' }));
+        }
+      });
+      line = L.featureGroup(layers).addTo(map);
+      
+      const firstLine = polylineCoords[0];
+      const midIdx = Math.floor(firstLine.length / 2);
+      midLat = firstLine[midIdx][0];
+      midLng = firstLine[midIdx][1];
+    } else {
+      line = L.polyline(polylineCoords, { color: '#ef4444', weight: 8, opacity: 0.85, dashArray: '12, 12', lineCap: 'round', lineJoin: 'round' }).addTo(map);
+      const midIdx = Math.floor(polylineCoords.length / 2);
+      midLat = polylineCoords[midIdx][0];
+      midLng = polylineCoords[midIdx][1];
+    }
+    
     const icon = L.divIcon({ html: `<div class="avoid-zone-pin"><i class="fas fa-ban"></i></div>`, className: '', iconSize: [36, 36], iconAnchor: [18, 18] });
     const marker = L.marker([midLat, midLng], { icon, zIndexOffset: 400 }).addTo(map);
     let detailHtml = '';
@@ -2728,7 +2757,7 @@ function subscribeLiveRoom() {
   liveNavUnsub = onValue(ref(db, `live_rooms/${liveRoomCode}/navigation`), (snap) => {
     if (!snap.exists() || isLiveHost) return;
     const navData = snap.val();
-    currentLiveNavData = navData; // Lưu lại để dùng khi chọn xe
+    currentLiveNavData = navData;
     
     if (navData.routeCoords && navData.routeCoords.length > 0) {
       if (liveNavLayer) map.removeLayer(liveNavLayer);
@@ -2906,7 +2935,6 @@ window.selectClientVehicle = function(vehicle) {
     if (b.getAttribute('data-mode') === vehicle) b.classList.add('active');
   });
 
-  // LOGIC MỚI: VÀO CHẾ ĐỘ CHỈ ĐƯỜNG NGAY LẬP TỨC
   if (currentLiveNavData && currentLiveNavData.routeCoords) {
     if (lastUserPos) {
       startPoint = { lat: lastUserPos.lat, lng: lastUserPos.lng, name: 'Vị trí của tôi' };
@@ -2914,9 +2942,8 @@ window.selectClientVehicle = function(vehicle) {
     endPoint = { lat: currentLiveNavData.endLat, lng: currentLiveNavData.endLng, name: currentLiveNavData.endName || 'Điểm đến của Host' };
     currentRouteCoords = currentLiveNavData.routeCoords;
     
-    // Tạo object currentRouteData giả lập để tương thích với HUD
     currentRouteData = {
-      distance: 0, // Không cần tính toán lại
+      distance: 0,
       duration: 0,
       geometry: { coordinates: currentRouteCoords },
       legs: [{ steps: [] }],
@@ -2927,7 +2954,6 @@ window.selectClientVehicle = function(vehicle) {
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
     currentRouteLayer = L.polyline(currentRouteCoords, { color: '#8b5cf6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
     
-    // Gọi HUD
     startNavigationHUD();
     alert('Đã bắt đầu dẫn đường theo lộ trình của Host!');
   } else {
