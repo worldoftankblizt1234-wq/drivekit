@@ -241,18 +241,16 @@ let pointA = null;
 let pointB = null;
 let tempMarkerA = null;
 let tempMarkerB = null;
-let tempPolyline = null;
+let tempPolyline = null; // Lưu featureGroup chứa tất cả các đoạn
 let isDrawMode = false;
 let isFreehandMode = false;
-let currentRouteWaypoints = null;
+let currentRouteWaypoints = null; // Mảng các đoạn (MultiLineString)
 let zoneInputTimeout = null;
 
-// Biến cho việc vẽ tự do (NỐI TIẾP & CẮT)
+// Biến cho việc vẽ tự do
 let isFreehandDrawing = false;
-let freehandStrokes = []; // Mảng chứa các nét vẽ riêng biệt
-let currentFreehandStroke = []; // Nét vẽ hiện tại đang vẽ dở
-let freehandPolyline = null;
-let startLatLng = null;
+let activeFreehandPolyline = null;
+let currentFreehandStroke = [];
 
 // Hàm cập nhật Version để Client biết có data mới
 async function updateVersion(collectionName) {
@@ -353,13 +351,11 @@ window.toggleFreehandMode = function() {
 window.resetZoneDrawing = function() {
   pointA = null; pointB = null;
   currentRouteWaypoints = null;
-  freehandStrokes = [];
-  currentFreehandStroke = [];
   
   if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
   if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
-  if (tempPolyline) { map.removeLayer(tempPolyline); tempPolyline = null; }
-  if (freehandPolyline) { map.removeLayer(freehandPolyline); freehandPolyline = null; }
+  if (tempPolyline) { tempPolyline.clearLayers(); }
+  if (activeFreehandPolyline) { map.removeLayer(activeFreehandPolyline); activeFreehandPolyline = null; }
   
   document.getElementById('zoneLat1').value = '';
   document.getElementById('zoneLng1').value = '';
@@ -369,6 +365,26 @@ window.resetZoneDrawing = function() {
   document.getElementById('zoneEndTime').value = '';
   document.querySelectorAll('.zone-vehicle').forEach(cb => cb.checked = false);
 };
+
+// Hàm vẽ tất cả các đoạn đường đã lưu
+function updateDrawnPolylines() {
+  if (!tempPolyline) return;
+  tempPolyline.clearLayers();
+  if (!currentRouteWaypoints) return;
+  
+  const isMulti = Array.isArray(currentRouteWaypoints[0][0]);
+  if (isMulti) {
+    currentRouteWaypoints.forEach(seg => {
+      if (seg && seg.length > 0) {
+        L.polyline(seg, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(tempPolyline);
+      }
+    });
+  } else {
+    if (currentRouteWaypoints.length > 0) {
+      L.polyline(currentRouteWaypoints, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(tempPolyline);
+    }
+  }
+}
 
 window.updateZoneMapFromInputs = function() {
   const lat1Str = document.getElementById('zoneLat1').value.replace(/,/g, '.');
@@ -406,20 +422,36 @@ window.updateZoneMapFromInputs = function() {
   if (pointA && pointB) {
     clearTimeout(window._zoneDrawTimer);
     window._zoneDrawTimer = setTimeout(async () => {
-      if (tempPolyline) map.removeLayer(tempPolyline);
       showStatus('statusAvoid', 'Đang tìm đường...', 'loading');
       
       const snappedCoords = await fetchSnappedRoute(pointA.lat, pointA.lng, pointB.lat, pointB.lng);
+      
+      let newSegment = [];
       if (snappedCoords && snappedCoords.length > 0) {
-        currentRouteWaypoints = snappedCoords;
-        tempPolyline = L.polyline(snappedCoords, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+        newSegment = snappedCoords;
         showStatus('statusAvoid', '✅ Đã bám đường thành công!', 'success');
       } else {
-        currentRouteWaypoints = [[pointA.lat, pointA.lng], [pointB.lat, pointB.lng]];
-        tempPolyline = L.polyline(currentRouteWaypoints, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+        newSegment = [[pointA.lat, pointA.lng], [pointB.lat, pointB.lng]];
         showStatus('statusAvoid', '⚠️ Không thể bám đường, vẽ đường chim bay!', 'error');
       }
-      map.fitBounds([[lat1, lng1], [lat2, lng2]], { padding: [50, 50] });
+
+      if (!currentRouteWaypoints) currentRouteWaypoints = [];
+      if (currentRouteWaypoints.length > 0 && !Array.isArray(currentRouteWaypoints[0][0])) {
+        currentRouteWaypoints = [currentRouteWaypoints];
+      }
+      currentRouteWaypoints.push(newSegment);
+      
+      updateDrawnPolylines();
+      map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
+      
+      // Reset inputs cho đoạn mới
+      pointA = null; pointB = null;
+      if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
+      if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
+      document.getElementById('zoneLat1').value = '';
+      document.getElementById('zoneLng1').value = '';
+      document.getElementById('zoneLat2').value = '';
+      document.getElementById('zoneLng2').value = '';
     }, 800);
   }
 };
@@ -463,9 +495,10 @@ async function fetchSnappedRoute(lat1, lng1, lat2, lng2) {
 function initMap() {
   map = L.map('map', { center: [21.0285, 105.8542], zoom: 6 });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap',
-    maxZoom: 19
+    attribution: '&copy; OpenStreetMap', maxZoom: 19
   }).addTo(map);
+
+  tempPolyline = L.featureGroup().addTo(map);
 
   map.on('click', async (e) => {
     const activeTab = document.querySelector('.tab.active').id;
@@ -481,9 +514,7 @@ function initMap() {
       currentRestStopMarker = L.marker([lat, lng], { icon }).addTo(map);
     } 
     else if (activeTab === 'tab-btn-avoid' && isDrawMode) {
-      if (!pointA || (pointA && pointB)) {
-        if (pointA && pointB) resetZoneDrawing();
-        
+      if (!pointA) {
         pointA = L.latLng(lat, lng);
         document.getElementById('zoneLat1').value = lat.toFixed(6);
         document.getElementById('zoneLng1').value = lng.toFixed(6);
@@ -498,30 +529,45 @@ function initMap() {
         if (tempMarkerB) map.removeLayer(tempMarkerB);
         tempMarkerB = L.marker(pointB, { icon: L.divIcon({ html: '<div class="custom-pin pin-avoid-end" style="width: 30px; height: 30px;"><i class="fas fa-flag-checkered"></i></div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] }) }).addTo(map).bindPopup("Điểm cuối").openPopup();
 
-        if (tempPolyline) map.removeLayer(tempPolyline);
+        showStatus('statusAvoid', 'Đang tìm đường...', 'loading');
         const snappedCoords = await fetchSnappedRoute(pointA.lat, pointA.lng, pointB.lat, pointB.lng);
+        
+        let newSegment = [];
         if (snappedCoords && snappedCoords.length > 0) {
-          currentRouteWaypoints = snappedCoords;
-          tempPolyline = L.polyline(snappedCoords, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+          newSegment = snappedCoords;
           showStatus('statusAvoid', '✅ Đã bám đường thành công!', 'success');
         } else {
-          currentRouteWaypoints = [[pointA.lat, pointA.lng], [pointB.lat, pointB.lng]];
-          tempPolyline = L.polyline(currentRouteWaypoints, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+          newSegment = [[pointA.lat, pointA.lng], [pointB.lat, pointB.lng]];
           showStatus('statusAvoid', '⚠️ Không thể bám đường, vẽ đường chim bay!', 'error');
         }
+
+        if (!currentRouteWaypoints) currentRouteWaypoints = [];
+        if (currentRouteWaypoints.length > 0 && !Array.isArray(currentRouteWaypoints[0][0])) {
+          currentRouteWaypoints = [currentRouteWaypoints];
+        }
+        currentRouteWaypoints.push(newSegment);
+        
+        updateDrawnPolylines();
         map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
-        toggleDrawMode();
+
+        // Reset cho lần click tiếp theo
+        pointA = null; pointB = null;
+        if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
+        if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
+        document.getElementById('zoneLat1').value = '';
+        document.getElementById('zoneLng1').value = '';
+        document.getElementById('zoneLat2').value = '';
+        document.getElementById('zoneLng2').value = '';
       }
     }
   });
 
-  // LOGIC VẼ TỰ DO NỐI TIẾP (CẮT BẰNG PHÍM C)
+  // LOGIC VẼ TỰ DO
   function startFreehandDrawing(latlng) {
     isFreehandDrawing = true;
     map.dragging.disable();
-    
     currentFreehandStroke = [latlng];
-    freehandPolyline = L.polyline(currentFreehandStroke, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+    activeFreehandPolyline = L.polyline(currentFreehandStroke, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
   }
 
   function finishFreehandDrawing() {
@@ -529,23 +575,30 @@ function initMap() {
     isFreehandDrawing = false;
     map.dragging.enable();
     
+    if (activeFreehandPolyline) {
+      map.removeLayer(activeFreehandPolyline);
+      activeFreehandPolyline = null;
+    }
+    
     if (currentFreehandStroke.length > 1) {
-      freehandStrokes.push([...currentFreehandStroke]);
+      const strokeCoords = currentFreehandStroke.map(p => [p.lat, p.lng]);
       
-      // Cập nhật mảng waypoints (dạng mảng của các mảng)
-      currentRouteWaypoints = freehandStrokes.map(stroke => stroke.map(p => [p.lat, p.lng]));
+      if (!currentRouteWaypoints) currentRouteWaypoints = [];
+      if (currentRouteWaypoints.length > 0 && !Array.isArray(currentRouteWaypoints[0][0])) {
+        currentRouteWaypoints = [currentRouteWaypoints];
+      }
+      currentRouteWaypoints.push(strokeCoords);
       
-      const firstPt = freehandStrokes[0][0];
-      const lastStroke = freehandStrokes[freehandStrokes.length - 1];
-      const lastPt = lastStroke[lastStroke.length - 1];
+      updateDrawnPolylines();
       
+      const firstPt = currentFreehandStroke[0];
+      const lastPt = currentFreehandStroke[currentFreehandStroke.length - 1];
       document.getElementById('zoneLat1').value = firstPt.lat.toFixed(6);
       document.getElementById('zoneLng1').value = firstPt.lng.toFixed(6);
       document.getElementById('zoneLat2').value = lastPt.lat.toFixed(6);
       document.getElementById('zoneLng2').value = lastPt.lng.toFixed(6);
     }
     currentFreehandStroke = [];
-    freehandPolyline = null;
   }
 
   // Sự kiện Chuột (PC)
@@ -574,11 +627,11 @@ function initMap() {
       }
     }
     
-    if (isFreehandDrawing) {
+    if (isFreehandDrawing && activeFreehandPolyline) {
       const lastPoint = currentFreehandStroke[currentFreehandStroke.length - 1];
       if (e.latlng.distanceTo(lastPoint) > 3) {
         currentFreehandStroke.push(e.latlng);
-        freehandPolyline.setLatLngs(currentFreehandStroke);
+        activeFreehandPolyline.setLatLngs(currentFreehandStroke);
       }
     }
   });
@@ -612,11 +665,11 @@ function initMap() {
       }
     }
     
-    if (isFreehandDrawing) {
+    if (isFreehandDrawing && activeFreehandPolyline) {
       const lastPoint = currentFreehandStroke[currentFreehandStroke.length - 1];
       if (e.latlng.distanceTo(lastPoint) > 3) {
         currentFreehandStroke.push(e.latlng);
-        freehandPolyline.setLatLngs(currentFreehandStroke);
+        activeFreehandPolyline.setLatLngs(currentFreehandStroke);
       }
     }
   });
@@ -701,13 +754,8 @@ window.submitRestStop = async function() {
       uid: currentUser.uid, authorName: 'Admin', timestamp: Date.now(), upvotes: 0
     };
     
-    // 1. Lưu vào Firestore
     const docRef = await addDoc(collection(db, "rest_stops"), payload);
-    
-    // 2. Lưu vào RTDB để Client realtime
     await set(ref(rtdb, `communityPois/${docRef.id}`), payload);
-    
-    // 3. Cập nhật Version
     await updateVersion('rest_stops');
 
     showStatus('statusRestStop', '✅ Đã lưu: ' + name, 'success');
@@ -736,7 +784,6 @@ window.saveAvoidZone = async function() {
   const checkedVehicles = document.querySelectorAll('.zone-vehicle:checked');
   const bannedVehicles = Array.from(checkedVehicles).map(cb => cb.value);
 
-  // Xử lý lấy điểm đầu/cuối cho MultiLineString hoặc LineString
   let firstPoint, lastPoint;
   if (Array.isArray(currentRouteWaypoints[0][0])) {
     const firstLine = currentRouteWaypoints[0];
@@ -768,13 +815,8 @@ window.saveAvoidZone = async function() {
       timestamp: Date.now()
     };
 
-    // 1. Lưu vào Firestore
     const docRef = await addDoc(collection(db, "avoid_zones"), payload);
-
-    // 2. Lưu vào RTDB
     await set(ref(rtdb, `avoid_zones/${docRef.id}`), payload);
-
-    // 3. Cập nhật Version
     await updateVersion('avoid_zones');
     
     showStatus('statusAvoid', '✅ Đã lưu đoạn cấm thành công!', 'success');
