@@ -241,19 +241,18 @@ let pointA = null;
 let pointB = null;
 let tempMarkerA = null;
 let tempMarkerB = null;
-let tempPolyline = null;
+let tempPolyline = null; // Lưu featureGroup chứa tất cả các đoạn
 let isDrawMode = false;
 let isFreehandMode = false;
-let currentRouteWaypoints = null;
+let currentRouteWaypoints = null; // Mảng các đoạn (MultiLineString)
 let zoneInputTimeout = null;
 
 // Biến cho việc vẽ tự do
 let isFreehandDrawing = false;
 let activeFreehandPolyline = null;
 let currentFreehandStroke = [];
-let isKeyEDown = false; // Kiểm tra xem có đang giữ phím E không
-let startLatLng = null; // Fix lỗi thiếu biến này
 
+// Hàm cập nhật Version để Client biết có data mới
 async function updateVersion(collectionName) {
   try {
     const metaRef = doc(db, "system_meta", "version");
@@ -340,7 +339,7 @@ window.toggleFreehandMode = function() {
     btn.classList.add('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Đang vẽ tự do...';
     resetZoneDrawing();
-    showStatus('statusAvoid', '💡 Click 2 điểm để nối. Hoặc Giữ phím E + Kéo chuột để vẽ (Mobile: Nhấn giữ 0.5s). Ấn C để cắt đoạn.', 'loading');
+    showStatus('statusAvoid', '💡 Kéo để di chuyển map. Giữ Shift (PC) hoặc Nhấn giữ 0.5s (Mobile) để vẽ. Ấn phím C để cắt đoạn.', 'loading');
   } else {
     btn.classList.remove('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Vẽ tự do';
@@ -367,6 +366,7 @@ window.resetZoneDrawing = function() {
   document.querySelectorAll('.zone-vehicle').forEach(cb => cb.checked = false);
 };
 
+// Hàm vẽ tất cả các đoạn đường đã lưu
 function updateDrawnPolylines() {
   if (!tempPolyline) return;
   tempPolyline.clearLayers();
@@ -444,6 +444,7 @@ window.updateZoneMapFromInputs = function() {
       updateDrawnPolylines();
       map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
       
+      // Reset inputs cho đoạn mới
       pointA = null; pointB = null;
       if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
       if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
@@ -500,8 +501,6 @@ function initMap() {
   tempPolyline = L.featureGroup().addTo(map);
 
   map.on('click', async (e) => {
-    if (isFreehandDrawing) return; // Ngăn click khi đang vẽ nét
-    
     const activeTab = document.querySelector('.tab.active').id;
     const lat = e.latlng.lat;
     const lng = e.latlng.lng;
@@ -514,8 +513,7 @@ function initMap() {
       const icon = L.divIcon({ html: '<div class="custom-pin pin-rest-stop" style="width: 30px; height: 30px;"><i class="fas fa-bed"></i></div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] });
       currentRestStopMarker = L.marker([lat, lng], { icon }).addTo(map);
     } 
-    // Cho phép click 2 điểm cả trong chế độ Vẽ tự do (nếu không giữ phím E)
-    else if (activeTab === 'tab-btn-avoid' && (isDrawMode || (isFreehandMode && !isKeyEDown))) {
+    else if (activeTab === 'tab-btn-avoid' && isDrawMode) {
       if (!pointA) {
         pointA = L.latLng(lat, lng);
         document.getElementById('zoneLat1').value = lat.toFixed(6);
@@ -552,6 +550,7 @@ function initMap() {
         updateDrawnPolylines();
         map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
 
+        // Reset cho lần click tiếp theo
         pointA = null; pointB = null;
         if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
         if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
@@ -563,7 +562,7 @@ function initMap() {
     }
   });
 
-  // --- LOGIC VẼ TỰ DO ---
+  // LOGIC VẼ TỰ DO
   function startFreehandDrawing(latlng) {
     isFreehandDrawing = true;
     map.dragging.disable();
@@ -602,16 +601,32 @@ function initMap() {
     currentFreehandStroke = [];
   }
 
-  // Sự kiện Chuột (PC) - Chỉ vẽ khi giữ phím E
+  // Sự kiện Chuột (PC)
   map.on('mousedown', (e) => {
     if (!isFreehandMode) return;
-    if (isKeyEDown) {
+    startLatLng = e.latlng;
+    
+    if (e.originalEvent.shiftKey || e.originalEvent.altKey) {
       startFreehandDrawing(e.latlng);
+      return;
     }
+    
+    window._longPressTimer = setTimeout(() => {
+      if (startLatLng) startFreehandDrawing(startLatLng);
+    }, 300);
   });
 
   map.on('mousemove', (e) => {
     if (!isFreehandMode) return;
+    
+    if (window._longPressTimer && !isFreehandDrawing) {
+      if (startLatLng && startLatLng.distanceTo(e.latlng) > 10) {
+        clearTimeout(window._longPressTimer);
+        window._longPressTimer = null;
+        startLatLng = null;
+      }
+    }
+    
     if (isFreehandDrawing && activeFreehandPolyline) {
       const lastPoint = currentFreehandStroke[currentFreehandStroke.length - 1];
       if (e.latlng.distanceTo(lastPoint) > 3) {
@@ -623,10 +638,13 @@ function initMap() {
 
   map.on('mouseup', () => {
     if (!isFreehandMode) return;
+    clearTimeout(window._longPressTimer);
+    window._longPressTimer = null;
+    startLatLng = null;
     if (isFreehandDrawing) finishFreehandDrawing();
   });
 
-  // Sự kiện Cảm ứng (Mobile) - Nhấn giữ 0.5s để vẽ
+  // Sự kiện Cảm ứng (Mobile)
   map.on('touchstart', (e) => {
     if (!isFreehandMode) return;
     startLatLng = e.latlng;
@@ -665,22 +683,13 @@ function initMap() {
   });
 }
 
-// Lắng nghe phím E (Bắt đầu vẽ) và phím C (Cắt nét vẽ)
+// Lắng nghe phím C để cắt
 document.addEventListener('keydown', (e) => {
-  if (e.key.toLowerCase() === 'e') isKeyEDown = true;
-  
   if (e.key.toLowerCase() === 'c' && isFreehandMode) {
     if (isFreehandDrawing) {
       finishFreehandDrawing();
       showStatus('statusAvoid', '✂️ Đã cắt nét vẽ. Bạn có thể di chuyển bản đồ và vẽ đoạn mới.', 'success');
     }
-  }
-});
-
-document.addEventListener('keyup', (e) => {
-  if (e.key.toLowerCase() === 'e') {
-    isKeyEDown = false;
-    if (isFreehandDrawing) finishFreehandDrawing(); // Thả phím E cũng tự động kết thúc nét vẽ
   }
 });
 
