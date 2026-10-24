@@ -247,9 +247,10 @@ let isFreehandMode = false;
 let currentRouteWaypoints = null;
 let zoneInputTimeout = null;
 
-// Biến cho việc vẽ tự do
+// Biến cho việc vẽ tự do (NỐI TIẾP & CẮT)
 let isFreehandDrawing = false;
-let freehandPoints = [];
+let freehandStrokes = []; // Mảng chứa các nét vẽ riêng biệt
+let currentFreehandStroke = []; // Nét vẽ hiện tại đang vẽ dở
 let freehandPolyline = null;
 let startLatLng = null;
 
@@ -340,7 +341,7 @@ window.toggleFreehandMode = function() {
     btn.classList.add('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Đang vẽ tự do...';
     resetZoneDrawing();
-    showStatus('statusAvoid', '💡 Kéo để di chuyển map. Giữ Shift (PC) hoặc Nhấn giữ 0.5s (Mobile) để vẽ nối tiếp.', 'loading');
+    showStatus('statusAvoid', '💡 Kéo để di chuyển map. Giữ Shift (PC) hoặc Nhấn giữ 0.5s (Mobile) để vẽ. Ấn phím C để cắt đoạn.', 'loading');
   } else {
     btn.classList.remove('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Vẽ tự do';
@@ -352,7 +353,9 @@ window.toggleFreehandMode = function() {
 window.resetZoneDrawing = function() {
   pointA = null; pointB = null;
   currentRouteWaypoints = null;
-  freehandPoints = [];
+  freehandStrokes = [];
+  currentFreehandStroke = [];
+  
   if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
   if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
   if (tempPolyline) { map.removeLayer(tempPolyline); tempPolyline = null; }
@@ -512,38 +515,37 @@ function initMap() {
     }
   });
 
-  // LOGIC VẼ TỰ DO NỐI TIẾP
+  // LOGIC VẼ TỰ DO NỐI TIẾP (CẮT BẰNG PHÍM C)
   function startFreehandDrawing(latlng) {
     isFreehandDrawing = true;
     map.dragging.disable();
     
-    if (!freehandPolyline) {
-      freehandPoints = [latlng];
-      freehandPolyline = L.polyline(freehandPoints, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
-    } else {
-      const lastPoint = freehandPoints[freehandPoints.length - 1];
-      if (latlng.distanceTo(lastPoint) > 1) {
-        freehandPoints.push(latlng);
-        freehandPolyline.setLatLngs(freehandPoints);
-      }
-    }
+    currentFreehandStroke = [latlng];
+    freehandPolyline = L.polyline(currentFreehandStroke, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
   }
 
   function finishFreehandDrawing() {
+    if (!isFreehandDrawing) return;
     isFreehandDrawing = false;
     map.dragging.enable();
     
-    if (freehandPoints.length > 1) {
-      currentRouteWaypoints = freehandPoints.map(p => [p.lat, p.lng]);
-      showStatus('statusAvoid', '✅ Đã ghi nhận nét vẽ! Bạn có thể vẽ tiếp hoặc bấm Lưu.', 'success');
+    if (currentFreehandStroke.length > 1) {
+      freehandStrokes.push([...currentFreehandStroke]);
       
-      const firstPt = freehandPoints[0];
-      const lastPt = freehandPoints[freehandPoints.length - 1];
+      // Cập nhật mảng waypoints (dạng mảng của các mảng)
+      currentRouteWaypoints = freehandStrokes.map(stroke => stroke.map(p => [p.lat, p.lng]));
+      
+      const firstPt = freehandStrokes[0][0];
+      const lastStroke = freehandStrokes[freehandStrokes.length - 1];
+      const lastPt = lastStroke[lastStroke.length - 1];
+      
       document.getElementById('zoneLat1').value = firstPt.lat.toFixed(6);
       document.getElementById('zoneLng1').value = firstPt.lng.toFixed(6);
       document.getElementById('zoneLat2').value = lastPt.lat.toFixed(6);
       document.getElementById('zoneLng2').value = lastPt.lng.toFixed(6);
     }
+    currentFreehandStroke = [];
+    freehandPolyline = null;
   }
 
   // Sự kiện Chuột (PC)
@@ -573,10 +575,10 @@ function initMap() {
     }
     
     if (isFreehandDrawing) {
-      const lastPoint = freehandPoints[freehandPoints.length - 1];
+      const lastPoint = currentFreehandStroke[currentFreehandStroke.length - 1];
       if (e.latlng.distanceTo(lastPoint) > 3) {
-        freehandPoints.push(e.latlng);
-        freehandPolyline.setLatLngs(freehandPoints);
+        currentFreehandStroke.push(e.latlng);
+        freehandPolyline.setLatLngs(currentFreehandStroke);
       }
     }
   });
@@ -611,10 +613,10 @@ function initMap() {
     }
     
     if (isFreehandDrawing) {
-      const lastPoint = freehandPoints[freehandPoints.length - 1];
+      const lastPoint = currentFreehandStroke[currentFreehandStroke.length - 1];
       if (e.latlng.distanceTo(lastPoint) > 3) {
-        freehandPoints.push(e.latlng);
-        freehandPolyline.setLatLngs(freehandPoints);
+        currentFreehandStroke.push(e.latlng);
+        freehandPolyline.setLatLngs(currentFreehandStroke);
       }
     }
   });
@@ -627,6 +629,16 @@ function initMap() {
     if (isFreehandDrawing) finishFreehandDrawing();
   });
 }
+
+// Lắng nghe phím C để cắt
+document.addEventListener('keydown', (e) => {
+  if (e.key.toLowerCase() === 'c' && isFreehandMode) {
+    if (isFreehandDrawing) {
+      finishFreehandDrawing();
+      showStatus('statusAvoid', '✂️ Đã cắt nét vẽ. Bạn có thể di chuyển bản đồ và vẽ đoạn mới.', 'success');
+    }
+  }
+});
 
 async function getCoordsFromGmapsUrl(url) {
   if (!url) return { success: false, error: 'Chưa dán link' };
@@ -724,8 +736,17 @@ window.saveAvoidZone = async function() {
   const checkedVehicles = document.querySelectorAll('.zone-vehicle:checked');
   const bannedVehicles = Array.from(checkedVehicles).map(cb => cb.value);
 
-  const firstPoint = currentRouteWaypoints[0];
-  const lastPoint = currentRouteWaypoints[currentRouteWaypoints.length - 1];
+  // Xử lý lấy điểm đầu/cuối cho MultiLineString hoặc LineString
+  let firstPoint, lastPoint;
+  if (Array.isArray(currentRouteWaypoints[0][0])) {
+    const firstLine = currentRouteWaypoints[0];
+    const lastLine = currentRouteWaypoints[currentRouteWaypoints.length - 1];
+    firstPoint = firstLine[0];
+    lastPoint = lastLine[lastLine.length - 1];
+  } else {
+    firstPoint = currentRouteWaypoints[0];
+    lastPoint = currentRouteWaypoints[currentRouteWaypoints.length - 1];
+  }
 
   let startTime = null;
   let endTime = null;
