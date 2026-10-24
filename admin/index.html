@@ -61,6 +61,13 @@
   .pin-avoid-start { background: var(--warning); }
   .pin-avoid-end { background: var(--danger); }
 
+  /* CHECKBOX CHIPS CHO LOẠI XE */
+  .vehicle-checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .vehicle-chip { display: flex; align-items: center; gap: 6px; background: var(--bg-2); border: 1px solid var(--border); padding: 8px 12px; border-radius: 20px; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: all 0.2s; }
+  .vehicle-chip input { display: none; }
+  .vehicle-chip:has(input:checked) { border-color: var(--primary); background: rgba(59,130,246,0.15); color: var(--primary); }
+  .vehicle-chip i { font-size: 1rem; }
+
   .auth-screen { position: fixed; inset: 0; z-index: 9999; background: var(--bg); display: flex; align-items: center; justify-content: center; }
   .auth-box { background: var(--card); padding: 32px; border-radius: 16px; width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 1px solid var(--border); }
   .auth-box h2 { font-size: 1.4rem; margin-bottom: 8px; text-align: center; }
@@ -106,8 +113,8 @@
     <div class="form-group">
       <label>Dán link Google Maps</label>
       <div style="display: flex; gap: 8px;">
-        <input type="text" id="poiGmapsUrl" class="form-control" placeholder="https://maps.app.goo.gl/... hoặc link có @lat,lng">
-        <button class="btn btn-primary" id="btnResolvePoi" onclick="resolveRestStopUrl()" style="padding: 0 16px;" title="Trích xuất tọa độ"><i class="fas fa-search-location"></i></button>
+        <input type="text" id="poiGmapsUrl" class="form-control" placeholder="https://maps.app.goo.gl/...">
+        <button class="btn btn-primary" id="btnResolvePoi" onclick="resolveRestStopUrl()" style="padding: 0 16px;"><i class="fas fa-search-location"></i></button>
       </div>
     </div>
 
@@ -122,7 +129,6 @@
         <input type="text" id="poiLat" class="form-control" placeholder="Vĩ độ (Lat)" oninput="updateRestStopMapFromInputs()">
         <input type="text" id="poiLng" class="form-control" placeholder="Kinh độ (Lng)" oninput="updateRestStopMapFromInputs()">
       </div>
-      <div class="help-text">Hoặc <b>click lên bản đồ</b> để lấy tọa độ.</div>
     </div>
 
     <button class="btn btn-success" id="btnSaveRestStop" onclick="submitRestStop()">
@@ -137,7 +143,7 @@
         <i class="fas fa-pen"></i> Click 2 điểm
       </button>
       <button class="btn btn-outline" id="btnToggleFreehand" onclick="toggleFreehandMode()" style="flex:1;">
-        <i class="fas fa-paint-brush"></i> Bút vẽ tự do
+        <i class="fas fa-paint-brush"></i> Vẽ tự do
       </button>
     </div>
 
@@ -146,18 +152,31 @@
       <input type="text" id="zoneName" class="form-control" placeholder="VD: Cấm tải đường Nguyễn Trãi">
     </div>
 
-    <!-- THỜI GIAN CẤM -->
+    <!-- THỜI GIAN CẤM (KHÔNG BẮT BUỘC) -->
     <div class="form-group" style="background: rgba(16,185,129,0.1); padding: 12px; border-radius: 8px; border: 1px dashed var(--success);">
-      <label style="color: var(--success);"><i class="fas fa-clock"></i> Thời gian cấm (Bỏ trống = Cấm 24/24)</label>
+      <label style="color: var(--success);"><i class="fas fa-clock"></i> Thời gian cấm (Không bắt buộc)</label>
       <div style="display: flex; gap: 8px; margin-top: 6px;">
         <div style="flex:1;">
-          <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Từ lúc:</div>
+          <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Từ lúc (Bỏ trống = Bây giờ):</div>
           <input type="datetime-local" id="zoneStartTime" class="form-control">
         </div>
         <div style="flex:1;">
-          <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Đến lúc:</div>
+          <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Đến lúc (Bỏ trống = Mãi mãi):</div>
           <input type="datetime-local" id="zoneEndTime" class="form-control">
         </div>
+      </div>
+    </div>
+
+    <!-- LOẠI XE BỊ CẤM (KHÔNG BẮT BUỘC) -->
+    <div class="form-group" style="background: rgba(239,68,68,0.1); padding: 12px; border-radius: 8px; border: 1px dashed var(--danger);">
+      <label style="color: var(--danger);"><i class="fas fa-car-crash"></i> Loại xe bị cấm (Bỏ trống = Cấm tất cả)</label>
+      <div class="vehicle-checkbox-group">
+        <label class="vehicle-chip"><input type="checkbox" value="car" class="zone-vehicle"><i class="fas fa-car"></i> Ô tô</label>
+        <label class="vehicle-chip"><input type="checkbox" value="motorcycle" class="zone-vehicle"><i class="fas fa-motorcycle"></i> Xe máy</label>
+        <label class="vehicle-chip"><input type="checkbox" value="truck" class="zone-vehicle"><i class="fas fa-truck"></i> Xe tải</label>
+        <label class="vehicle-chip"><input type="checkbox" value="hd" class="zone-vehicle"><i class="fas fa-motorcycle"></i> Xe CN</label>
+        <label class="vehicle-chip"><input type="checkbox" value="bicycle" class="zone-vehicle"><i class="fas fa-bicycle"></i> Xe đạp</label>
+        <label class="vehicle-chip"><input type="checkbox" value="walking" class="zone-vehicle"><i class="fas fa-walking"></i> Đi bộ</label>
       </div>
     </div>
 
@@ -225,10 +244,10 @@ let isFreehandMode = false;
 let currentRouteWaypoints = null;
 let zoneInputTimeout = null;
 
-// Biến cho việc vẽ tự do
 let isFreehandDrawing = false;
 let freehandPoints = [];
 let freehandPolyline = null;
+let tempFreehandPoints = [];
 
 window.doLogin = async function() {
   const email = document.getElementById('authEmail').value.trim();
@@ -280,12 +299,12 @@ function updateMapCursorClass() {
   const mapEl = document.getElementById('map');
   mapEl.className = '';
   if (isFreehandMode) mapEl.classList.add('freehand');
-  else if (isDrawMode) mapEl.classList.add('no-draw'); // no-draw dùng crosshair mặc định của css
+  else if (isDrawMode) mapEl.classList.add('no-draw');
   else mapEl.classList.add('no-draw');
 }
 
 window.toggleDrawMode = function() {
-  if (isFreehandMode) toggleFreehandMode(); // Tắt freehand nếu đang bật
+  if (isFreehandMode) toggleFreehandMode();
   isDrawMode = !isDrawMode;
   const btn = document.getElementById('btnToggleDraw');
   
@@ -301,7 +320,7 @@ window.toggleDrawMode = function() {
 };
 
 window.toggleFreehandMode = function() {
-  if (isDrawMode) toggleDrawMode(); // Tắt click 2 điểm nếu đang bật
+  if (isDrawMode) toggleDrawMode();
   isFreehandMode = !isFreehandMode;
   const btn = document.getElementById('btnToggleFreehand');
   
@@ -311,7 +330,7 @@ window.toggleFreehandMode = function() {
     resetZoneDrawing();
   } else {
     btn.classList.remove('active');
-    btn.innerHTML = '<i class="fas fa-paint-brush"></i> Bút vẽ tự do';
+    btn.innerHTML = '<i class="fas fa-paint-brush"></i> Vẽ tự do';
   }
   updateMapCursorClass();
 };
@@ -320,6 +339,7 @@ window.resetZoneDrawing = function() {
   pointA = null; pointB = null;
   currentRouteWaypoints = null;
   freehandPoints = [];
+  tempFreehandPoints = [];
   
   if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
   if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
@@ -332,13 +352,10 @@ window.resetZoneDrawing = function() {
   document.getElementById('zoneLng2').value = '';
   document.getElementById('zoneStartTime').value = '';
   document.getElementById('zoneEndTime').value = '';
+  document.querySelectorAll('.zone-vehicle').forEach(cb => cb.checked = false); // Reset checkbox loại xe
 };
 
-// ==========================================
-// HÀM CẬP NHẬT TỌA ĐỘ TỪ BÀN PHÍM (ĐÃ FIX)
-// ==========================================
 window.updateZoneMapFromInputs = function() {
-  // Chuyển dấu phẩy thành dấu chấm (để parseFloat hiểu đúng)
   const lat1Str = document.getElementById('zoneLat1').value.replace(/,/g, '.');
   const lng1Str = document.getElementById('zoneLng1').value.replace(/,/g, '.');
   const lat2Str = document.getElementById('zoneLat2').value.replace(/,/g, '.');
@@ -349,13 +366,11 @@ window.updateZoneMapFromInputs = function() {
   const lat2 = parseFloat(lat2Str);
   const lng2 = parseFloat(lng2Str);
 
-  // 1. KIỂM TRA VÀ VẼ ĐIỂM ĐẦU (A)
   if (!isNaN(lat1) && !isNaN(lng1) && lat1 >= -90 && lat1 <= 90 && lng1 >= -180 && lng1 <= 180) {
     pointA = L.latLng(lat1, lng1);
     if (tempMarkerA) map.removeLayer(tempMarkerA);
     tempMarkerA = L.marker(pointA, { icon: L.divIcon({ html: '<div class="custom-pin pin-avoid-start" style="width: 30px; height: 30px;"><i class="fas fa-map-marker-alt"></i></div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] }) }).addTo(map).bindPopup("Điểm đầu");
     
-    // Nếu chưa có điểm B, bay tới điểm A ngay lập tức
     if (isNaN(lat2) || isNaN(lng2)) {
       map.flyTo([lat1, lng1], 15, { animate: true, duration: 1 });
     }
@@ -364,7 +379,6 @@ window.updateZoneMapFromInputs = function() {
     if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
   }
 
-  // 2. KIỂM TRA VÀ VẼ ĐIỂM CUỐI (B)
   if (!isNaN(lat2) && !isNaN(lng2) && lat2 >= -90 && lat2 <= 90 && lng2 >= -180 && lng2 <= 180) {
     pointB = L.latLng(lat2, lng2);
     if (tempMarkerB) map.removeLayer(tempMarkerB);
@@ -374,7 +388,6 @@ window.updateZoneMapFromInputs = function() {
     if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
   }
 
-  // 3. NẾU CÓ ĐỦ CẢ 2 ĐIỂM -> TỰ ĐỘNG BÁM ĐƯỜNG VÀ ZOOM VỪA VẶN
   if (pointA && pointB) {
     clearTimeout(window._zoneDrawTimer);
     window._zoneDrawTimer = setTimeout(async () => {
@@ -439,7 +452,6 @@ function initMap() {
     maxZoom: 19
   }).addTo(map);
 
-  // SỰ KIỆN CLICK MAP (Cho Rest Stop và Click 2 điểm)
   map.on('click', async (e) => {
     const activeTab = document.querySelector('.tab.active').id;
     const lat = e.latlng.lat;
@@ -483,67 +495,68 @@ function initMap() {
           showStatus('statusAvoid', '⚠️ Không thể bám đường, vẽ đường chim bay!', 'error');
         }
         map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
-        toggleDrawMode(); // Tắt chế độ click 2 điểm sau khi vẽ xong
+        toggleDrawMode();
       }
     }
   });
 
-  // SỰ KIỆN VẼ TỰ DO (FREEHAND)
   map.on('mousedown', (e) => {
     if (!isFreehandMode) return;
     isFreehandDrawing = true;
-    freehandPoints = [e.latlng];
-    if (freehandPolyline) map.removeLayer(freehandPolyline);
-    freehandPolyline = L.polyline(freehandPoints, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
-    map.dragging.disable(); // Khóa kéo bản đồ khi đang vẽ
+    tempFreehandPoints = [e.latlng];
+    map.dragging.disable();
   });
 
   map.on('mousemove', (e) => {
     if (!isFreehandMode || !isFreehandDrawing) return;
-    // Giới hạn khoảng cách giữa các điểm để không lưu quá nhiều tọa độ rác
-    const lastPoint = freehandPoints[freehandPoints.length - 1];
-    if (e.latlng.distanceTo(lastPoint) > 5) { // 5 mét
-      freehandPoints.push(e.latlng);
-      freehandPolyline.setLatLngs(freehandPoints);
+    const lastPoint = tempFreehandPoints[tempFreehandPoints.length - 1];
+    if (e.latlng.distanceTo(lastPoint) > 5) {
+      tempFreehandPoints.push(e.latlng);
+      if (tempFreehandPoints.length === 2) {
+        if (freehandPolyline) map.removeLayer(freehandPolyline);
+        freehandPolyline = L.polyline(tempFreehandPoints, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+      } else {
+        freehandPolyline.setLatLngs(tempFreehandPoints);
+      }
     }
   });
 
   map.on('mouseup', () => {
     if (!isFreehandMode || !isFreehandDrawing) return;
     isFreehandDrawing = false;
-    map.dragging.enable(); // Mở khóa kéo bản đồ
+    map.dragging.enable();
     
-    if (freehandPoints.length > 1) {
+    if (tempFreehandPoints.length > 1) {
+      freehandPoints = [...tempFreehandPoints];
       currentRouteWaypoints = freehandPoints.map(p => [p.lat, p.lng]);
       showStatus('statusAvoid', '✅ Đã ghi nhận nét vẽ tay!', 'success');
       
-      // Lấy tâm của nét vẽ để điền vào ô tọa độ (chỉ để tham khảo)
       const midIdx = Math.floor(freehandPoints.length / 2);
       document.getElementById('zoneLat1').value = freehandPoints[0].lat.toFixed(6);
       document.getElementById('zoneLng1').value = freehandPoints[0].lng.toFixed(6);
       document.getElementById('zoneLat2').value = freehandPoints[midIdx].lat.toFixed(6);
       document.getElementById('zoneLng2').value = freehandPoints[midIdx].lng.toFixed(6);
-      
-      toggleFreehandMode(); // Tắt chế độ vẽ tay sau khi vẽ xong
     }
   });
 
-  // Hỗ trợ vẽ trên điện thoại (Touch)
   map.on('touchstart', (e) => {
     if (!isFreehandMode) return;
     isFreehandDrawing = true;
-    freehandPoints = [e.latlng];
-    if (freehandPolyline) map.removeLayer(freehandPolyline);
-    freehandPolyline = L.polyline(freehandPoints, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+    tempFreehandPoints = [e.latlng];
     map.dragging.disable();
   });
 
   map.on('touchmove', (e) => {
     if (!isFreehandMode || !isFreehandDrawing) return;
-    const lastPoint = freehandPoints[freehandPoints.length - 1];
+    const lastPoint = tempFreehandPoints[tempFreehandPoints.length - 1];
     if (e.latlng.distanceTo(lastPoint) > 5) {
-      freehandPoints.push(e.latlng);
-      freehandPolyline.setLatLngs(freehandPoints);
+      tempFreehandPoints.push(e.latlng);
+      if (tempFreehandPoints.length === 2) {
+        if (freehandPolyline) map.removeLayer(freehandPolyline);
+        freehandPolyline = L.polyline(tempFreehandPoints, { color: '#ef4444', weight: 8, opacity: 0.8, dashArray: '10, 10' }).addTo(map);
+      } else {
+        freehandPolyline.setLatLngs(tempFreehandPoints);
+      }
     }
   });
 
@@ -552,7 +565,8 @@ function initMap() {
     isFreehandDrawing = false;
     map.dragging.enable();
     
-    if (freehandPoints.length > 1) {
+    if (tempFreehandPoints.length > 1) {
+      freehandPoints = [...tempFreehandPoints];
       currentRouteWaypoints = freehandPoints.map(p => [p.lat, p.lng]);
       showStatus('statusAvoid', '✅ Đã ghi nhận nét vẽ tay!', 'success');
       
@@ -561,8 +575,6 @@ function initMap() {
       document.getElementById('zoneLng1').value = freehandPoints[0].lng.toFixed(6);
       document.getElementById('zoneLat2').value = freehandPoints[midIdx].lat.toFixed(6);
       document.getElementById('zoneLng2').value = freehandPoints[midIdx].lng.toFixed(6);
-      
-      toggleFreehandMode();
     }
   });
 }
@@ -651,11 +663,13 @@ window.saveAvoidZone = async function() {
     return showStatus('statusAvoid', 'Vui lòng vẽ hoặc chọn tọa độ tuyến đường trước!', 'error');
   }
 
-  // Lấy tọa độ đầu cuối để lưu fallback
+  // Lấy danh sách loại xe bị cấm
+  const checkedVehicles = document.querySelectorAll('.zone-vehicle:checked');
+  const bannedVehicles = Array.from(checkedVehicles).map(cb => cb.value);
+
   const firstPoint = currentRouteWaypoints[0];
   const lastPoint = currentRouteWaypoints[currentRouteWaypoints.length - 1];
 
-  // Xử lý thời gian
   let startTime = null;
   let endTime = null;
   if (startTimeVal) startTime = new Date(startTimeVal).getTime();
@@ -670,8 +684,9 @@ window.saveAvoidZone = async function() {
       lat2: lastPoint[0],
       lng2: lastPoint[1],
       waypoints: JSON.stringify(currentRouteWaypoints),
-      startTime: startTime, // null nếu không giới hạn
-      endTime: endTime,     // null nếu không giới hạn
+      startTime: startTime,
+      endTime: endTime,
+      bannedVehicles: bannedVehicles, // Mảng chứa các loại xe bị cấm (Rỗng = Cấm tất cả)
       timestamp: Date.now()
     });
     
