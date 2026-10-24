@@ -61,7 +61,6 @@
   .pin-avoid-start { background: var(--warning); }
   .pin-avoid-end { background: var(--danger); }
 
-  /* CHECKBOX CHIPS CHO LOẠI XE */
   .vehicle-checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
   .vehicle-chip { display: flex; align-items: center; gap: 6px; background: var(--bg-2); border: 1px solid var(--border); padding: 8px 12px; border-radius: 20px; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: all 0.2s; }
   .vehicle-chip input { display: none; }
@@ -153,7 +152,6 @@
       <input type="text" id="zoneName" class="form-control" placeholder="VD: Cấm tải đường Nguyễn Trãi">
     </div>
 
-    <!-- THỜI GIAN CẤM (KHÔNG BẮT BUỘC) -->
     <div class="form-group" style="background: rgba(16,185,129,0.1); padding: 12px; border-radius: 8px; border: 1px dashed var(--success);">
       <label style="color: var(--success);"><i class="fas fa-clock"></i> Thời gian cấm (Không bắt buộc)</label>
       <div style="display: flex; gap: 8px; margin-top: 6px;">
@@ -168,7 +166,6 @@
       </div>
     </div>
 
-    <!-- LOẠI XE BỊ CẤM (KHÔNG BẮT BUỘC) -->
     <div class="form-group" style="background: rgba(239,68,68,0.1); padding: 12px; border-radius: 8px; border: 1px dashed var(--danger);">
       <label style="color: var(--danger);"><i class="fas fa-car-crash"></i> Loại xe bị cấm (Bỏ trống = Cấm tất cả)</label>
       <div class="vehicle-checkbox-group">
@@ -241,18 +238,18 @@ let pointA = null;
 let pointB = null;
 let tempMarkerA = null;
 let tempMarkerB = null;
-let tempPolyline = null; // Lưu featureGroup chứa tất cả các đoạn
+let tempPolyline = null; // FeatureGroup chứa các đoạn
 let isDrawMode = false;
 let isFreehandMode = false;
-let currentRouteWaypoints = null; // Mảng các đoạn (MultiLineString)
+let currentRouteWaypoints = null; // Mảng chứa MultiLineString
 let zoneInputTimeout = null;
 
-// Biến cho việc vẽ tự do
+// BIẾN QUAN TRỌNG ĐÃ ĐƯỢC KHAI BÁO LẠI
 let isFreehandDrawing = false;
 let activeFreehandPolyline = null;
 let currentFreehandStroke = [];
+let startLatLng = null; 
 
-// Hàm cập nhật Version để Client biết có data mới
 async function updateVersion(collectionName) {
   try {
     const metaRef = doc(db, "system_meta", "version");
@@ -366,7 +363,6 @@ window.resetZoneDrawing = function() {
   document.querySelectorAll('.zone-vehicle').forEach(cb => cb.checked = false);
 };
 
-// Hàm vẽ tất cả các đoạn đường đã lưu
 function updateDrawnPolylines() {
   if (!tempPolyline) return;
   tempPolyline.clearLayers();
@@ -444,7 +440,6 @@ window.updateZoneMapFromInputs = function() {
       updateDrawnPolylines();
       map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
       
-      // Reset inputs cho đoạn mới
       pointA = null; pointB = null;
       if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
       if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
@@ -550,7 +545,6 @@ function initMap() {
         updateDrawnPolylines();
         map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
 
-        // Reset cho lần click tiếp theo
         pointA = null; pointB = null;
         if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
         if (tempMarkerB) { map.removeLayer(tempMarkerB); tempMarkerB = null; }
