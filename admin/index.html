@@ -1,4 +1,4 @@
-l<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="UTF-8" />
@@ -96,7 +96,7 @@ l<!DOCTYPE html>
 <div class="sidebar">
   <div class="header">
     <h1><i class="fas fa-shield-alt" style="color: var(--primary);"></i> DriveKit Admin</h1>
-    <p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Dữ liệu lưu vào Firestore</p>
+    <p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Dữ liệu lưu vào Firestore & RTDB</p>
   </div>
   
   <div class="tabs">
@@ -209,7 +209,8 @@ l<!DOCTYPE html>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
@@ -224,6 +225,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const rtdb = getDatabase(app);
 
 const GMAPS_WORKER_URL = 'https://gmaps-resolver.anhminhadof123.workers.dev';
 const MAIN_WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
@@ -236,17 +238,18 @@ let pointA = null;
 let pointB = null;
 let tempMarkerA = null;
 let tempMarkerB = null;
-let tempPolyline = null;
+let tempPolyline = null; // FeatureGroup chứa các đoạn
 let isDrawMode = false;
 let isFreehandMode = false;
-let currentRouteWaypoints = null;
+let currentRouteWaypoints = null; // Mảng chứa MultiLineString
 let zoneInputTimeout = null;
 
+// Biến quan trọng cho Vẽ tự do
 let isFreehandDrawing = false;
 let activeFreehandPolyline = null;
 let currentFreehandStroke = [];
 let startLatLng = null; 
-let isFreehandCut = false;
+let isFreehandCut = false; // Cờ đánh dấu: true = cắt đoạn (vẽ rời), false = nối tiếp
 
 async function updateVersion(collectionName) {
   try {
@@ -305,6 +308,7 @@ function updateMapCursorClass() {
   const mapEl = document.getElementById('map');
   mapEl.className = '';
   if (isFreehandMode) mapEl.classList.add('freehand');
+  else if (isDrawMode) mapEl.classList.add('no-draw');
   else mapEl.classList.add('no-draw');
 }
 
@@ -333,7 +337,7 @@ window.toggleFreehandMode = function() {
     btn.classList.add('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Đang vẽ tự do...';
     resetZoneDrawing();
-    showStatus('statusAvoid', '💡 Kéo để di chuyển map. Giữ Shift (PC) hoặc Nhấn giữ 0.5s (Mobile) để vẽ. Ấn phím C để cắt đoạn.', 'loading');
+    showStatus('statusAvoid', '💡 Kéo để di chuyển map. Giữ Shift (PC) hoặc Nhấn giữ 0.5s (Mobile) để vẽ. Ấn phím C để cắt đoạn (tạo nét mới rời rạc).', 'loading');
   } else {
     btn.classList.remove('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Vẽ tự do';
@@ -554,16 +558,19 @@ function initMap() {
     }
   });
 
+  // LOGIC VẼ TỰ DO THÔNG MINH
   function startFreehandDrawing(latlng) {
     isFreehandDrawing = true;
     map.dragging.disable();
     
     let startPt = latlng;
     
+    // Nếu KHÔNG PHẢI là chế độ Cắt (isFreehandCut = false) và đã có nét vẽ trước đó
     if (!isFreehandCut && currentRouteWaypoints && currentRouteWaypoints.length > 0) {
        const lastSeg = currentRouteWaypoints[currentRouteWaypoints.length - 1];
        if (lastSeg && lastSeg.length > 0) {
           const lastPt = lastSeg[lastSeg.length - 1];
+          // Ép điểm bắt đầu của nét mới trùng với điểm cuối của nét cũ để nối liền
           startPt = L.latLng(lastPt[0], lastPt[1]);
        }
     }
@@ -593,10 +600,12 @@ function initMap() {
       const strokeCoords = currentFreehandStroke.map(p => [p.lat, p.lng]);
       
       if (!isFreehandCut && currentRouteWaypoints.length > 0) {
+        // Nối tiếp vào đoạn cũ (bỏ qua điểm đầu tiên vì nó trùng điểm cuối cũ)
         const lastSeg = currentRouteWaypoints[currentRouteWaypoints.length - 1];
         const newPts = strokeCoords.slice(1); 
         currentRouteWaypoints[currentRouteWaypoints.length - 1] = lastSeg.concat(newPts);
       } else {
+        // Nếu vừa bấm C (Cắt) hoặc chưa có đoạn nào -> Tạo đoạn mới rời rạc
         currentRouteWaypoints.push(strokeCoords);
       }
       
@@ -613,9 +622,10 @@ function initMap() {
     }
     
     currentFreehandStroke = [];
-    isFreehandCut = false;
+    isFreehandCut = false; // Reset lại cờ sau khi vẽ xong
   }
 
+  // Sự kiện Chuột (PC)
   map.on('mousedown', (e) => {
     if (!isFreehandMode) return;
     startLatLng = e.latlng;
@@ -658,6 +668,7 @@ function initMap() {
     if (isFreehandDrawing) finishFreehandDrawing();
   });
 
+  // Sự kiện Cảm ứng (Mobile)
   map.on('touchstart', (e) => {
     if (!isFreehandMode) return;
     startLatLng = e.latlng;
@@ -696,12 +707,13 @@ function initMap() {
   });
 }
 
+// Lắng nghe phím C để cắt
 document.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() === 'c' && isFreehandMode) {
     if (isFreehandDrawing) {
       finishFreehandDrawing();
     }
-    isFreehandCut = true;
+    isFreehandCut = true; // Bật cờ cắt: nét tiếp theo sẽ tạo đoạn mới, không nối
     showStatus('statusAvoid', '✂️ Đã cắt nét vẽ. Nét tiếp theo sẽ tạo một đoạn mới rời rạc.', 'success');
   }
 });
@@ -767,7 +779,8 @@ window.submitRestStop = async function() {
       uid: currentUser.uid, authorName: 'Admin', timestamp: Date.now(), upvotes: 0
     };
     
-    await addDoc(collection(db, "rest_stops"), payload);
+    const docRef = await addDoc(collection(db, "rest_stops"), payload);
+    await set(ref(rtdb, `communityPois/${docRef.id}`), payload);
     await updateVersion('rest_stops');
 
     showStatus('statusRestStop', '✅ Đã lưu: ' + name, 'success');
@@ -827,7 +840,8 @@ window.saveAvoidZone = async function() {
       timestamp: Date.now()
     };
 
-    await addDoc(collection(db, "avoid_zones"), payload);
+    const docRef = await addDoc(collection(db, "avoid_zones"), payload);
+    await set(ref(rtdb, `avoid_zones/${docRef.id}`), payload);
     await updateVersion('avoid_zones');
     
     showStatus('statusAvoid', '✅ Đã lưu đoạn cấm thành công!', 'success');
