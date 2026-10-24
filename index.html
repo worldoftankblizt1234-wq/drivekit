@@ -238,6 +238,86 @@ body.navigating .fab-rest-stop-filter { display: none; }
 .live-other-pin i { color: white; font-size: 0.8rem; }
 .avoid-zone-pin { width: 36px; height: 36px; background: linear-gradient(135deg, #ef4444, #b91c1c); border-radius: 50%; border: 2px solid white; box-shadow: 0 3px 8px rgba(239,68,68,0.5); display: flex; align-items: center; justify-content: center; }
 .avoid-zone-pin i { color: white; font-size: 0.9rem; }
+
+/* --- LIVE VIEWER UI --- */
+.live-viewer-controls {
+  position: fixed;
+  bottom: 20%;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 5%;
+  pointer-events: none;
+  z-index: 2000;
+  transition: opacity 0.3s;
+}
+.live-arrow {
+  pointer-events: auto;
+  width: 60px;
+  height: 60px;
+  background: rgba(239, 68, 68, 0.85);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  cursor: pointer;
+  border: 3px solid white;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  transition: transform 0.2s, background 0.2s;
+}
+.live-arrow:active { transform: scale(0.9); background: rgba(220, 38, 38, 1); }
+.live-center-text {
+  pointer-events: auto;
+  background: rgba(15, 23, 42, 0.9);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 1rem;
+  text-align: center;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  backdrop-filter: blur(5px);
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+}
+.live-center-text span.sub { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; }
+
+.live-info-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  background: rgba(15, 23, 42, 0.95);
+  border: 2px solid var(--primary);
+  border-radius: 20px;
+  padding: 24px 30px;
+  z-index: 3000;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  backdrop-filter: blur(10px);
+}
+.live-info-card.show { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+.live-info-card h3 { font-size: 1.4rem; font-weight: 900; color: white; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 10px; text-align: center; }
+.live-info-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 1rem; }
+.live-info-row .label { color: var(--text-muted); font-weight: 600; }
+.live-info-row .value { color: white; font-weight: 800; text-align: right; max-width: 60%; word-break: break-word; }
+
+@media (max-width: 768px) {
+  .live-arrow { width: 45px; height: 45px; font-size: 1.3rem; }
+  .live-center-text { font-size: 0.85rem; padding: 8px 14px; }
+  .live-viewer-controls { bottom: 25%; }
+  .live-info-card { padding: 20px; }
+}
 </style>
 </head>
 <body>
@@ -267,6 +347,7 @@ body.navigating .fab-rest-stop-filter { display: none; }
 </div>
 <div id="appUI" class="hidden">
   <div id="map"></div>
+  
   <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
     <i class="fas fa-search"></i>
     <input type="text" id="topSearchInput" placeholder="Tìm địa điểm hoặc dán link Google Maps..." readonly />
@@ -469,6 +550,9 @@ body.navigating .fab-rest-stop-filter { display: none; }
         <span class="slider"></span>
       </label>
     </div>
+    <button class="profile-btn" onclick="clearAppCache()" style="color: var(--warning); border-color: var(--warning); margin-top:10px;">
+      <span><i class="fas fa-sync-alt"></i> Làm mới dữ liệu (Xoá Cache)</span>
+    </button>
     <div class="profile-card">
       <h3><i class="fas fa-bookmark"></i> Lộ trình đã lưu
         <button onclick="clearAllSavedRoutes()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button>
@@ -670,6 +754,7 @@ let _unsub = { fsRest:null, rtdbCommunity:null, fsPoi:null, fsReports:null, rtdb
 
 let liveEnabled = false;
 let liveRoomCode = null;
+let isLiveHost = false; // Phân biệt chủ phòng
 let liveIsPublic = false;
 let liveGpsInterval = null;
 let liveHeartbeatInterval = null;
@@ -685,7 +770,8 @@ const LIVE_GPS_INTERVAL = 6000;
 const LIVE_ANIM_DURATION = 6000;
 const LIVE_HEARTBEAT_TIMEOUT = 120000;
 let isViewingLiveTrack = false;
-let liveCheckTimeoutInterval = null;
+let activeLiveUsers = []; // Danh sách user đang xem
+let currentLiveIndex = 0; // Vị trí user đang xem
 
 const POI_TAG_CONFIG = {
   supermarket: { icon: 'fa-shopping-cart', label: 'Siêu thị', color: '#10b981' },
@@ -921,13 +1007,76 @@ document.getElementById('btnGoogleAuth').addEventListener('click', async () => {
 
 function logout() { if (liveEnabled) stopLiveSession(); signOut(auth); closeMenu(); }
 
+// Hàm lấy dữ liệu từ cache (LocalStorage) để tiết kiệm Reads
+async function getCachedFirestoreData(collectionName, cacheKey, ttlMs, isUserSub = false) {
+  const now = Date.now();
+  const cachedStr = localStorage.getItem(cacheKey);
+  if (cachedStr) {
+    try {
+      const cached = JSON.parse(cachedStr);
+      if (now - cached.timestamp < ttlMs) {
+        return cached.data; // Dùng cache, 0 reads
+      }
+    } catch (e) {}
+  }
+  try {
+    let path = isUserSub ? `users/${currentUser.uid}/${collectionName}` : collectionName;
+    const snap = await getDocs(collection(fsdb, path));
+    const data = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
+    localStorage.setItem(cacheKey, JSON.stringify({ timestamp: now, data }));
+    return data;
+  } catch (err) {
+    console.warn('Lỗi fetch Firestore:', err);
+    return [];
+  }
+}
+
+window.clearAppCache = function() {
+  if (!confirm('Xoá bộ nhớ đệm dữ liệu? Lần tải tới sẽ đọc lại từ Firebase.')) return;
+  const keysToRemove = ['cache_rest_stops', 'cache_community_pois', 'cache_reports', 'cache_avoid_zones'];
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+  if (currentUser) {
+    keysToRemove.push('cache_saved_places_' + currentUser.uid);
+    keysToRemove.push('cache_history_' + currentUser.uid);
+    keysToRemove.push('cache_saved_routes_' + currentUser.uid);
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  }
+  alert('Đã xoá cache thành công!');
+  window.location.reload();
+};
+
 function initDualDataSubscriptions() {
   if (!currentUser) return;
-  _unsub.fsRest = onSnapshot(collection(fsdb, 'rest_stops'), snap => {
-    _fsRestStops = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
-    recomputeRestStops();
-  }, err => console.warn('FS rest_stops:', err));
 
+  // 1. FIRESTORE (Dùng Cache - TTL 24h cho địa điểm, 1h cho báo cáo)
+  getCachedFirestoreData('rest_stops', 'cache_rest_stops', 24 * 60 * 60 * 1000).then(data => {
+    _fsRestStops = data; recomputeRestStops();
+  });
+  getCachedFirestoreData('community_pois', 'cache_community_pois', 24 * 60 * 60 * 1000).then(data => {
+    _fsCommunityPois = data; recomputeCommunityPois();
+  });
+  getCachedFirestoreData('reports', 'cache_reports', 60 * 60 * 1000).then(data => {
+    _fsReports = {};
+    data.forEach(d => { _fsReports[d.id] = d; });
+    recomputeReports();
+  });
+  getCachedFirestoreData('avoid_zones', 'cache_avoid_zones', 24 * 60 * 60 * 1000).then(data => {
+    _fsAvoidZones = data; recomputeAvoidZones();
+  });
+  getCachedFirestoreData('savedPlaces', 'cache_saved_places_' + currentUser.uid, 60 * 60 * 1000, true).then(data => {
+    _fsSavedPlaces = {};
+    data.forEach(d => { _fsSavedPlaces[d.id] = d; });
+    recomputeSavedPlaces();
+  });
+  getCachedFirestoreData('history', 'cache_history_' + currentUser.uid, 60 * 60 * 1000, true).then(data => {
+    _fsHistory = data; recomputeHistory();
+  });
+  getCachedFirestoreData('savedRoutes', 'cache_saved_routes_' + currentUser.uid, 60 * 60 * 1000, true).then(data => {
+    _fsSavedRoutes = data; recomputeSavedRoutes();
+  });
+
+
+  // 2. REALTIME DATABASE (Giữ nguyên realtime bằng onValue)
   _unsub.rtdbCommunity = onValue(ref(db, 'communityPois'), snap => {
     const data = snap.val() || {};
     const all = Object.entries(data).map(([k, v]) => ({ _id: k, id: k, ...v }));
@@ -937,17 +1086,6 @@ function initDualDataSubscriptions() {
     recomputeCommunityPois();
   }, err => console.warn('RTDB communityPois:', err));
 
-  _unsub.fsPoi = onSnapshot(collection(fsdb, 'community_pois'), snap => {
-    _fsCommunityPois = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
-    recomputeCommunityPois();
-  }, err => console.warn('FS community_pois:', err));
-
-  _unsub.fsReports = onSnapshot(collection(fsdb, 'reports'), snap => {
-    _fsReports = {};
-    snap.docs.forEach(d => { _fsReports[d.id] = { id: d.id, _id: d.id, source: 'firestore', ...d.data() }; });
-    recomputeReports();
-  }, err => console.warn('FS reports:', err));
-
   _unsub.rtdbReports = onValue(ref(db, 'reports'), snap => {
     const data = snap.val() || {};
     _rtdbReports = {};
@@ -955,22 +1093,11 @@ function initDualDataSubscriptions() {
     recomputeReports();
   }, err => console.warn('RTDB reports:', err));
 
-  _unsub.fsAvoid = onSnapshot(collection(fsdb, 'avoid_zones'), snap => {
-    _fsAvoidZones = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
-    recomputeAvoidZones();
-  }, err => console.warn('FS avoid_zones:', err));
-
   _unsub.rtdbAvoid = onValue(ref(db, 'avoid_zones'), snap => {
     const data = snap.val() || {};
     _rtdbAvoidZones = Object.entries(data).map(([k, v]) => ({ id: k, _id: k, source: 'rtdb', ...v }));
     recomputeAvoidZones();
   }, err => console.warn('RTDB avoid_zones:', err));
-
-  _unsub.fsSaved = onSnapshot(collection(fsdb, `users/${currentUser.uid}/savedPlaces`), snap => {
-    _fsSavedPlaces = {};
-    snap.docs.forEach(d => { _fsSavedPlaces[d.id] = { id: d.id, _id: d.id, source: 'firestore', ...d.data() }; });
-    recomputeSavedPlaces();
-  }, err => console.warn('FS savedPlaces:', err));
 
   _unsub.rtdbSaved = onValue(ref(db, `users/${currentUser.uid}/savedPlaces`), snap => {
     const data = snap.val() || {};
@@ -979,21 +1106,11 @@ function initDualDataSubscriptions() {
     recomputeSavedPlaces();
   }, err => console.warn('RTDB savedPlaces:', err));
 
-  _unsub.fsHistory = onSnapshot(collection(fsdb, `users/${currentUser.uid}/history`), snap => {
-    _fsHistory = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
-    recomputeHistory();
-  }, err => console.warn('FS history:', err));
-
   _unsub.rtdbHistory = onValue(ref(db, `users/${currentUser.uid}/history`), snap => {
     const data = snap.val() || {};
     _rtdbHistory = Object.entries(data).map(([k, v]) => ({ id: k, _id: k, source: 'rtdb', ...v }));
     recomputeHistory();
   }, err => console.warn('RTDB history:', err));
-
-  _unsub.fsRoutes = onSnapshot(collection(fsdb, `users/${currentUser.uid}/savedRoutes`), snap => {
-    _fsSavedRoutes = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
-    recomputeSavedRoutes();
-  }, err => console.warn('FS savedRoutes:', err));
 
   _unsub.rtdbRoutes = onValue(ref(db, `users/${currentUser.uid}/savedRoutes`), snap => {
     const data = snap.val() || {};
@@ -1313,17 +1430,45 @@ function renderReportsOnMap() {
 function renderAvoidZonesOnMap() {
   avoidZoneLayers.forEach(l => { try { map.removeLayer(l); } catch(e){} });
   avoidZoneLayers = [];
+  
   allAvoidZones.forEach(zone => {
     if (!zone.lat1 || !zone.lng1 || !zone.lat2 || !zone.lng2) return;
+
+    let polylineCoords = [];
+    
+    // 1. Ưu tiên đọc mảng waypoints (đường uốn lượn bám cua) do Admin lưu
+    if (zone.waypoints) {
+      try {
+        // Vì Admin lưu dạng JSON String nên phải parse ra
+        const parsed = typeof zone.waypoints === 'string' ? JSON.parse(zone.waypoints) : zone.waypoints;
+        if (Array.isArray(parsed) && parsed.length > 1) {
+          polylineCoords = parsed;
+        }
+      } catch (e) {
+        console.warn("Lỗi parse waypoints của vùng cấm:", e);
+      }
+    }
+
+    // 2. Nếu không có waypoints (dữ liệu cũ), mới fallback vẽ đường thẳng
+    if (polylineCoords.length === 0) {
+      polylineCoords = [[zone.lat1, zone.lng1], [zone.lat2, zone.lng2]];
+    }
+
+    // Vẽ đường Polyline theo đúng tọa độ (đường bộ uốn lượn)
     const line = L.polyline(
-      [[zone.lat1, zone.lng1], [zone.lat2, zone.lng2]],
-      { color: '#ef4444', weight: 8, opacity: 0.85, dashArray: '12, 12', lineCap: 'round' }
+      polylineCoords,
+      { color: '#ef4444', weight: 8, opacity: 0.85, dashArray: '12, 12', lineCap: 'round', lineJoin: 'round' }
     ).addTo(map);
-    const midLat = (zone.lat1 + zone.lat2) / 2;
-    const midLng = (zone.lng1 + zone.lng2) / 2;
+    
+    // Đặt cái biển báo cấm ở giữa đường
+    const midIdx = Math.floor(polylineCoords.length / 2);
+    const midLat = polylineCoords[midIdx][0];
+    const midLng = polylineCoords[midIdx][1];
+    
     const icon = L.divIcon({ html: `<div class="avoid-zone-pin"><i class="fas fa-ban"></i></div>`, className: '', iconSize: [36, 36], iconAnchor: [18, 18] });
     const marker = L.marker([midLat, midLng], { icon, zIndexOffset: 400 }).addTo(map);
     marker.bindPopup(`<b>🚫 ${escapeHtml(zone.name || 'Tuyến đường cấm')}</b>`);
+    
     avoidZoneLayers.push(line);
     avoidZoneLayers.push(marker);
   });
@@ -2019,8 +2164,9 @@ function getClosestPointOnSegment(p, a, b) {
 }
 
 function getUserIcon(heading) {
-  const svgIcon = `<div style="transform: rotate(${heading || 0}deg); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L22 20L12 16L2 20L12 2Z" fill="#10b981" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg></div>`;
-  return L.divIcon({ html: svgIcon, className: '', iconSize: [32, 32], iconAnchor: [16, 16] });
+  // Tăng kích thước icon lên 40x40 để làm tâm điểm màn hình
+  const svgIcon = `<div style="transform: rotate(${heading || 0}deg); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L22 20L12 16L2 20L12 2Z" fill="#10b981" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg></div>`;
+  return L.divIcon({ html: svgIcon, className: '', iconSize: [40, 40], iconAnchor: [20, 20] });
 }
 
 function updateUserMarkerOnMap(pos, heading) {
@@ -2080,8 +2226,15 @@ function startWatching() {
     smoothedSpeed = (0.2 * newPos.speed) + (0.8 * smoothedSpeed);
     document.getElementById('hudSpeed').textContent = Math.round(smoothedSpeed * 3.6) + ' km/h';
     if (lastUserPos && !newPos.heading) { const dy = newPos.lat - lastUserPos.lat, dx = newPos.lng - lastUserPos.lng; newPos.heading = 90 - (Math.atan2(dy, dx) * 180 / Math.PI); }
-    lastUserPos = newPos; animateMarkerTo(lastUserPos);
-    if (map) map.panTo([lastUserPos.lat, lastUserPos.lng], { animate: true, duration: 0.5 });
+    
+    lastUserPos = newPos; 
+    animateMarkerTo(lastUserPos);
+    
+    // Giữ marker (xe) luôn ở chính giữa màn hình (Khóa Camera)
+    if (map) {
+      map.setView([lastUserPos.lat, lastUserPos.lng], map.getZoom(), { animate: false });
+    }
+    
     checkReportProximity(lastUserPos.lat, lastUserPos.lng); checkOffRoute(lastUserPos.lat, lastUserPos.lng); checkArrival(lastUserPos.lat, lastUserPos.lng); updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
   }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
 }
@@ -2414,17 +2567,26 @@ async function stopLiveSession() {
   if (liveHeartbeatInterval) { clearInterval(liveHeartbeatInterval); liveHeartbeatInterval = null; }
   if (liveRoomUnsub) { liveRoomUnsub(); liveRoomUnsub = null; }
   if (livePublicUnsub) { livePublicUnsub(); livePublicUnsub = null; }
+  
   if (currentUser && liveRoomCode) {
     await remove(ref(db, `live_rooms/${liveRoomCode}/members/${currentUser.uid}`)).catch(()=>{});
     await remove(ref(db, `public_users/${currentUser.uid}`)).catch(()=>{});
+    
+    // Tự động xoá cả phòng nếu là Host
+    if (isLiveHost) {
+      await remove(ref(db, `live_rooms/${liveRoomCode}`)).catch(()=>{});
+    }
   }
+  
   Object.values(liveMemberAnimStates).forEach(a => { if (a.animId) cancelAnimationFrame(a.animId); });
   Object.values(liveMemberMarkers).forEach(m => { try { map.removeLayer(m); } catch(e){} });
   liveMemberMarkers = {}; liveMemberAnimStates = {};
   if (liveMyAnimState?.animId) cancelAnimationFrame(liveMyAnimState.animId);
   if (liveMyMarker) { try { map.removeLayer(liveMyMarker); } catch(e){} liveMyMarker = null; }
   liveMyAnimState = null;
+  
   liveRoomCode = null; liveIsPublic = false; liveRoomMembers = []; livePublicUsers = [];
+  isLiveHost = false;
   updateLiveUI();
 }
 
@@ -2466,8 +2628,14 @@ window.createLiveRoom = async function(silent) {
   if (!currentUser) return;
   const code = generateLiveRoomCode();
   liveRoomCode = code; liveIsPublic = false;
+  isLiveHost = true; // Đánh dấu là chủ phòng
+  
   try {
     await set(ref(db, `live_rooms/${code}`), { hostUid: currentUser.uid, hostName: currentUser.displayName || currentUser.email.split('@')[0], isPublic: false, createdAt: Date.now() });
+    
+    // Nếu chủ phòng mất mạng, tự xoá cả phòng
+    onDisconnect(ref(db, `live_rooms/${code}`)).remove(); 
+    
     const memberRef = ref(db, `live_rooms/${code}/members/${currentUser.uid}`);
     onDisconnect(memberRef).remove();
     const publicRef = ref(db, `public_users/${currentUser.uid}`);
@@ -2489,6 +2657,7 @@ window.joinLiveRoom = async function() {
     const snap = await get(ref(db, `live_rooms/${code}`));
     if (!snap.exists()) return alert('Không tìm thấy phòng: ' + code);
     liveRoomCode = code; liveIsPublic = false;
+    isLiveHost = false; // Thành viên tham gia
     const memberRef = ref(db, `live_rooms/${code}/members/${currentUser.uid}`);
     onDisconnect(memberRef).remove();
     const publicRef = ref(db, `public_users/${currentUser.uid}`);
@@ -2531,7 +2700,14 @@ window.toggleLivePublic = async function() {
 async function pushLivePositionToRTDB() {
   if (!currentUser || !lastUserPos || !liveRoomCode) return;
   const ts = Date.now();
-  const data = { lat: lastUserPos.lat, lng: lastUserPos.lng, name: currentUser.displayName || currentUser.email.split('@')[0], isPublic: liveIsPublic, lastPing: ts };
+  const data = { 
+    lat: lastUserPos.lat, 
+    lng: lastUserPos.lng, 
+    name: currentUser.displayName || currentUser.email.split('@')[0], 
+    vehicle: currentVehicleMode, // Lưu phương tiện
+    isPublic: liveIsPublic, 
+    lastPing: ts 
+  };
   set(ref(db, `live_rooms/${liveRoomCode}/members/${currentUser.uid}`), data).catch(()=>{});
   if (liveIsPublic) set(ref(db, `public_users/${currentUser.uid}`), { ...data, roomCode: liveRoomCode }).catch(()=>{});
 }
@@ -2633,54 +2809,153 @@ function renderLiveMemberMarkers() {
 async function initViewerLiveRoom(roomCode) {
   isViewingLiveTrack = true;
   map.flyTo(initialCenter, 15);
+  
   const hud = document.createElement('div');
   hud.id = 'liveHud';
   hud.style.cssText = 'position:fixed;top:calc(16px + var(--safe-top));left:50%;transform:translateX(-50%);background:var(--card);border:1px solid #10b981;border-radius:20px;padding:8px 16px;z-index:1000;font-weight:800;font-size:0.85rem;color:#10b981;display:flex;gap:8px;align-items:center;box-shadow:0 4px 15px rgba(16,185,129,0.3);';
   hud.innerHTML = `<i class="fas fa-satellite-dish fa-spin"></i> Phòng: ${roomCode}`;
   document.body.appendChild(hud);
+
+  // UI Điều hướng User (Mũi tên 2 bên)
+  let controls = document.getElementById('liveViewerControls');
+  if (!controls) {
+    controls = document.createElement('div');
+    controls.id = 'liveViewerControls';
+    controls.className = 'live-viewer-controls';
+    controls.innerHTML = `
+      <div class="live-arrow" onclick="switchLiveUser(-1)"><i class="fas fa-chevron-left"></i></div>
+      <div class="live-center-text" id="liveCenterText">
+        Click vô 2 bên mũi tên để chuyển<br><span class="sub">user</span>
+      </div>
+      <div class="live-arrow" onclick="switchLiveUser(1)"><i class="fas fa-chevron-right"></i></div>
+    `;
+    document.body.appendChild(controls);
+  }
+
+  // UI Thẻ thông tin (Tên + Phương tiện + Mã Room)
+  let infoCard = document.getElementById('liveInfoCard');
+  if (!infoCard) {
+    infoCard = document.createElement('div');
+    infoCard.id = 'liveInfoCard';
+    infoCard.className = 'live-info-card';
+    infoCard.innerHTML = `
+      <h3>Thông tin User</h3>
+      <div class="live-info-row"><span class="label"><i class="fas fa-user"></i> Tên:</span><span class="value" id="infoName">—</span></div>
+      <div class="live-info-row"><span class="label"><i class="fas fa-car"></i> Phương tiện:</span><span class="value" id="infoVehicle">—</span></div>
+      <div class="live-info-row"><span class="label"><i class="fas fa-door-open"></i> Mã room:</span><span class="value" id="infoRoom" style="color:var(--success); font-family:var(--font-mono); font-size:1.2rem;">${roomCode}</span></div>
+      <button onclick="document.getElementById('liveInfoCard').classList.remove('show')" style="width:100%; margin-top:15px; padding:12px; background:var(--primary); color:white; border:none; border-radius:10px; font-weight:800; cursor:pointer;">Đóng</button>
+    `;
+    document.body.appendChild(infoCard);
+  }
+
   const membersRef = ref(db, `live_rooms/${roomCode}/members`);
   onValue(membersRef, (snap) => {
     const data = snap.val() || {};
     const now = Date.now();
-    const members = Object.entries(data).map(([uid, m]) => ({ uid, ...m })).filter(m => !m.lastPing || (now - m.lastPing) < LIVE_HEARTBEAT_TIMEOUT);
-    if (members.length === 0) { handleViewerDisconnect(roomCode, false); return; }
-    members.forEach(m => {
+    
+    activeLiveUsers = Object.entries(data)
+      .map(([uid, m]) => ({ uid, ...m }))
+      .filter(m => !m.lastPing || (now - m.lastPing) < LIVE_HEARTBEAT_TIMEOUT);
+
+    if (activeLiveUsers.length === 0) { 
+      handleViewerDisconnect(roomCode, false); 
+      return; 
+    }
+
+    const centerText = document.getElementById('liveCenterText');
+    if (activeLiveUsers.length > 1) {
+      if (centerText) centerText.style.display = 'flex';
+    } else {
+      if (centerText) centerText.style.display = 'none';
+      currentLiveIndex = 0;
+    }
+
+    activeLiveUsers.forEach(m => {
       const existing = liveMemberMarkers[m.uid];
       if (existing) {
         const a = liveMemberAnimStates[m.uid];
         if (a) animateLiveTo(a, m.lat, m.lng);
       } else {
         const icon = L.divIcon({ html: '<div class="live-me-pin"><i class="fas fa-user"></i></div>', className: '', iconSize: [40, 40], iconAnchor: [20, 20] });
-        const marker = L.marker([m.lat, m.lng], { icon, zIndexOffset: 1000 }).addTo(map).bindPopup(`<b>${escapeHtml(m.name)}</b>`).openPopup();
+        const marker = L.marker([m.lat, m.lng], { icon, zIndexOffset: 1000 }).addTo(map).bindPopup(`<b>${escapeHtml(m.name)}</b>`);
         liveMemberMarkers[m.uid] = marker;
         liveMemberAnimStates[m.uid] = { from: { lat: m.lat, lng: m.lng }, to: { lat: m.lat, lng: m.lng }, startTime: performance.now(), duration: LIVE_ANIM_DURATION, marker: marker, animId: null };
-        map.flyTo([m.lat, m.lng], 16, { animate: true, duration: 1.5 });
       }
     });
+    
     Object.keys(liveMemberMarkers).forEach(uid => {
-      if (!members.some(m => m.uid === uid)) {
+      if (!activeLiveUsers.some(m => m.uid === uid)) {
         if (liveMemberAnimStates[uid]?.animId) cancelAnimationFrame(liveMemberAnimStates[uid].animId);
         map.removeLayer(liveMemberMarkers[uid]);
         delete liveMemberMarkers[uid]; delete liveMemberAnimStates[uid];
       }
     });
+
+    if (activeLiveUsers.length > 0 && liveMemberMarkers[activeLiveUsers[0].uid]) {
+      const firstUser = activeLiveUsers[0];
+      map.flyTo([firstUser.lat, firstUser.lng], 16, { animate: true, duration: 1.5 });
+    }
   });
+}
+
+window.switchLiveUser = function(dir) {
+  if (activeLiveUsers.length <= 1) return;
+  currentLiveIndex = (currentLiveIndex + dir + activeLiveUsers.length) % activeLiveUsers.length;
+  const targetUser = activeLiveUsers[currentLiveIndex];
+  
+  if (liveMemberMarkers[targetUser.uid]) {
+    map.flyTo([targetUser.lat, targetUser.lng], 16, { animate: true, duration: 1 });
+    liveMemberMarkers[targetUser.uid].openPopup();
+  }
+  showLiveInfoCard(targetUser);
+};
+
+function showLiveInfoCard(user) {
+  const infoCard = document.getElementById('liveInfoCard');
+  if (!infoCard) return;
+  
+  document.getElementById('infoName').innerHTML = escapeHtml(user.name || 'Không tên');
+  
+  let vehicleLabel = 'Không rõ';
+  let vIcon = 'fa-car';
+  if (user.vehicle === 'driving' || user.vehicle === 'driving-traffic') { vehicleLabel = 'Ô tô'; vIcon = 'fa-car'; }
+  else if (user.vehicle === 'motorcycle' || user.vehicle === 'hd') { vehicleLabel = 'Xe máy'; vIcon = 'fa-motorcycle'; }
+  else if (user.vehicle === 'truck') { vehicleLabel = 'Xe tải'; vIcon = 'fa-truck'; }
+  else if (user.vehicle === 'walking') { vehicleLabel = 'Đi bộ'; vIcon = 'fa-walking'; }
+  else if (user.vehicle === 'bicycle') { vehicleLabel = 'Xe đạp'; vIcon = 'fa-bicycle'; }
+  
+  document.getElementById('infoVehicle').innerHTML = `<i class="fas ${vIcon}"></i> ${vehicleLabel}`;
+  
+  infoCard.classList.add('show');
+  
+  clearTimeout(window._infoCardTimer);
+  window._infoCardTimer = setTimeout(() => {
+    infoCard.classList.remove('show');
+  }, 4000);
 }
 
 function handleViewerDisconnect(roomCode, isTimeout) {
   if (!isViewingLiveTrack) return;
   isViewingLiveTrack = false;
+  
   Object.keys(liveMemberMarkers).forEach(uid => {
     if (liveMemberAnimStates[uid]?.animId) cancelAnimationFrame(liveMemberAnimStates[uid].animId);
     try { map.removeLayer(liveMemberMarkers[uid]); } catch(e){}
   });
   liveMemberMarkers = {}; liveMemberAnimStates = {};
+  activeLiveUsers = [];
+
   const hud = document.getElementById('liveHud');
   if (hud) {
     hud.style.borderColor = 'var(--danger)'; hud.style.color = 'var(--danger)';
     hud.innerHTML = isTimeout ? `<i class="fas fa-exclamation-triangle"></i> Mất kết nối` : `<i class="fas fa-times-circle"></i> Phòng đã đóng`;
     setTimeout(() => hud.remove(), 5000);
   }
+  
+  const controls = document.getElementById('liveViewerControls');
+  if (controls) controls.style.display = 'none';
+  const infoCard = document.getElementById('liveInfoCard');
+  if (infoCard) infoCard.classList.remove('show');
 }
 
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' || e.key === 'Esc') closeDirections(); });
