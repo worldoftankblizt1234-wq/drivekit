@@ -47,6 +47,7 @@ let lastSnapIndex = 0;
 let smoothedSpeed = 0;
 let offRouteCount = 0;
 let isRerouting = false;
+let lastRerouteTime = 0; // Biến chống spam đổi tuyến
 let warnedReports = new Set();
 let voiceEnabled = true;
 let voiceRouteSteps = null;
@@ -1025,8 +1026,11 @@ function startNavigationHUD() {
     updateUIState();
     voiceRouteSteps = currentRouteData.legs[0].steps;
     voiceStepIndex = 0; lastSnapIndex = 0; tripStartTime = Date.now(); arrivalHandled = false;
-    const dist = currentRouteData.distance || 0;
-    const dur = currentRouteData.duration || 0;
+    
+    // SỬA LỖI NaN: Parse an toàn
+    const dist = currentRouteData.legs?.[0]?.distance?.value || currentRouteData.legs?.[0]?.distance || currentRouteData.distance || 0;
+    const dur = currentRouteData.legs?.[0]?.duration?.value || currentRouteData.legs?.[0]?.duration || currentRouteData.duration || 0;
+
     document.getElementById('hudRemainDist').textContent = (dist / 1000).toFixed(1) + ' km';
     document.getElementById('hudRemainTime').textContent = Math.round(dur / 60) + ' phút';
     document.getElementById('hudNextStopName').textContent = endPoint?.name || 'Điểm đến';
@@ -1076,7 +1080,10 @@ window.switchToRoute = function(index) {
   voiceRouteSteps = selectedRoute.legs[0].steps; voiceStepIndex = 0; lastSnapIndex = 0;
   if (currentRouteLayer) map.removeLayer(currentRouteLayer);
   currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
-  map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
+  
+  // KHÔNG ZOOM OUT KHI ĐỔI TUYẾN THỦ CÔNG
+  if (lastUserPos) map.setView([lastUserPos.lat, lastUserPos.lng], map.getZoom(), { animate: true });
+
   document.getElementById('hudRemainDist').textContent = (selectedRoute.distance / 1000).toFixed(1) + ' km';
   document.getElementById('hudRemainTime').textContent = Math.round(selectedRoute.duration / 60) + ' phút';
   closeRouteOptions(); speak('Đã đổi tuyến đường mới.');
@@ -1088,25 +1095,35 @@ function translateInstruction(instr) {
   if (!/[a-zA-Z]/.test(instr)) return instr; // Nếu không có chữ cái tiếng Anh thì giữ nguyên
   
   let text = instr;
+  
+  // Xử lý các cụm từ phức tạp (phải xử lý trước cụm cơ bản)
+  text = text.replace(/Turn sharp left/gi, 'Rẽ trái gắt');
+  text = text.replace(/Turn sharp right/gi, 'Rẽ phải gắt');
+  text = text.replace(/Turn slight left/gi, 'Chếch sang trái');
+  text = text.replace(/Turn slight right/gi, 'Chếch sang phải');
+  text = text.replace(/Make a U-turn/gi, 'Quay đầu');
+  text = text.replace(/Arrive at your destination/gi, 'Đến điểm đến của bạn');
+  
+  // Xử lý cụm cơ bản
+  text = text.replace(/Turn left/gi, 'Rẽ trái');
+  text = text.replace(/Turn right/gi, 'Rẽ phải');
+  text = text.replace(/Continue straight/gi, 'Tiếp tục đi thẳng');
+  text = text.replace(/Continue on/gi, 'Tiếp tục trên');
+  
   text = text.replace(/Head\s+(\w+)/i, function(match, dir) {
      const dirs = { north: 'Bắc', south: 'Nam', east: 'Đông', west: 'Tây', northeast: 'Đông Bắc', northwest: 'Tây Bắc', southeast: 'Đông Nam', southwest: 'Tây Nam' };
      return `Đi về hướng ${dirs[dir.toLowerCase()] || dir}`;
   });
-  text = text.replace(/Turn\s+left/i, 'Rẽ trái');
-  text = text.replace(/Turn\s+right/i, 'Rẽ phải');
-  text = text.replace(/Continue\s+straight/i, 'Tiếp tục đi thẳng');
-  text = text.replace(/Slight\s+left/i, 'Chếch sang trái');
-  text = text.replace(/Slight\s+right/i, 'Chếch sang phải');
-  text = text.replace(/Sharp\s+left/i, 'Rẽ trái gắt');
-  text = text.replace(/Sharp\s+right/i, 'Rẽ phải gắt');
-  text = text.replace(/Make\s+a\s+U-turn/i, 'Quay đầu');
-  text = text.replace(/on\s+/i, 'trên ');
-  text = text.replace(/onto\s+/i, 'vào ');
-  text = text.replace(/toward\s+/i, 'về hướng ');
-  text = text.replace(/Arrive\s+at/i, 'Đến');
-  text = text.replace(/Continue\s+on/i, 'Tiếp tục trên');
-  text = text.replace(/Take\s+the\s+exit/i, 'Đi theo lối ra');
-  text = text.replace(/Enter\s+the\s+roundabout/i, 'Đi vào vòng xuyến');
+  
+  // Xử lý giới từ
+  text = text.replace(/straight ahead/gi, 'phía trước');
+  text = text.replace(/your destination/gi, 'điểm đến');
+  text = text.replace(/on\s+/gi, 'trên ');
+  text = text.replace(/onto\s+/gi, 'vào ');
+  text = text.replace(/toward\s+/gi, 'về hướng ');
+  text = text.replace(/Arrive\s+at/gi, 'Đến');
+  text = text.replace(/Take\s+the\s+exit/gi, 'Đi theo lối ra');
+  text = text.replace(/Enter\s+the\s+roundabout/gi, 'Đi vào vòng xuyến');
   return text;
 }
 
@@ -1168,17 +1185,35 @@ function showArrivalToast() {
 
 function checkOffRoute(userLat, userLng) {
   if (!currentRouteCoords || currentRouteCoords.length < 2 || isRerouting || arrivalHandled) return;
-  let minDist = Infinity; const startScan = Math.max(0, lastSnapIndex - 10); const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 150);
+  
+  // Nếu vừa mới đổi tuyến xong (trong vòng 15 giây), không kiểm tra nữa để tránh nhảy qua nhảy lại
+  if (Date.now() - lastRerouteTime < 15000) return;
+
+  let minDist = Infinity; 
+  const startScan = Math.max(0, lastSnapIndex - 10); 
+  const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 150);
   for (let i = startScan; i < endScan; i++) {
     const pt = getClosestPointOnSegment({ lat: userLat, lng: userLng }, { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] }, { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] });
-    const d = calcDist(userLat, userLng, pt.lat, pt.lng); if (d < minDist) minDist = d;
+    const d = calcDist(userLat, userLng, pt.lat, pt.lng); 
+    if (d < minDist) minDist = d;
   }
-  if (minDist > 50) { offRouteCount++; if (offRouteCount >= 3) { offRouteCount = 0; autoReroute(userLat, userLng); } } else offRouteCount = 0;
+  
+  // Tăng khoảng cách lên 80m (thay vì 50m) để bỏ qua sai số GPS
+  if (minDist > 80) { 
+    offRouteCount++; 
+    if (offRouteCount >= 5) { // Phải sai 5 lần liên tiếp mới đổi đường
+      offRouteCount = 0; 
+      autoReroute(userLat, userLng); 
+    } 
+  } else {
+    offRouteCount = 0;
+  }
 }
 
 async function autoReroute(userLat, userLng) {
   if (isRerouting) return; 
   isRerouting = true;
+  lastRerouteTime = Date.now(); // Ghi nhận thời gian đổi tuyến
   
   const currentMode = currentRouteData?.mode || (currentVehicleMode === 'none' ? 'driving' : currentVehicleMode);
   
@@ -1194,6 +1229,23 @@ async function autoReroute(userLat, userLng) {
     if (!r.legs || !Array.isArray(r.legs) || r.legs.length === 0) r.legs = [{ steps: [] }];
     if (!r.legs[0].steps) r.legs[0].steps = [];
     
+    // SỬA LỖI NaN: Parse an toàn
+    const dist = r.legs[0]?.distance?.value || r.legs[0]?.distance || r.distance || 0;
+    const dur = r.legs[0]?.duration?.value || r.legs[0]?.duration || r.duration || 0;
+
+    // BỘ LỌC QUAN TRỌNG: Nếu đường mới dài hơn đường cũ > 20% thì BỎ QUA, không đổi tuyến!
+    if (currentRouteData && currentRouteData.distance > 500) {
+      const oldDist = currentRouteData.distance;
+      if (dist > oldDist * 1.2) {
+        console.log('[Reroute] Bỏ qua tuyến mới vì dài hơn tuyến cũ quá nhiều.');
+        isRerouting = false;
+        return; 
+      }
+    }
+
+    r.distance = dist;
+    r.duration = dur;
+
     currentRouteData = r; 
     voiceRouteSteps = r.legs[0].steps; 
     voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
@@ -1202,17 +1254,18 @@ async function autoReroute(userLat, userLng) {
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
     currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
     
-    map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
+    // KHÔNG DÙNG map.fitBounds NỮA, giữ nguyên mức zoom hiện tại
+    map.setView([userLat, userLng], map.getZoom(), { animate: true });
     
-    document.getElementById('hudRemainDist').textContent = (r.distance / 1000).toFixed(1) + ' km';
-    document.getElementById('hudRemainTime').textContent = Math.round(r.duration / 60) + ' phút';
+    document.getElementById('hudRemainDist').textContent = (dist / 1000).toFixed(1) + ' km';
+    document.getElementById('hudRemainTime').textContent = Math.round(dur / 60) + ' phút';
     
     updateNextManeuverHUD(userLat, userLng);
-    speak('Đã tìm lại lộ trình mới.');
+    speak('Đã cập nhật lộ trình.');
     
   } catch (e) { 
     console.error('Lỗi Reroute:', e); 
-    setTimeout(() => { isRerouting = false; }, 3000); 
+    setTimeout(() => { isRerouting = false; }, 5000); 
     return;
   } 
   isRerouting = false; 
@@ -1588,32 +1641,79 @@ function updateUserMarkerOnMap(pos, heading) {
 
 function animateMarkerTo(targetPos) {
   if (!userMarker) { updateUserMarkerOnMap(targetPos, targetPos.heading); return; }
+  
   let snappedLat = targetPos.lat, snappedLng = targetPos.lng, targetHeading = targetPos.heading;
+  
   if (currentRouteCoords && currentRouteCoords.length > 1 && lastSnapIndex < currentRouteCoords.length - 1) {
     let minDist = Infinity, bestPoint = null, bestSegmentIndex = lastSnapIndex;
-    const startScan = Math.max(0, lastSnapIndex - 5); const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 50);
+    // Quét rộng hơn để chắc chắn tìm được điểm gần nhất
+    const startScan = Math.max(0, lastSnapIndex - 2); 
+    const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 100);
+    
     for (let i = startScan; i < endScan; i++) {
-      const pt = getClosestPointOnSegment({ lat: targetPos.lat, lng: targetPos.lng }, { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] }, { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] });
-      const d = calcDist(targetPos.lat, targetPos.lng, pt.lat, pt.lng); if (d < minDist) { minDist = d; bestPoint = pt; bestSegmentIndex = i; if (i > lastSnapIndex) lastSnapIndex = i; }
+      const pt = getClosestPointOnSegment(
+        { lat: targetPos.lat, lng: targetPos.lng }, 
+        { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] }, 
+        { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] }
+      );
+      const d = calcDist(targetPos.lat, targetPos.lng, pt.lat, pt.lng); 
+      if (d < minDist) { 
+        minDist = d; 
+        bestPoint = pt; 
+        bestSegmentIndex = i; 
+      }
     }
-    if (bestPoint && minDist < 40) {
-      const p1 = currentRouteCoords[bestSegmentIndex]; const p2 = currentRouteCoords[bestSegmentIndex + 1];
-      const angle = Math.atan2(p2[0] - p1[0], p2[1] - p1[1]);
-      snappedLat = bestPoint.lat + Math.cos(angle) * 0.00003; snappedLng = bestPoint.lng - Math.sin(angle) * 0.00003; targetHeading = (angle * 180 / Math.PI) + 90;
+    
+    // Nếu khoảng cách tới đường < 60m (trong mức GPS sai số), snap thẳng vào đường
+    if (bestPoint && minDist < 60) {
+      // SNAP CHÍNH XÁC VÀO ĐIỂM TRÊN ĐƯỜNG (Xoá bỏ hoàn toàn offset 0.00003 cũ)
+      snappedLat = bestPoint.lat; 
+      snappedLng = bestPoint.lng; 
+      
+      // Chỉ tiến lastSnapIndex, không cho lùi lại (tránh giật lag)
+      if (bestSegmentIndex > lastSnapIndex) {
+        lastSnapIndex = bestSegmentIndex;
+      }
+      
+      // Tính góc quay của xe
+      const p1 = currentRouteCoords[bestSegmentIndex]; 
+      const p2 = currentRouteCoords[bestSegmentIndex + 1];
+      
+      // Nếu GPS có hướng và xe đang di chuyển (tốc độ > 5.4 km/h), ưu tiên xoay theo hướng GPS thực tế
+      // Giúp mũi tên mượt mà không bị khựng khi qua ngã rẽ
+      if (targetPos.heading && targetPos.speed > 1.5) {
+         targetHeading = targetPos.heading;
+      } else {
+         const angle = Math.atan2(p2[0] - p1[0], p2[1] - p1[1]);
+         targetHeading = (angle * 180 / Math.PI) + 90;
+      }
     }
   }
+  
+  // Cắt bớt phần đuôi đường đã đi qua để bản đồ nhẹ hơn
   if (currentRouteCoords && currentRouteCoords.length > 0 && lastSnapIndex > 0 && currentRouteLayer) {
     const remaining = currentRouteCoords.slice(lastSnapIndex);
-    if (remaining.length > 1) currentRouteLayer.setLatLngs(remaining); else { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
+    if (remaining.length > 1) {
+      currentRouteLayer.setLatLngs(remaining); 
+    } else { 
+      map.removeLayer(currentRouteLayer); 
+      currentRouteLayer = null; 
+    }
   }
+  
+  // Animation di chuyển mượt mà
   const startLat = userMarker.getLatLng().lat, startLng = userMarker.getLatLng().lng;
   const startTime = performance.now(), duration = 1000;
+  
   function step(time) {
-    const progress = Math.min((time - startTime) / duration, 1); const ease = 1 - Math.pow(1 - progress, 3);
-    userMarker.setLatLng([startLat + (snappedLat - startLat) * ease, startLng + (snappedLng - startLng) * ease]); userMarker.setIcon(getUserIcon(targetHeading));
+    const progress = Math.min((time - startTime) / duration, 1); 
+    const ease = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+    userMarker.setLatLng([startLat + (snappedLat - startLat) * ease, startLng + (snappedLng - startLng) * ease]); 
+    userMarker.setIcon(getUserIcon(targetHeading));
     if (progress < 1) requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
+  
   if (gpsCircle) map.removeLayer(gpsCircle);
   gpsCircle = L.circle([snappedLat, snappedLng], { radius: targetPos.accuracy || 10, color: '#10b981', fillColor: '#10b981', fillOpacity: 0.15, weight: 1 }).addTo(map);
 }
