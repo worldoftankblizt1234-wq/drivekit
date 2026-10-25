@@ -975,6 +975,14 @@ function startNavigationHUD() {
     document.getElementById('hudRemainDist').textContent = (dist / 1000).toFixed(1) + ' km';
     document.getElementById('hudRemainTime').textContent = Math.round(dur / 60) + ' phút';
     document.getElementById('hudNextStopName').textContent = endPoint?.name || 'Điểm đến';
+    
+    // FIX LỖI ZOOM OUT: Luôn ép zoom về 18 và bám vào vị trí hiện tại khi bắt đầu
+    if (lastUserPos) {
+        map.setView([lastUserPos.lat, lastUserPos.lng], 18, { animate: true });
+    } else if (startPoint) {
+        map.setView([startPoint.lat, startPoint.lng], 18, { animate: true });
+    }
+
     startWatching(); 
     startVoice(); 
     saveHistoryToFirestore(startPoint, endPoint, dist);
@@ -1022,7 +1030,10 @@ window.switchToRoute = function(index) {
   if (currentRouteLayer) map.removeLayer(currentRouteLayer);
   currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
   
-  if (lastUserPos) map.setView([lastUserPos.lat, lastUserPos.lng], map.getZoom(), { animate: true });
+  // FIX LỖI ZOOM OUT: Ép zoom về 18 và bám vào vị trí hiện tại
+  if (lastUserPos) {
+      map.setView([lastUserPos.lat, lastUserPos.lng], 18, { animate: true });
+  }
 
   document.getElementById('hudRemainDist').textContent = (selectedRoute.distance / 1000).toFixed(1) + ' km';
   document.getElementById('hudRemainTime').textContent = Math.round(selectedRoute.duration / 60) + ' phút';
@@ -1181,7 +1192,8 @@ async function autoReroute(userLat, userLng) {
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
     currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
     
-    map.setView([userLat, userLng], map.getZoom(), { animate: true });
+    // FIX LỖI ZOOM OUT: Ép zoom về 18 và bám vào vị trí hiện tại
+    map.setView([userLat, userLng], 18, { animate: true });
     
     document.getElementById('hudRemainDist').textContent = (dist / 1000).toFixed(1) + ' km';
     document.getElementById('hudRemainTime').textContent = Math.round(dur / 60) + ' phút';
