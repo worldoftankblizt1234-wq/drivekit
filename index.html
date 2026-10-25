@@ -3,214 +3,467 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Test Search — So sánh API</title>
+<title>Test Search — RAW LOG</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; min-height: 100vh; }
-  h1 { font-size: 1.4rem; margin-bottom: 20px; color: #3b82f6; }
-  .search-bar { display: flex; gap: 10px; margin-bottom: 20px; }
-  input { flex: 1; padding: 14px 18px; border-radius: 12px; border: 2px solid #334155; background: #1e293b; color: white; font-size: 1rem; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, monospace; background: #0f172a; color: #e2e8f0; padding: 16px; min-height: 100vh; }
+  h1 { font-size: 1.3rem; margin-bottom: 16px; color: #3b82f6; }
+  .search-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  input { flex: 1; min-width: 250px; padding: 12px 16px; border-radius: 10px; border: 2px solid #334155; background: #1e293b; color: white; font-size: 0.95rem; }
   input:focus { outline: none; border-color: #3b82f6; }
-  button { padding: 14px 28px; border-radius: 12px; border: none; background: #3b82f6; color: white; font-weight: 700; cursor: pointer; font-size: 1rem; }
+  button { padding: 12px 24px; border-radius: 10px; border: none; background: #3b82f6; color: white; font-weight: 700; cursor: pointer; font-size: 0.95rem; }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.ghost { background: #334155; }
   button:hover:not(:disabled) { background: #2563eb; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 16px; }
-  .panel { background: #1e293b; border-radius: 16px; border: 1px solid #334155; overflow: hidden; }
-  .panel-header { padding: 14px 18px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
-  .panel-header h2 { font-size: 1rem; color: #f1f5f9; }
-  .badge { padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 800; }
-  .badge.goong { background: #fef3c7; color: #92400e; }
-  .badge.mapbox { background: #dbeafe; color: #1e40af; }
-  .badge.hybrid { background: #ddd6fe; color: #5b21b6; }
+  button.ghost:hover:not(:disabled) { background: #475569; }
+  
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  
+  .panel { background: #1e293b; border-radius: 12px; border: 1px solid #334155; overflow: hidden; display: flex; flex-direction: column; }
+  .panel-header { padding: 12px 16px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .panel-header h2 { font-size: 0.95rem; color: #f1f5f9; }
+  .badge { padding: 3px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 800; }
   .badge.ok { background: #d1fae5; color: #065f46; }
   .badge.fail { background: #fee2e2; color: #991b1b; }
-  .results { padding: 8px; max-height: 500px; overflow-y: auto; }
-  .result-item { padding: 12px 14px; border-radius: 10px; margin-bottom: 6px; background: #0f172a; border-left: 3px solid #334155; cursor: pointer; transition: 0.15s; }
-  .result-item:hover { border-left-color: #3b82f6; transform: translateX(2px); }
+  .badge.wait { background: #e0e7ff; color: #3730a3; }
+  .badge.hybrid { background: #ddd6fe; color: #5b21b6; }
+  .badge.mapbox { background: #dbeafe; color: #1e40af; }
+  
+  .results { padding: 8px; max-height: 350px; overflow-y: auto; }
+  .result-item { padding: 10px 12px; border-radius: 8px; margin-bottom: 4px; background: #0f172a; border-left: 3px solid #334155; cursor: pointer; font-size: 0.85rem; }
+  .result-item:hover { border-left-color: #3b82f6; }
   .result-item.highlight { border-left-color: #10b981; background: #064e3b33; }
-  .result-item.wrong { border-left-color: #ef4444; opacity: 0.6; }
-  .result-name { font-weight: 700; font-size: 0.9rem; margin-bottom: 3px; color: #f1f5f9; }
-  .result-addr { font-size: 0.75rem; color: #94a3b8; line-height: 1.4; }
-  .result-meta { display: flex; gap: 8px; margin-top: 5px; font-size: 0.65rem; }
-  .result-meta span { padding: 2px 6px; border-radius: 4px; background: #334155; color: #cbd5e1; }
-  .loading { text-align: center; padding: 40px; color: #64748b; }
-  .spinner { width: 30px; height: 30px; border: 3px solid #334155; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 10px; }
-  @keyframes spin { 100% { transform: rotate(360deg); } }
-  .stats { padding: 10px 18px; background: #0f172a; font-size: 0.8rem; color: #94a3b8; display: flex; gap: 16px; }
+  .result-item.wrong { border-left-color: #ef4444; opacity: 0.65; }
+  .result-name { font-weight: 700; color: #f1f5f9; margin-bottom: 2px; }
+  .result-addr { font-size: 0.72rem; color: #94a3b8; line-height: 1.3; }
+  
+  .stats { padding: 8px 16px; background: #0f172a; font-size: 0.78rem; color: #94a3b8; display: flex; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid #334155; }
   .stats b { color: #f1f5f9; }
-  .footer { margin-top: 20px; padding: 16px; background: #1e293b; border-radius: 12px; font-size: 0.85rem; color: #94a3b8; }
-  .footer code { background: #0f172a; padding: 2px 8px; border-radius: 4px; color: #fbbf24; font-family: monospace; }
-  .manual-link { display: inline-block; margin-top: 8px; color: #60a5fa; text-decoration: none; }
-  .manual-link:hover { text-decoration: underline; }
+  
+  .raw-panel { background: #0a0f1a; border-radius: 12px; border: 1px solid #334155; margin-bottom: 12px; overflow: hidden; }
+  .raw-header { padding: 10px 14px; background: #1e293b; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+  .raw-header h3 { font-size: 0.85rem; color: #fbbf24; font-family: monospace; }
+  .raw-header .actions { display: flex; gap: 8px; }
+  .raw-btn { padding: 4px 10px; border-radius: 6px; border: none; background: #334155; color: #cbd5e1; font-size: 0.7rem; cursor: pointer; font-family: monospace; }
+  .raw-btn:hover { background: #475569; }
+  .raw-content { padding: 12px 14px; font-family: 'Courier New', Consolas, monospace; font-size: 0.72rem; line-height: 1.5; color: #cbd5e1; max-height: 400px; overflow: auto; white-space: pre-wrap; word-break: break-all; display: none; }
+  .raw-content.show { display: block; }
+  .raw-content .key { color: #fbbf24; }
+  .raw-content .string { color: #86efac; }
+  .raw-content .number { color: #f472b6; }
+  .raw-content .boolean { color: #60a5fa; }
+  .raw-content .null { color: #94a3b8; }
+  
+  .url-box { padding: 8px 14px; background: #0f172a; font-family: monospace; font-size: 0.72rem; color: #60a5fa; word-break: break-all; border-bottom: 1px solid #334155; }
+  .url-box .label { color: #64748b; }
+  
+  .loading { text-align: center; padding: 30px; color: #64748b; font-size: 0.85rem; }
+  .spinner { width: 26px; height: 26px; border: 3px solid #334155; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 8px; }
+  @keyframes spin { 100% { transform: rotate(360deg); } }
+  
+  .diff-summary { background: #1e293b; border-radius: 12px; border: 1px solid #334155; padding: 14px; margin-bottom: 12px; }
+  .diff-summary h3 { font-size: 0.9rem; color: #fbbf24; margin-bottom: 10px; }
+  .diff-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #33415533; font-size: 0.82rem; }
+  .diff-row:last-child { border-bottom: none; }
+  .diff-row .label { color: #94a3b8; }
+  .diff-row .value { color: #f1f5f9; font-weight: 700; font-family: monospace; }
+  .diff-row .value.good { color: #10b981; }
+  .diff-row .value.bad { color: #ef4444; }
+  
+  .toast { position: fixed; top: 20px; right: 20px; background: #10b981; color: white; padding: 10px 18px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; z-index: 9999; opacity: 0; transition: 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  
+  .footer { margin-top: 12px; padding: 14px; background: #1e293b; border-radius: 12px; font-size: 0.82rem; color: #94a3b8; line-height: 1.7; }
+  .footer b { color: #f1f5f9; }
 </style>
 </head>
 <body>
 
-<h1>🔍 So sánh API Tìm Kiếm</h1>
+<h1>🔬 RAW LOG — So sánh API Tìm Kiếm</h1>
 
 <div class="search-bar">
   <input type="text" id="searchInput" placeholder="VD: Dinh Độc Lập đường Nam Kỳ Khởi Nghĩa" value="Dinh Độc Lập đường Nam Kỳ Khởi Nghĩa">
-  <button id="testBtn" onclick="runTest()">Test tất cả</button>
+  <button id="testBtn" onclick="runTest()">▶ Test tất cả</button>
+  <button class="ghost" onclick="downloadLogs()">⬇ Tải Log (.json)</button>
+  <button class="ghost" onclick="clearLogs()">🗑 Xoá</button>
+</div>
+
+<div class="diff-summary" id="diffSummary" style="display:none;">
+  <h3>📊 So sánh tổng quan</h3>
+  <div id="diffContent"></div>
 </div>
 
 <div class="grid">
-  <!-- Hybrid (Goong ưu tiên) -->
   <div class="panel">
     <div class="panel-header">
       <h2>🚀 Hybrid (Goong → Mapbox)</h2>
-      <span class="badge hybrid" id="badgeHybrid">Chờ test</span>
+      <span class="badge hybrid" id="badgeHybrid">Chờ</span>
     </div>
     <div class="stats" id="statsHybrid">—</div>
-    <div class="results" id="resultsHybrid">
-      <div class="loading">Nhập từ khóa và bấm Test</div>
-    </div>
+    <div class="results" id="resultsHybrid"><div class="loading">Chưa test</div></div>
   </div>
 
-  <!-- Mapbox only -->
   <div class="panel">
     <div class="panel-header">
-      <h2>🗺️ Mapbox Search</h2>
-      <span class="badge mapbox" id="badgeMapbox">Chờ test</span>
+      <h2>🗺️ Mapbox Only</h2>
+      <span class="badge mapbox" id="badgeMapbox">Chờ</span>
     </div>
     <div class="stats" id="statsMapbox">—</div>
-    <div class="results" id="resultsMapbox">
-      <div class="loading">Nhập từ khóa và bấm Test</div>
-    </div>
+    <div class="results" id="resultsMapbox"><div class="loading">Chưa test</div></div>
   </div>
 </div>
+
+<!-- Raw log panels -->
+<div id="rawPanels"></div>
 
 <div class="footer">
-  <b>💡 Cách đọc kết quả:</b>
-  <ul style="margin-top: 8px; padding-left: 20px; line-height: 1.8;">
-    <li>Kết quả có <span style="color:#10b981; font-weight:700;">viền xanh lá</span> = có chứa từ khóa bạn tìm (khớp)</li>
-    <li>Kết quả có <span style="color:#ef4444; font-weight:700;">viền đỏ mờ</span> = không liên quan (rác)</li>
-    <li>So sánh số kết quả <b>khớp</b> để biết API nào tìm tốt hơn</li>
-  </ul>
-  <div style="margin-top: 12px;">
-    <b>🔗 Verify thủ công:</b> 
-    <a class="manual-link" id="googleLink" href="#" target="_blank">Mở Google Maps để đối chiếu →</a>
-  </div>
+  <b>💡 Mẹo:</b> Mở DevTools (F12) → tab <b>Console</b> để xem log đầy đủ.<br>
+  <b>🎯 Badge:</b> <span style="color:#10b981;">✓ N/M</span> = có N kết quả khớp trên tổng M kết quả trả về. Số càng cao càng tốt.
 </div>
 
+<div class="toast" id="toast"></div>
+
 <script>
-  // ⚠️ DÁN WORKER URL CỦA BẠN VÀO ĐÂY
+  // ============================================================
+  // ⚠️ CẤU HÌNH
+  // ============================================================
   const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
+  
+  // Từ khóa cần khớp (tự động lấy từ câu search, hoặc thêm thủ công)
+  let KEYWORDS_TO_MATCH = [];
 
-  // Từ khóa cần kiểm tra khớp
-  const KEYWORDS_TO_MATCH = ['dinh độc lập', 'nam kỳ khởi nghĩa', 'nam ky khoi nghia'];
+  // Lưu raw logs để tải về
+  let ALL_LOGS = [];
 
-  function matchesKeyword(text) {
-    const t = (text || '').toLowerCase();
-    return KEYWORDS_TO_MATCH.some(k => t.includes(k));
-  }
-
+  // ============================================================
+  // TIỆN ÍCH
+  // ============================================================
   function normalizeText(s) {
     return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
   }
 
-  function countMatches(results) {
-    return results.filter(r => matchesKeyword(r.name) || matchesKeyword(r.formatted_address) || matchesKeyword(normalizeText(r.name)) || matchesKeyword(normalizeText(r.formatted_address))).length;
-  }
-
-  async function testEndpoint(name, url, containerId, statsId, badgeId) {
-    const container = document.getElementById(containerId);
-    const statsEl = document.getElementById(statsId);
-    const badgeEl = document.getElementById(badgeId);
-    
-    container.innerHTML = '<div class="loading"><div class="spinner"></div>Đang tìm...</div>';
-    statsEl.textContent = 'Đang xử lý...';
-    badgeEl.textContent = '⏳';
-    badgeEl.className = 'badge';
-
-    const startTime = performance.now();
-    try {
-      const res = await fetch(url);
-      const data = await res.json();
-      const latency = Math.round(performance.now() - startTime);
-      
-      const results = data.results || data.predictions || data.features || [];
-      
-      if (results.length === 0) {
-        container.innerHTML = '<div class="loading" style="color:#ef4444;">Không có kết quả nào</div>';
-        statsEl.innerHTML = `<span>⏱️ <b>${latency}ms</b></span> <span>📭 <b>0</b> kết quả</span>`;
-        badgeEl.textContent = 'FAIL';
-        badgeEl.classList.add('fail');
-        return;
-      }
-
-      const matchCount = countMatches(results);
-      const matchRate = Math.round(matchCount / results.length * 100);
-
-      statsEl.innerHTML = `<span>⏱️ <b>${latency}ms</b></span> <span>📊 <b>${results.length}</b> kết quả</span> <span>✅ <b>${matchCount}</b> khớp (${matchRate}%)</span>`;
-      
-      if (matchCount > 0) {
-        badgeEl.textContent = `✓ ${matchCount}/${results.length}`;
-        badgeEl.classList.add('ok');
-      } else {
-        badgeEl.textContent = `✗ 0/${results.length}`;
-        badgeEl.classList.add('fail');
-      }
-
-      container.innerHTML = '';
-      results.slice(0, 20).forEach((r, i) => {
-        const name = r.name || r.formatted_address || r.properties?.name || 'Không tên';
-        const address = r.formatted_address || r.properties?.full_address || r.full_address || '';
-        const lat = r.geometry?.location?.lat || r.lat || r.properties?.coordinates?.latitude || r.geometry?.coordinates?.[1];
-        const lng = r.geometry?.location?.lng || r.lng || r.lon || r.properties?.coordinates?.longitude || r.geometry?.coordinates?.[0];
-        const provider = r.provider || name.split(' ')[0] || 'unknown';
-        
-        const isMatch = matchesKeyword(name) || matchesKeyword(address) || matchesKeyword(normalizeText(name)) || matchesKeyword(normalizeText(address));
-        const isWrong = !isMatch;
-        
-        const div = document.createElement('div');
-        div.className = 'result-item' + (isMatch ? ' highlight' : '') + (isWrong ? ' wrong' : '');
-        div.innerHTML = `
-          <div class="result-name">${i + 1}. ${escapeHtml(name)}</div>
-          ${address && address !== name ? `<div class="result-addr">${escapeHtml(address)}</div>` : ''}
-          <div class="result-meta">
-            ${provider ? `<span>${escapeHtml(provider.toUpperCase())}</span>` : ''}
-            <span>${lat?.toFixed(5) || '?'}, ${lng?.toFixed(5) || '?'}</span>
-          </div>
-        `;
-        div.onclick = () => window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
-        container.appendChild(div);
-      });
-
-    } catch (e) {
-      container.innerHTML = `<div class="loading" style="color:#ef4444;">❌ Lỗi: ${e.message}</div>`;
-      statsEl.textContent = 'Lỗi';
-      badgeEl.textContent = 'ERROR';
-      badgeEl.classList.add('fail');
-    }
+  function matchesKeyword(text) {
+    if (!text) return false;
+    const t = normalizeText(text);
+    return KEYWORDS_TO_MATCH.some(k => t.includes(normalizeText(k)));
   }
 
   function escapeHtml(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  async function runTest() {
-    const query = document.getElementById('searchInput').value.trim();
-    if (!query) return alert('Nhập từ khóa cần tìm!');
-
-    document.getElementById('testBtn').disabled = true;
-    document.getElementById('testBtn').textContent = 'Đang test...';
-
-    // Update Google Maps link
-    document.getElementById('googleLink').href = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
-
-    await Promise.all([
-      testEndpoint('Hybrid', `${WORKER_URL}/trackasia-search?query=${encodeURIComponent(query)}`, 'resultsHybrid', 'statsHybrid', 'badgeHybrid'),
-      testEndpoint('Mapbox', `${WORKER_URL}/mapbox-search?query=${encodeURIComponent(query)}`, 'resultsMapbox', 'statsMapbox', 'badgeMapbox')
-    ]);
-
-    document.getElementById('testBtn').disabled = false;
-    document.getElementById('testBtn').textContent = 'Test tất cả';
+  function syntaxHighlight(json) {
+    if (typeof json !== 'string') json = JSON.stringify(json, null, 2);
+    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+      let cls = 'number';
+      if (/^"/.test(match)) {
+        if (/:$/.test(match)) cls = 'key';
+        else cls = 'string';
+      } else if (/true|false/.test(match)) cls = 'boolean';
+      else if (/null/.test(match)) cls = 'null';
+      return '<span class="' + cls + '">' + match + '</span>';
+    });
   }
 
-  // Auto test khi mở trang
-  window.addEventListener('load', () => setTimeout(runTest, 300));
-  
-  // Enter để test
+  function showToast(msg, color = '#10b981') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = color;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  // ============================================================
+  // TEST 1 ENDPOINT + LOG RAW
+  // ============================================================
+  async function testEndpoint(providerKey, providerName, url, resultsId, statsId, badgeId) {
+    const container = document.getElementById(resultsId);
+    const statsEl = document.getElementById(statsId);
+    const badgeEl = document.getElementById(badgeId);
+
+    container.innerHTML = '<div class="loading"><div class="spinner"></div>Đang tìm...</div>';
+    statsEl.textContent = 'Đang xử lý...';
+    badgeEl.textContent = '⏳';
+    badgeEl.className = 'badge wait';
+
+    const logEntry = {
+      provider: providerName,
+      url: url,
+      requestTime: new Date().toISOString(),
+      response: null,
+      latency: 0,
+      status: 0,
+      error: null,
+      resultCount: 0,
+      matchCount: 0
+    };
+
+    const startTime = performance.now();
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`🔍 [${providerName}] REQUEST:`, url);
+    console.log(`${'='.repeat(60)}`);
+
+    try {
+      const res = await fetch(url);
+      const latency = Math.round(performance.now() - startTime);
+      logEntry.latency = latency;
+      logEntry.status = res.status;
+
+      console.log(`✅ [${providerName}] Status: ${res.status} | Latency: ${latency}ms`);
+      console.log(`📋 [${providerName}] Headers:`, Object.fromEntries(res.headers.entries()));
+
+      const text = await res.text();
+      console.log(`📦 [${providerName}] RAW RESPONSE (${text.length} bytes):`);
+      console.log(text);
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error(`JSON parse failed: ${e.message}\nRaw: ${text.substring(0, 500)}`);
+      }
+
+      logEntry.response = data;
+      ALL_LOGS.push(logEntry);
+
+      // Render raw panel
+      renderRawPanel(providerKey, providerName, url, res.status, latency, data, text.length);
+
+      const results = data.results || data.predictions || data.features || [];
+      logEntry.resultCount = results.length;
+      
+      if (results.length === 0) {
+        container.innerHTML = '<div class="loading" style="color:#ef4444;">❌ Không có kết quả nào</div>';
+        statsEl.innerHTML = `<span>⏱️ <b>${latency}ms</b></span> <span>📭 <b>0</b> kết quả</span>`;
+        badgeEl.textContent = '✗ 0';
+        badgeEl.className = 'badge fail';
+        return logEntry;
+      }
+
+      const matchCount = results.filter(r => 
+        matchesKeyword(r.name) || 
+        matchesKeyword(r.formatted_address) || 
+        matchesKeyword(r.properties?.name) || 
+        matchesKeyword(r.properties?.full_address)
+      ).length;
+      
+      logEntry.matchCount = matchCount;
+      const matchRate = Math.round(matchCount / results.length * 100);
+
+      console.log(`🎯 [${providerName}] Matched: ${matchCount}/${results.length} (${matchRate}%)`);
+      if (matchCount > 0) {
+        const matched = results.filter(r => matchesKeyword(r.name) || matchesKeyword(r.formatted_address));
+        console.log(`✨ [${providerName}] Các kết quả khớp:`);
+        matched.forEach((r, i) => console.log(`  ${i+1}.`, r.name || r.properties?.name, '|', r.formatted_address || r.properties?.full_address));
+      }
+
+      statsEl.innerHTML = `<span>⏱️ <b>${latency}ms</b></span> <span>📊 <b>${results.length}</b> kết quả</span> <span>✅ <b>${matchCount}</b> khớp (${matchRate}%)</span>`;
+      
+      if (matchCount > 0) {
+        badgeEl.textContent = `✓ ${matchCount}/${results.length}`;
+        badgeEl.className = 'badge ok';
+      } else {
+        badgeEl.textContent = `✗ 0/${results.length}`;
+        badgeEl.className = 'badge fail';
+      }
+
+      // Render results list
+      container.innerHTML = '';
+      results.slice(0, 20).forEach((r, i) => {
+        const name = r.name || r.properties?.name || r.formatted_address || r.properties?.full_address || 'Không tên';
+        const address = r.formatted_address || r.properties?.full_address || '';
+        const lat = r.geometry?.location?.lat || r.lat || r.properties?.coordinates?.latitude || r.geometry?.coordinates?.[1];
+        const lng = r.geometry?.location?.lng || r.lng || r.lon || r.properties?.coordinates?.longitude || r.geometry?.coordinates?.[0];
+        const provider = r.provider || data.provider || 'unknown';
+        
+        const isMatch = matchesKeyword(name) || matchesKeyword(address);
+        
+        const div = document.createElement('div');
+        div.className = 'result-item' + (isMatch ? ' highlight' : '') + (!isMatch ? ' wrong' : '');
+        div.innerHTML = `
+          <div class="result-name">${i + 1}. ${escapeHtml(name)}</div>
+          ${address && address !== name ? `<div class="result-addr">📍 ${escapeHtml(address)}</div>` : ''}
+          <div class="result-addr" style="color:#64748b;">🔗 ${escapeHtml(provider.toUpperCase())} • ${lat?.toFixed(5) || '?'}, ${lng?.toFixed(5) || '?'}</div>
+        `;
+        if (lat && lng) {
+          div.onclick = () => window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
+        }
+        container.appendChild(div);
+      });
+
+      return logEntry;
+
+    } catch (e) {
+      const latency = Math.round(performance.now() - startTime);
+      logEntry.error = e.message;
+      logEntry.latency = latency;
+      ALL_LOGS.push(logEntry);
+      
+      console.error(`❌ [${providerName}] ERROR:`, e);
+      
+      container.innerHTML = `<div class="loading" style="color:#ef4444;">❌ Lỗi: ${escapeHtml(e.message)}</div>`;
+      statsEl.innerHTML = `<span>⏱️ <b>${latency}ms</b></span> <span style="color:#ef4444;">❌ Lỗi</span>`;
+      badgeEl.textContent = 'ERROR';
+      badgeEl.className = 'badge fail';
+      
+      renderRawPanel(providerKey, providerName, url, 0, latency, { error: e.message }, 0);
+      return logEntry;
+    }
+  }
+
+  // ============================================================
+  // RENDER RAW PANEL
+  // ============================================================
+  function renderRawPanel(key, providerName, url, status, latency, data, size) {
+    const panelsContainer = document.getElementById('rawPanels');
+    const existing = document.getElementById('raw-' + key);
+    if (existing) existing.remove();
+
+    const panel = document.createElement('div');
+    panel.className = 'raw-panel';
+    panel.id = 'raw-' + key;
+
+    const statusColor = status >= 200 && status < 300 ? '#10b981' : '#ef4444';
+    
+    panel.innerHTML = `
+      <div class="raw-header" onclick="this.nextElementSibling.nextElementSibling.classList.toggle('show')">
+        <h3>📄 RAW: ${escapeHtml(providerName)}</h3>
+        <div class="actions">
+          <span style="font-size:0.7rem; color:${statusColor}; font-weight:700;">● ${status || 'ERR'}</span>
+          <span style="font-size:0.7rem; color:#94a3b8;">${latency}ms</span>
+          <span style="font-size:0.7rem; color:#94a3b8;">${size} bytes</span>
+          <button class="raw-btn" onclick="event.stopPropagation(); copyRaw('${key}')">📋 Copy</button>
+        </div>
+      </div>
+      <div class="url-box"><span class="label">GET</span> ${escapeHtml(url)}</div>
+      <div class="raw-content" id="raw-content-${key}">${syntaxHighlight(JSON.stringify(data, null, 2))}</div>
+    `;
+    
+    panelsContainer.appendChild(panel);
+  }
+
+  function copyRaw(key) {
+    const el = document.getElementById('raw-content-' + key);
+    if (!el) return;
+    navigator.clipboard.writeText(el.textContent).then(() => showToast('✅ Đã copy raw JSON'));
+  }
+
+  // ============================================================
+  // MAIN TEST
+  // ============================================================
+  async function runTest() {
+    const query = document.getElementById('searchInput').value.trim();
+    if (!query) return alert('Nhập từ khóa!');
+
+    // Tự động tách từ khóa để check match
+    KEYWORDS_TO_MATCH = query.toLowerCase().split(/\s+(đường|phố|quận|phường)\s+/).filter(Boolean);
+    if (KEYWORDS_TO_MATCH.length === 0) KEYWORDS_TO_MATCH = [query];
+    
+    // Thêm từ khóa gốc
+    KEYWORDS_TO_MATCH.push(query);
+    
+    // Loại bỏ trùng
+    KEYWORDS_TO_MATCH = [...new Set(KEYWORDS_TO_MATCH)];
+    
+    console.log(`\n\n${'█'.repeat(60)}`);
+    console.log(`🚀 BẮT ĐẦU TEST`);
+    console.log(`📝 Query: "${query}"`);
+    console.log(`🎯 Keywords:`, KEYWORDS_TO_MATCH);
+    console.log(`${'█'.repeat(60)}\n`);
+
+    document.getElementById('testBtn').disabled = true;
+    document.getElementById('testBtn').textContent = '⏳ Đang test...';
+    ALL_LOGS = [];
+    document.getElementById('rawPanels').innerHTML = '';
+    document.getElementById('diffSummary').style.display = 'none';
+
+    const [hybridResult, mapboxResult] = await Promise.all([
+      testEndpoint('hybrid', 'Hybrid (Goong→Mapbox)', `${WORKER_URL}/trackasia-search?query=${encodeURIComponent(query)}`, 'resultsHybrid', 'statsHybrid', 'badgeHybrid'),
+      testEndpoint('mapbox', 'Mapbox Only', `${WORKER_URL}/mapbox-search?query=${encodeURIComponent(query)}`, 'resultsMapbox', 'statsMapbox', 'badgeMapbox')
+    ]);
+
+    // Summary so sánh
+    renderDiffSummary(hybridResult, mapboxResult);
+
+    console.log(`\n${'█'.repeat(60)}`);
+    console.log(`🏁 HOÀN TẤT TEST`);
+    console.log(`${'█'.repeat(60)}\n`);
+
+    document.getElementById('testBtn').disabled = false;
+    document.getElementById('testBtn').textContent = '▶ Test tất cả';
+  }
+
+  // ============================================================
+  // DIFF SUMMARY
+  // ============================================================
+  function renderDiffSummary(hybrid, mapbox) {
+    const summary = document.getElementById('diffSummary');
+    const content = document.getElementById('diffContent');
+    
+    if (!hybrid || !mapbox) return;
+    summary.style.display = 'block';
+
+    const better = hybrid.matchCount > mapbox.matchCount ? 'Hybrid' 
+                 : hybrid.matchCount < mapbox.matchCount ? 'Mapbox' 
+                 : 'Hoà';
+
+    content.innerHTML = `
+      <div class="diff-row">
+        <span class="label">Số kết quả trả về</span>
+        <span class="value">Hybrid: ${hybrid.resultCount} • Mapbox: ${mapbox.resultCount}</span>
+      </div>
+      <div class="diff-row">
+        <span class="label">Số kết quả KHỚP từ khóa</span>
+        <span class="value ${hybrid.matchCount > 0 ? 'good' : 'bad'}">Hybrid: ${hybrid.matchCount} • Mapbox: ${mapbox.matchCount}</span>
+      </div>
+      <div class="diff-row">
+        <span class="label">Độ trễ trung bình</span>
+        <span class="value">Hybrid: ${hybrid.latency}ms • Mapbox: ${mapbox.latency}ms</span>
+      </div>
+      <div class="diff-row">
+        <span class="label">🏆 API tốt hơn cho query này</span>
+        <span class="value ${better === 'Hybrid' ? 'good' : better === 'Mapbox' ? 'bad' : ''}">${better}</span>
+      </div>
+    `;
+  }
+
+  // ============================================================
+  // DOWNLOAD / CLEAR
+  // ============================================================
+  function downloadLogs() {
+    if (ALL_LOGS.length === 0) return alert('Chưa có log nào!');
+    const blob = new Blob([JSON.stringify(ALL_LOGS, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `search-log-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('⬇ Đã tải file log');
+  }
+
+  function clearLogs() {
+    ALL_LOGS = [];
+    document.getElementById('rawPanels').innerHTML = '';
+    document.getElementById('diffSummary').style.display = 'none';
+    document.getElementById('resultsHybrid').innerHTML = '<div class="loading">Chưa test</div>';
+    document.getElementById('resultsMapbox').innerHTML = '<div class="loading">Chưa test</div>';
+    document.getElementById('statsHybrid').textContent = '—';
+    document.getElementById('statsMapbox').textContent = '—';
+    document.getElementById('badgeHybrid').textContent = 'Chờ';
+    document.getElementById('badgeHybrid').className = 'badge hybrid';
+    document.getElementById('badgeMapbox').textContent = 'Chờ';
+    document.getElementById('badgeMapbox').className = 'badge mapbox';
+    console.clear();
+    showToast('🗑 Đã xoá log', '#ef4444');
+  }
+
+  // ============================================================
+  // AUTO RUN
+  // ============================================================
+  window.addEventListener('load', () => setTimeout(runTest, 500));
   document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') runTest(); });
 </script>
 </body>
