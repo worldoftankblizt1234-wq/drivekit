@@ -1225,16 +1225,18 @@ window.endTrip = async function(save) {
         parseFloat(c[1].toFixed(5))
       ]);
 
+      // SỬA LỖI: Chuyển mảng 2 chiều thành chuỗi JSON
       await addDoc(collection(fsdb, `users/${currentUser.uid}/savedRoutes`), {
         startName: startData.name, startLng: startData.lng, startLat: startData.lat,
         endName: endData.name, endLng: endData.lng, endLat: endData.lat,
-        coords: compressedCoords, timestamp: Date.now()
+        coordsJson: JSON.stringify(compressedCoords), 
+        timestamp: Date.now()
       });
       
       console.log("Đã lưu lộ trình thành công!");
     } catch (e) {
       console.error("Lỗi lưu Firestore:", e);
-      alert('❌ Không thể lưu lộ trình lên Cloud: ' + e.message + '\n(Tuyến đường có thể quá dài)');
+      alert('❌ Không thể lưu lộ trình lên Cloud: ' + e.message);
       
       const localRoutes = JSON.parse(localStorage.getItem('localSavedRoutes') || '[]');
       localRoutes.push({
@@ -1364,7 +1366,11 @@ window.reloadSavedRoute = function(source, id) {
   endPoint = { lat: item.endLat, lng: item.endLng, name: item.endName };
   document.getElementById('dirInputStart').value = startPoint.name; document.getElementById('dirInputEnd').value = endPoint.name;
   document.getElementById('topSearchInput').value = endPoint.name; document.getElementById('btnClearStart').classList.remove('hidden'); document.getElementById('btnClearEnd').classList.remove('hidden'); document.getElementById('searchClearBtn').classList.remove('hidden');
-  currentRouteCoords = item.coords; lastSnapIndex = 0;
+  
+  // SỬA Ở ĐÂY: Giải mã chuỗi JSON ngược lại thành mảng 2 chiều
+  currentRouteCoords = typeof item.coordsJson === 'string' ? JSON.parse(item.coordsJson) : (item.coords || []); 
+  
+  lastSnapIndex = 0;
   if (currentRouteLayer) map.removeLayer(currentRouteLayer);
   currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
   map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
