@@ -1748,9 +1748,7 @@ window.switchToRoute = function(index) {
   closeRouteOptions(); speak('Đã đổi tuyến đường mới.');
 };
 
-// ---------------------------------------------------------
-// ĐÃ CẬP NHẬT: Xử lý hiển thị "Đi thẳng" nếu API không trả về steps
-// ---------------------------------------------------------
+// ĐÃ SỬA LỖI 1: Kẹt chữ "Đang tải..." trên thanh màu hồng
 function updateNextManeuverHUD(lat, lng) {
   if (!voiceRouteSteps || voiceRouteSteps.length === 0) {
     document.getElementById('hudNextArrow').innerHTML = `<i class="fas fa-arrow-up"></i>`;
@@ -1767,7 +1765,6 @@ function updateNextManeuverHUD(lat, lng) {
     const d = calcDist(lat, lng, step.maneuver.location[1], step.maneuver.location[0]);
     if (d > 5 && d < minDist) { minDist = d; nextStep = step; }
   }
-  
   if (nextStep) {
     let icon = 'fa-arrow-up'; const type = nextStep.maneuver.type || ''; const modifier = nextStep.maneuver.modifier || '';
     if (type.includes('turn') || type.includes('fork') || type.includes('merge')) {
@@ -1816,9 +1813,7 @@ function checkOffRoute(userLat, userLng) {
   if (minDist > 50) { offRouteCount++; if (offRouteCount >= 3) { offRouteCount = 0; autoReroute(userLat, userLng); } } else offRouteCount = 0;
 }
 
-// ---------------------------------------------------------
-// ĐÃ CẬP NHẬT: Dùng /trackasia-route để có fallback, tự vẽ lại đường
-// ---------------------------------------------------------
+// ĐÃ SỬA LỖI 2: Không vẽ lại đường khi đi sai
 async function autoReroute(userLat, userLng) {
   if (isRerouting) return; 
   isRerouting = true;
@@ -1826,6 +1821,7 @@ async function autoReroute(userLat, userLng) {
   const currentMode = currentRouteData?.mode || (currentVehicleMode === 'none' ? 'driving' : currentVehicleMode);
   
   try {
+    // Đổi sang gọi API /trackasia-route để dùng cơ chế tự động fallback (Mapbox -> ORS -> Goong)
     const res = await fetchWorker(`/trackasia-route?origin=${userLat},${userLng}&destination=${endPoint.lat},${endPoint.lng}&mode=${currentMode}`);
     const data = await res.json(); 
     
@@ -1839,9 +1835,7 @@ async function autoReroute(userLat, userLng) {
     
     currentRouteData = r; 
     voiceRouteSteps = r.legs[0].steps; 
-    voiceStepIndex = 0; 
-    lastSnapIndex = 0; 
-    offRouteCount = 0;
+    voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
     currentRouteCoords = r.geometry.coordinates;
     
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
@@ -1860,7 +1854,6 @@ async function autoReroute(userLat, userLng) {
     setTimeout(() => { isRerouting = false; }, 3000); 
     return;
   } 
-  
   isRerouting = false; 
 }
 
