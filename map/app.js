@@ -1,8 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-// BỔ SUNG THÊM HÀM push ĐỂ TẠO ID TỰ ĐỘNG TRÊN RTDB
 import { getDatabase, ref, set, push, get, onValue, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getFirestore, collection, doc, addDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { DIR_DICT, NAV_DICT } from './dictionary.js'; // IMPORT TỪ ĐIỂN
 
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
@@ -17,7 +17,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
-const fsdb = getFirestore(app); // Vẫn giữ lại cho History và Saved Routes
+const fsdb = getFirestore(app);
 
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
@@ -71,15 +71,12 @@ let tempPoiLatLng = null;
 let tempPoiTag = null;
 let restStopFilterActive = false;
 let currentDetailPoi = null;
-
-// CÁC MẢNG DỮ LIỆU CHỈ DÙNG RTDB
 let allRestStops = [];
 let allCommunityPois = [];
 let allReports = {};
 let allAvoidZones = [];
 let allSavedPlaces = {};
 
-// Vẫn giữ FS cho Lịch sử và Lộ trình đã lưu
 let allHistory = [];
 let allSavedRoutes = [];
 
@@ -92,7 +89,7 @@ let reportMarkers = [];
 let savedPlacesMarkers = [];
 let avoidZoneLayers = [];
 
-let _unsub = { rtdbCommunity:null, rtdbReports:null, rtdbAvoid:null, rtdbSaved:null, fsHistory:null, rtdbHistory:null, fsRoutes:null, rtdbRoutes:null };
+let _unsub = { rtdbCommunity:null, rtdbReports:null, rtdbAvoid:null, rtdbSaved:null, rtdbHistory:null, rtdbRoutes:null };
 
 let liveEnabled = false;
 let liveRoomCode = null;
@@ -368,7 +365,6 @@ async function logout() {
   closeMenu(); 
 }
 
-// CHỈ ĐỌC LỊCH SỬ VÀ LỘ TRÌNH TỪ FIRESTORE
 async function getCachedFirestoreData(collectionName, cacheKey, ttlMs, isUserSub = false) {
   const now = Date.now();
   const cachedStr = localStorage.getItem(cacheKey);
@@ -402,7 +398,6 @@ window.clearAppCache = function() {
 function initDualDataSubscriptions() {
   if (!currentUser) return;
 
-  // CHỈ LẮNG NGHE TỪ RTDB CHO POI, SAVED PLACES, REPORTS
   _unsub.rtdbCommunity = onValue(ref(db, 'communityPois'), snap => {
     const data = snap.val() || {};
     const all = Object.entries(data).map(([k, v]) => ({ _id: k, id: k, source: 'rtdb', ...v }));
@@ -431,7 +426,6 @@ function initDualDataSubscriptions() {
     renderSavedPlacesOnMap();
   }, err => console.warn('RTDB savedPlaces:', err));
 
-  // VẪN DÙNG FIRESTORE CHO LỊCH SỬ VÀ LỘ TRÌNH
   getCachedFirestoreData('history', 'cache_history_' + currentUser.uid, 60 * 60 * 1000, true).then(data => { _fsHistory = data; recomputeHistory(); });
   getCachedFirestoreData('savedRoutes', 'cache_saved_routes_' + currentUser.uid, 60 * 60 * 1000, true).then(data => { _fsSavedRoutes = data; recomputeSavedRoutes(); });
 
@@ -655,7 +649,6 @@ window.openQuickPin = function() {
 
 window.closeSavePlaceModal = function() { document.getElementById('savePlaceModal').classList.remove('open'); };
 
-// ĐÃ CHUYỂN SANG DÙNG RTDB PUSH
 window.submitSavePlace = async function(type) {
   if (!currentUser || !tempPinLatLng) return;
   closeSavePlaceModal();
@@ -806,7 +799,6 @@ function renderAvoidZonesOnMap() {
 window.openReportMenu = function() { document.getElementById('reportModal').classList.add('open'); };
 window.closeReportMenu = function() { document.getElementById('reportModal').classList.remove('open'); };
 
-// ĐÃ CHUYỂN SANG DÙNG RTDB PUSH
 window.submitReport = async function(type) {
   if (!lastUserPos) return alert('Chưa lấy được vị trí GPS, không thể báo cáo!');
   closeReportMenu(); const now = Date.now(); let ttl = 3600000;
@@ -976,7 +968,6 @@ function startNavigationHUD() {
     document.getElementById('hudRemainTime').textContent = Math.round(dur / 60) + ' phút';
     document.getElementById('hudNextStopName').textContent = endPoint?.name || 'Điểm đến';
     
-    // FIX LỖI ZOOM OUT: Luôn ép zoom về 18 và bám vào vị trí hiện tại khi bắt đầu
     if (lastUserPos) {
         map.setView([lastUserPos.lat, lastUserPos.lng], 18, { animate: true });
     } else if (startPoint) {
@@ -1030,7 +1021,6 @@ window.switchToRoute = function(index) {
   if (currentRouteLayer) map.removeLayer(currentRouteLayer);
   currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
   
-  // FIX LỖI ZOOM OUT: Ép zoom về 18 và bám vào vị trí hiện tại
   if (lastUserPos) {
       map.setView([lastUserPos.lat, lastUserPos.lng], 18, { animate: true });
   }
@@ -1040,34 +1030,28 @@ window.switchToRoute = function(index) {
   closeRouteOptions(); speak('Đã đổi tuyến đường mới.');
 };
 
+// HÀM DỊCH SỬ DỤNG TỪ ĐIỂN
 function translateInstruction(instr) {
   if (!instr) return 'Tiếp tục di chuyển';
   if (!/[a-zA-Z]/.test(instr)) return instr; 
   
   let text = instr;
-  text = text.replace(/Turn sharp left/gi, 'Rẽ trái gắt');
-  text = text.replace(/Turn sharp right/gi, 'Rẽ phải gắt');
-  text = text.replace(/Turn slight left/gi, 'Chếch sang trái');
-  text = text.replace(/Turn slight right/gi, 'Chếch sang phải');
-  text = text.replace(/Make a U-turn/gi, 'Quay đầu');
-  text = text.replace(/Arrive at your destination/gi, 'Đến điểm đến của bạn');
-  text = text.replace(/Turn left/gi, 'Rẽ trái');
-  text = text.replace(/Turn right/gi, 'Rẽ phải');
-  text = text.replace(/Continue straight/gi, 'Tiếp tục đi thẳng');
-  text = text.replace(/Continue on/gi, 'Tiếp tục trên');
+  
   text = text.replace(/Head\s+(\w+)/i, function(match, dir) {
-     const dirs = { north: 'Bắc', south: 'Nam', east: 'Đông', west: 'Tây', northeast: 'Đông Bắc', northwest: 'Tây Bắc', southeast: 'Đông Nam', southwest: 'Tây Nam' };
-     return `Đi về hướng ${dirs[dir.toLowerCase()] || dir}`;
+     const lowerDir = dir.toLowerCase();
+     return `Đi về hướng ${DIR_DICT[lowerDir] || dir}`;
   });
-  text = text.replace(/straight ahead/gi, 'phía trước');
-  text = text.replace(/your destination/gi, 'điểm đến');
-  text = text.replace(/on\s+/gi, 'trên ');
-  text = text.replace(/onto\s+/gi, 'vào ');
-  text = text.replace(/toward\s+/gi, 'về hướng ');
-  text = text.replace(/Arrive\s+at/gi, 'Đến');
-  text = text.replace(/Take\s+the\s+exit/gi, 'Đi theo lối ra');
-  text = text.replace(/Enter\s+the\s+roundabout/gi, 'Đi vào vòng xuyến');
-  return text;
+  
+  const sortedKeys = Object.keys(NAV_DICT).sort((a, b) => b.length - a.length);
+  
+  sortedKeys.forEach(key => {
+    const regex = new RegExp(key, 'gi');
+    text = text.replace(regex, NAV_DICT[key]);
+  });
+  
+  text = text.replace(/\s+/g, ' ').trim();
+  
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function updateNextManeuverHUD(lat, lng) {
@@ -1192,9 +1176,6 @@ async function autoReroute(userLat, userLng) {
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
     currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
     
-    // FIX LỖI ZOOM OUT: Ép zoom về 18 và bám vào vị trí hiện tại
-    map.setView([userLat, userLng], 18, { animate: true });
-    
     document.getElementById('hudRemainDist').textContent = (dist / 1000).toFixed(1) + ' km';
     document.getElementById('hudRemainTime').textContent = Math.round(dur / 60) + ' phút';
     
@@ -1232,15 +1213,39 @@ window.closeEndTripModal = function() { document.getElementById('endTripModal').
 
 window.endTrip = async function(save) {
   closeEndTripModal();
+  
   if (save && currentRouteData && currentUser) {
-    try { 
+    const coordsToSave = [...currentRouteCoords]; 
+    const startData = { ...startPoint };
+    const endData = { ...endPoint };
+
+    try {
+      const compressedCoords = coordsToSave.map(c => [
+        parseFloat(c[0].toFixed(5)), 
+        parseFloat(c[1].toFixed(5))
+      ]);
+
       await addDoc(collection(fsdb, `users/${currentUser.uid}/savedRoutes`), {
-        startName: startPoint.name, startLng: startPoint.lng, startLat: startPoint.lat,
-        endName: endPoint.name, endLng: endPoint.lng, endLat: endPoint.lat,
-        coords: currentRouteCoords, timestamp: Date.now()
+        startName: startData.name, startLng: startData.lng, startLat: startData.lat,
+        endName: endData.name, endLng: endData.lng, endLat: endData.lat,
+        coords: compressedCoords, timestamp: Date.now()
       });
-    } catch (e) {}
+      
+      console.log("Đã lưu lộ trình thành công!");
+    } catch (e) {
+      console.error("Lỗi lưu Firestore:", e);
+      alert('❌ Không thể lưu lộ trình lên Cloud: ' + e.message + '\n(Tuyến đường có thể quá dài)');
+      
+      const localRoutes = JSON.parse(localStorage.getItem('localSavedRoutes') || '[]');
+      localRoutes.push({
+        startName: startData.name, endName: endData.name, 
+        coords: coordsToSave, timestamp: Date.now()
+      });
+      localStorage.setItem('localSavedRoutes', JSON.stringify(localRoutes));
+      alert('⚠️ Đã lưu tạm lộ trình vào bộ nhớ máy.');
+    }
   }
+
   if (liveEnabled && liveRoomCode && isLiveHost) {
     remove(ref(db, `live_rooms/${liveRoomCode}/navigation`)).catch(()=>{});
   }
@@ -1250,13 +1255,22 @@ window.endTrip = async function(save) {
   if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
   alternativeLayers.forEach(l => { try { map.removeLayer(l); } catch (e) {} }); alternativeLayers = [];
   if (window._routeBadges) { window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = []; }
+  
   currentRouteCoords = []; currentRouteData = null; alternativeRoutesData = []; voiceRouteSteps = null; voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0; isRerouting = false; tripStartTime = null; arrivalHandled = false; warnedReports.clear(); localStorage.removeItem('alternativeRoutes');
+  
   document.body.classList.remove('navigating');
   document.getElementById('hud').classList.add('hidden');
   updateUIState();
+  
   document.getElementById('dirInputEnd').value = ''; document.getElementById('topSearchInput').value = ''; document.getElementById('btnClearEnd').classList.add('hidden'); document.getElementById('searchClearBtn').classList.add('hidden'); endPoint = null;
+  
   if (lastUserPos) map.flyTo([lastUserPos.lat, lastUserPos.lng], 16, { animate: true, duration: 1 });
-  alert(save ? '✅ Đã lưu chuyến đi.' : '🏁 Đã kết thúc chuyến đi.');
+  
+  if (save) {
+    if (!currentRouteData) alert('✅ Đã kết thúc chuyến đi.');
+  } else {
+    alert('🏁 Đã kết thúc chuyến đi (Không lưu).');
+  }
 };
 
 async function saveHistoryToFirestore(start, end, distance) {
@@ -1785,7 +1799,6 @@ function updatePoiSaveBtnState() {
 const poiNameInputEl = document.getElementById('poiNameInput');
 if (poiNameInputEl) poiNameInputEl.addEventListener('input', updatePoiSaveBtnState);
 
-// ĐÃ CHUYỂN SANG DÙNG RTDB PUSH
 window.submitCommunityPoi = async function() {
   if (!currentUser) return alert('Chưa đăng nhập!');
   if (!tempPoiLatLng || !tempPoiTag) return alert('Vui lòng chọn loại địa điểm!');
