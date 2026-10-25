@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getDatabase, ref, set, get, onValue, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+// BỔ SUNG THÊM HÀM push ĐỂ TẠO ID TỰ ĐỘNG TRÊN RTDB
+import { getDatabase, ref, set, push, get, onValue, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getFirestore, collection, doc, addDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -16,7 +17,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
-const fsdb = getFirestore(app);
+const fsdb = getFirestore(app); // Vẫn giữ lại cho History và Saved Routes
 
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
@@ -47,7 +48,7 @@ let lastSnapIndex = 0;
 let smoothedSpeed = 0;
 let offRouteCount = 0;
 let isRerouting = false;
-let lastRerouteTime = 0; // Biến chống spam đổi tuyến
+let lastRerouteTime = 0; 
 let warnedReports = new Set();
 let voiceEnabled = true;
 let voiceRouteSteps = null;
@@ -70,19 +71,18 @@ let tempPoiLatLng = null;
 let tempPoiTag = null;
 let restStopFilterActive = false;
 let currentDetailPoi = null;
+
+// CÁC MẢNG DỮ LIỆU CHỈ DÙNG RTDB
 let allRestStops = [];
 let allCommunityPois = [];
 let allReports = {};
 let allAvoidZones = [];
 let allSavedPlaces = {};
+
+// Vẫn giữ FS cho Lịch sử và Lộ trình đã lưu
 let allHistory = [];
 let allSavedRoutes = [];
 
-let _fsRestStops = [], _rtdbRestStops = [];
-let _fsCommunityPois = [], _rtdbCommunityPois = [];
-let _fsReports = {}, _rtdbReports = {};
-let _fsAvoidZones = [], _rtdbAvoidZones = [];
-let _fsSavedPlaces = {}, _rtdbSavedPlaces = {};
 let _fsHistory = [], _rtdbHistory = [];
 let _fsSavedRoutes = [], _rtdbSavedRoutes = [];
 
@@ -92,7 +92,7 @@ let reportMarkers = [];
 let savedPlacesMarkers = [];
 let avoidZoneLayers = [];
 
-let _unsub = { fsRest:null, rtdbCommunity:null, fsPoi:null, fsReports:null, rtdbReports:null, fsAvoid:null, rtdbAvoid:null, fsSaved:null, rtdbSaved:null, fsHistory:null, rtdbHistory:null, fsRoutes:null, rtdbRoutes:null };
+let _unsub = { rtdbCommunity:null, rtdbReports:null, rtdbAvoid:null, rtdbSaved:null, fsHistory:null, rtdbHistory:null, fsRoutes:null, rtdbRoutes:null };
 
 let liveEnabled = false;
 let liveRoomCode = null;
@@ -368,31 +368,9 @@ async function logout() {
   closeMenu(); 
 }
 
+// CHỈ ĐỌC LỊCH SỬ VÀ LỘ TRÌNH TỪ FIRESTORE
 async function getCachedFirestoreData(collectionName, cacheKey, ttlMs, isUserSub = false) {
   const now = Date.now();
-  
-  if (!isUserSub) {
-    try {
-      const metaSnap = await getDoc(doc(fsdb, "system_meta", "version"));
-      if (metaSnap.exists()) {
-        const serverMeta = metaSnap.data();
-        const localMeta = JSON.parse(localStorage.getItem('cache_meta') || '{}');
-        const serverVersion = serverMeta[collectionName] || 0;
-        const localVersion = localMeta[collectionName] || 0;
-        
-        if (serverVersion > localVersion) {
-          console.log(`[Cache] Phát hiện data mới cho ${collectionName}, đang tải...`);
-          const snap = await getDocs(collection(fsdb, collectionName));
-          const data = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
-          localStorage.setItem(cacheKey, JSON.stringify({ timestamp: now, data }));
-          localMeta[collectionName] = serverVersion;
-          localStorage.setItem('cache_meta', JSON.stringify(localMeta));
-          return data;
-        }
-      }
-    } catch(e) { console.warn("Lỗi check version:", e); }
-  }
-
   const cachedStr = localStorage.getItem(cacheKey);
   if (cachedStr) {
     try {
@@ -414,15 +392,9 @@ async function getCachedFirestoreData(collectionName, cacheKey, ttlMs, isUserSub
 }
 
 window.clearAppCache = function() {
-  if (!confirm('Xoá bộ nhớ đệm dữ liệu? Lần tải tới sẽ đọc lại từ Firebase.')) return;
-  const keysToRemove = ['cache_rest_stops', 'cache_community_pois', 'cache_reports', 'cache_avoid_zones', 'cache_meta'];
+  if (!confirm('Xoá bộ nhớ đệm dữ liệu?')) return;
+  const keysToRemove = ['cache_history_' + currentUser.uid, 'cache_saved_routes_' + currentUser.uid];
   keysToRemove.forEach(k => localStorage.removeItem(k));
-  if (currentUser) {
-    keysToRemove.push('cache_saved_places_' + currentUser.uid);
-    keysToRemove.push('cache_history_' + currentUser.uid);
-    keysToRemove.push('cache_saved_routes_' + currentUser.uid);
-    keysToRemove.forEach(k => localStorage.removeItem(k));
-  }
   alert('Đã xoá cache thành công!');
   window.location.reload();
 };
@@ -430,41 +402,38 @@ window.clearAppCache = function() {
 function initDualDataSubscriptions() {
   if (!currentUser) return;
 
-  getCachedFirestoreData('rest_stops', 'cache_rest_stops', 24 * 60 * 60 * 1000).then(data => { _fsRestStops = data; recomputeRestStops(); });
-  getCachedFirestoreData('community_pois', 'cache_community_pois', 24 * 60 * 60 * 1000).then(data => { _fsCommunityPois = data; recomputeCommunityPois(); });
-  getCachedFirestoreData('reports', 'cache_reports', 60 * 60 * 1000).then(data => { _fsReports = {}; data.forEach(d => { _fsReports[d.id] = d; }); recomputeReports(); });
-  getCachedFirestoreData('avoid_zones', 'cache_avoid_zones', 24 * 60 * 60 * 1000).then(data => { _fsAvoidZones = data; recomputeAvoidZones(); });
-  getCachedFirestoreData('savedPlaces', 'cache_saved_places_' + currentUser.uid, 60 * 60 * 1000, true).then(data => { _fsSavedPlaces = {}; data.forEach(d => { _fsSavedPlaces[d.id] = d; }); recomputeSavedPlaces(); });
-  getCachedFirestoreData('history', 'cache_history_' + currentUser.uid, 60 * 60 * 1000, true).then(data => { _fsHistory = data; recomputeHistory(); });
-  getCachedFirestoreData('savedRoutes', 'cache_saved_routes_' + currentUser.uid, 60 * 60 * 1000, true).then(data => { _fsSavedRoutes = data; recomputeSavedRoutes(); });
-
+  // CHỈ LẮNG NGHE TỪ RTDB CHO POI, SAVED PLACES, REPORTS
   _unsub.rtdbCommunity = onValue(ref(db, 'communityPois'), snap => {
     const data = snap.val() || {};
-    const all = Object.entries(data).map(([k, v]) => ({ _id: k, id: k, ...v }));
-    _rtdbRestStops = all.filter(p => p.tag === 'rest_stop').map(p => ({ ...p, source: 'rtdb' }));
-    _rtdbCommunityPois = all.filter(p => p.tag !== 'rest_stop').map(p => ({ ...p, source: 'rtdb' }));
-    recomputeRestStops(); recomputeCommunityPois();
+    const all = Object.entries(data).map(([k, v]) => ({ _id: k, id: k, source: 'rtdb', ...v }));
+    allRestStops = all.filter(p => p.tag === 'rest_stop');
+    allCommunityPois = all.filter(p => p.tag !== 'rest_stop');
+    renderCommunityPoisOnMap(); renderRestStopMarkers();
   }, err => console.warn('RTDB communityPois:', err));
 
   _unsub.rtdbReports = onValue(ref(db, 'reports'), snap => {
     const data = snap.val() || {};
-    _rtdbReports = {};
-    Object.entries(data).forEach(([k, v]) => { _rtdbReports[k] = { id: k, _id: k, source: 'rtdb', ...v }; });
-    recomputeReports();
+    allReports = {};
+    Object.entries(data).forEach(([k, v]) => { allReports[k] = { id: k, _id: k, source: 'rtdb', ...v }; });
+    renderReportsOnMap();
   }, err => console.warn('RTDB reports:', err));
 
   _unsub.rtdbAvoid = onValue(ref(db, 'avoid_zones'), snap => {
     const data = snap.val() || {};
-    _rtdbAvoidZones = Object.entries(data).map(([k, v]) => ({ id: k, _id: k, source: 'rtdb', ...v }));
-    recomputeAvoidZones();
+    allAvoidZones = Object.entries(data).map(([k, v]) => ({ id: k, _id: k, source: 'rtdb', ...v }));
+    renderAvoidZonesOnMap();
   }, err => console.warn('RTDB avoid_zones:', err));
 
   _unsub.rtdbSaved = onValue(ref(db, `users/${currentUser.uid}/savedPlaces`), snap => {
     const data = snap.val() || {};
-    _rtdbSavedPlaces = {};
-    Object.entries(data).forEach(([k, v]) => { _rtdbSavedPlaces[k] = { id: k, _id: k, source: 'rtdb', ...v }; });
-    recomputeSavedPlaces();
+    allSavedPlaces = {};
+    Object.entries(data).forEach(([k, v]) => { allSavedPlaces[k] = { id: k, _id: k, source: 'rtdb', ...v }; });
+    renderSavedPlacesOnMap();
   }, err => console.warn('RTDB savedPlaces:', err));
+
+  // VẪN DÙNG FIRESTORE CHO LỊCH SỬ VÀ LỘ TRÌNH
+  getCachedFirestoreData('history', 'cache_history_' + currentUser.uid, 60 * 60 * 1000, true).then(data => { _fsHistory = data; recomputeHistory(); });
+  getCachedFirestoreData('savedRoutes', 'cache_saved_routes_' + currentUser.uid, 60 * 60 * 1000, true).then(data => { _fsSavedRoutes = data; recomputeSavedRoutes(); });
 
   _unsub.rtdbHistory = onValue(ref(db, `users/${currentUser.uid}/history`), snap => {
     const data = snap.val() || {};
@@ -479,36 +448,6 @@ function initDualDataSubscriptions() {
   }, err => console.warn('RTDB savedRoutes:', err));
 }
 
-function recomputeRestStops() {
-  const mapData = new Map();
-  [..._fsRestStops, ..._rtdbRestStops].forEach(item => {
-    if (!mapData.has(item._id) || item.source === 'rtdb') mapData.set(item._id, item);
-  });
-  allRestStops = Array.from(mapData.values());
-  renderCommunityPoisOnMap(); renderRestStopMarkers();
-}
-
-function recomputeCommunityPois() {
-  const mapData = new Map();
-  [..._fsCommunityPois, ..._rtdbCommunityPois].forEach(item => {
-    if (!mapData.has(item._id) || item.source === 'rtdb') mapData.set(item._id, item);
-  });
-  allCommunityPois = Array.from(mapData.values());
-  renderCommunityPoisOnMap();
-}
-
-function recomputeReports() { allReports = { ..._fsReports, ..._rtdbReports }; renderReportsOnMap(); }
-
-function recomputeAvoidZones() {
-  const mapData = new Map();
-  [..._fsAvoidZones, ..._rtdbAvoidZones].forEach(item => {
-    if (!mapData.has(item._id) || item.source === 'rtdb') mapData.set(item._id, item);
-  });
-  allAvoidZones = Array.from(mapData.values());
-  renderAvoidZonesOnMap();
-}
-
-function recomputeSavedPlaces() { allSavedPlaces = { ..._fsSavedPlaces, ..._rtdbSavedPlaces }; renderSavedPlacesOnMap(); }
 function recomputeHistory() { allHistory = [..._fsHistory, ..._rtdbHistory].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); }
 function recomputeSavedRoutes() { allSavedRoutes = [..._fsSavedRoutes, ..._rtdbSavedRoutes].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); }
 
@@ -716,11 +655,13 @@ window.openQuickPin = function() {
 
 window.closeSavePlaceModal = function() { document.getElementById('savePlaceModal').classList.remove('open'); };
 
+// ĐÃ CHUYỂN SANG DÙNG RTDB PUSH
 window.submitSavePlace = async function(type) {
   if (!currentUser || !tempPinLatLng) return;
   closeSavePlaceModal();
   try {
-    await addDoc(collection(fsdb, `users/${currentUser.uid}/savedPlaces`), {
+    const newRef = push(ref(db, `users/${currentUser.uid}/savedPlaces`));
+    await set(newRef, {
       lat: tempPinLatLng.lat, lng: tempPinLatLng.lng, address: tempPinName, type: type, timestamp: Date.now()
     });
     alert('Đã ghim địa điểm cá nhân lên bản đồ!');
@@ -730,8 +671,7 @@ window.submitSavePlace = async function(type) {
 window.deleteSavedPlace = async function(source, id) {
   if (!confirm('Bạn có chắc muốn xoá ghim này?')) return;
   try {
-    if (source === 'firestore') await deleteDoc(doc(fsdb, `users/${currentUser.uid}/savedPlaces/${id}`));
-    else await remove(ref(db, `users/${currentUser.uid}/savedPlaces/${id}`));
+    await remove(ref(db, `users/${currentUser.uid}/savedPlaces/${id}`));
   } catch(e) { alert('Lỗi xoá: ' + e.message); }
 };
 
@@ -866,6 +806,7 @@ function renderAvoidZonesOnMap() {
 window.openReportMenu = function() { document.getElementById('reportModal').classList.add('open'); };
 window.closeReportMenu = function() { document.getElementById('reportModal').classList.remove('open'); };
 
+// ĐÃ CHUYỂN SANG DÙNG RTDB PUSH
 window.submitReport = async function(type) {
   if (!lastUserPos) return alert('Chưa lấy được vị trí GPS, không thể báo cáo!');
   closeReportMenu(); const now = Date.now(); let ttl = 3600000;
@@ -874,7 +815,8 @@ window.submitReport = async function(type) {
   else if (type === 'traffic') ttl = 1800000;
   else if (type === 'bridge_collapse' || type === 'road_collapse') ttl = 604800000;
   try {
-    await addDoc(collection(fsdb, 'reports'), { lat: lastUserPos.lat, lng: lastUserPos.lng, type, timestamp: now, expiresAt: now + ttl, uid: currentUser.uid });
+    const newRef = push(ref(db, 'reports'));
+    await set(newRef, { lat: lastUserPos.lat, lng: lastUserPos.lng, type, timestamp: now, expiresAt: now + ttl, uid: currentUser.uid, source: 'rtdb' });
     alert('Cảm ơn bạn! Báo cáo đã được gửi.');
   } catch (e) { alert('Lỗi: ' + e.message); }
 };
@@ -1027,7 +969,6 @@ function startNavigationHUD() {
     voiceRouteSteps = currentRouteData.legs[0].steps;
     voiceStepIndex = 0; lastSnapIndex = 0; tripStartTime = Date.now(); arrivalHandled = false;
     
-    // SỬA LỖI NaN: Parse an toàn
     const dist = currentRouteData.legs?.[0]?.distance?.value || currentRouteData.legs?.[0]?.distance || currentRouteData.distance || 0;
     const dur = currentRouteData.legs?.[0]?.duration?.value || currentRouteData.legs?.[0]?.duration || currentRouteData.duration || 0;
 
@@ -1081,7 +1022,6 @@ window.switchToRoute = function(index) {
   if (currentRouteLayer) map.removeLayer(currentRouteLayer);
   currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
   
-  // KHÔNG ZOOM OUT KHI ĐỔI TUYẾN THỦ CÔNG
   if (lastUserPos) map.setView([lastUserPos.lat, lastUserPos.lng], map.getZoom(), { animate: true });
 
   document.getElementById('hudRemainDist').textContent = (selectedRoute.distance / 1000).toFixed(1) + ' km';
@@ -1089,33 +1029,25 @@ window.switchToRoute = function(index) {
   closeRouteOptions(); speak('Đã đổi tuyến đường mới.');
 };
 
-// --- HÀM TỰ ĐỘNG DỊCH CHỈ DẪN TIẾNG ANH SANG TIẾNG VIỆT ---
 function translateInstruction(instr) {
   if (!instr) return 'Tiếp tục di chuyển';
-  if (!/[a-zA-Z]/.test(instr)) return instr; // Nếu không có chữ cái tiếng Anh thì giữ nguyên
+  if (!/[a-zA-Z]/.test(instr)) return instr; 
   
   let text = instr;
-  
-  // Xử lý các cụm từ phức tạp (phải xử lý trước cụm cơ bản)
   text = text.replace(/Turn sharp left/gi, 'Rẽ trái gắt');
   text = text.replace(/Turn sharp right/gi, 'Rẽ phải gắt');
   text = text.replace(/Turn slight left/gi, 'Chếch sang trái');
   text = text.replace(/Turn slight right/gi, 'Chếch sang phải');
   text = text.replace(/Make a U-turn/gi, 'Quay đầu');
   text = text.replace(/Arrive at your destination/gi, 'Đến điểm đến của bạn');
-  
-  // Xử lý cụm cơ bản
   text = text.replace(/Turn left/gi, 'Rẽ trái');
   text = text.replace(/Turn right/gi, 'Rẽ phải');
   text = text.replace(/Continue straight/gi, 'Tiếp tục đi thẳng');
   text = text.replace(/Continue on/gi, 'Tiếp tục trên');
-  
   text = text.replace(/Head\s+(\w+)/i, function(match, dir) {
      const dirs = { north: 'Bắc', south: 'Nam', east: 'Đông', west: 'Tây', northeast: 'Đông Bắc', northwest: 'Tây Bắc', southeast: 'Đông Nam', southwest: 'Tây Nam' };
      return `Đi về hướng ${dirs[dir.toLowerCase()] || dir}`;
   });
-  
-  // Xử lý giới từ
   text = text.replace(/straight ahead/gi, 'phía trước');
   text = text.replace(/your destination/gi, 'điểm đến');
   text = text.replace(/on\s+/gi, 'trên ');
@@ -1151,7 +1083,6 @@ function updateNextManeuverHUD(lat, lng) {
     document.getElementById('hudNextArrow').innerHTML = `<i class="fas ${icon}"></i>`;
     document.getElementById('hudNextDist').textContent = minDist > 1000 ? (minDist / 1000).toFixed(1) + ' km' : Math.round(minDist) + ' m';
     
-    // Dịch chỉ dẫn trước khi hiển thị
     document.getElementById('hudNextInstr').textContent = translateInstruction(nextStep.maneuver.instruction);
   } else {
     document.getElementById('hudNextArrow').innerHTML = `<i class="fas fa-arrow-up"></i>`;
@@ -1186,7 +1117,6 @@ function showArrivalToast() {
 function checkOffRoute(userLat, userLng) {
   if (!currentRouteCoords || currentRouteCoords.length < 2 || isRerouting || arrivalHandled) return;
   
-  // Nếu vừa mới đổi tuyến xong (trong vòng 15 giây), không kiểm tra nữa để tránh nhảy qua nhảy lại
   if (Date.now() - lastRerouteTime < 15000) return;
 
   let minDist = Infinity; 
@@ -1198,10 +1128,9 @@ function checkOffRoute(userLat, userLng) {
     if (d < minDist) minDist = d;
   }
   
-  // Tăng khoảng cách lên 80m (thay vì 50m) để bỏ qua sai số GPS
   if (minDist > 80) { 
     offRouteCount++; 
-    if (offRouteCount >= 5) { // Phải sai 5 lần liên tiếp mới đổi đường
+    if (offRouteCount >= 5) { 
       offRouteCount = 0; 
       autoReroute(userLat, userLng); 
     } 
@@ -1213,7 +1142,7 @@ function checkOffRoute(userLat, userLng) {
 async function autoReroute(userLat, userLng) {
   if (isRerouting) return; 
   isRerouting = true;
-  lastRerouteTime = Date.now(); // Ghi nhận thời gian đổi tuyến
+  lastRerouteTime = Date.now(); 
   
   const currentMode = currentRouteData?.mode || (currentVehicleMode === 'none' ? 'driving' : currentVehicleMode);
   
@@ -1229,11 +1158,9 @@ async function autoReroute(userLat, userLng) {
     if (!r.legs || !Array.isArray(r.legs) || r.legs.length === 0) r.legs = [{ steps: [] }];
     if (!r.legs[0].steps) r.legs[0].steps = [];
     
-    // SỬA LỖI NaN: Parse an toàn
     const dist = r.legs[0]?.distance?.value || r.legs[0]?.distance || r.distance || 0;
     const dur = r.legs[0]?.duration?.value || r.legs[0]?.duration || r.duration || 0;
 
-    // BỘ LỌC QUAN TRỌNG: Nếu đường mới dài hơn đường cũ > 20% thì BỎ QUA, không đổi tuyến!
     if (currentRouteData && currentRouteData.distance > 500) {
       const oldDist = currentRouteData.distance;
       if (dist > oldDist * 1.2) {
@@ -1254,7 +1181,6 @@ async function autoReroute(userLat, userLng) {
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
     currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
     
-    // KHÔNG DÙNG map.fitBounds NỮA, giữ nguyên mức zoom hiện tại
     map.setView([userLat, userLng], map.getZoom(), { animate: true });
     
     document.getElementById('hudRemainDist').textContent = (dist / 1000).toFixed(1) + ' km';
@@ -1646,7 +1572,6 @@ function animateMarkerTo(targetPos) {
   
   if (currentRouteCoords && currentRouteCoords.length > 1 && lastSnapIndex < currentRouteCoords.length - 1) {
     let minDist = Infinity, bestPoint = null, bestSegmentIndex = lastSnapIndex;
-    // Quét rộng hơn để chắc chắn tìm được điểm gần nhất
     const startScan = Math.max(0, lastSnapIndex - 2); 
     const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 100);
     
@@ -1664,23 +1589,17 @@ function animateMarkerTo(targetPos) {
       }
     }
     
-    // Nếu khoảng cách tới đường < 60m (trong mức GPS sai số), snap thẳng vào đường
     if (bestPoint && minDist < 60) {
-      // SNAP CHÍNH XÁC VÀO ĐIỂM TRÊN ĐƯỜNG (Xoá bỏ hoàn toàn offset 0.00003 cũ)
       snappedLat = bestPoint.lat; 
       snappedLng = bestPoint.lng; 
       
-      // Chỉ tiến lastSnapIndex, không cho lùi lại (tránh giật lag)
       if (bestSegmentIndex > lastSnapIndex) {
         lastSnapIndex = bestSegmentIndex;
       }
       
-      // Tính góc quay của xe
       const p1 = currentRouteCoords[bestSegmentIndex]; 
       const p2 = currentRouteCoords[bestSegmentIndex + 1];
       
-      // Nếu GPS có hướng và xe đang di chuyển (tốc độ > 5.4 km/h), ưu tiên xoay theo hướng GPS thực tế
-      // Giúp mũi tên mượt mà không bị khựng khi qua ngã rẽ
       if (targetPos.heading && targetPos.speed > 1.5) {
          targetHeading = targetPos.heading;
       } else {
@@ -1690,7 +1609,6 @@ function animateMarkerTo(targetPos) {
     }
   }
   
-  // Cắt bớt phần đuôi đường đã đi qua để bản đồ nhẹ hơn
   if (currentRouteCoords && currentRouteCoords.length > 0 && lastSnapIndex > 0 && currentRouteLayer) {
     const remaining = currentRouteCoords.slice(lastSnapIndex);
     if (remaining.length > 1) {
@@ -1701,13 +1619,12 @@ function animateMarkerTo(targetPos) {
     }
   }
   
-  // Animation di chuyển mượt mà
   const startLat = userMarker.getLatLng().lat, startLng = userMarker.getLatLng().lng;
   const startTime = performance.now(), duration = 1000;
   
   function step(time) {
     const progress = Math.min((time - startTime) / duration, 1); 
-    const ease = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+    const ease = 1 - Math.pow(1 - progress, 3); 
     userMarker.setLatLng([startLat + (snappedLat - startLat) * ease, startLng + (snappedLng - startLng) * ease]); 
     userMarker.setIcon(getUserIcon(targetHeading));
     if (progress < 1) requestAnimationFrame(step);
@@ -1768,7 +1685,6 @@ function startVoice() {
       const step = voiceRouteSteps[i]; if (!step?.maneuver?.location) continue;
       const d = calcDist(lastUserPos.lat, lastUserPos.lng, step.maneuver.location[1], step.maneuver.location[0]);
       if (d < 50) { 
-        // Dịch cả giọng nói
         speak(translateInstruction(step.maneuver.instruction)); 
         voiceStepIndex = i + 1; 
         break; 
@@ -1857,6 +1773,7 @@ function updatePoiSaveBtnState() {
 const poiNameInputEl = document.getElementById('poiNameInput');
 if (poiNameInputEl) poiNameInputEl.addEventListener('input', updatePoiSaveBtnState);
 
+// ĐÃ CHUYỂN SANG DÙNG RTDB PUSH
 window.submitCommunityPoi = async function() {
   if (!currentUser) return alert('Chưa đăng nhập!');
   if (!tempPoiLatLng || !tempPoiTag) return alert('Vui lòng chọn loại địa điểm!');
@@ -1865,10 +1782,10 @@ window.submitCommunityPoi = async function() {
   const btn = document.getElementById('poiSaveBtn');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...';
   try {
-    const collectionName = tempPoiTag === 'rest_stop' ? 'rest_stops' : 'community_pois';
-    await addDoc(collection(fsdb, collectionName), {
+    const newRef = push(ref(db, 'communityPois'));
+    await set(newRef, {
       lat: tempPoiLatLng.lat, lng: tempPoiLatLng.lng, name: name, tag: tempPoiTag,
-      uid: currentUser.uid, authorName: currentUser.displayName || currentUser.email.split('@')[0], timestamp: Date.now(), upvotes: 0
+      uid: currentUser.uid, authorName: currentUser.displayName || currentUser.email.split('@')[0], timestamp: Date.now(), upvotes: 0, source: 'rtdb'
     });
     closePoiSheet();
     const t = document.createElement('div');
