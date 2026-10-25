@@ -34,6 +34,7 @@
   .form-group label { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); }
   .form-control { width: 100%; padding: 12px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; transition: border 0.2s; }
   .form-control:focus { border-color: var(--primary); outline: none; }
+  .form-control:disabled { opacity: 0.5; cursor: not-allowed; }
   
   .btn { padding: 14px; border-radius: 8px; font-weight: 800; font-size: 0.95rem; cursor: pointer; border: none; display: flex; justify-content: center; align-items: center; gap: 8px; transition: opacity 0.2s; }
   .btn:active { opacity: 0.7; }
@@ -43,6 +44,7 @@
   .btn-outline { background: transparent; border: 1px dashed var(--border); color: var(--text-muted); }
   .btn-outline.active { border-color: var(--warning); color: var(--warning); background: rgba(245, 158, 11, 0.1); }
   .btn:disabled { background: #475569; cursor: not-allowed; }
+  .btn-sm { padding: 8px; font-size: 0.8rem; border-radius: 6px; }
   
   .help-text { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; margin-top: 4px; }
   
@@ -152,9 +154,16 @@
       <input type="text" id="zoneName" class="form-control" placeholder="VD: Cấm tải đường Nguyễn Trãi">
     </div>
 
+    <!-- CHẶN ĐÊM MỞ NGÀY -->
     <div class="form-group" style="background: rgba(16,185,129,0.1); padding: 12px; border-radius: 8px; border: 1px dashed var(--success);">
-      <label style="color: var(--success);"><i class="fas fa-clock"></i> Thời gian cấm (Không bắt buộc)</label>
-      <div style="display: flex; gap: 8px; margin-top: 6px;">
+      <label style="color: var(--success); display: flex; align-items: center; justify-content: space-between;">
+        <span><i class="fas fa-clock"></i> Thời gian cấm</span>
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: white; font-size: 0.85rem;">
+          <input type="checkbox" id="zoneNightClosure" onchange="toggleNightClosure()" style="width: 16px; height: 16px; accent-color: var(--success);"> 
+          Chặn đêm (17h - 5h)
+        </label>
+      </label>
+      <div style="display: flex; gap: 8px; margin-top: 10px;" id="timeInputsContainer">
         <div style="flex:1;">
           <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Từ lúc:</div>
           <input type="datetime-local" id="zoneStartTime" class="form-control">
@@ -197,9 +206,20 @@
     <button class="btn btn-danger" onclick="saveAvoidZone()" style="margin-top: 10px;">
       <i class="fas fa-save"></i> Lưu Tuyến Đường Cấm
     </button>
-    <button class="btn btn-outline" onclick="resetZoneDrawing()" style="margin-top: 4px;">
-      <i class="fas fa-undo"></i> Xóa nét vẽ hiện tại
-    </button>
+
+    <!-- UNDO / REDO / XÓA -->
+    <div style="display: flex; gap: 8px; margin-top: 4px;">
+      <button class="btn btn-outline btn-sm" onclick="undoDraw()" id="btnUndo" disabled style="flex:1;">
+        <i class="fas fa-undo"></i> Hoàn tác
+      </button>
+      <button class="btn btn-outline btn-sm" onclick="redoDraw()" id="btnRedo" disabled style="flex:1;">
+        <i class="fas fa-redo"></i> Làm lại
+      </button>
+      <button class="btn btn-outline btn-sm" onclick="resetZoneDrawing()" style="flex:1;">
+        <i class="fas fa-trash"></i> Xóa hết
+      </button>
+    </div>
+
     <div id="statusAvoid" class="status-box"></div>
   </div>
 </div>
@@ -238,18 +258,21 @@ let pointA = null;
 let pointB = null;
 let tempMarkerA = null;
 let tempMarkerB = null;
-let tempPolyline = null; // FeatureGroup chứa các đoạn
+let tempPolyline = null; 
 let isDrawMode = false;
 let isFreehandMode = false;
-let currentRouteWaypoints = null; // Mảng chứa MultiLineString
-let zoneInputTimeout = null;
+let currentRouteWaypoints = null; 
+
+// Biến cho Undo/Redo
+let drawHistory = [];
+let historyIndex = -1;
 
 // Biến quan trọng cho Vẽ tự do
 let isFreehandDrawing = false;
 let activeFreehandPolyline = null;
 let currentFreehandStroke = [];
 let startLatLng = null; 
-let isFreehandCut = false; // Cờ đánh dấu: true = cắt đoạn (vẽ rời), false = nối tiếp
+let isFreehandCut = false; // true = cắt nét (nhưng cùng nhóm - phím U)
 
 async function updateVersion(collectionName) {
   try {
@@ -257,6 +280,70 @@ async function updateVersion(collectionName) {
     await setDoc(metaRef, { [collectionName]: Date.now() }, { merge: true });
   } catch(e) { console.warn("Lỗi cập nhật version:", e); }
 }
+
+// ================== UNDO / REDO LOGIC ==================
+function saveHistory() {
+  // Xóa các bước đi trước nếu đang ở giữa lịch sử
+  if (historyIndex < drawHistory.length - 1) {
+    drawHistory = drawHistory.slice(0, historyIndex + 1);
+  }
+  
+  // Lưu bản copy sâu (deep copy) để tránh lỗi tham chiếu mảng
+  const stateCopy = currentRouteWaypoints ? JSON.parse(JSON.stringify(currentRouteWaypoints)) : null;
+  drawHistory.push(stateCopy);
+  
+  historyIndex++;
+  updateUndoRedoButtons();
+}
+
+window.undoDraw = function() {
+  if (historyIndex > 0) {
+    historyIndex--;
+    const prevState = drawHistory[historyIndex];
+    currentRouteWaypoints = prevState ? JSON.parse(JSON.stringify(prevState)) : null;
+    
+    // Cập nhật lại giao diện vẽ
+    updateDrawnPolylines();
+    if (currentRouteWaypoints) map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
+    updateUndoRedoButtons();
+    showStatus('statusAvoid', '↩️ Đã hoàn tác', 'loading');
+  }
+};
+
+window.redoDraw = function() {
+  if (historyIndex < drawHistory.length - 1) {
+    historyIndex++;
+    const nextState = drawHistory[historyIndex];
+    currentRouteWaypoints = nextState ? JSON.parse(JSON.stringify(nextState)) : null;
+    
+    updateDrawnPolylines();
+    if (currentRouteWaypoints) map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
+    updateUndoRedoButtons();
+    showStatus('statusAvoid', '↪️ Đã làm lại', 'loading');
+  }
+};
+
+function updateUndoRedoButtons() {
+  document.getElementById('btnUndo').disabled = (historyIndex <= 0);
+  document.getElementById('btnRedo').disabled = (historyIndex >= drawHistory.length - 1);
+}
+// ========================================================
+
+window.toggleNightClosure = function() {
+  const isNight = document.getElementById('zoneNightClosure').checked;
+  const startInput = document.getElementById('zoneStartTime');
+  const endInput = document.getElementById('zoneEndTime');
+  
+  if (isNight) {
+    startInput.disabled = true;
+    endInput.disabled = true;
+    startInput.value = '';
+    endInput.value = '';
+  } else {
+    startInput.disabled = false;
+    endInput.disabled = false;
+  }
+};
 
 window.doLogin = async function() {
   const email = document.getElementById('authEmail').value.trim();
@@ -337,7 +424,7 @@ window.toggleFreehandMode = function() {
     btn.classList.add('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Đang vẽ tự do...';
     resetZoneDrawing();
-    showStatus('statusAvoid', '💡 Kéo để di chuyển map. Giữ Shift (PC) hoặc Nhấn giữ 0.5s (Mobile) để vẽ. Ấn phím C để cắt đoạn (tạo nét mới rời rạc).', 'loading');
+    showStatus('statusAvoid', '💡 Giữ Shift (PC) hoặc Nhấn giữ (Mobile) để vẽ.\n- Phím U: Cắt nét (vẫn cùng nhóm)\n- Phím C: Tách nhóm mới', 'loading');
   } else {
     btn.classList.remove('active');
     btn.innerHTML = '<i class="fas fa-paint-brush"></i> Vẽ tự do';
@@ -362,13 +449,20 @@ window.resetZoneDrawing = function() {
   document.getElementById('zoneLng2').value = '';
   document.getElementById('zoneStartTime').value = '';
   document.getElementById('zoneEndTime').value = '';
+  document.getElementById('zoneNightClosure').checked = false;
+  toggleNightClosure();
   document.querySelectorAll('.zone-vehicle').forEach(cb => cb.checked = false);
+  
+  // Reset Undo/Redo
+  drawHistory = [];
+  historyIndex = -1;
+  saveHistory(); // Lưu trạng thái rỗng ban đầu
 };
 
 function updateDrawnPolylines() {
   if (!tempPolyline) return;
   tempPolyline.clearLayers();
-  if (!currentRouteWaypoints) return;
+  if (!currentRouteWaypoints || currentRouteWaypoints.length === 0) return;
   
   const isMulti = Array.isArray(currentRouteWaypoints[0][0]);
   if (isMulti) {
@@ -441,6 +535,7 @@ window.updateZoneMapFromInputs = function() {
       
       updateDrawnPolylines();
       map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
+      saveHistory(); // Lưu lịch sử
       
       pointA = null; pointB = null;
       if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
@@ -546,6 +641,7 @@ function initMap() {
         
         updateDrawnPolylines();
         map.fitBounds(tempPolyline.getBounds(), { padding: [50, 50] });
+        saveHistory(); // Lưu lịch sử
 
         pointA = null; pointB = null;
         if (tempMarkerA) { map.removeLayer(tempMarkerA); tempMarkerA = null; }
@@ -558,19 +654,18 @@ function initMap() {
     }
   });
 
-  // LOGIC VẼ TỰ DO THÔNG MINH
+  // LOGIC VẼ TỰ DO
   function startFreehandDrawing(latlng) {
     isFreehandDrawing = true;
     map.dragging.disable();
     
     let startPt = latlng;
     
-    // Nếu KHÔNG PHẢI là chế độ Cắt (isFreehandCut = false) và đã có nét vẽ trước đó
+    // Nếu KHÔNG PHẢI là chế độ Cắt (U) và đã có nét vẽ trước đó
     if (!isFreehandCut && currentRouteWaypoints && currentRouteWaypoints.length > 0) {
        const lastSeg = currentRouteWaypoints[currentRouteWaypoints.length - 1];
        if (lastSeg && lastSeg.length > 0) {
           const lastPt = lastSeg[lastSeg.length - 1];
-          // Ép điểm bắt đầu của nét mới trùng với điểm cuối của nét cũ để nối liền
           startPt = L.latLng(lastPt[0], lastPt[1]);
        }
     }
@@ -605,11 +700,12 @@ function initMap() {
         const newPts = strokeCoords.slice(1); 
         currentRouteWaypoints[currentRouteWaypoints.length - 1] = lastSeg.concat(newPts);
       } else {
-        // Nếu vừa bấm C (Cắt) hoặc chưa có đoạn nào -> Tạo đoạn mới rời rạc
+        // Nếu vừa bấm U (Cắt) hoặc chưa có đoạn nào -> Tạo đoạn mới rời rạc
         currentRouteWaypoints.push(strokeCoords);
       }
       
       updateDrawnPolylines();
+      saveHistory(); // Lưu lịch sử sau mỗi nét vẽ
       
       const firstPt = currentRouteWaypoints[0][0];
       const lastSeg = currentRouteWaypoints[currentRouteWaypoints.length - 1];
@@ -707,16 +803,39 @@ function initMap() {
   });
 }
 
-// Lắng nghe phím C để cắt
+// ==========================================
+// LẮNG NGHE PHÍM TẮT
+// ==========================================
 document.addEventListener('keydown', (e) => {
-  if (e.key.toLowerCase() === 'c' && isFreehandMode) {
+  if (!isFreehandMode) return;
+
+  const key = e.key.toLowerCase();
+
+  // Phím U: Cắt nét vẽ (ngắt quãng nhưng vẫn chung nhóm)
+  if (key === 'u') {
     if (isFreehandDrawing) {
-      finishFreehandDrawing();
+      // Đang vẽ dở mà ấn U -> Dừng nét vẽ hiện tại
+      document.dispatchEvent(new Event('forceFinishFreehand')); 
     }
-    isFreehandCut = true; // Bật cờ cắt: nét tiếp theo sẽ tạo đoạn mới, không nối
-    showStatus('statusAvoid', '✂️ Đã cắt nét vẽ. Nét tiếp theo sẽ tạo một đoạn mới rời rạc.', 'success');
+    isFreehandCut = true; 
+    showStatus('statusAvoid', '✂️ Đã cắt nét (Phím U). Nét tiếp theo sẽ bị ngắt quãng nhưng vẫn chung tuyến đường.', 'success');
+  }
+
+  // Phím C: Tách nhóm mới (Hủy toàn bộ nét hiện tại để vẽ đường mới)
+  if (key === 'c') {
+    if (isFreehandDrawing) {
+       document.dispatchEvent(new Event('forceFinishFreehand'));
+    }
+    resetZoneDrawing();
+    showStatus('statusAvoid', '🔄 Đã tạo nhóm mới (Phím C). Bạn đang vẽ một tuyến đường hoàn toàn mới.', 'success');
   }
 });
+
+// Hỗ trợ dừng vẽ khi ấn phím tắt
+document.addEventListener('forceFinishFreehand', () => {
+   if (map) map.fire('mouseup');
+});
+
 
 async function getCoordsFromGmapsUrl(url) {
   if (!url) return { success: false, error: 'Chưa dán link' };
@@ -798,6 +917,7 @@ window.saveAvoidZone = async function() {
   if (!currentUser) return showStatus('statusAvoid', 'Lỗi: Chưa đăng nhập Firebase!', 'error');
   
   const name = document.getElementById('zoneName').value.trim();
+  const isNightClosure = document.getElementById('zoneNightClosure').checked;
   const startTimeVal = document.getElementById('zoneStartTime').value;
   const endTimeVal = document.getElementById('zoneEndTime').value;
 
@@ -822,13 +942,20 @@ window.saveAvoidZone = async function() {
 
   let startTime = null;
   let endTime = null;
-  if (startTimeVal) startTime = new Date(startTimeVal).getTime();
-  if (endTimeVal) endTime = new Date(endTimeVal).getTime();
+  
+  if (isNightClosure) {
+    startTime = "17:00";
+    endTime = "05:00";
+  } else {
+    if (startTimeVal) startTime = new Date(startTimeVal).getTime();
+    if (endTimeVal) endTime = new Date(endTimeVal).getTime();
+  }
 
   showStatus('statusAvoid', 'Đang lưu...', 'loading');
   try {
     const payload = {
       name: name,
+      isNightClosure: isNightClosure, // Lưu trạng thái cấm đêm
       lat1: firstPoint[0],
       lng1: firstPoint[1],
       lat2: lastPoint[0],
