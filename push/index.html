@@ -1,205 +1,348 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1.0" />
-<title>DriveKit — Công cụ chuyển dữ liệu (RTDB -> Firestore)</title>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Be Vietnam Pro', sans-serif; }
-  body { background: #0f172a; color: #f1f5f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
-  .box { background: #1e293b; width: 100%; max-width: 500px; border-radius: 16px; border: 1px solid #334155; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
-  h1 { font-size: 1.4rem; margin-bottom: 10px; text-align: center; color: #3b82f6; }
-  p.desc { font-size: 0.85rem; color: #94a3b8; text-align: center; margin-bottom: 20px; line-height: 1.5; }
-  .stat-box { background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; }
-  .stat-item { text-align: center; flex: 1; }
-  .stat-item span { display: block; font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; font-weight: 700; margin-bottom: 5px; }
-  .stat-item b { font-size: 1.5rem; color: #10b981; }
-  .progress-container { width: 100%; height: 8px; background: #334155; border-radius: 4px; margin-bottom: 10px; overflow: hidden; display: none; }
-  .progress-bar { height: 100%; background: #10b981; width: 0%; transition: width 0.3s; }
-  .log-box { background: #000; color: #10b981; font-family: monospace; font-size: 0.75rem; padding: 10px; border-radius: 8px; height: 150px; overflow-y: auto; margin-bottom: 20px; display: none; border: 1px solid #334155; }
-  .btn { width: 100%; padding: 14px; border-radius: 8px; font-weight: 800; font-size: 1rem; cursor: pointer; border: none; background: #3b82f6; color: white; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;}
-  .btn:disabled { background: #475569; cursor: not-allowed; }
-  .btn:hover:not(:disabled) { opacity: 0.9; }
-  .input-group { margin-bottom: 15px; }
-  .input-group label { font-size: 0.75rem; color: #94a3b8; font-weight: 700; margin-bottom: 5px; display: block; }
-  .input-group input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; outline: none; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firestore to RTDB Migration Tool</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #0f172a; color: #e2e8f0; padding: 30px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        .container { max-width: 900px; width: 100%; }
+        h1 { color: #3b82f6; text-align: center; margin-bottom: 10px; font-size: 2rem; }
+        p.subtitle { text-align: center; color: #94a3b8; margin-bottom: 30px; font-size: 0.95rem; }
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .card h3 { font-size: 1.1rem; color: #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+        .card p { font-size: 0.8rem; color: #94a3b8; }
+        
+        button { padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 0.9rem; }
+        button.primary { background: #3b82f6; color: white; width: 100%; }
+        button.primary:hover { background: #2563eb; }
+        button.primary:disabled { background: #475569; cursor: not-allowed; opacity: 0.6; }
+        
+        button.danger { background: #ef4444; color: white; width: 100%; }
+        button.danger:hover { background: #dc2626; }
+        button.danger:disabled { background: #475569; cursor: not-allowed; opacity: 0.6; }
+
+        .input-group { display: flex; gap: 10px; margin-top: 5px; }
+        .input-group input { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 0.9rem; }
+        .input-group input:focus { outline: none; border-color: #3b82f6; }
+
+        .log-box { background: #000000; border: 1px solid #334155; border-radius: 12px; padding: 15px; height: 300px; overflow-y: auto; font-family: 'Consolas', 'Courier New', monospace; font-size: 0.85rem; line-height: 1.5; margin-bottom: 20px; }
+        .log-entry { margin-bottom: 4px; border-bottom: 1px solid #1e293b; padding-bottom: 4px; }
+        .log-time { color: #64748b; margin-right: 10px; }
+        .log-info { color: #60a5fa; }
+        .log-success { color: #10b981; }
+        .log-error { color: #ef4444; }
+        .log-warn { color: #f59e0b; }
+
+        .status-bar { display: flex; justify-content: space-between; align-items: center; background: #1e293b; padding: 10px 15px; border-radius: 8px; font-size: 0.9rem; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .status-dot.connected { background: #10b981; box-shadow: 0 0 10px #10b981; }
+        .status-dot.disconnected { background: #ef4444; }
+
+        .section-title { color: #f59e0b; margin: 20px 0 10px 0; font-size: 1.1rem; font-weight: bold; border-left: 4px solid #f59e0b; padding-left: 10px; }
+    </style>
 </head>
 <body>
 
-<div class="box">
-  <h1><i class="fas fa-exchange-alt"></i> Chuyển dữ liệu</h1>
-  <p class="desc">Chuyển Trạm dừng nghỉ & Tuyến đường cấm từ <b>Realtime Database</b> sang <b>Firestore</b>.</p>
+<div class="container">
+    <h1>🚀 Migration Tool</h1>
+    <p class="subtitle">Chuyển dữ liệu từ Firestore sang RTDB & Dọn dẹp data cũ</p>
 
-  <div class="input-group">
-    <label>Mật khẩu Admin Firebase</label>
-    <input type="password" id="adminPass" placeholder="Nhập mật khẩu tài khoản Admin...">
-  </div>
-
-  <div class="stat-box">
-    <div class="stat-item">
-      <span>Trạm dừng nghỉ</span>
-      <b id="countPoi">0</b>
+    <div class="status-bar" style="margin-bottom: 20px;">
+        <div><span class="status-dot disconnected" id="statusDot"></span> <span id="statusText">Đang kết nối Firebase...</span></div>
+        <div style="color: #94a3b8;">Mode: <b id="modeText">Waiting</b></div>
     </div>
-    <div class="stat-item" style="border-left: 1px solid #334155; border-right: 1px solid #334155;">
-      <span>Tuyến đường cấm</span>
-      <b id="countZone">0</b>
+
+    <div class="section-title">1. Chuyển dữ liệu (Firestore ➡️ RTDB)</div>
+    <div class="grid">
+        <div class="card">
+            <h3>📍 Địa điểm Cộng đồng (POIs)</h3>
+            <p>Chuyển Trạm dừng nghỉ, Siêu thị... (Collection: <code>community_pois</code> & <code>rest_stops</code>)</p>
+            <button class="primary" onclick="migratePois()" id="btnPoi">Bắt đầu đẩy POIs</button>
+        </div>
+
+        <div class="card">
+            <h3>⚠️ Báo cáo sự cố (Reports)</h3>
+            <p>Chuyển CSGT, kẹt xe... (Collection: <code>reports</code>)</p>
+            <button class="primary" onclick="migrateReports()" id="btnReport">Bắt đầu đẩy Reports</button>
+        </div>
+
+        <div class="card">
+            <h3>🚫 Vùng cấm (Avoid Zones)</h3>
+            <p>Chuyển tuyến đường cấm (Collection: <code>avoid_zones</code>)</p>
+            <button class="primary" onclick="migrateAvoidZones()" id="btnZone">Bắt đầu đẩy Zones</button>
+        </div>
+
+        <div class="card">
+            <h3>📌 Ghim cá nhân (Saved Places)</h3>
+            <p>Nhập UID User để đẩy ghim cá nhân (Collection: <code>users/{uid}/savedPlaces</code>)</p>
+            <div class="input-group">
+                <input type="text" id="uidInput" placeholder="Nhập UID người dùng..." />
+            </div>
+            <button class="primary" onclick="migrateSavedPlaces()" id="btnSaved">Bắt đầu đẩy Ghim</button>
+        </div>
     </div>
-  </div>
 
-  <div class="progress-container" id="progressContainer">
-    <div class="progress-bar" id="progressBar"></div>
-  </div>
-  <div class="log-box" id="logBox"></div>
+    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <button class="primary" style="background: #10b981; flex: 1;" onclick="migrateAll()" id="btnAll">🚀 CHẠY TẤT CẢ (Trừ Ghim)</button>
+        <button class="primary" style="background: #334155; flex: 1;" onclick="clearLogs()">🗑 Xoá Log</button>
+    </div>
 
-  <button class="btn" id="btnStart" onclick="startMigration()">
-    <i class="fas fa-cloud-upload-alt"></i> Bắt đầu chuyển dữ liệu
-  </button>
+    <div class="section-title">2. Dọn dẹp data cũ (Firestore)</div>
+    <div class="card" style="border: 1px solid #ef4444; margin-bottom: 20px;">
+        <h3 style="color: #ef4444;">⚠️ CẢNH BÁO: Xoá vĩnh viễn data trên Firestore</h3>
+        <p>Chỉ bấm nút này SAU KHI đã chạy chuyển dữ liệu thành công và đã kiểm tra app chạy ổn với RTDB. Thao tác này không thể hoàn tác!</p>
+        <button class="danger" onclick="deleteAllOldData()" id="btnDeleteAll">🔥 XOÁ TOÀN BỘ DATA CŨ TRÊN FIRESTORE</button>
+    </div>
+
+    <div class="log-box" id="logBox">
+        <div class="log-entry"><span class="log-time">[System]</span> <span class="log-info">Đang khởi tạo...</span></div>
+    </div>
 </div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getDatabase, ref, get, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
-  authDomain: "drivekit-c88ef.firebaseapp.com",
-  databaseURL: "https://drivekit-c88ef-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "drivekit-c88ef",
-  storageBucket: "drivekit-c88ef.firebasestorage.app",
-  messagingSenderId: "1073887619343",
-  appId: "1:1073887619343:web:d89a872968bc4ee871f67a"
-};
+    // CẤU HÌNH FIREBASE CỦA BẠN
+    const firebaseConfig = {
+        apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
+        authDomain: "drivekit-c88ef.firebaseapp.com",
+        databaseURL: "https://drivekit-c88ef-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "drivekit-c88ef",
+        storageBucket: "drivekit-c88ef.firebasestorage.app",
+        messagingSenderId: "1073887619343",
+        appId: "1:1073887619343:web:d89a872968bc4ee871f67a"
+    };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getDatabase(app);
-const firestore = getFirestore(app);
+    const app = initializeApp(firebaseConfig);
+    const fsdb = getFirestore(app);
+    const db = getDatabase(app);
 
-const adminEmail = "worldoftankblizt1234@gmail.com"; // SỬA EMAIL CỦA BẠN NẾU CẦN
-let poisData = null;
-let zonesData = null;
+    const logBox = document.getElementById('logBox');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
 
-// Ghi log ra màn hình
-function log(msg, color = '#10b981') {
-  const box = document.getElementById('logBox');
-  box.style.display = 'block';
-  box.innerHTML += `<div style="color: ${color};">> ${msg}</div>`;
-  box.scrollTop = box.scrollHeight;
-}
+    setTimeout(() => {
+        statusDot.classList.remove('disconnected');
+        statusDot.classList.add('connected');
+        statusText.textContent = "Đã kết nối Firebase thành công!";
+        log("Hệ thống sẵn sàng. Hãy chọn dữ liệu cần chuyển.", "success");
+    }, 1500);
 
-// Cập nhật thanh tiến trình
-function setProgress(percent) {
-  document.getElementById('progressContainer').style.display = 'block';
-  document.getElementById('progressBar').style.width = percent + '%';
-}
-
-// Đếm số lượng dữ liệu hiện có trên RTDB (Để hiển thị lên UI)
-window.checkDataCount = async function() {
-  try {
-    const poiSnap = await get(ref(db, 'communityPois'));
-    if (poiSnap.exists()) {
-      poisData = poiSnap.val();
-      let c = 0;
-      for (const key in poisData) {
-        if (poisData[key].tag === 'rest_stop') c++;
-      }
-      document.getElementById('countPoi').textContent = c;
+    function log(msg, type = 'info') {
+        const time = new Date().toLocaleTimeString('vi-VN');
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-${type}">${msg}</span>`;
+        logBox.appendChild(entry);
+        logBox.scrollTop = logBox.scrollHeight;
     }
-    
-    const zoneSnap = await get(ref(db, 'avoid_zones'));
-    if (zoneSnap.exists()) {
-      zonesData = zoneSnap.val();
-      document.getElementById('countZone').textContent = Object.keys(zonesData).length;
+
+    function clearLogs() {
+        logBox.innerHTML = '<div class="log-entry"><span class="log-time">[System]</span> <span class="log-info">Log đã được xoá.</span></div>';
     }
-  } catch(e) {
-    console.log("Lỗi đếm dữ liệu:", e);
-  }
-};
 
-// Hàm chính chạy khi bấm nút
-window.startMigration = async function() {
-  const pass = document.getElementById('adminPass').value;
-  if (!pass) return alert("Vui lòng nhập mật khẩu Admin!");
+    function toggleButtons(disabled) {
+        document.querySelectorAll('button').forEach(btn => btn.disabled = disabled);
+        document.getElementById('modeText').textContent = disabled ? "Đang chạy..." : "Waiting";
+    }
 
-  const btn = document.getElementById('btnStart');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
-  document.getElementById('logBox').innerHTML = '';
+    // ==========================================
+    // CHUYỂN DỮ LIỆU
+    // ==========================================
+    async function migratePois() {
+        toggleButtons(true);
+        log("--- BẮT ĐẦU CHUYỂN POIs ---", "warn");
+        let total = 0, success = 0;
 
-  try {
-    log("Đang đăng nhập Admin...", "#3b82f6");
-    await signInWithEmailAndPassword(auth, adminEmail, pass);
-    log("Đăng nhập thành công!");
+        try {
+            log("Đang đọc collection 'community_pois' từ Firestore...");
+            const snapPois = await getDocs(collection(fsdb, 'community_pois'));
+            total += snapPois.size;
+            log(`Tìm thấy ${snapPois.size} POIs. Đang đẩy lên RTDB...`);
 
-    // 1. CHUYỂN TRẠM DỪNG NGHỈ
-    if (poisData) {
-      log("Bắt đầu chuyển Trạm dừng nghỉ...", "#f59e0b");
-      let count = 0;
-      const total = parseInt(document.getElementById('countPoi').textContent);
-      
-      for (const key in poisData) {
-        const poi = poisData[key];
-        if (poi.tag === 'rest_stop') {
-          await addDoc(collection(firestore, "rest_stops"), {
-            lat: poi.lat, lng: poi.lng, name: poi.name, tag: 'rest_stop',
-            uid: poi.uid || 'admin', authorName: poi.authorName || 'Admin',
-            timestamp: poi.timestamp || Date.now(), upvotes: poi.upvotes || 0
-          });
-          count++;
-          setProgress((count / (total + parseInt(document.getElementById('countZone').textContent || 0))) * 100);
+            for (const docSnap of snapPois.docs) {
+                const data = docSnap.data();
+                await set(ref(db, `communityPois/${docSnap.id}`), { ...data, source: 'rtdb' });
+                success++;
+            }
+
+            log("Đang đọc collection 'rest_stops' từ Firestore...");
+            const snapRest = await getDocs(collection(fsdb, 'rest_stops'));
+            total += snapRest.size;
+            log(`Tìm thấy ${snapRest.size} Trạm dừng nghỉ. Đang đẩy lên RTDB...`);
+
+            for (const docSnap of snapRest.docs) {
+                const data = docSnap.data();
+                await set(ref(db, `communityPois/${docSnap.id}`), { ...data, tag: 'rest_stop', source: 'rtdb' });
+                success++;
+            }
+
+            log(`✅ HOÀN TẤT: Đã chuyển thành công ${success}/${total} POIs.`, "success");
+        } catch (e) {
+            log(`❌ LỖI: ${e.message}`, "error");
+            console.error(e);
         }
-      }
-      log(`✅ Đã chuyển ${count} trạm dừng nghỉ.`);
+        toggleButtons(false);
     }
 
-    // 2. CHUYỂN VÙNG CẤM
-    if (zonesData) {
-      log("Bắt đầu chuyển Tuyến đường cấm...", "#f59e0b");
-      let count = 0;
-      const total = parseInt(document.getElementById('countZone').textContent);
-      
-      for (const key in zonesData) {
-        const zone = zonesData[key];
-        await addDoc(collection(firestore, "avoid_zones"), {
-          name: zone.name, lat1: zone.lat1, lng1: zone.lng1,
-          lat2: zone.lat2, lng2: zone.lng2, timestamp: zone.timestamp || Date.now()
-        });
-        count++;
-        setProgress(((parseInt(document.getElementById('countPoi').textContent) + count) / (parseInt(document.getElementById('countPoi').textContent) + total)) * 100);
-      }
-      log(`✅ Đã chuyển ${count} tuyến đường cấm.`);
+    async function migrateReports() {
+        toggleButtons(true);
+        log("--- BẮT ĐẦU CHUYỂN REPORTS ---", "warn");
+        let total = 0, success = 0;
+
+        try {
+            log("Đang đọc collection 'reports' từ Firestore...");
+            const snap = await getDocs(collection(fsdb, 'reports'));
+            total = snap.size;
+            log(`Tìm thấy ${total} Báo cáo. Đang đẩy lên RTDB...`);
+
+            for (const docSnap of snap.docs) {
+                const data = docSnap.data();
+                await set(ref(db, `reports/${docSnap.id}`), { ...data, source: 'rtdb' });
+                success++;
+            }
+            log(`✅ HOÀN TẤT: Đã chuyển thành công ${success}/${total} Reports.`, "success");
+        } catch (e) {
+            log(`❌ LỖI: ${e.message}`, "error");
+            console.error(e);
+        }
+        toggleButtons(false);
     }
 
-    setProgress(100);
-    log("🎉 HOÀN TẤT CHUYỂN DỮ LIỆU!", "#10b981");
+    async function migrateAvoidZones() {
+        toggleButtons(true);
+        log("--- BẮT ĐẦU CHUYỂN AVOID ZONES ---", "warn");
+        let total = 0, success = 0;
 
-    // 3. DỌN DẸP RTDB
-    setTimeout(async () => {
-      if (confirm("Chuyển xong! Bạn có muốn XOÁ dữ liệu cũ trên RTDB để dọn dẹp không?")) {
-        log("Đang dọn dẹp RTDB...", "#ef4444");
-        await remove(ref(db, 'communityPois'));
-        await remove(ref(db, 'avoid_zones'));
-        log("🧹 Đã xoá dữ liệu cũ trên RTDB.");
-        document.getElementById('countPoi').textContent = '0';
-        document.getElementById('countZone').textContent = '0';
-      }
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-check-circle"></i> Đã chuyển xong';
-    }, 500);
+        try {
+            log("Đang đọc collection 'avoid_zones' từ Firestore...");
+            const snap = await getDocs(collection(fsdb, 'avoid_zones'));
+            total = snap.size;
+            log(`Tìm thấy ${total} Vùng cấm. Đang đẩy lên RTDB...`);
 
-  } catch (err) {
-    log("❌ Lỗi: " + err.message, "#ef4444");
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-redo"></i> Thử lại';
-  }
-};
+            for (const docSnap of snap.docs) {
+                const data = docSnap.data();
+                await set(ref(db, `avoid_zones/${docSnap.id}`), { ...data, source: 'rtdb' });
+                success++;
+            }
+            log(`✅ HOÀN TẤT: Đã chuyển thành công ${success}/${total} Vùng cấm.`, "success");
+        } catch (e) {
+            log(`❌ LỖI: ${e.message}`, "error");
+            console.error(e);
+        }
+        toggleButtons(false);
+    }
 
-// Chạy đếm dữ liệu ngay khi mở trang
-checkDataCount();
+    async function migrateSavedPlaces() {
+        const uid = document.getElementById('uidInput').value.trim();
+        if (!uid) {
+            log("⚠️ Vui lòng nhập UID người dùng trước khi chuyển Ghim cá nhân!", "warn");
+            return;
+        }
+
+        toggleButtons(true);
+        log(`--- BẮT ĐẦU CHUYỂN GHIM CỦA USER: ${uid} ---`, "warn");
+        let total = 0, success = 0;
+
+        try {
+            log(`Đang đọc 'users/${uid}/savedPlaces' từ Firestore...`);
+            const snap = await getDocs(collection(fsdb, `users/${uid}/savedPlaces`));
+            total = snap.size;
+
+            if (total === 0) {
+                log(`User này không có ghim nào để chuyển.`, "warn");
+                toggleButtons(false);
+                return;
+            }
+
+            log(`Tìm thấy ${total} Ghim. Đang đẩy lên RTDB...`);
+
+            for (const docSnap of snap.docs) {
+                const data = docSnap.data();
+                await set(ref(db, `users/${uid}/savedPlaces/${docSnap.id}`), { ...data, source: 'rtdb' });
+                success++;
+            }
+            log(`✅ HOÀN TẤT: Đã chuyển thành công ${success}/${total} Ghim của User ${uid}.`, "success");
+        } catch (e) {
+            log(`❌ LỖI: ${e.message}`, "error");
+            console.error(e);
+        }
+        toggleButtons(false);
+    }
+
+    async function migrateAll() {
+        log("🚀 BẮT ĐẦU CHẠY TẤT CẢ (POIs, Reports, Zones)...", "warn");
+        await migratePois();
+        await migrateReports();
+        await migrateAvoidZones();
+        log("🎉 ĐÃ CHẠY XONG TẤT CẢ CÁC MỤC (Trừ Ghim cá nhân).", "success");
+    }
+
+    // ==========================================
+    // XOÁ DATA CŨ TRÊN FIRESTORE
+    // ==========================================
+    async function deleteCollection(collectionPath) {
+        const snap = await getDocs(collection(fsdb, collectionPath));
+        let deleted = 0;
+        for (const docSnap of snap.docs) {
+            await deleteDoc(doc(fsdb, collectionPath, docSnap.id));
+            deleted++;
+        }
+        return { total: snap.size, deleted };
+    }
+
+    async function deleteAllOldData() {
+        if (!confirm("🚨 CẢNH BÁO: Bạn có chắc chắn muốn XOÁ VĨNH VIỄN toàn bộ dữ liệu cũ trên Firestore (POIs, Rest Stops, Reports, Avoid Zones)?\n\nHành động này KHÔNG THỂ HOÀN TÁC. Chỉ bấm OK nếu bạn đã chuyển sang RTDB thành công và app đã chạy ổn!")) {
+            log("Đã huỷ lệnh xoá.", "info");
+            return;
+        }
+
+        toggleButtons(true);
+        log("🔥 BẮT ĐẦU XOÁ DATA CŨ TRÊN FIRESTORE...", "warn");
+
+        try {
+            log("Đang xoá 'community_pois'...");
+            const c1 = await deleteCollection('community_pois');
+            log(`Đã xoá ${c1.deleted}/${c1.total} POIs.`, "success");
+
+            log("Đang xoá 'rest_stops'...");
+            const c2 = await deleteCollection('rest_stops');
+            log(`Đã xoá ${c2.deleted}/${c2.total} Rest Stops.`, "success");
+
+            log("Đang xoá 'reports'...");
+            const c3 = await deleteCollection('reports');
+            log(`Đã xoá ${c3.deleted}/${c3.total} Reports.`, "success");
+
+            log("Đang xoá 'avoid_zones'...");
+            const c4 = await deleteCollection('avoid_zones');
+            log(`Đã xoá ${c4.deleted}/${c4.total} Avoid Zones.`, "success");
+
+            log(`✅ HOÀN TẤT DỌN DẸP! Đã xoá tổng cộng ${c1.deleted + c2.deleted + c3.deleted + c4.deleted} documents trên Firestore.`, "success");
+            log("Lưu ý: Nếu bạn có Ghim cá nhân cũ trên Firestore, hãy chạy riêng lệnh xoá hoặc tự xoá thủ công để đảm bảo an toàn.", "warn");
+        } catch (e) {
+            log(`❌ LỖI KHI XOÁ: ${e.message}`, "error");
+            console.error(e);
+        }
+        toggleButtons(false);
+    }
+
+    // Gán hàm vào window
+    window.migratePois = migratePois;
+    window.migrateReports = migrateReports;
+    window.migrateAvoidZones = migrateAvoidZones;
+    window.migrateSavedPlaces = migrateSavedPlaces;
+    window.migrateAll = migrateAll;
+    window.deleteAllOldData = deleteAllOldData;
+    window.clearLogs = clearLogs;
 </script>
+
 </body>
 </html>
