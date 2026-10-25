@@ -1082,6 +1082,34 @@ window.switchToRoute = function(index) {
   closeRouteOptions(); speak('Đã đổi tuyến đường mới.');
 };
 
+// --- HÀM TỰ ĐỘNG DỊCH CHỈ DẪN TIẾNG ANH SANG TIẾNG VIỆT ---
+function translateInstruction(instr) {
+  if (!instr) return 'Tiếp tục di chuyển';
+  if (!/[a-zA-Z]/.test(instr)) return instr; // Nếu không có chữ cái tiếng Anh thì giữ nguyên
+  
+  let text = instr;
+  text = text.replace(/Head\s+(\w+)/i, function(match, dir) {
+     const dirs = { north: 'Bắc', south: 'Nam', east: 'Đông', west: 'Tây', northeast: 'Đông Bắc', northwest: 'Tây Bắc', southeast: 'Đông Nam', southwest: 'Tây Nam' };
+     return `Đi về hướng ${dirs[dir.toLowerCase()] || dir}`;
+  });
+  text = text.replace(/Turn\s+left/i, 'Rẽ trái');
+  text = text.replace(/Turn\s+right/i, 'Rẽ phải');
+  text = text.replace(/Continue\s+straight/i, 'Tiếp tục đi thẳng');
+  text = text.replace(/Slight\s+left/i, 'Chếch sang trái');
+  text = text.replace(/Slight\s+right/i, 'Chếch sang phải');
+  text = text.replace(/Sharp\s+left/i, 'Rẽ trái gắt');
+  text = text.replace(/Sharp\s+right/i, 'Rẽ phải gắt');
+  text = text.replace(/Make\s+a\s+U-turn/i, 'Quay đầu');
+  text = text.replace(/on\s+/i, 'trên ');
+  text = text.replace(/onto\s+/i, 'vào ');
+  text = text.replace(/toward\s+/i, 'về hướng ');
+  text = text.replace(/Arrive\s+at/i, 'Đến');
+  text = text.replace(/Continue\s+on/i, 'Tiếp tục trên');
+  text = text.replace(/Take\s+the\s+exit/i, 'Đi theo lối ra');
+  text = text.replace(/Enter\s+the\s+roundabout/i, 'Đi vào vòng xuyến');
+  return text;
+}
+
 function updateNextManeuverHUD(lat, lng) {
   if (!voiceRouteSteps || voiceRouteSteps.length === 0) {
     document.getElementById('hudNextArrow').innerHTML = `<i class="fas fa-arrow-up"></i>`;
@@ -1105,7 +1133,9 @@ function updateNextManeuverHUD(lat, lng) {
     } else if (type.includes('roundabout')) icon = 'fa-sync-alt'; else if (type.includes('arrive')) icon = 'fa-flag-checkered'; else if (type.includes('uturn')) icon = 'fa-undo';
     document.getElementById('hudNextArrow').innerHTML = `<i class="fas ${icon}"></i>`;
     document.getElementById('hudNextDist').textContent = minDist > 1000 ? (minDist / 1000).toFixed(1) + ' km' : Math.round(minDist) + ' m';
-    document.getElementById('hudNextInstr').textContent = nextStep.maneuver.instruction || 'Tiếp tục di chuyển';
+    
+    // Dịch chỉ dẫn trước khi hiển thị
+    document.getElementById('hudNextInstr').textContent = translateInstruction(nextStep.maneuver.instruction);
   } else {
     document.getElementById('hudNextArrow').innerHTML = `<i class="fas fa-arrow-up"></i>`;
     document.getElementById('hudNextDist').textContent = 'Đi thẳng';
@@ -1637,7 +1667,12 @@ function startVoice() {
     for (let i = voiceStepIndex; i < Math.min(voiceRouteSteps.length, voiceStepIndex + 3); i++) {
       const step = voiceRouteSteps[i]; if (!step?.maneuver?.location) continue;
       const d = calcDist(lastUserPos.lat, lastUserPos.lng, step.maneuver.location[1], step.maneuver.location[0]);
-      if (d < 50) { speak(step.maneuver.instruction); voiceStepIndex = i + 1; break; }
+      if (d < 50) { 
+        // Dịch cả giọng nói
+        speak(translateInstruction(step.maneuver.instruction)); 
+        voiceStepIndex = i + 1; 
+        break; 
+      }
     }
   }, 3000);
 }
