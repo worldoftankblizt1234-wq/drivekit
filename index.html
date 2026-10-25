@@ -1594,7 +1594,6 @@ window.fetchAndShowRouteOptions = async function() {
       });
     }
 
-    // BỘ LỌC QUAN TRỌNG: Chặn tuyến đường có khoảng cách = 0 hoặc tọa độ lỗi
     routes = routes.filter(r => {
       if (!r.distance || r.distance <= 0) return false; 
       const coords = r.geometry?.coordinates;
@@ -1603,7 +1602,6 @@ window.fetchAndShowRouteOptions = async function() {
     });
 
     if (routes.length === 0) {
-      // Lấy lỗi chi tiết từ Worker (nếu có)
       let errorDetails = data.error || 'Không có dữ liệu trả về';
       if (data.details && Array.isArray(data.details)) {
         errorDetails = data.details.join('<br>• ');
@@ -1750,15 +1748,26 @@ window.switchToRoute = function(index) {
   closeRouteOptions(); speak('Đã đổi tuyến đường mới.');
 };
 
+// ---------------------------------------------------------
+// ĐÃ CẬP NHẬT: Xử lý hiển thị "Đi thẳng" nếu API không trả về steps
+// ---------------------------------------------------------
 function updateNextManeuverHUD(lat, lng) {
-  if (!voiceRouteSteps || voiceRouteSteps.length === 0) return;
-  let nextStep = null; let minDist = Infinity;
+  if (!voiceRouteSteps || voiceRouteSteps.length === 0) {
+    document.getElementById('hudNextArrow').innerHTML = `<i class="fas fa-arrow-up"></i>`;
+    document.getElementById('hudNextDist').textContent = 'Đi thẳng';
+    document.getElementById('hudNextInstr').textContent = 'Tiếp tục di chuyển đến đích';
+    return;
+  }
+  
+  let nextStep = null; 
+  let minDist = Infinity;
   for (let i = Math.max(0, voiceStepIndex); i < Math.min(voiceRouteSteps.length, voiceStepIndex + 5); i++) {
     const step = voiceRouteSteps[i];
     if (!step?.maneuver?.location) continue;
     const d = calcDist(lat, lng, step.maneuver.location[1], step.maneuver.location[0]);
     if (d > 5 && d < minDist) { minDist = d; nextStep = step; }
   }
+  
   if (nextStep) {
     let icon = 'fa-arrow-up'; const type = nextStep.maneuver.type || ''; const modifier = nextStep.maneuver.modifier || '';
     if (type.includes('turn') || type.includes('fork') || type.includes('merge')) {
@@ -1807,29 +1816,52 @@ function checkOffRoute(userLat, userLng) {
   if (minDist > 50) { offRouteCount++; if (offRouteCount >= 3) { offRouteCount = 0; autoReroute(userLat, userLng); } } else offRouteCount = 0;
 }
 
+// ---------------------------------------------------------
+// ĐÃ CẬP NHẬT: Dùng /trackasia-route để có fallback, tự vẽ lại đường
+// ---------------------------------------------------------
 async function autoReroute(userLat, userLng) {
-  if (isRerouting) return; isRerouting = true;
-  const currentProvider = currentRouteData?.provider || 'mapbox'; 
+  if (isRerouting) return; 
+  isRerouting = true;
+  
   const currentMode = currentRouteData?.mode || (currentVehicleMode === 'none' ? 'driving' : currentVehicleMode);
-  const fromStr = `${userLng},${userLat}`; const toStr = `${endPoint.lng},${endPoint.lat}`;
+  
   try {
-    let r;
-    if (currentProvider === 'trackasia' || currentProvider === 'ORS') {
-      try { const ta = await fetchTrackAsiaRouteNormalized({ lat: userLat, lng: userLng }, endPoint, currentMode); r = ta[0]; }
-      catch (e) { const res = await fetchWorker(`/mapbox-route?from=${fromStr}&to=${toStr}&mode=${currentMode}`); const data = await res.json(); if (data.code !== 'Ok') throw new Error('no route'); r = { ...data.routes[0], provider: 'mapbox', mode: currentMode }; }
-    } else {
-      const res = await fetchWorker(`/mapbox-route?from=${fromStr}&to=${toStr}&mode=${currentMode}`); const data = await res.json(); if (data.code !== 'Ok') throw new Error('no route'); r = { ...data.routes[0], provider: 'mapbox', mode: currentMode };
+    const res = await fetchWorker(`/trackasia-route?origin=${userLat},${userLng}&destination=${endPoint.lat},${endPoint.lng}&mode=${currentMode}`);
+    const data = await res.json(); 
+    
+    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+      throw new Error(data.error || 'Không tìm thấy đường mới');
     }
+    
+    let r = data.routes[0];
     if (!r.legs || !Array.isArray(r.legs) || r.legs.length === 0) r.legs = [{ steps: [] }];
     if (!r.legs[0].steps) r.legs[0].steps = [];
-    currentRouteData = r; voiceRouteSteps = r.legs[0].steps; voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
+    
+    currentRouteData = r; 
+    voiceRouteSteps = r.legs[0].steps; 
+    voiceStepIndex = 0; 
+    lastSnapIndex = 0; 
+    offRouteCount = 0;
     currentRouteCoords = r.geometry.coordinates;
+    
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
     currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+    
     map.fitBounds(L.latLngBounds(currentRouteCoords), { padding: [50, 50] });
+    
     document.getElementById('hudRemainDist').textContent = (r.distance / 1000).toFixed(1) + ' km';
     document.getElementById('hudRemainTime').textContent = Math.round(r.duration / 60) + ' phút';
-  } catch (e) { console.error('Lỗi Reroute:', e); } finally { isRerouting = false; }
+    
+    updateNextManeuverHUD(userLat, userLng);
+    speak('Đã tìm lại lộ trình mới.');
+    
+  } catch (e) { 
+    console.error('Lỗi Reroute:', e); 
+    setTimeout(() => { isRerouting = false; }, 3000); 
+    return;
+  } 
+  
+  isRerouting = false; 
 }
 
 window.openEndTripModal = function() {
