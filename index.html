@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+    <meta name="theme-color" content="#0f172a" />
+    <title>DriveKit — Mọi hành trình, một giải pháp</title>
+    
+    <!-- Nhúng file CSS ở đây -->
+    <link rel="stylesheet" href="style.css" />
+    
+    <!-- Các thư viện bên ngoài (Font, Leaflet, TrackAsia...) giữ nguyên -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&family=Fira+Code:wght@500;600;700&display=swap&subset=vietnamese" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js"></script>
+    <link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
+</head>
+<body>
+    <!-- TOÀN BỘ PHẦN HTML (Từ thẻ <div class="loading-screen"> cho đến hết các thẻ div modal) GIỮ NGUYÊN Ở ĐÂY -->
+    <div class="loading-screen" id="loadingScreen">...</div>
+    <!-- ... các thẻ div khác ... -->
+
+    <!-- Script xử lý lỗi tải (giữ nguyên) -->
+    <script>
+      window.addEventListener('error', function (e) {
+        var t = document.getElementById('loadingText');
+        if (t) t.textContent = 'Lỗi tải: ' + (e.message || 'không rõ') + ' — mở F12 → Console';
+      });
+      setTimeout(function () {
+        var el = document.getElementById('loadingPercent');
+        if (el && el.textContent === '0%') {
+          var t = document.getElementById('loadingText');
+          if (t) t.textContent = 'Không tải được ứng dụng. Mở F12 → Console để xem lỗi.';
+        }
+      }, 3500);
+    </script>
+
+    <!-- Nhúng file JS chính ở đây (Lưu ý phải có type="module") -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
