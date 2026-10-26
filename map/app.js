@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getDatabase, ref, set, push, get, onValue, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getFirestore, collection, doc, addDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { DIR_DICT, NAV_DICT } from './dictionary.js'; // IMPORT TỪ ĐIỂN
+import { DIR_DICT, NAV_DICT } from './dictionary.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
@@ -62,9 +62,6 @@ const ARRIVAL_RADIUS_M = 20;
 
 let tempPinLatLng = null;
 let tempPinName = "";
-let lastReverseGeoTime = 0;
-let lastReverseGeoPos = null;
-let lastGeoStepIndex = -1;
 const ROUTE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 
 let tempPoiLatLng = null;
@@ -1030,7 +1027,6 @@ window.switchToRoute = function(index) {
   closeRouteOptions(); speak('Đã đổi tuyến đường mới.');
 };
 
-// HÀM DỊCH SỬ DỤNG TỪ ĐIỂN
 function translateInstruction(instr) {
   if (!instr) return 'Tiếp tục di chuyển';
   if (!/[a-zA-Z]/.test(instr)) return instr; 
@@ -1211,6 +1207,7 @@ window.openEndTripModal = function() {
 
 window.closeEndTripModal = function() { document.getElementById('endTripModal').classList.remove('open'); };
 
+// HÀM LƯU LỘ TRÌNH ĐÃ ĐƯỢC NÂNG CẤP (KHÔNG RELOAD)
 window.endTrip = async function(save) {
   closeEndTripModal();
   
@@ -1225,20 +1222,37 @@ window.endTrip = async function(save) {
         parseFloat(c[1].toFixed(5))
       ]);
 
-      await addDoc(collection(fsdb, `users/${currentUser.uid}/savedRoutes`), {
+      const routeData = {
         startName: startData.name, startLng: startData.lng, startLat: startData.lat,
         endName: endData.name, endLng: endData.lng, endLat: endData.lat,
         coordsJson: JSON.stringify(compressedCoords), 
         timestamp: Date.now()
-      });
+      };
+
+      // 1. Lưu lên Firestore
+      const docRef = await addDoc(collection(fsdb, `users/${currentUser.uid}/savedRoutes`), routeData);
       
-      // XOÁ CACHE FIRESTORE VÀ TỰ ĐỘNG F5
-      localStorage.removeItem('cache_saved_routes_' + currentUser.uid);
-      localStorage.removeItem('cache_history_' + currentUser.uid);
+      // 2. Thêm vào mảng hiển thị (Optimistic UI)
+      const newRoute = { ...routeData, id: docRef.id, _id: docRef.id, source: 'firestore' };
+      _fsSavedRoutes.push(newRoute);
+      recomputeSavedRoutes();
       
-      alert('✅ Đã lưu lộ trình thành công! Ứng dụng sẽ tải lại để cập nhật.');
-      window.location.reload(); // F5
-      return; // Dừng hàm, không chạy phần dọn dẹp bên dưới
+      // 3. Cập nhật Cache LocalStorage (Để F5 không bị mất)
+      let cachedSaved = JSON.parse(localStorage.getItem('cache_saved_routes_' + currentUser.uid) || '{"timestamp":0,"data":[]}');
+      cachedSaved.data.push(newRoute);
+      cachedSaved.timestamp = Date.now();
+      localStorage.setItem('cache_saved_routes_' + currentUser.uid, JSON.stringify(cachedSaved));
+
+      // 4. Nếu Menu đang mở thì cập nhật lại giao diện
+      if (document.getElementById('profileModal').classList.contains('open')) {
+        loadSavedRoutes();
+      }
+      
+      // 5. Hiển thị Toast thông báo (Không reload)
+      const t = document.createElement('div');
+      t.style.cssText = 'position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#10b981,#059669);color:white;padding:14px 22px;border-radius:14px;font-weight:800;z-index:9999;display:flex;gap:10px;align-items:center;';
+      t.innerHTML = '<i class="fas fa-check-circle"></i><span>Đã lưu lộ trình thành công!</span>';
+      document.body.appendChild(t); setTimeout(() => t.remove(), 2500);
 
     } catch (e) {
       console.error("Lỗi lưu Firestore:", e);
@@ -1254,6 +1268,7 @@ window.endTrip = async function(save) {
     }
   }
 
+  // --- PHẦN DỌN DẸP BẢN ĐỒ VÀ HUD (Giữ nguyên) ---
   if (liveEnabled && liveRoomCode && isLiveHost) {
     remove(ref(db, `live_rooms/${liveRoomCode}/navigation`)).catch(()=>{});
   }
@@ -1273,21 +1288,28 @@ window.endTrip = async function(save) {
   document.getElementById('dirInputEnd').value = ''; document.getElementById('topSearchInput').value = ''; document.getElementById('btnClearEnd').classList.add('hidden'); document.getElementById('searchClearBtn').classList.add('hidden'); endPoint = null;
   
   if (lastUserPos) map.flyTo([lastUserPos.lat, lastUserPos.lng], 16, { animate: true, duration: 1 });
-  
-  if (save) {
-    if (!currentRouteData) alert('✅ Đã kết thúc chuyến đi.');
-  } else {
-    alert('🏁 Đã kết thúc chuyến đi (Không lưu).');
-  }
 };
 
+// NÂNG CẤP HÀM LƯU LỊCH SỬ ĐỂ ĐỒNG BỘ LOCAL
 async function saveHistoryToFirestore(start, end, distance) {
   if (!currentUser) return;
   try {
-    await addDoc(collection(fsdb, `users/${currentUser.uid}/history`), {
+    const histData = {
       startName: start.name, endName: end.name, distance, timestamp: Date.now()
-    });
-  } catch(e) {}
+    };
+    
+    const docRef = await addDoc(collection(fsdb, `users/${currentUser.uid}/history`), histData);
+    
+    const newHist = { ...histData, id: docRef.id, _id: docRef.id, source: 'firestore' };
+    _fsHistory.push(newHist);
+    recomputeHistory();
+    
+    let cachedHist = JSON.parse(localStorage.getItem('cache_history_' + currentUser.uid) || '{"timestamp":0,"data":[]}');
+    cachedHist.data.push(newHist);
+    cachedHist.timestamp = Date.now();
+    localStorage.setItem('cache_history_' + currentUser.uid, JSON.stringify(cachedHist));
+
+  } catch(e) { console.error("Lỗi lưu lịch sử:", e); }
 }
 
 window.shareRoute = function() {
@@ -1387,6 +1409,23 @@ window.deleteItem = async function(type, source, id) {
   try {
     if (source === 'firestore') await deleteDoc(doc(fsdb, `users/${currentUser.uid}/${type}/${id}`));
     else await remove(ref(db, `users/${currentUser.uid}/${type}/${id}`));
+    
+    // Cập nhật Local Cache để không bị load lại khi F5
+    if (type === 'history') {
+      _fsHistory = _fsHistory.filter(h => h._id !== id);
+      recomputeHistory();
+      let cachedHist = JSON.parse(localStorage.getItem('cache_history_' + currentUser.uid) || '{"timestamp":0,"data":[]}');
+      cachedHist.data = cachedHist.data.filter(h => h._id !== id);
+      localStorage.setItem('cache_history_' + currentUser.uid, JSON.stringify(cachedHist));
+      loadHistory();
+    } else if (type === 'savedRoutes') {
+      _fsSavedRoutes = _fsSavedRoutes.filter(r => r._id !== id);
+      recomputeSavedRoutes();
+      let cachedRoutes = JSON.parse(localStorage.getItem('cache_saved_routes_' + currentUser.uid) || '{"timestamp":0,"data":[]}');
+      cachedRoutes.data = cachedRoutes.data.filter(r => r._id !== id);
+      localStorage.setItem('cache_saved_routes_' + currentUser.uid, JSON.stringify(cachedRoutes));
+      loadSavedRoutes();
+    }
   } catch (e) { alert('Lỗi xoá: ' + e.message); }
 };
 
@@ -1396,6 +1435,11 @@ window.clearAllHistory = async function() {
     const fsSnap = await getDocs(collection(fsdb, `users/${currentUser.uid}/history`));
     for (const d of fsSnap.docs) await deleteDoc(d.ref);
     await remove(ref(db, `users/${currentUser.uid}/history`));
+    
+    _fsHistory = []; _rtdbHistory = [];
+    recomputeHistory();
+    localStorage.removeItem('cache_history_' + currentUser.uid);
+    loadHistory();
   } catch(e) {}
 };
 
@@ -1405,6 +1449,11 @@ window.clearAllSavedRoutes = async function() {
     const fsSnap = await getDocs(collection(fsdb, `users/${currentUser.uid}/savedRoutes`));
     for (const d of fsSnap.docs) await deleteDoc(d.ref);
     await remove(ref(db, `users/${currentUser.uid}/savedRoutes`));
+    
+    _fsSavedRoutes = []; _rtdbSavedRoutes = [];
+    recomputeSavedRoutes();
+    localStorage.removeItem('cache_saved_routes_' + currentUser.uid);
+    loadSavedRoutes();
   } catch(e) {}
 };
 
