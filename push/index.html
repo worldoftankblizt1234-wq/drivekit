@@ -9,11 +9,21 @@
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 
+    <!-- vConsole (debug panel) — load TRƯỚC khi app chạy -->
+    <script src="https://unpkg.com/vconsole@3.15.1/dist/vconsole.min.js"></script>
+    <script>
+        // Khởi tạo vConsole NGAY (trước MapLibre) để bắt được mọi log
+        window.vConsole = new window.VConsole({
+            theme: 'dark',
+            defaultPlugins: ['system', 'network', 'element', 'storage'],
+            maxLogNumber: 1000
+        });
+    </script>
+
     <style>
         body { margin: 0; padding: 0; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
 
-        /* Panel điều khiển */
         #controls {
             position: absolute;
             top: 10px;
@@ -71,6 +81,15 @@
 
 <script>
     // ==============================
+    // 0. HELPERS (log đẹp trong vConsole)
+    // ==============================
+    const log   = (...args) => console.log('[Traffic]', ...args);
+    const warn  = (...args) => console.warn('[Traffic]', ...args);
+    const error = (...args) => console.error('[Traffic]', ...args);
+
+    log('Khởi động app, vConsole đã sẵn sàng ✨');
+
+    // ==============================
     // 1. CẤU HÌNH API KEY
     // ==============================
     const TOMTOM_API_KEY = 'ab591bfc-9bfe-4644-b5e7-21ad3e9bc51c';
@@ -81,28 +100,33 @@
     // ==============================
     const map = new maplibregl.Map({
         container: 'map',
-        // Sử dụng style vector của TrackAsia làm base map
         style: `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_API_KEY}`,
-        center: [105.85, 21.02], // Hà Nội
+        center: [105.85, 21.02],
         zoom: 12,
-        pitch: 0,                // Nghiêng ban đầu (0 = nhìn từ trên xuống)
-        bearing: 0,              // Hướng xoay ban đầu
-        maxPitch: 85,            // Cho phép nghiêng tối đa 85°
+        pitch: 0,
+        bearing: 0,
+        maxPitch: 85,
         attributionControl: true
     });
 
-    // Thêm control điều hướng (zoom, xoay, nghiêng)
     map.addControl(new maplibregl.NavigationControl({
         showCompass: true,
         showZoom: true,
         visualizePitch: true
     }), 'top-right');
 
+    // Log vị trí mỗi khi người dùng dừng di chuyển (hữu ích để debug trên mobile)
+    map.on('moveend', () => {
+        const c = map.getCenter();
+        log(`Center: ${c.lat.toFixed(5)}, ${c.lng.toFixed(5)} | zoom=${map.getZoom().toFixed(2)} | pitch=${map.getPitch().toFixed(0)} | bearing=${map.getBearing().toFixed(0)}`);
+    });
+
     // ==============================
     // 3. THÊM LỚP TRAFFIC TỪ TOMTOM
     // ==============================
     map.on('load', () => {
-        // 3.1 Thêm source raster tile từ TomTom Traffic Flow
+        log('Base map TrackAsia đã load xong ✅');
+
         map.addSource('tomtom-traffic', {
             type: 'raster',
             tiles: [
@@ -114,21 +138,25 @@
             attribution: '© TomTom Traffic'
         });
 
-        // 3.2 Thêm layer hiển thị traffic
         map.addLayer({
             id: 'tomtom-traffic-layer',
             type: 'raster',
             source: 'tomtom-traffic',
             paint: {
                 'raster-opacity': 0.85,
-                // Đảm bảo traffic nổi bật trên nền bản đồ
                 'raster-contrast': 0.2,
                 'raster-saturation': 0.3
             }
         });
 
-        // Đảm bảo layer traffic luôn nằm trên cùng (nếu cần)
-        // map.moveLayer('tomtom-traffic-layer');
+        log('Layer TomTom Traffic đã được thêm vào map 🚦');
+    });
+
+    // Log khi tile traffic load xong (mỗi tile)
+    map.on('data', (e) => {
+        if (e.sourceId === 'tomtom-traffic' && e.tile) {
+            log(`🛰️  Traffic tile loaded z=${e.tile.tileID.canonical.z} x=${e.tile.tileID.canonical.x} y=${e.tile.tileID.canonical.y}`);
+        }
     });
 
     // ==============================
@@ -140,16 +168,23 @@
         const visibility = e.target.checked ? 'visible' : 'none';
         if (map.getLayer('tomtom-traffic-layer')) {
             map.setLayoutProperty('tomtom-traffic-layer', 'visibility', visibility);
+            log(`Traffic layer → ${visibility}`);
+        } else {
+            warn('Layer tomtom-traffic-layer chưa tồn tại (map chưa load xong?)');
         }
     });
 
     // ==============================
-    // 5. XỬ LÝ LỖI (tùy chọn)
+    // 5. BẮT LỖI
     // ==============================
     map.on('error', (e) => {
-        console.warn('MapLibre error:', e.error);
+        error('MapLibre error:', e.error?.message || e.error);
     });
 
+    // Bắt lỗi tải style / tile bị 403 / 429 (hết quota TomTom)
+    window.addEventListener('unhandledrejection', (ev) => {
+        warn('Unhandled promise rejection:', ev.reason);
+    });
 </script>
 
 </body>
