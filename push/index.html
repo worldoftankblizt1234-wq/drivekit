@@ -3,46 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TrackAsia Real-time Traffic Map</title>
+    <title>TrackAsia Real-time Traffic</title>
     
-    <!-- Nhập thư viện CSS & JS của TrackAsia GL -->
-    <link href="https://jsdelivr.net" rel="stylesheet" />
-    <script src="https://jsdelivr.net"></script>
+    <!-- SỬ DỤNG LINK THƯ VIỆN SIÊU TỐC TẠI VIỆT NAM (UNPKG) -->
+    <link rel="stylesheet" href="https://unpkg.com" />
+    <script src="https://unpkg.com"></script>
 
     <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
         .info-panel {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 15px;
+            left: 15px;
             background: rgba(255, 255, 255, 0.95);
             padding: 15px;
             border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-            z-index: 1;
-            max-width: 320px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10;
+            max-width: 300px;
         }
-        h3 { margin-top: 0; color: #333; }
+        h3 { margin: 0 0 8px 0; font-size: 16px; color: #222; }
+        p { margin: 0 0 12px 0; font-size: 13px; color: #555; line-height: 1.4; }
         .btn-route {
             background-color: #007bff;
             color: white;
             border: none;
-            padding: 8px 12px;
-            border-radius: 4px;
+            padding: 10px;
+            border-radius: 6px;
             cursor: pointer;
             width: 100%;
             font-weight: bold;
+            font-size: 14px;
+            transition: background 0.2s;
         }
         .btn-route:hover { background-color: #0056b3; }
-        #result { margin-top: 10px; font-size: 14px; color: #555; line-height: 1.4; }
+        #result { margin-top: 12px; font-size: 13px; color: #333; border-top: 1px solid #eee; padding-top: 8px; display: none; }
     </style>
 </head>
 <body>
 
 <div class="info-panel">
     <h3>Giao thông Thời gian thực</h3>
-    <p style="font-size: 13px; color: #666;">Bản đồ đang hiển thị lớp dữ liệu kẹt xe (Traffic Style Layer). Nhấn nút dưới để demo tìm đường tối ưu tránh kẹt xe.</p>
+    <p>Bản đồ đang tự động tải lớp dữ liệu kẹt xe (Màu Xanh/Vàng/Đỏ). Nhấn nút dưới để tìm tuyến đường tối ưu tránh kẹt xe.</p>
     <button class="btn-route" onclick="calculateTrafficRoute()">Tìm đường tránh kẹt xe</button>
     <div id="result"></div>
 </div>
@@ -50,104 +53,104 @@
 <div id="map"></div>
 
 <script>
-    // THAY THẾ BẰNG API KEY CỦA BẠN ĐĂNG KÝ TRÊN TRACK-ASIA.COM
-    const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f'; 
+    // ==========================================
+    // BẮT BUỘC: THAY BẰNG API KEY THẬT CỦA BẠN
+    // ==========================================
+    const TRACKASIA_KEY = 'YOUR_TRACKASIA_API_KEY'; 
 
-    // 1. KHỞI TẠO BẢN ĐỒ VÀ NẠP LAYER TRAFFIC (Dải màu kẹt xe xanh/vàng/đỏ)
+    // Kiểm tra nếu chưa thay key thì cảnh báo
+    if (TRACKASIA_KEY === '1792297789c0cf0ddb16e5446d7364580f') {
+        alert('Vui lòng mở code ra và thay thế YOUR_TRACKASIA_API_KEY bằng API Key thật của bạn!');
+    }
+
+    // 1. KHỞI TẠO BẢN ĐỒ VÀ NẠP STYLE TRAFFIC
     const map = new trackasiagl.Map({
         container: 'map',
-        // Gọi Style URL chứa dữ liệu traffic theo thời gian thực của TrackAsia
+        // Đường dẫn chuẩn nạp layer giao thông thời gian thực của TrackAsia
         style: `https://track-asia.com{TRACKASIA_KEY}`,
-        center: [106.660172, 10.762622], // Tọa độ mặc định (Ví dụ: TP. Hồ Chí Minh)
+        center: [106.660172, 10.762622], // Tọa độ TP. Hồ Chí Minh [Kinh độ, Vĩ độ]
         zoom: 13
     });
 
-    // Thêm bộ điều hướng Zoom In/Out
+    // Thêm nút Phóng to / Thu nhỏ góc trên bên phải
     map.addControl(new trackasiagl.NavigationControl(), 'top-right');
 
-    // Tọa độ Demo điểm đi và điểm đến (Định dạng: Kinh độ, Vĩ độ)
-    const origin = [106.660172, 10.762622];      // Điểm A
-    const destination = [106.695327, 10.774911]; // Điểm B
+    // Tọa độ Demo Điểm Đi (A) và Điểm Đến (B) 
+    const origin = [106.660172, 10.762622];      
+    const destination = [106.695327, 10.774911]; 
 
-    // Thêm Marker đánh dấu Điểm Đi & Điểm Đến trên bản đồ
-    new trackasiagl.Marker({ color: 'green' }).setLngLat(origin).addTo(map);
-    new trackasiagl.Marker({ color: 'red' }).setLngLat(destination).addTo(map);
+    // Thêm các ghim định vị (Marker) lên Map
+    new trackasiagl.Marker({ color: '#28a745' }).setLngLat(origin).addTo(map);
+    new trackasiagl.Marker({ color: '#dc3545' }).setLngLat(destination).addTo(map);
 
-    // 2. HÀM GỌI ENDPOINT ROUTING ĐỂ TÌM ĐƯỜNG TỐI ƯU THEO LƯU LƯỢNG THỰC TẾ
+    // 2. GỌI API ĐỊNH TỰ ĐỘNG NÉ KẸT XE
     function calculateTrafficRoute() {
-        document.getElementById('result').innerText = "Thống kê lộ trình...";
+        const resultDiv = document.getElementById('result');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<em>Đang tính toán lộ trình tối ưu...</em>';
 
-        // Endpoint OSRM thông minh tích hợp dữ liệu Traffic từ TrackAsia
-        // Định dạng chuỗi tọa độ truyền vào: lng,lat;lng,lat
-        const routingUrl = `https://track-asia.com{origin[0]},${origin[1]};${destination[0]},${destination[1]}.json?geometries=geojson&steps=true&overview=full&new_admin=true&key=${TRACKASIA_KEY}`;
+        // Endpoint OSRM Định tuyến thông minh có tích hợp dữ liệu Traffic
+        const routingUrl = `https://track-asia.com{origin[0]},${origin[1]};${destination[0]},${destination[1]}.json?geometries=geojson&overview=full&new_admin=true&key=${TRACKASIA_KEY}`;
 
         fetch(routingUrl)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) throw new Error('Không thể kết nối đến máy chủ TrackAsia');
+                return response.json();
+            })
             .then(data => {
                 if (!data.routes || data.routes.length === 0) {
-                    document.getElementById('result').innerText = "Không tìm thấy lộ trình phù hợp.";
+                    resultDiv.innerHTML = '<span style="color:red;">Không tìm thấy đường đi phù hợp.</span>';
                     return;
                 }
 
                 const route = data.routes[0];
                 const distanceKm = (route.distance / 1000).toFixed(2);
-                
-                // Thời gian (duration) trả về đã được hệ thống tính toán dựa trên mức độ kẹt xe thời gian thực
-                const durationMins = Math.round(route.duration / 60); 
+                const durationMins = Math.round(route.duration / 60); // Thời gian này đã cộng độ trễ kẹt xe thực tế
 
-                // Hiển thị thông tin lên panel
-                document.getElementById('result').innerHTML = `
-                    <strong>Khoảng cách:</strong> ${distanceKm} km <br>
-                    <strong>Thời gian (Đã tính kẹt xe):</strong> ${durationMins} phút <br>
-                    <span style="color: #28a745;">✓ Lộ trình đã né các điểm nghẽn nặng.</span>
+                // Cập nhật thông số lên màn hình
+                resultDiv.innerHTML = `
+                    <strong>Khoảng cách:</strong> ${distanceKm} km<br>
+                    <strong>Thời gian di chuyển:</strong> ${durationMins} phút<br>
+                    <span style="color: #28a745; font-weight: bold;">✓ Đã tối ưu né các điểm tắc nghẽn.</span>
                 `;
 
-                // 3. VẼ TUYẾN ĐƯỜNG LÊN BẢN ĐỒ
+                // 3. VẼ ĐƯỜNG ĐI LÊN MÀN HÌNH
                 const routeGeoJSON = route.geometry;
 
-                // Nếu Layer cũ đã tồn tại thì xóa trước khi vẽ tuyến mới
-                if (map.getSource('route')) {
-                    map.removeLayer('route');
-                    map.removeSource('route');
-                }
+                // Xóa đường cũ nếu có trước khi vẽ đường mới
+                if (map.getLayer('route-line')) map.removeLayer('route-line');
+                if (map.getSource('route-source')) map.removeSource('route-source');
 
-                // Nạp dữ liệu tuyến đường đi dưới dạng GeoJSON
-                map.addSource('route', {
+                // Thêm nguồn dữ liệu tọa độ
+                map.addSource('route-source', {
                     'type': 'geojson',
                     'data': {
                         'type': 'Feature',
-                        'properties': {},
                         'geometry': routeGeoJSON
                     }
                 });
 
-                // Cấu hình hiển thị đường vẽ (màu sắc, độ rộng) lên bản đồ
+                // Cấu hình nét vẽ đường đi màu xanh lam đậm
                 map.addLayer({
-                    'id': 'route',
+                    'id': 'route-line',
                     'type': 'line',
-                    'source': 'route',
-                    'layout': {
-                        'line-join': 'round',
-                        'line-cap': 'round'
-                    },
+                    'source': 'route-source',
+                    'layout': { 'line-join': 'round', 'line-cap': 'round' },
                     'paint': {
-                        'line-color': '#4a90e2',
+                        'line-color': '#0056b3',
                         'line-width': 6,
-                        'line-opacity': 0.8
+                        'line-opacity': 0.85
                     }
                 });
 
-                // Tự động căn chỉnh bản đồ ôm trọn tuyến đường vừa tìm được
+                // Tự động zoom vừa vặn toàn bộ tuyến đường
                 const coordinates = routeGeoJSON.coordinates;
-                const bounds = coordinates.reduce((bounds, coord) => {
-                    return bounds.extend(coord);
-                }, new trackasiagl.LngLatBounds(coordinates[0], coordinates[0]));
-                
-                map.fitBounds(bounds, { padding: 50 });
+                const bounds = coordinates.reduce((b, c) => b.extend(c), new trackasiagl.LngLatBounds(coordinates[0], coordinates[0]));
+                map.fitBounds(bounds, { padding: 40 });
             })
-            .catch(error => {
-                console.error('Lỗi kết nối API:', error);
-                document.getElementById('result').innerText = "Có lỗi xảy ra khi tải dữ liệu giao thông.";
+            .catch(err => {
+                console.error(err);
+                resultDiv.innerHTML = '<span style="color:red;">Lỗi: Không tải được dữ liệu định tuyến. Kiểm tra lại API Key.</span>';
             });
     }
 </script>
