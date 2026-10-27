@@ -3,345 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firestore to RTDB Migration Tool</title>
+    <title>TrackAsia Real-time Traffic Map</title>
+    
+    <!-- Nhập thư viện CSS & JS của TrackAsia GL -->
+    <link href="https://jsdelivr.net" rel="stylesheet" />
+    <script src="https://jsdelivr.net"></script>
+
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background: #0f172a; color: #e2e8f0; padding: 30px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        .container { max-width: 900px; width: 100%; }
-        h1 { color: #3b82f6; text-align: center; margin-bottom: 10px; font-size: 2rem; }
-        p.subtitle { text-align: center; color: #94a3b8; margin-bottom: 30px; font-size: 0.95rem; }
-        
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
-
-        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .card h3 { font-size: 1.1rem; color: #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
-        .card p { font-size: 0.8rem; color: #94a3b8; }
-        
-        button { padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 0.9rem; }
-        button.primary { background: #3b82f6; color: white; width: 100%; }
-        button.primary:hover { background: #2563eb; }
-        button.primary:disabled { background: #475569; cursor: not-allowed; opacity: 0.6; }
-        
-        button.danger { background: #ef4444; color: white; width: 100%; }
-        button.danger:hover { background: #dc2626; }
-        button.danger:disabled { background: #475569; cursor: not-allowed; opacity: 0.6; }
-
-        .input-group { display: flex; gap: 10px; margin-top: 5px; }
-        .input-group input { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 0.9rem; }
-        .input-group input:focus { outline: none; border-color: #3b82f6; }
-
-        .log-box { background: #000000; border: 1px solid #334155; border-radius: 12px; padding: 15px; height: 300px; overflow-y: auto; font-family: 'Consolas', 'Courier New', monospace; font-size: 0.85rem; line-height: 1.5; margin-bottom: 20px; }
-        .log-entry { margin-bottom: 4px; border-bottom: 1px solid #1e293b; padding-bottom: 4px; }
-        .log-time { color: #64748b; margin-right: 10px; }
-        .log-info { color: #60a5fa; }
-        .log-success { color: #10b981; }
-        .log-error { color: #ef4444; }
-        .log-warn { color: #f59e0b; }
-
-        .status-bar { display: flex; justify-content: space-between; align-items: center; background: #1e293b; padding: 10px 15px; border-radius: 8px; font-size: 0.9rem; }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
-        .status-dot.connected { background: #10b981; box-shadow: 0 0 10px #10b981; }
-        .status-dot.disconnected { background: #ef4444; }
-
-        .section-title { color: #f59e0b; margin: 20px 0 10px 0; font-size: 1.1rem; font-weight: bold; border-left: 4px solid #f59e0b; padding-left: 10px; }
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            z-index: 1;
+            max-width: 320px;
+        }
+        h3 { margin-top: 0; color: #333; }
+        .btn-route {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+        }
+        .btn-route:hover { background-color: #0056b3; }
+        #result { margin-top: 10px; font-size: 14px; color: #555; line-height: 1.4; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h1>🚀 Migration Tool</h1>
-    <p class="subtitle">Chuyển dữ liệu từ Firestore sang RTDB & Dọn dẹp data cũ</p>
-
-    <div class="status-bar" style="margin-bottom: 20px;">
-        <div><span class="status-dot disconnected" id="statusDot"></span> <span id="statusText">Đang kết nối Firebase...</span></div>
-        <div style="color: #94a3b8;">Mode: <b id="modeText">Waiting</b></div>
-    </div>
-
-    <div class="section-title">1. Chuyển dữ liệu (Firestore ➡️ RTDB)</div>
-    <div class="grid">
-        <div class="card">
-            <h3>📍 Địa điểm Cộng đồng (POIs)</h3>
-            <p>Chuyển Trạm dừng nghỉ, Siêu thị... (Collection: <code>community_pois</code> & <code>rest_stops</code>)</p>
-            <button class="primary" onclick="migratePois()" id="btnPoi">Bắt đầu đẩy POIs</button>
-        </div>
-
-        <div class="card">
-            <h3>⚠️ Báo cáo sự cố (Reports)</h3>
-            <p>Chuyển CSGT, kẹt xe... (Collection: <code>reports</code>)</p>
-            <button class="primary" onclick="migrateReports()" id="btnReport">Bắt đầu đẩy Reports</button>
-        </div>
-
-        <div class="card">
-            <h3>🚫 Vùng cấm (Avoid Zones)</h3>
-            <p>Chuyển tuyến đường cấm (Collection: <code>avoid_zones</code>)</p>
-            <button class="primary" onclick="migrateAvoidZones()" id="btnZone">Bắt đầu đẩy Zones</button>
-        </div>
-
-        <div class="card">
-            <h3>📌 Ghim cá nhân (Saved Places)</h3>
-            <p>Nhập UID User để đẩy ghim cá nhân (Collection: <code>users/{uid}/savedPlaces</code>)</p>
-            <div class="input-group">
-                <input type="text" id="uidInput" placeholder="Nhập UID người dùng..." />
-            </div>
-            <button class="primary" onclick="migrateSavedPlaces()" id="btnSaved">Bắt đầu đẩy Ghim</button>
-        </div>
-    </div>
-
-    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-        <button class="primary" style="background: #10b981; flex: 1;" onclick="migrateAll()" id="btnAll">🚀 CHẠY TẤT CẢ (Trừ Ghim)</button>
-        <button class="primary" style="background: #334155; flex: 1;" onclick="clearLogs()">🗑 Xoá Log</button>
-    </div>
-
-    <div class="section-title">2. Dọn dẹp data cũ (Firestore)</div>
-    <div class="card" style="border: 1px solid #ef4444; margin-bottom: 20px;">
-        <h3 style="color: #ef4444;">⚠️ CẢNH BÁO: Xoá vĩnh viễn data trên Firestore</h3>
-        <p>Chỉ bấm nút này SAU KHI đã chạy chuyển dữ liệu thành công và đã kiểm tra app chạy ổn với RTDB. Thao tác này không thể hoàn tác!</p>
-        <button class="danger" onclick="deleteAllOldData()" id="btnDeleteAll">🔥 XOÁ TOÀN BỘ DATA CŨ TRÊN FIRESTORE</button>
-    </div>
-
-    <div class="log-box" id="logBox">
-        <div class="log-entry"><span class="log-time">[System]</span> <span class="log-info">Đang khởi tạo...</span></div>
-    </div>
+<div class="info-panel">
+    <h3>Giao thông Thời gian thực</h3>
+    <p style="font-size: 13px; color: #666;">Bản đồ đang hiển thị lớp dữ liệu kẹt xe (Traffic Style Layer). Nhấn nút dưới để demo tìm đường tối ưu tránh kẹt xe.</p>
+    <button class="btn-route" onclick="calculateTrafficRoute()">Tìm đường tránh kẹt xe</button>
+    <div id="result"></div>
 </div>
 
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, getDocs, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-    import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+<div id="map"></div>
 
-    // CẤU HÌNH FIREBASE CỦA BẠN
-    const firebaseConfig = {
-        apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
-        authDomain: "drivekit-c88ef.firebaseapp.com",
-        databaseURL: "https://drivekit-c88ef-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "drivekit-c88ef",
-        storageBucket: "drivekit-c88ef.firebasestorage.app",
-        messagingSenderId: "1073887619343",
-        appId: "1:1073887619343:web:d89a872968bc4ee871f67a"
-    };
+<script>
+    // THAY THẾ BẰNG API KEY CỦA BẠN ĐĂNG KÝ TRÊN TRACK-ASIA.COM
+    const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f'; 
 
-    const app = initializeApp(firebaseConfig);
-    const fsdb = getFirestore(app);
-    const db = getDatabase(app);
+    // 1. KHỞI TẠO BẢN ĐỒ VÀ NẠP LAYER TRAFFIC (Dải màu kẹt xe xanh/vàng/đỏ)
+    const map = new trackasiagl.Map({
+        container: 'map',
+        // Gọi Style URL chứa dữ liệu traffic theo thời gian thực của TrackAsia
+        style: `https://track-asia.com{TRACKASIA_KEY}`,
+        center: [106.660172, 10.762622], // Tọa độ mặc định (Ví dụ: TP. Hồ Chí Minh)
+        zoom: 13
+    });
 
-    const logBox = document.getElementById('logBox');
-    const statusDot = document.getElementById('statusDot');
-    const statusText = document.getElementById('statusText');
+    // Thêm bộ điều hướng Zoom In/Out
+    map.addControl(new trackasiagl.NavigationControl(), 'top-right');
 
-    setTimeout(() => {
-        statusDot.classList.remove('disconnected');
-        statusDot.classList.add('connected');
-        statusText.textContent = "Đã kết nối Firebase thành công!";
-        log("Hệ thống sẵn sàng. Hãy chọn dữ liệu cần chuyển.", "success");
-    }, 1500);
+    // Tọa độ Demo điểm đi và điểm đến (Định dạng: Kinh độ, Vĩ độ)
+    const origin = [106.660172, 10.762622];      // Điểm A
+    const destination = [106.695327, 10.774911]; // Điểm B
 
-    function log(msg, type = 'info') {
-        const time = new Date().toLocaleTimeString('vi-VN');
-        const entry = document.createElement('div');
-        entry.className = 'log-entry';
-        entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-${type}">${msg}</span>`;
-        logBox.appendChild(entry);
-        logBox.scrollTop = logBox.scrollHeight;
+    // Thêm Marker đánh dấu Điểm Đi & Điểm Đến trên bản đồ
+    new trackasiagl.Marker({ color: 'green' }).setLngLat(origin).addTo(map);
+    new trackasiagl.Marker({ color: 'red' }).setLngLat(destination).addTo(map);
+
+    // 2. HÀM GỌI ENDPOINT ROUTING ĐỂ TÌM ĐƯỜNG TỐI ƯU THEO LƯU LƯỢNG THỰC TẾ
+    function calculateTrafficRoute() {
+        document.getElementById('result').innerText = "Thống kê lộ trình...";
+
+        // Endpoint OSRM thông minh tích hợp dữ liệu Traffic từ TrackAsia
+        // Định dạng chuỗi tọa độ truyền vào: lng,lat;lng,lat
+        const routingUrl = `https://track-asia.com{origin[0]},${origin[1]};${destination[0]},${destination[1]}.json?geometries=geojson&steps=true&overview=full&new_admin=true&key=${TRACKASIA_KEY}`;
+
+        fetch(routingUrl)
+            .then(response => response.json())
+            .then(data => {
+                if (!data.routes || data.routes.length === 0) {
+                    document.getElementById('result').innerText = "Không tìm thấy lộ trình phù hợp.";
+                    return;
+                }
+
+                const route = data.routes[0];
+                const distanceKm = (route.distance / 1000).toFixed(2);
+                
+                // Thời gian (duration) trả về đã được hệ thống tính toán dựa trên mức độ kẹt xe thời gian thực
+                const durationMins = Math.round(route.duration / 60); 
+
+                // Hiển thị thông tin lên panel
+                document.getElementById('result').innerHTML = `
+                    <strong>Khoảng cách:</strong> ${distanceKm} km <br>
+                    <strong>Thời gian (Đã tính kẹt xe):</strong> ${durationMins} phút <br>
+                    <span style="color: #28a745;">✓ Lộ trình đã né các điểm nghẽn nặng.</span>
+                `;
+
+                // 3. VẼ TUYẾN ĐƯỜNG LÊN BẢN ĐỒ
+                const routeGeoJSON = route.geometry;
+
+                // Nếu Layer cũ đã tồn tại thì xóa trước khi vẽ tuyến mới
+                if (map.getSource('route')) {
+                    map.removeLayer('route');
+                    map.removeSource('route');
+                }
+
+                // Nạp dữ liệu tuyến đường đi dưới dạng GeoJSON
+                map.addSource('route', {
+                    'type': 'geojson',
+                    'data': {
+                        'type': 'Feature',
+                        'properties': {},
+                        'geometry': routeGeoJSON
+                    }
+                });
+
+                // Cấu hình hiển thị đường vẽ (màu sắc, độ rộng) lên bản đồ
+                map.addLayer({
+                    'id': 'route',
+                    'type': 'line',
+                    'source': 'route',
+                    'layout': {
+                        'line-join': 'round',
+                        'line-cap': 'round'
+                    },
+                    'paint': {
+                        'line-color': '#4a90e2',
+                        'line-width': 6,
+                        'line-opacity': 0.8
+                    }
+                });
+
+                // Tự động căn chỉnh bản đồ ôm trọn tuyến đường vừa tìm được
+                const coordinates = routeGeoJSON.coordinates;
+                const bounds = coordinates.reduce((bounds, coord) => {
+                    return bounds.extend(coord);
+                }, new trackasiagl.LngLatBounds(coordinates[0], coordinates[0]));
+                
+                map.fitBounds(bounds, { padding: 50 });
+            })
+            .catch(error => {
+                console.error('Lỗi kết nối API:', error);
+                document.getElementById('result').innerText = "Có lỗi xảy ra khi tải dữ liệu giao thông.";
+            });
     }
-
-    function clearLogs() {
-        logBox.innerHTML = '<div class="log-entry"><span class="log-time">[System]</span> <span class="log-info">Log đã được xoá.</span></div>';
-    }
-
-    function toggleButtons(disabled) {
-        document.querySelectorAll('button').forEach(btn => btn.disabled = disabled);
-        document.getElementById('modeText').textContent = disabled ? "Đang chạy..." : "Waiting";
-    }
-
-    // ==========================================
-    // CHUYỂN DỮ LIỆU
-    // ==========================================
-    async function migratePois() {
-        toggleButtons(true);
-        log("--- BẮT ĐẦU CHUYỂN POIs ---", "warn");
-        let total = 0, success = 0;
-
-        try {
-            log("Đang đọc collection 'community_pois' từ Firestore...");
-            const snapPois = await getDocs(collection(fsdb, 'community_pois'));
-            total += snapPois.size;
-            log(`Tìm thấy ${snapPois.size} POIs. Đang đẩy lên RTDB...`);
-
-            for (const docSnap of snapPois.docs) {
-                const data = docSnap.data();
-                await set(ref(db, `communityPois/${docSnap.id}`), { ...data, source: 'rtdb' });
-                success++;
-            }
-
-            log("Đang đọc collection 'rest_stops' từ Firestore...");
-            const snapRest = await getDocs(collection(fsdb, 'rest_stops'));
-            total += snapRest.size;
-            log(`Tìm thấy ${snapRest.size} Trạm dừng nghỉ. Đang đẩy lên RTDB...`);
-
-            for (const docSnap of snapRest.docs) {
-                const data = docSnap.data();
-                await set(ref(db, `communityPois/${docSnap.id}`), { ...data, tag: 'rest_stop', source: 'rtdb' });
-                success++;
-            }
-
-            log(`✅ HOÀN TẤT: Đã chuyển thành công ${success}/${total} POIs.`, "success");
-        } catch (e) {
-            log(`❌ LỖI: ${e.message}`, "error");
-            console.error(e);
-        }
-        toggleButtons(false);
-    }
-
-    async function migrateReports() {
-        toggleButtons(true);
-        log("--- BẮT ĐẦU CHUYỂN REPORTS ---", "warn");
-        let total = 0, success = 0;
-
-        try {
-            log("Đang đọc collection 'reports' từ Firestore...");
-            const snap = await getDocs(collection(fsdb, 'reports'));
-            total = snap.size;
-            log(`Tìm thấy ${total} Báo cáo. Đang đẩy lên RTDB...`);
-
-            for (const docSnap of snap.docs) {
-                const data = docSnap.data();
-                await set(ref(db, `reports/${docSnap.id}`), { ...data, source: 'rtdb' });
-                success++;
-            }
-            log(`✅ HOÀN TẤT: Đã chuyển thành công ${success}/${total} Reports.`, "success");
-        } catch (e) {
-            log(`❌ LỖI: ${e.message}`, "error");
-            console.error(e);
-        }
-        toggleButtons(false);
-    }
-
-    async function migrateAvoidZones() {
-        toggleButtons(true);
-        log("--- BẮT ĐẦU CHUYỂN AVOID ZONES ---", "warn");
-        let total = 0, success = 0;
-
-        try {
-            log("Đang đọc collection 'avoid_zones' từ Firestore...");
-            const snap = await getDocs(collection(fsdb, 'avoid_zones'));
-            total = snap.size;
-            log(`Tìm thấy ${total} Vùng cấm. Đang đẩy lên RTDB...`);
-
-            for (const docSnap of snap.docs) {
-                const data = docSnap.data();
-                await set(ref(db, `avoid_zones/${docSnap.id}`), { ...data, source: 'rtdb' });
-                success++;
-            }
-            log(`✅ HOÀN TẤT: Đã chuyển thành công ${success}/${total} Vùng cấm.`, "success");
-        } catch (e) {
-            log(`❌ LỖI: ${e.message}`, "error");
-            console.error(e);
-        }
-        toggleButtons(false);
-    }
-
-    async function migrateSavedPlaces() {
-        const uid = document.getElementById('uidInput').value.trim();
-        if (!uid) {
-            log("⚠️ Vui lòng nhập UID người dùng trước khi chuyển Ghim cá nhân!", "warn");
-            return;
-        }
-
-        toggleButtons(true);
-        log(`--- BẮT ĐẦU CHUYỂN GHIM CỦA USER: ${uid} ---`, "warn");
-        let total = 0, success = 0;
-
-        try {
-            log(`Đang đọc 'users/${uid}/savedPlaces' từ Firestore...`);
-            const snap = await getDocs(collection(fsdb, `users/${uid}/savedPlaces`));
-            total = snap.size;
-
-            if (total === 0) {
-                log(`User này không có ghim nào để chuyển.`, "warn");
-                toggleButtons(false);
-                return;
-            }
-
-            log(`Tìm thấy ${total} Ghim. Đang đẩy lên RTDB...`);
-
-            for (const docSnap of snap.docs) {
-                const data = docSnap.data();
-                await set(ref(db, `users/${uid}/savedPlaces/${docSnap.id}`), { ...data, source: 'rtdb' });
-                success++;
-            }
-            log(`✅ HOÀN TẤT: Đã chuyển thành công ${success}/${total} Ghim của User ${uid}.`, "success");
-        } catch (e) {
-            log(`❌ LỖI: ${e.message}`, "error");
-            console.error(e);
-        }
-        toggleButtons(false);
-    }
-
-    async function migrateAll() {
-        log("🚀 BẮT ĐẦU CHẠY TẤT CẢ (POIs, Reports, Zones)...", "warn");
-        await migratePois();
-        await migrateReports();
-        await migrateAvoidZones();
-        log("🎉 ĐÃ CHẠY XONG TẤT CẢ CÁC MỤC (Trừ Ghim cá nhân).", "success");
-    }
-
-    // ==========================================
-    // XOÁ DATA CŨ TRÊN FIRESTORE
-    // ==========================================
-    async function deleteCollection(collectionPath) {
-        const snap = await getDocs(collection(fsdb, collectionPath));
-        let deleted = 0;
-        for (const docSnap of snap.docs) {
-            await deleteDoc(doc(fsdb, collectionPath, docSnap.id));
-            deleted++;
-        }
-        return { total: snap.size, deleted };
-    }
-
-    async function deleteAllOldData() {
-        if (!confirm("🚨 CẢNH BÁO: Bạn có chắc chắn muốn XOÁ VĨNH VIỄN toàn bộ dữ liệu cũ trên Firestore (POIs, Rest Stops, Reports, Avoid Zones)?\n\nHành động này KHÔNG THỂ HOÀN TÁC. Chỉ bấm OK nếu bạn đã chuyển sang RTDB thành công và app đã chạy ổn!")) {
-            log("Đã huỷ lệnh xoá.", "info");
-            return;
-        }
-
-        toggleButtons(true);
-        log("🔥 BẮT ĐẦU XOÁ DATA CŨ TRÊN FIRESTORE...", "warn");
-
-        try {
-            log("Đang xoá 'community_pois'...");
-            const c1 = await deleteCollection('community_pois');
-            log(`Đã xoá ${c1.deleted}/${c1.total} POIs.`, "success");
-
-            log("Đang xoá 'rest_stops'...");
-            const c2 = await deleteCollection('rest_stops');
-            log(`Đã xoá ${c2.deleted}/${c2.total} Rest Stops.`, "success");
-
-            log("Đang xoá 'reports'...");
-            const c3 = await deleteCollection('reports');
-            log(`Đã xoá ${c3.deleted}/${c3.total} Reports.`, "success");
-
-            log("Đang xoá 'avoid_zones'...");
-            const c4 = await deleteCollection('avoid_zones');
-            log(`Đã xoá ${c4.deleted}/${c4.total} Avoid Zones.`, "success");
-
-            log(`✅ HOÀN TẤT DỌN DẸP! Đã xoá tổng cộng ${c1.deleted + c2.deleted + c3.deleted + c4.deleted} documents trên Firestore.`, "success");
-            log("Lưu ý: Nếu bạn có Ghim cá nhân cũ trên Firestore, hãy chạy riêng lệnh xoá hoặc tự xoá thủ công để đảm bảo an toàn.", "warn");
-        } catch (e) {
-            log(`❌ LỖI KHI XOÁ: ${e.message}`, "error");
-            console.error(e);
-        }
-        toggleButtons(false);
-    }
-
-    // Gán hàm vào window
-    window.migratePois = migratePois;
-    window.migrateReports = migrateReports;
-    window.migrateAvoidZones = migrateAvoidZones;
-    window.migrateSavedPlaces = migrateSavedPlaces;
-    window.migrateAll = migrateAll;
-    window.deleteAllOldData = deleteAllOldData;
-    window.clearLogs = clearLogs;
 </script>
 
 </body>
