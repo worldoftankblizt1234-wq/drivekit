@@ -3,79 +3,33 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Test Realtime Traffic (Orbis v2) - MapLibre + TrackAsia + TomTom</title>
+    <title>Test Realtime Traffic (Orbis) - MapLibre</title>
 
     <!-- MapLibre GL JS -->
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 
-    <!-- vConsole (debug panel) -->
+    <!-- vConsole -->
     <script src="https://unpkg.com/vconsole@3.15.1/dist/vconsole.min.js"></script>
     <script>
-        window.vConsole = new window.VConsole({
-            theme: 'dark',
-            defaultPlugins: ['system', 'network', 'element', 'storage'],
-            maxLogNumber: 1000
-        });
+        window.vConsole = new window.VConsole();
     </script>
 
     <style>
         body { margin: 0; padding: 0; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-
         #controls {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 1;
-            background: rgba(0, 0, 0, 0.85);
-            color: #fff;
-            padding: 12px 16px;
-            border-radius: 8px;
-            font-family: system-ui, -apple-system, sans-serif;
-            font-size: 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            min-width: 260px;
-            backdrop-filter: blur(6px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            position: absolute; top: 10px; left: 10px; z-index: 1;
+            background: rgba(0, 0, 0, 0.85); color: #fff;
+            padding: 12px 16px; border-radius: 8px;
+            font-family: system-ui, sans-serif; font-size: 14px;
+            display: flex; flex-direction: column; gap: 10px;
+            min-width: 260px; backdrop-filter: blur(6px);
         }
-
-        #controls label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-        }
-
-        #controls input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
-            accent-color: #2BC82B;
-        }
-
         .btn-test {
-            background: #2BC82B;
-            color: #000;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-weight: bold;
-            cursor: pointer;
-            text-align: center;
-            text-decoration: none;
-            display: block;
-            margin-top: 4px;
-            font-size: 13px;
-        }
-        .btn-test:hover { background: #22a322; }
-
-        .hint {
-            font-size: 12px;
-            color: #aaa;
-            margin-top: 4px;
-            line-height: 1.4;
+            background: #2BC82B; color: #000; border: none;
+            padding: 8px 12px; border-radius: 4px; font-weight: bold;
+            cursor: pointer; text-align: center; text-decoration: none;
         }
     </style>
 </head>
@@ -84,23 +38,21 @@
 <div id="map"></div>
 
 <div id="controls">
-    <strong>🗺️ Test TomTom Orbis API Key</strong>
+    <strong>🗺️ Test TomTom API Key Mới</strong>
     
     <label>
         <input type="checkbox" id="toggleTraffic" checked />
         Hiển thị TomTom Traffic (Orbis)
     </label>
     
-    <!-- Link test trực tiếp endpoint Orbis Raster Flow -->
-    <a href="https://api.tomtom.com/maps/orbis/traffic/flow/raster/tile/13/6505/3607?apiVersion=2&style=light&key=ab591bfc-9bfe-4644-b5e7-21ad3e9bc51c" 
+    <!-- Link test trực tiếp với Key mới -->
+    <a href="https://api.tomtom.com/maps/orbis/traffic/flow/raster/tile/13/6504/3606?apiVersion=2&key=tG84Z1Yh4rauGWjz6pRn98rrWymLjTru&style=light" 
        target="_blank" class="btn-test">
-       🔗 Mở Link Test (Orbis Raster)
+       🔗 Test Key Trực Tiếp
     </a>
 
-    <div class="hint">
-        Bấm nút trên để test Key.<br>
-        Nếu ra ảnh bản đồ => Key OK.<br>
-        Kéo chuột phải để xoay 360°.
+    <div style="font-size: 12px; color: #aaa;">
+        Bấm nút trên. Nếu ra ảnh bản đồ => Key OK.
     </div>
 </div>
 
@@ -108,60 +60,43 @@
     const log = (...args) => console.log('[Traffic]', ...args);
 
     // ==========================================
-    // CẤU HÌNH API KEY
+    // CẬP NHẬT KEY MỚI TẠI ĐÂY
     // ==========================================
-    const TOMTOM_API_KEY = 'ab591bfc-9bfe-4644-b5e7-21ad3e9bc51c';
+    const TOMTOM_API_KEY = 'tG84Z1Yh4rauGWjz6pRn98rrWymLjTru'; 
     const TRACKASIA_API_KEY = '1792297789c0cf0ddb16e5446d7364580f';
 
-    // ==========================================
-    // KHỞI TẠO MAPLIBRE
-    // ==========================================
     const map = new maplibregl.Map({
         container: 'map',
         style: `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_API_KEY}`,
-        center: [105.85, 21.02], // Hà Nội
+        center: [105.85, 21.02], 
         zoom: 12,
         pitch: 0,
         bearing: 0,
-        maxPitch: 85,
-        attributionControl: true
+        maxPitch: 85
     });
 
-    map.addControl(new maplibregl.NavigationControl({
-        showCompass: true,
-        showZoom: true,
-        visualizePitch: true
-    }), 'top-right');
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
 
     map.on('load', () => {
-        log('Base map TrackAsia đã load xong ✅');
+        log('Base map load xong ✅');
 
         // ==========================================
-        // THÊM SOURCE TRAFFIC (ORBIS V2)
-        // Áp dụng đúng khuyến nghị: dùng Header thay vì Query Param
+        // GẮN KEY VÀO CẢ URL VÀ HEADER (Bảo hiểm 2 lớp)
         // ==========================================
         map.addSource('tomtom-traffic', {
             type: 'raster',
-            // Endpoint Orbis mới, giữ nguyên các placeholder {z}/{x}/{y}
-            // Thêm các tham số bắt buộc: apiVersion=2 & style=light
+            // 1. Key nằm trực tiếp trên URL
             tiles: [
-                'https://api.tomtom.com/maps/orbis/traffic/flow/raster/tile/{z}/{x}/{y}?apiVersion=2&style=light'
+                `https://api.tomtom.com/maps/orbis/traffic/flow/raster/tile/{z}/{x}/{y}?apiVersion=2&style=light&key=${TOMTOM_API_KEY}`
             ],
-            tileSize: 256, // Theo tài liệu, mặc định là 256
-            minzoom: 0,
-            maxzoom: 22,
-            attribution: '© TomTom Traffic (Orbis)',
-            // Hàm can thiệp để gắn Header xác thực
+            tileSize: 256,
+            // 2. Key gắn thêm vào Header cho chắc chắn
             transformRequest: (url, resourceType) => {
-                // Chỉ gắn header cho các request gọi đến TomTom
                 if (url.includes('api.tomtom.com')) {
                     return {
                         url: url,
                         headers: {
-                            // Tài liệu khuyến nghị dùng Header thay vì key trên URL
-                            'TomTom-Api-Key': TOMTOM_API_KEY,
-                            // Một số endpoint Orbis yêu cầu thêm header version
-                            'TomTom-Api-Version': '2'
+                            'TomTom-Api-Key': TOMTOM_API_KEY
                         }
                     };
                 }
@@ -180,17 +115,13 @@
             }
         });
 
-        log('Đã thêm layer Traffic (Orbis) bằng phương thức Header.');
+        log('Đã thêm layer Traffic với key mới.');
     });
 
-    // ==========================================
-    // BẮT LỖI VÀ TOGGLE
-    // ==========================================
     document.getElementById('toggleTraffic').addEventListener('change', (e) => {
         if (map.getLayer('tomtom-traffic-layer')) {
             map.setLayoutProperty(
-                'tomtom-traffic-layer', 
-                'visibility', 
+                'tomtom-traffic-layer', 'visibility', 
                 e.target.checked ? 'visible' : 'none'
             );
         }
