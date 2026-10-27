@@ -1,247 +1,156 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <title>TomTom Real-time Traffic — MapLibre Globe</title>
-  <link href="https://unpkg.com/maplibre-gl@^6.16.0/dist/maplibre-gl.css" rel="stylesheet">
-  <script src="https://unpkg.com/maplibre-gl@^6.16.0/dist/maplibre-gl.js"></script>
-  <style>
-    :root { color-scheme: dark; --panel: rgba(15,23,42,.94); --line: #334155; --muted: #94a3b8; }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #0b1220; color: #e5e7eb; }
-    #map { position: absolute; inset: 0; }
-    .panel {
-      position: absolute; z-index: 5; top: 12px; left: 12px; width: min(360px, calc(100vw - 24px));
-      background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px;
-      box-shadow: 0 12px 35px rgba(0,0,0,.3); backdrop-filter: blur(10px); max-height: calc(100vh - 24px); overflow: auto;
-    }
-    h1 { font-size: 17px; margin: 0 0 5px; }
-    .sub { color: var(--muted); font-size: 12px; line-height: 1.45; margin-bottom: 12px; }
-    label { display: block; font-size: 12px; color: #cbd5e1; margin: 10px 0 5px; }
-    input, select, button {
-      width: 100%; min-height: 39px; border-radius: 8px; border: 1px solid #475569; padding: 9px 10px;
-      background: #0b1220; color: #f8fafc; font: inherit; font-size: 13px;
-    }
-    input::placeholder { color: #64748b; }
-    button { cursor: pointer; background: #1d4ed8; border-color: #2563eb; font-weight: 650; }
-    button.secondary { background: #1e293b; border-color: #475569; font-weight: 550; }
-    button:disabled { opacity: .55; cursor: wait; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 9px; }
-    .status { font-size: 12px; line-height: 1.45; padding: 9px 10px; border-radius: 8px; margin-top: 10px; background: #111827; border: 1px solid #374151; overflow-wrap: anywhere; }
-    .status.ok { border-color: #166534; }
-    .status.warn { border-color: #92400e; }
-    .legend { display: flex; flex-wrap: wrap; gap: 8px 12px; font-size: 11px; color: #cbd5e1; margin-top: 10px; }
-    .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
-    .note { color: #94a3b8; font-size: 11px; line-height: 1.5; margin-top: 10px; }
-    .attribution { position: absolute; bottom: 4px; left: 4px; z-index: 3; background: rgba(255,255,255,.82); color: #111827; padding: 3px 6px; border-radius: 4px; font-size: 10px; }
-    @media (max-width: 600px) {
-      .panel { top: 8px; left: 8px; width: min(340px, calc(100vw - 16px)); padding: 11px; }
-      h1 { font-size: 15px; }
-    }
-  </style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test Realtime Traffic - TrackAsia + TomTom + MapLibre</title>
+
+    <!-- MapLibre GL JS -->
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+
+        /* Panel điều khiển */
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1;
+            background: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-family: system-ui, -apple-system, sans-serif;
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 220px;
+            backdrop-filter: blur(6px);
+        }
+
+        #controls label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        #controls input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #2BC82B;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+    </style>
 </head>
 <body>
-  <div id="map" aria-label="Bản đồ giao thông"></div>
-  <section class="panel">
-    <h1>TomTom Traffic · MapLibre GL</h1>
-    <div class="sub">Bản thử nghiệm lớp giao thông trên bản đồ có thể xoay và nghiêng. Vị trí mặc định: TP.HCM.</div>
 
-    <label for="apiKey">TomTom API key</label>
-    <input id="apiKey" type="password" autocomplete="off" placeholder="Dán API key của bạn tại đây">
-    <div class="grid">
-      <button id="applyKey">Kết nối giao thông</button>
-      <button id="toggleTraffic" class="secondary">Ẩn/hiện giao thông</button>
-    </div>
+<div id="map"></div>
 
-    <label for="styleMode">Kiểu màu giao thông</label>
-    <select id="styleMode">
-      <option value="light">Light — đỏ/cam/vàng/xanh</option>
-      <option value="dark">Dark — nền tối</option>
-    </select>
-
-    <div class="grid">
-      <button id="refreshNow" class="secondary">Làm mới ngay</button>
-      <button id="toggleProjection" class="secondary">Globe / phẳng</button>
+<div id="controls">
+    <strong>🗺️ Realtime Traffic</strong>
+    <label>
+        <input type="checkbox" id="toggleTraffic" checked />
+        Hiển thị TomTom Traffic Flow
+    </label>
+    <div class="hint">
+        Kéo chuột phải để xoay 360°<br />
+        Ctrl + kéo chuột để nghiêng (pitch)
     </div>
-    <div class="grid">
-      <button id="goHcm" class="secondary">Đến TP.HCM</button>
-      <button id="goDongNai" class="secondary">Đến Đồng Nai</button>
-    </div>
-
-    <div class="legend">
-      <span><i class="dot" style="background:#ad0000"></i>Ùn tắc nặng</span>
-      <span><i class="dot" style="background:#fb2d09"></i>Chậm</span>
-      <span><i class="dot" style="background:#ffc105"></i>Đông</span>
-      <span><i class="dot" style="background:#2ae57b"></i>Thông thoáng</span>
-    </div>
-    <div id="status" class="status">Đang tải bản đồ nền…</div>
-    <div class="note">
-      API key chỉ được giữ trong bộ nhớ trang khi đang mở; không lưu vào tệp. Khi triển khai công khai, hãy giới hạn key theo dịch vụ/nguồn truy cập nếu TomTom hỗ trợ, hoặc gọi API qua backend. Mỗi lần làm mới có thể phát sinh nhiều yêu cầu tile.
-    </div>
-  </section>
-  <div class="attribution">© MapLibre · © OpenStreetMap contributors · Traffic data © TomTom</div>
+</div>
 
 <script>
-(() => {
-  const $ = (id) => document.getElementById(id);
-  const statusEl = $('status');
-  const keyInput = $('apiKey');
-  let trafficVisible = true;
-  let isGlobe = true;
-  let refreshTimer = null;
-  let currentKey = '';
+    // ==============================
+    // 1. CẤU HÌNH API KEY
+    // ==============================
+    const TOMTOM_API_KEY = 'ab591bfc-9bfe-4644-b5e7-21ad3e9bc51c';
+    const TRACKASIA_API_KEY = '1792297789c0cf0ddb16e5446d7364580f';
 
-  function status(message, kind = '') {
-    statusEl.textContent = message;
-    statusEl.className = 'status' + (kind ? ' ' + kind : '');
-  }
+    // ==============================
+    // 2. KHỞI TẠO MAPLIBRE
+    // ==============================
+    const map = new maplibregl.Map({
+        container: 'map',
+        // Sử dụng style vector của TrackAsia làm base map
+        style: `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_API_KEY}`,
+        center: [105.85, 21.02], // Hà Nội
+        zoom: 12,
+        pitch: 0,                // Nghiêng ban đầu (0 = nhìn từ trên xuống)
+        bearing: 0,              // Hướng xoay ban đầu
+        maxPitch: 85,            // Cho phép nghiêng tối đa 85°
+        attributionControl: true
+    });
 
-  // Demo style intended for testing. Replace with a production map style if needed.
-  const map = new maplibregl.Map({
-    container: 'map',
-    style: 'https://demotiles.maplibre.org/style.json',
-    center: [106.7009, 10.7769],
-    zoom: 11,
-    pitch: 55,
-    bearing: -15,
-    maxPitch: 85,
-    projection: { type: 'globe' },
-    canvasContextAttributes: { antialias: true }
-  });
+    // Thêm control điều hướng (zoom, xoay, nghiêng)
+    map.addControl(new maplibregl.NavigationControl({
+        showCompass: true,
+        showZoom: true,
+        visualizePitch: true
+    }), 'top-right');
 
-  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
-  map.addControl(new maplibregl.FullscreenControl(), 'top-right');
-  map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
+    // ==============================
+    // 3. THÊM LỚP TRAFFIC TỪ TOMTOM
+    // ==============================
+    map.on('load', () => {
+        // 3.1 Thêm source raster tile từ TomTom Traffic Flow
+        map.addSource('tomtom-traffic', {
+            type: 'raster',
+            tiles: [
+                `https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${TOMTOM_API_KEY}`
+            ],
+            tileSize: 256,
+            minzoom: 0,
+            maxzoom: 22,
+            attribution: '© TomTom Traffic'
+        });
 
-  function trafficTileUrl(key, style) {
-    // TomTom Orbis Traffic Flow Raster Tiles API v2.
-    // The service returns transparent PNG tiles; MapLibre can draw them over the base map.
-    return 'https://api.tomtom.com/maps/orbis/traffic/flow/raster/tile/{z}/{x}/{y}' +
-      '?apiVersion=2&key=' + encodeURIComponent(key) +
-      '&style=' + encodeURIComponent(style) + '&tileSize=256';
-  }
+        // 3.2 Thêm layer hiển thị traffic
+        map.addLayer({
+            id: 'tomtom-traffic-layer',
+            type: 'raster',
+            source: 'tomtom-traffic',
+            paint: {
+                'raster-opacity': 0.85,
+                // Đảm bảo traffic nổi bật trên nền bản đồ
+                'raster-contrast': 0.2,
+                'raster-saturation': 0.3
+            }
+        });
 
-  function installTraffic(key, style) {
-    currentKey = key;
-    const sourceId = 'tomtom-traffic-source';
-    const layerId = 'tomtom-traffic-layer';
-    const tiles = [trafficTileUrl(key, style)];
+        // Đảm bảo layer traffic luôn nằm trên cùng (nếu cần)
+        // map.moveLayer('tomtom-traffic-layer');
+    });
 
-    try {
-      if (map.getLayer(layerId)) map.removeLayer(layerId);
-      if (map.getSource(sourceId)) map.removeSource(sourceId);
+    // ==============================
+    // 4. TOGGLE BẬT/TẮT TRAFFIC
+    // ==============================
+    const toggleCheckbox = document.getElementById('toggleTraffic');
 
-      map.addSource(sourceId, {
-        type: 'raster',
-        tiles,
-        tileSize: 256,
-        minzoom: 0,
-        maxzoom: 22,
-        attribution: 'Traffic data © TomTom'
-      });
-      map.addLayer({
-        id: layerId,
-        type: 'raster',
-        source: sourceId,
-        layout: { visibility: trafficVisible ? 'visible' : 'none' },
-        paint: { 'raster-opacity': 0.88, 'raster-fade-duration': 0 }
-      });
-      status('Đã thêm lớp giao thông. Đang tải tile; nếu không thấy màu đường, kiểm tra API key, quyền truy cập API và vùng phủ.', 'ok');
-      startAutoRefresh();
-    } catch (err) {
-      console.error(err);
-      status('Không thể thêm lớp giao thông: ' + err.message, 'warn');
-    }
-  }
+    toggleCheckbox.addEventListener('change', (e) => {
+        const visibility = e.target.checked ? 'visible' : 'none';
+        if (map.getLayer('tomtom-traffic-layer')) {
+            map.setLayoutProperty('tomtom-traffic-layer', 'visibility', visibility);
+        }
+    });
 
-  function startAutoRefresh() {
-    if (refreshTimer) clearInterval(refreshTimer);
-    // Reloading the tile source every 60 seconds can generate additional API requests.
-    refreshTimer = setInterval(() => {
-      if (!currentKey || !map.isStyleLoaded()) return;
-      const style = $('styleMode').value;
-      installTraffic(currentKey, style);
-    }, 60000);
-  }
+    // ==============================
+    // 5. XỬ LÝ LỖI (tùy chọn)
+    // ==============================
+    map.on('error', (e) => {
+        console.warn('MapLibre error:', e.error);
+    });
 
-  map.on('load', () => {
-    try {
-      map.setProjection({ type: 'globe' });
-    } catch (e) {
-      console.warn('Globe projection unavailable in this browser/library version.', e);
-    }
-    status('Bản đồ nền đã tải. Nhập TomTom API key rồi nhấn “Kết nối giao thông”.', 'ok');
-  });
-
-  map.on('error', (e) => {
-    // MapLibre can emit style/tile errors; show only a concise diagnostic.
-    const message = e && e.error && e.error.message ? e.error.message : 'Lỗi tải bản đồ hoặc tile.';
-    console.warn('Map error:', e);
-    if (/tomtom|traffic|403|429|401|key|tile/i.test(message)) {
-      status('Lỗi tải dữ liệu bản đồ/tile: ' + message + ' — kiểm tra API key, quyền API và hạn mức.', 'warn');
-    }
-  });
-
-  $('applyKey').addEventListener('click', () => {
-    const key = keyInput.value.trim();
-    if (!key) {
-      status('Bạn cần dán API key TomTom trước.', 'warn');
-      keyInput.focus();
-      return;
-    }
-    if (!map.isStyleLoaded()) {
-      status('Bản đồ nền chưa tải xong. Đợi vài giây rồi thử lại.', 'warn');
-      return;
-    }
-    installTraffic(key, $('styleMode').value);
-  });
-
-  $('toggleTraffic').addEventListener('click', () => {
-    trafficVisible = !trafficVisible;
-    const layerId = 'tomtom-traffic-layer';
-    if (map.getLayer(layerId)) {
-      map.setLayoutProperty(layerId, 'visibility', trafficVisible ? 'visible' : 'none');
-      status(trafficVisible ? 'Đã bật lớp giao thông.' : 'Đã ẩn lớp giao thông.', 'ok');
-    } else {
-      status('Chưa kết nối lớp giao thông. Nhập API key trước.', 'warn');
-    }
-  });
-
-  $('styleMode').addEventListener('change', () => {
-    if (currentKey && map.isStyleLoaded()) installTraffic(currentKey, $('styleMode').value);
-  });
-
-  $('refreshNow').addEventListener('click', () => {
-    if (!currentKey) {
-      status('Chưa có API key. Nhập key rồi kết nối trước.', 'warn');
-      return;
-    }
-    if (map.isStyleLoaded()) installTraffic(currentKey, $('styleMode').value);
-  });
-
-  $('toggleProjection').addEventListener('click', () => {
-    isGlobe = !isGlobe;
-    try {
-      map.setProjection({ type: isGlobe ? 'globe' : 'mercator' });
-      status(isGlobe ? 'Đang dùng quả địa cầu có thể xoay.' : 'Đang dùng bản đồ phẳng.', 'ok');
-    } catch (e) {
-      status('Không đổi được phép chiếu: ' + e.message, 'warn');
-    }
-  });
-
-  $('goHcm').addEventListener('click', () => {
-    map.flyTo({ center: [106.7009, 10.7769], zoom: 11, pitch: 55, bearing: -15, essential: true });
-  });
-
-  $('goDongNai').addEventListener('click', () => {
-    map.flyTo({ center: [107.1676, 10.9574], zoom: 10, pitch: 55, bearing: -15, essential: true });
-  });
-
-  window.addEventListener('beforeunload', () => {
-    if (refreshTimer) clearInterval(refreshTimer);
-  });
-})();
 </script>
+
 </body>
 </html>
