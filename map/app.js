@@ -112,6 +112,9 @@ let isViewingLiveTrack = false;
 let activeLiveUsers = [];
 let currentLiveIndex = 0;
 
+// BIẾN LƯU SESSION MAPBOX
+window._mapboxSession = null;
+
 const POI_TAG_CONFIG = {
   supermarket: { icon: 'fa-shopping-cart', label: 'Siêu thị', color: '#10b981' },
   rest_stop: { icon: 'fa-bed', label: 'Trạm dừng nghỉ', color: '#3b82f6' },
@@ -1207,7 +1210,6 @@ window.openEndTripModal = function() {
 
 window.closeEndTripModal = function() { document.getElementById('endTripModal').classList.remove('open'); };
 
-// HÀM LƯU LỘ TRÌNH ĐÃ ĐƯỢC NÂNG CẤP (KHÔNG RELOAD)
 window.endTrip = async function(save) {
   closeEndTripModal();
   
@@ -1229,26 +1231,23 @@ window.endTrip = async function(save) {
         timestamp: Date.now()
       };
 
-      // 1. Lưu lên Firestore
+      // Lưu lên Firestore
       const docRef = await addDoc(collection(fsdb, `users/${currentUser.uid}/savedRoutes`), routeData);
       
-      // 2. Thêm vào mảng hiển thị (Optimistic UI)
+      // Thêm vào cache để không cần F5
       const newRoute = { ...routeData, id: docRef.id, _id: docRef.id, source: 'firestore' };
       _fsSavedRoutes.push(newRoute);
       recomputeSavedRoutes();
       
-      // 3. Cập nhật Cache LocalStorage (Để F5 không bị mất)
       let cachedSaved = JSON.parse(localStorage.getItem('cache_saved_routes_' + currentUser.uid) || '{"timestamp":0,"data":[]}');
       cachedSaved.data.push(newRoute);
       cachedSaved.timestamp = Date.now();
       localStorage.setItem('cache_saved_routes_' + currentUser.uid, JSON.stringify(cachedSaved));
 
-      // 4. Nếu Menu đang mở thì cập nhật lại giao diện
       if (document.getElementById('profileModal').classList.contains('open')) {
         loadSavedRoutes();
       }
       
-      // 5. Hiển thị Toast thông báo (Không reload)
       const t = document.createElement('div');
       t.style.cssText = 'position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#10b981,#059669);color:white;padding:14px 22px;border-radius:14px;font-weight:800;z-index:9999;display:flex;gap:10px;align-items:center;';
       t.innerHTML = '<i class="fas fa-check-circle"></i><span>Đã lưu lộ trình thành công!</span>';
@@ -1268,7 +1267,6 @@ window.endTrip = async function(save) {
     }
   }
 
-  // --- PHẦN DỌN DẸP BẢN ĐỒ VÀ HUD (Giữ nguyên) ---
   if (liveEnabled && liveRoomCode && isLiveHost) {
     remove(ref(db, `live_rooms/${liveRoomCode}/navigation`)).catch(()=>{});
   }
@@ -1290,7 +1288,6 @@ window.endTrip = async function(save) {
   if (lastUserPos) map.flyTo([lastUserPos.lat, lastUserPos.lng], 16, { animate: true, duration: 1 });
 };
 
-// NÂNG CẤP HÀM LƯU LỊCH SỬ ĐỂ ĐỒNG BỘ LOCAL
 async function saveHistoryToFirestore(start, end, distance) {
   if (!currentUser) return;
   try {
@@ -1410,7 +1407,6 @@ window.deleteItem = async function(type, source, id) {
     if (source === 'firestore') await deleteDoc(doc(fsdb, `users/${currentUser.uid}/${type}/${id}`));
     else await remove(ref(db, `users/${currentUser.uid}/${type}/${id}`));
     
-    // Cập nhật Local Cache để không bị load lại khi F5
     if (type === 'history') {
       _fsHistory = _fsHistory.filter(h => h._id !== id);
       recomputeHistory();
@@ -1521,8 +1517,10 @@ window.clearTopSearch = function() {
 
 async function doSearch(query) {
   const box = document.getElementById('suggestionsBox');
+  
+  // 1. XỬ LÝ LINK GOOGLE MAPS
   if (query.startsWith('http://') || query.startsWith('https://')) {
-    if (query.includes('google.com/maps') || query.includes('goo.gl/maps')) {
+    if (query.includes('google.com/maps') || query.includes('goo.gl/maps') || query.includes('maps.app.goo.gl') || query.includes('g.co/kgs')) {
       box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang giải mã link...</div>';
       try {
         const res = await fetchWorker(`/resolve-gmaps?url=${encodeURIComponent(query)}`);
@@ -1531,17 +1529,26 @@ async function doSearch(query) {
           box.innerHTML = '';
           const div = document.createElement('div');
           div.className = 'sug-item';
-          div.innerHTML = `<i class="fas fa-map-marker-alt"></i><div>${data.placeName || 'Vị trí từ Google Maps'}</div>`;
-          div.onclick = () => selectLocation(data.coords.lat, data.coords.lng, data.placeName || 'Vị trí từ Google Maps');
+          div.innerHTML = `<i class="fas fa-map-marker-alt" style="color:#ef4444;"></i><div>Vị trí từ Google Maps</div>`;
+          div.onclick = () => selectLocation(data.coords.lat, data.coords.lng, data.placeName || 'Vị trí Google Maps');
           box.appendChild(div);
-        } else box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Không giải mã được link này</div>';
-      } catch (e) { box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Lỗi kết nối</div>'; }
+        } else box.innerHTML = '<div class="sug-item" style="color:var(--danger)">❌ Không giải mã được link này</div>';
+      } catch (e) { box.innerHTML = '<div class="sug-item" style="color:var(--danger)">❌ Lỗi kết nối</div>'; }
       return;
     }
   }
+
+  // 2. XỬ LÝ TEXT SEARCH
   const q = query.toLowerCase().trim();
   box.innerHTML = '';
+
+  // Tạo session mới nếu chưa có (cho Mapbox)
+  if (!window._mapboxSession) window._mapboxSession = crypto.randomUUID();
+
   const restStopMatches = allRestStops.filter(p => p.name && p.name.toLowerCase().includes(q));
+  const poiMatches = allCommunityPois.filter(p => p.name && p.name.toLowerCase().includes(q));
+  const totalLocal = restStopMatches.length + poiMatches.length;
+
   if (restStopMatches.length > 0) {
     const title = document.createElement('div');
     title.className = 'sug-section-title rest-stop-title';
@@ -1555,7 +1562,7 @@ async function doSearch(query) {
       box.appendChild(div);
     });
   }
-  const poiMatches = allCommunityPois.filter(p => p.name && p.name.toLowerCase().includes(q));
+  
   if (poiMatches.length > 0) {
     const title = document.createElement('div');
     title.className = 'sug-section-title community';
@@ -1570,38 +1577,62 @@ async function doSearch(query) {
       box.appendChild(div);
     });
   }
+
   const loadingDiv = document.createElement('div');
   loadingDiv.className = 'sug-item';
-  loadingDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tìm địa điểm khác...';
+  loadingDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tìm kiếm...';
   box.appendChild(loadingDiv);
+
   try {
-    const res = await fetchWorker(`/trackasia-search?query=${encodeURIComponent(query)}`);
+    const userLat = lastUserPos ? lastUserPos.lat : '';
+    const userLng = lastUserPos ? lastUserPos.lng : '';
+    
+    // GỬI KÈM SESSION VÀ TỌA ĐỘ LÊN WORKER
+    const res = await fetchWorker(`/trackasia-search?query=${encodeURIComponent(query)}&session=${window._mapboxSession}&lat=${userLat}&lng=${userLng}`);
     const data = await res.json();
     const results = data.results || data.predictions || [];
     loadingDiv.remove();
+    
     if (results.length > 0) {
       const title2 = document.createElement('div');
       title2.className = 'sug-section-title';
-      title2.innerHTML = '<i class="fas fa-map-marked-alt"></i> Địa điểm khác';
+      title2.innerHTML = '<i class="fas fa-map-marked-alt"></i> Kết quả tìm kiếm';
       box.appendChild(title2);
-      results.slice(0, 50).forEach(r => {
+      
+      results.forEach(r => {
         const div = document.createElement('div');
         div.className = 'sug-item';
-        const name = r.formatted_address || r.name || 'Không tên';
+        const name = r.name || r.formatted_address || 'Không tên';
+        const address = r.formatted_address || '';
         const lat = r.geometry?.location?.lat || r.lat;
         const lng = r.geometry?.location?.lng || r.lng || r.lon;
-        div.innerHTML = `<i class="fas fa-map-marker-alt"></i><div>${name}</div>`;
+        const provider = r.provider || '';
+        
+        let badge = '';
+        if (provider === 'mapbox') badge = '<span style="font-size:0.55rem; background:#dbeafe; color:#1e40af; padding:1px 6px; border-radius:4px; margin-left:6px; font-weight:800;">MAPBOX</span>';
+        else if (provider === 'trackasia') badge = '<span style="font-size:0.55rem; background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:4px; margin-left:6px; font-weight:800;">TRACKASIA</span>';
+        else if (provider === 'freeroute') badge = '<span style="font-size:0.55rem; background:#ddd6fe; color:#5b21b6; padding:1px 6px; border-radius:4px; margin-left:6px; font-weight:800;">FREEROUTE</span>';
+        else if (provider === 'photon') badge = '<span style="font-size:0.55rem; background:#cffafe; color:#155e75; padding:1px 6px; border-radius:4px; margin-left:6px; font-weight:800;">PHOTON</span>';
+
+        const addrHtml = address && address !== name ? `<div style="font-size:0.72rem; color:var(--text-muted); margin-top:2px; line-height:1.3;">${address}</div>` : '';
+
+        div.innerHTML = `<i class="fas fa-map-marker-alt" style="color:var(--primary);"></i><div style="flex:1; min-width:0;"><div style="font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name}${badge}</div>${addrHtml}</div>`;
         div.onclick = () => selectLocation(lat, lng, name);
         box.appendChild(div);
       });
-    } else if (restStopMatches.length === 0 && poiMatches.length === 0) box.innerHTML = '<div class="sug-item">Không tìm thấy kết quả</div>';
+    } else if (totalLocal === 0) {
+      box.innerHTML = '<div class="sug-item">Không tìm thấy kết quả</div>';
+    }
   } catch (e) {
     loadingDiv.remove();
-    if (restStopMatches.length === 0 && poiMatches.length === 0) box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Lỗi kết nối</div>';
+    if (totalLocal === 0) box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Lỗi kết nối</div>';
   }
 }
 
 async function selectLocation(lat, lng, name) {
+  // RESET SESSION MAPBOX SAU KHI CHỌN ĐỊA ĐIỂM
+  window._mapboxSession = null; 
+  
   document.getElementById('topSearchInput').value = name;
   document.getElementById('topSearchInput').readOnly = true;
   document.getElementById('searchClearBtn').classList.remove('hidden');
