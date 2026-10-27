@@ -3,156 +3,118 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TrackAsia Real-time Traffic</title>
+    <title>Test TomTom Realtime Traffic với MapLibre 360°</title>
     
-    <!-- SỬ DỤNG LINK THƯ VIỆN SIÊU TỐC TẠI VIỆT NAM (UNPKG) -->
-    <link rel="stylesheet" href="https://unpkg.com" />
+    <!-- Cài đặt MapLibre GL JS CSS & JS -->
+    <link href="https://unpkg.com" rel="stylesheet" />
     <script src="https://unpkg.com"></script>
 
     <style>
-        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { margin: 0; padding: 0; font-family: sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        
+        /* Bảng điều khiển hướng dẫn tương tác */
         .info-panel {
             position: absolute;
-            top: 15px;
-            left: 15px;
-            background: rgba(255, 255, 255, 0.95);
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
             padding: 15px;
             border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            z-index: 10;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            z-index: 1;
             max-width: 300px;
         }
-        h3 { margin: 0 0 8px 0; font-size: 16px; color: #222; }
-        p { margin: 0 0 12px 0; font-size: 13px; color: #555; line-height: 1.4; }
-        .btn-route {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            width: 100%;
-            font-weight: bold;
-            font-size: 14px;
-            transition: background 0.2s;
-        }
-        .btn-route:hover { background-color: #0056b3; }
-        #result { margin-top: 12px; font-size: 13px; color: #333; border-top: 1px solid #eee; padding-top: 8px; display: none; }
+        .info-panel h3 { margin: 0 0 10px 0; font-size: 16px; }
+        .info-panel p { margin: 5px 0; font-size: 13px; color: #333; }
+        .traffic-legend { margin-top: 10px; font-size: 12px; }
+        .legend-item { display: flex; align-items: center; margin-bottom: 3px; }
+        .color-box { width: 20px; height: 10px; margin-right: 8px; border-radius: 2px; }
     </style>
 </head>
 <body>
 
 <div class="info-panel">
-    <h3>Giao thông Thời gian thực</h3>
-    <p>Bản đồ đang tự động tải lớp dữ liệu kẹt xe (Màu Xanh/Vàng/Đỏ). Nhấn nút dưới để tìm tuyến đường tối ưu tránh kẹt xe.</p>
-    <button class="btn-route" onclick="calculateTrafficRoute()">Tìm đường tránh kẹt xe</button>
-    <div id="result"></div>
+    <h3>Bản đồ Giao thông 360°</h3>
+    <p><b>Xoay bản đồ (360°):</b> Nhấn giữ chuột phải + Kéo chuột (hoặc Giữ Ctrl + Chuột trái).</p>
+    <p><b>Thay đổi góc nghiêng:</b> Kéo chuột lên/xuống khi đang giữ chuột phải.</p>
+    <div class="traffic-legend">
+        <p><b>Chú giải TomTom Traffic:</b></p>
+        <div class="legend-item"><div class="color-box" style="background: #3182bd;"></div> Thông thoáng</div>
+        <div class="legend-item"><div class="color-box" style="background: #ff9900;"></div> Chậm (Mật độ vừa)</div>
+        <div class="legend-item"><div class="color-box" style="background: #ff0000;"></div> Ún ứ / Tắc nghẽn</div>
+        <div class="legend-item"><div class="color-box" style="background: #800000;"></div> Tắc nghẽn nghiêm trọng</div>
+    </div>
 </div>
 
 <div id="map"></div>
 
 <script>
-    // ==========================================
-    // BẮT BUỘC: THAY BẰNG API KEY THẬT CỦA BẠN
-    // ==========================================
-    const TRACKASIA_KEY = 'YOUR_TRACKASIA_API_KEY'; 
+    // Cấu hình các thông số ban đầu
+    const TOMTOM_API_KEY = 'ab591bfc-9bfe-4644-b5e7-21ad3e9bc51c'; // Thay API Key của bạn vào đây
+    const START_CENTER = [106.660172, 10.762622]; // Tọa độ mặc định (Ví dụ: TP. Hồ Chí Minh)
 
-    // Kiểm tra nếu chưa thay key thì cảnh báo
-    if (TRACKASIA_KEY === '1792297789c0cf0ddb16e5446d7364580f') {
-        alert('Vui lòng mở code ra và thay thế YOUR_TRACKASIA_API_KEY bằng API Key thật của bạn!');
-    }
-
-    // 1. KHỞI TẠO BẢN ĐỒ VÀ NẠP STYLE TRAFFIC
-    const map = new trackasiagl.Map({
+    // Khởi tạo bản đồ MapLibre
+    const map = new maplibregl.Map({
         container: 'map',
-        // Đường dẫn chuẩn nạp layer giao thông thời gian thực của TrackAsia
-        style: `https://track-asia.com{TRACKASIA_KEY}`,
-        center: [106.660172, 10.762622], // Tọa độ TP. Hồ Chí Minh [Kinh độ, Vĩ độ]
-        zoom: 13
+        // Sử dụng style vector cơ bản làm nền (Maptiler, Demotiles hoặc bất kỳ nguồn mở nào)
+        style: 'https://maplibre.org', 
+        center: START_CENTER,
+        zoom: 13,
+        pitch: 45, // Độ nghiêng ban đầu (để thấy hiệu ứng 3D/360 dễ hơn)
+        bearing: 0, // Hướng la bàn ban đầu
+        dragRotate: true // Bật tính năng xoay bản đồ 360 độ
     });
 
-    // Thêm nút Phóng to / Thu nhỏ góc trên bên phải
-    map.addControl(new trackasiagl.NavigationControl(), 'top-right');
+    // Thêm bộ điều khiển điều hướng (Zoom, Xoay) của MapLibre
+    map.addControl(new maplibregl.NavigationControl({
+        visualizePitch: true // Hiển thị nút điều khiển độ nghiêng trực quan
+    }), 'top-right');
 
-    // Tọa độ Demo Điểm Đi (A) và Điểm Đến (B) 
-    const origin = [106.660172, 10.762622];      
-    const destination = [106.695327, 10.774911]; 
+    map.on('load', () => {
+        
+        // 1. TÍCH HỢP LỚP DỮ LIỆU TRAFFIC FLOW (Dòng chảy giao thông thời gian thực)
+        // TomTom Raster Traffic Flow sử dụng cấu trúc URL XYZ:
+        // https://{a-d}://{z}/{x}/{y}.png
+        map.addSource('tomtom-traffic-flow', {
+            type: 'raster',
+            tiles: [
+                `https://a://{z}/{x}/{y}.png?key=${TOMTOM_API_KEY}`,
+                `https://b://{z}/{x}/{y}.png?key=${TOMTOM_API_KEY}`,
+                `https://c://{z}/{x}/{y}.png?key=${TOMTOM_API_KEY}`,
+                `https://d://{z}/{x}/{y}.png?key=${TOMTOM_API_KEY}`
+            ],
+            tileSize: 256
+        });
 
-    // Thêm các ghim định vị (Marker) lên Map
-    new trackasiagl.Marker({ color: '#28a745' }).setLngLat(origin).addTo(map);
-    new trackasiagl.Marker({ color: '#dc3545' }).setLngLat(destination).addTo(map);
+        map.addLayer({
+            id: 'traffic-flow-layer',
+            type: 'raster',
+            source: 'tomtom-traffic-flow',
+            minzoom: 0,
+            maxzoom: 22,
+            paint: {
+                'raster-opacity': 0.85 // Độ mờ của lớp giao thông chồng lên nền bản đồ
+            }
+        });
 
-    // 2. GỌI API ĐỊNH TỰ ĐỘNG NÉ KẸT XE
-    function calculateTrafficRoute() {
-        const resultDiv = document.getElementById('result');
-        resultDiv.style.display = 'block';
-        resultDiv.innerHTML = '<em>Đang tính toán lộ trình tối ưu...</em>';
+        // 2. TÍCH HỢP LỚP SỰ CỐ GIAO THÔNG (Traffic Incidents - Tai nạn, Công trường... tùy chọn)
+        map.addSource('tomtom-traffic-incidents', {
+            type: 'raster',
+            tiles: [
+                `https://tomtom.com{z}/{x}/{y}.png?key=${TOMTOM_API_KEY}`
+            ],
+            tileSize: 256
+        });
 
-        // Endpoint OSRM Định tuyến thông minh có tích hợp dữ liệu Traffic
-        const routingUrl = `https://track-asia.com{origin[0]},${origin[1]};${destination[0]},${destination[1]}.json?geometries=geojson&overview=full&new_admin=true&key=${TRACKASIA_KEY}`;
-
-        fetch(routingUrl)
-            .then(response => {
-                if (!response.ok) throw new Error('Không thể kết nối đến máy chủ TrackAsia');
-                return response.json();
-            })
-            .then(data => {
-                if (!data.routes || data.routes.length === 0) {
-                    resultDiv.innerHTML = '<span style="color:red;">Không tìm thấy đường đi phù hợp.</span>';
-                    return;
-                }
-
-                const route = data.routes[0];
-                const distanceKm = (route.distance / 1000).toFixed(2);
-                const durationMins = Math.round(route.duration / 60); // Thời gian này đã cộng độ trễ kẹt xe thực tế
-
-                // Cập nhật thông số lên màn hình
-                resultDiv.innerHTML = `
-                    <strong>Khoảng cách:</strong> ${distanceKm} km<br>
-                    <strong>Thời gian di chuyển:</strong> ${durationMins} phút<br>
-                    <span style="color: #28a745; font-weight: bold;">✓ Đã tối ưu né các điểm tắc nghẽn.</span>
-                `;
-
-                // 3. VẼ ĐƯỜNG ĐI LÊN MÀN HÌNH
-                const routeGeoJSON = route.geometry;
-
-                // Xóa đường cũ nếu có trước khi vẽ đường mới
-                if (map.getLayer('route-line')) map.removeLayer('route-line');
-                if (map.getSource('route-source')) map.removeSource('route-source');
-
-                // Thêm nguồn dữ liệu tọa độ
-                map.addSource('route-source', {
-                    'type': 'geojson',
-                    'data': {
-                        'type': 'Feature',
-                        'geometry': routeGeoJSON
-                    }
-                });
-
-                // Cấu hình nét vẽ đường đi màu xanh lam đậm
-                map.addLayer({
-                    'id': 'route-line',
-                    'type': 'line',
-                    'source': 'route-source',
-                    'layout': { 'line-join': 'round', 'line-cap': 'round' },
-                    'paint': {
-                        'line-color': '#0056b3',
-                        'line-width': 6,
-                        'line-opacity': 0.85
-                    }
-                });
-
-                // Tự động zoom vừa vặn toàn bộ tuyến đường
-                const coordinates = routeGeoJSON.coordinates;
-                const bounds = coordinates.reduce((b, c) => b.extend(c), new trackasiagl.LngLatBounds(coordinates[0], coordinates[0]));
-                map.fitBounds(bounds, { padding: 40 });
-            })
-            .catch(err => {
-                console.error(err);
-                resultDiv.innerHTML = '<span style="color:red;">Lỗi: Không tải được dữ liệu định tuyến. Kiểm tra lại API Key.</span>';
-            });
-    }
+        map.addLayer({
+            id: 'traffic-incidents-layer',
+            type: 'raster',
+            source: 'tomtom-traffic-incidents',
+            minzoom: 0,
+            maxzoom: 22
+        });
+    });
 </script>
 
 </body>
