@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Test Realtime Traffic - TrackAsia + TomTom + MapLibre</title>
+    <title>Test Realtime Traffic - MapLibre + TrackAsia + TomTom</title>
 
     <!-- MapLibre GL JS -->
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 
-    <!-- vConsole (debug panel) — load TRƯỚC khi app chạy -->
+    <!-- vConsole (debug panel) -->
     <script src="https://unpkg.com/vconsole@3.15.1/dist/vconsole.min.js"></script>
     <script>
-        // Khởi tạo vConsole NGAY (trước MapLibre) để bắt được mọi log
         window.vConsole = new window.VConsole({
             theme: 'dark',
             defaultPlugins: ['system', 'network', 'element', 'storage'],
@@ -29,7 +28,7 @@
             top: 10px;
             left: 10px;
             z-index: 1;
-            background: rgba(0, 0, 0, 0.75);
+            background: rgba(0, 0, 0, 0.85);
             color: #fff;
             padding: 12px 16px;
             border-radius: 8px;
@@ -37,9 +36,10 @@
             font-size: 14px;
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            min-width: 220px;
+            gap: 10px;
+            min-width: 240px;
             backdrop-filter: blur(6px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
 
         #controls label {
@@ -55,6 +55,22 @@
             accent-color: #2BC82B;
         }
 
+        .btn-test {
+            background: #2BC82B;
+            color: #000;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            display: block;
+            margin-top: 4px;
+            font-size: 13px;
+        }
+        .btn-test:hover { background: #22a322; }
+
         .hint {
             font-size: 12px;
             color: #aaa;
@@ -68,40 +84,42 @@
 <div id="map"></div>
 
 <div id="controls">
-    <strong>🗺️ Realtime Traffic</strong>
+    <strong>🗺️ Test TomTom API Key</strong>
+    
     <label>
         <input type="checkbox" id="toggleTraffic" checked />
-        Hiển thị TomTom Traffic Flow
+        Hiển thị TomTom Traffic
     </label>
+    
+    <!-- Nút test link Orbis theo đúng AI TomTom khuyên -->
+    <a href="https://api.tomtom.com/maps/orbis/display/raster/tile/0/0/0?apiVersion=2&style=street-light&key=ab591bfc-9bfe-4644-b5e7-21ad3e9bc51c" 
+       target="_blank" class="btn-test">
+       🔗 Mở Link Test (Orbis Maps)
+    </a>
+
     <div class="hint">
-        Kéo chuột phải để xoay 360°<br />
-        Ctrl + kéo chuột để nghiêng (pitch)
+        Bấm nút trên để test Key.<br>
+        Nếu ra ảnh bản đồ thế giới => Key OK.<br>
+        Kéo chuột phải để xoay 360°.
     </div>
 </div>
 
 <script>
-    // ==============================
-    // 0. HELPERS (log đẹp trong vConsole)
-    // ==============================
-    const log   = (...args) => console.log('[Traffic]', ...args);
-    const warn  = (...args) => console.warn('[Traffic]', ...args);
-    const error = (...args) => console.error('[Traffic]', ...args);
+    const log = (...args) => console.log('[Traffic]', ...args);
 
-    log('Khởi động app, vConsole đã sẵn sàng ✨');
-
-    // ==============================
-    // 1. CẤU HÌNH API KEY
-    // ==============================
+    // ==========================================
+    // CẤU HÌNH API KEY
+    // ==========================================
     const TOMTOM_API_KEY = 'ab591bfc-9bfe-4644-b5e7-21ad3e9bc51c';
     const TRACKASIA_API_KEY = '1792297789c0cf0ddb16e5446d7364580f';
 
-    // ==============================
-    // 2. KHỞI TẠO MAPLIBRE
-    // ==============================
+    // ==========================================
+    // KHỞI TẠO MAPLIBRE
+    // ==========================================
     const map = new maplibregl.Map({
         container: 'map',
         style: `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_API_KEY}`,
-        center: [105.85, 21.02],
+        center: [105.85, 21.02], // Hà Nội
         zoom: 12,
         pitch: 0,
         bearing: 0,
@@ -115,27 +133,36 @@
         visualizePitch: true
     }), 'top-right');
 
-    // Log vị trí mỗi khi người dùng dừng di chuyển (hữu ích để debug trên mobile)
-    map.on('moveend', () => {
-        const c = map.getCenter();
-        log(`Center: ${c.lat.toFixed(5)}, ${c.lng.toFixed(5)} | zoom=${map.getZoom().toFixed(2)} | pitch=${map.getPitch().toFixed(0)} | bearing=${map.getBearing().toFixed(0)}`);
-    });
-
-    // ==============================
-    // 3. THÊM LỚP TRAFFIC TỪ TOMTOM
-    // ==============================
     map.on('load', () => {
         log('Base map TrackAsia đã load xong ✅');
 
+        // ==========================================
+        // ÁP DỤNG ĐÚNG LỜI KHUYÊN CỦA AI TOMTOM:
+        // Gắn key qua HTTP Header (TomTom-Api-Key) thay vì Query Param
+        // ==========================================
         map.addSource('tomtom-traffic', {
             type: 'raster',
+            // Bỏ hẳn ?key= ra khỏi URL
             tiles: [
-                `https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${TOMTOM_API_KEY}`
+                'https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png'
             ],
             tileSize: 256,
             minzoom: 0,
             maxzoom: 22,
-            attribution: '© TomTom Traffic'
+            attribution: '© TomTom Traffic',
+            // Hàm can thiệp vào request để gắn Header
+            transformRequest: (url, resourceType) => {
+                // Chỉ gắn header cho các request gọi đến TomTom
+                if (url.includes('api.tomtom.com')) {
+                    return {
+                        url: url,
+                        headers: {
+                            'TomTom-Api-Key': TOMTOM_API_KEY
+                        }
+                    };
+                }
+                return { url: url };
+            }
         });
 
         map.addLayer({
@@ -149,41 +176,24 @@
             }
         });
 
-        log('Layer TomTom Traffic đã được thêm vào map 🚦');
+        log('Đã thêm layer Traffic bằng phương thức Header (TomTom-Api-Key).');
     });
 
-    // Log khi tile traffic load xong (mỗi tile)
-    map.on('data', (e) => {
-        if (e.sourceId === 'tomtom-traffic' && e.tile) {
-            log(`🛰️  Traffic tile loaded z=${e.tile.tileID.canonical.z} x=${e.tile.tileID.canonical.x} y=${e.tile.tileID.canonical.y}`);
-        }
-    });
-
-    // ==============================
-    // 4. TOGGLE BẬT/TẮT TRAFFIC
-    // ==============================
-    const toggleCheckbox = document.getElementById('toggleTraffic');
-
-    toggleCheckbox.addEventListener('change', (e) => {
-        const visibility = e.target.checked ? 'visible' : 'none';
+    // ==========================================
+    // BẮT LỖI VÀ TOGGLE
+    // ==========================================
+    document.getElementById('toggleTraffic').addEventListener('change', (e) => {
         if (map.getLayer('tomtom-traffic-layer')) {
-            map.setLayoutProperty('tomtom-traffic-layer', 'visibility', visibility);
-            log(`Traffic layer → ${visibility}`);
-        } else {
-            warn('Layer tomtom-traffic-layer chưa tồn tại (map chưa load xong?)');
+            map.setLayoutProperty(
+                'tomtom-traffic-layer', 
+                'visibility', 
+                e.target.checked ? 'visible' : 'none'
+            );
         }
     });
 
-    // ==============================
-    // 5. BẮT LỖI
-    // ==============================
     map.on('error', (e) => {
-        error('MapLibre error:', e.error?.message || e.error);
-    });
-
-    // Bắt lỗi tải style / tile bị 403 / 429 (hết quota TomTom)
-    window.addEventListener('unhandledrejection', (ev) => {
-        warn('Unhandled promise rejection:', ev.reason);
+        console.error('MapLibre error:', e.error);
     });
 </script>
 
