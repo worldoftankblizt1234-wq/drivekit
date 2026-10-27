@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Test Realtime Traffic - MapLibre + TrackAsia + TomTom</title>
+    <title>Test Realtime Traffic (Orbis v2) - MapLibre + TrackAsia + TomTom</title>
 
     <!-- MapLibre GL JS -->
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
@@ -37,7 +37,7 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            min-width: 240px;
+            min-width: 260px;
             backdrop-filter: blur(6px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
@@ -84,22 +84,22 @@
 <div id="map"></div>
 
 <div id="controls">
-    <strong>🗺️ Test TomTom API Key</strong>
+    <strong>🗺️ Test TomTom Orbis API Key</strong>
     
     <label>
         <input type="checkbox" id="toggleTraffic" checked />
-        Hiển thị TomTom Traffic
+        Hiển thị TomTom Traffic (Orbis)
     </label>
     
-    <!-- Nút test link Orbis theo đúng AI TomTom khuyên -->
-    <a href="https://api.tomtom.com/maps/orbis/display/raster/tile/0/0/0?apiVersion=2&style=street-light&key=ab591bfc-9bfe-4644-b5e7-21ad3e9bc51c" 
+    <!-- Link test trực tiếp endpoint Orbis Raster Flow -->
+    <a href="https://api.tomtom.com/maps/orbis/traffic/flow/raster/tile/13/6505/3607?apiVersion=2&style=light&key=ab591bfc-9bfe-4644-b5e7-21ad3e9bc51c" 
        target="_blank" class="btn-test">
-       🔗 Mở Link Test (Orbis Maps)
+       🔗 Mở Link Test (Orbis Raster)
     </a>
 
     <div class="hint">
         Bấm nút trên để test Key.<br>
-        Nếu ra ảnh bản đồ thế giới => Key OK.<br>
+        Nếu ra ảnh bản đồ => Key OK.<br>
         Kéo chuột phải để xoay 360°.
     </div>
 </div>
@@ -137,27 +137,31 @@
         log('Base map TrackAsia đã load xong ✅');
 
         // ==========================================
-        // ÁP DỤNG ĐÚNG LỜI KHUYÊN CỦA AI TOMTOM:
-        // Gắn key qua HTTP Header (TomTom-Api-Key) thay vì Query Param
+        // THÊM SOURCE TRAFFIC (ORBIS V2)
+        // Áp dụng đúng khuyến nghị: dùng Header thay vì Query Param
         // ==========================================
         map.addSource('tomtom-traffic', {
             type: 'raster',
-            // Bỏ hẳn ?key= ra khỏi URL
+            // Endpoint Orbis mới, giữ nguyên các placeholder {z}/{x}/{y}
+            // Thêm các tham số bắt buộc: apiVersion=2 & style=light
             tiles: [
-                'https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png'
+                'https://api.tomtom.com/maps/orbis/traffic/flow/raster/tile/{z}/{x}/{y}?apiVersion=2&style=light'
             ],
-            tileSize: 256,
+            tileSize: 256, // Theo tài liệu, mặc định là 256
             minzoom: 0,
             maxzoom: 22,
-            attribution: '© TomTom Traffic',
-            // Hàm can thiệp vào request để gắn Header
+            attribution: '© TomTom Traffic (Orbis)',
+            // Hàm can thiệp để gắn Header xác thực
             transformRequest: (url, resourceType) => {
                 // Chỉ gắn header cho các request gọi đến TomTom
                 if (url.includes('api.tomtom.com')) {
                     return {
                         url: url,
                         headers: {
-                            'TomTom-Api-Key': TOMTOM_API_KEY
+                            // Tài liệu khuyến nghị dùng Header thay vì key trên URL
+                            'TomTom-Api-Key': TOMTOM_API_KEY,
+                            // Một số endpoint Orbis yêu cầu thêm header version
+                            'TomTom-Api-Version': '2'
                         }
                     };
                 }
@@ -176,7 +180,7 @@
             }
         });
 
-        log('Đã thêm layer Traffic bằng phương thức Header (TomTom-Api-Key).');
+        log('Đã thêm layer Traffic (Orbis) bằng phương thức Header.');
     });
 
     // ==========================================
