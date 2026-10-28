@@ -526,7 +526,11 @@ function initMap() {
     if (e.touches && e.touches.length > 1) return;
 
     const ml = getMaplibreInstance();
-    if (ml && ml.isMoving()) return;
+    if (ml) {
+      try {
+        if (ml.isMoving() || ml.isRotating() || ml.isZooming()) return;
+      } catch(err) {}
+    }
 
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -1867,25 +1871,27 @@ function changeLayer(type, btn) {
       const isLight = document.body.classList.contains('light-mode');
       currentMapLayer = L.maplibreGL({
         style: isLight ? MAPLIBRE_STYLE_LIGHT : MAPLIBRE_STYLE_DARK,
-        attribution: '© OpenStreetMap © CARTO',
-        pitchWithRotate: true,
-        dragRotate: true,
-        touchZoomRotate: true,
-        touchPitch: true,
-        bearingSnap: 0,
-        maxPitch: 60,
-        minPitch: 0,
-        maxZoom: 20,
-        minZoom: 2,
-        antialias: false,
-        preserveDrawingBuffer: false
+        maxPitch: 85
       }).addTo(map);
 
       setTimeout(() => {
         const ml = getMaplibreInstance();
         if (ml) {
+          try {
+            ml.touchZoomRotate.enableRotation();
+            ml.touchPitch.enable();
+          } catch(e) {}
+
           ml.on('rotate', () => { userRotatedMap = true; });
           ml.on('pitch', () => { userRotatedMap = true; });
+
+          console.log('[MapLibre] ready');
+          console.log('  canvas pointer-events:', getComputedStyle(ml.getCanvas()).pointerEvents);
+          console.log('  canvas touch-action:', getComputedStyle(ml.getCanvas()).touchAction);
+          console.log('  container pointer-events:', getComputedStyle(ml.getContainer()).pointerEvents);
+          console.log('  touchZoomRotate enabled:', ml.touchZoomRotate.isEnabled());
+          console.log('  touchPitch enabled:', ml.touchPitch.isEnabled());
+          console.log('  maxPitch:', ml.getMaxPitch());
         }
       }, 500);
     } catch (error) {
