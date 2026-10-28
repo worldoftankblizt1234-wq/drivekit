@@ -862,8 +862,15 @@ window.fetchAndShowRoute = async () => {
     }
 
     const r = data.routes[0];
+    let coords = r.geometry.coordinates;
+    
+    // FIX: Tự động phát hiện và đảo ngược tọa độ nếu bị trả sai [Vĩ độ, Kinh độ]
+    if (coords.length > 0 && Math.abs(coords[0][0]) < 90 && Math.abs(coords[0][1]) > 90) {
+      coords = coords.map(c => [c[1], c[0]]);
+    }
+
     const route = {
-      coords: r.geometry.coordinates,
+      coords: coords,
       distance: r.distance,
       duration: r.duration,
       steps: r.legs?.[0]?.steps || [],
@@ -871,8 +878,11 @@ window.fetchAndShowRoute = async () => {
     };
     state.currentRoute = route;
     drawRouteLine(route.coords);
+    
+    // Tự động thu phóng để thấy toàn bộ tuyến
     const lngs = route.coords.map(c => c[0]), lats = route.coords.map(c => c[1]);
     state.map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 100, bottom: 120 });
+    
     const dist = (route.distance / 1000).toFixed(1), dur = Math.round(route.duration / 60);
     body.innerHTML = `<div class="route-card active"><div style="flex:1"><h3><i class="fas fa-route"></i> Tuyến đường <span style="font-size:.7rem;background:var(--surface-2);padding:2px 6px;border-radius:4px;color:var(--muted);margin-left:6px">${escapeHtml(route.provider || '')}</span></h3><p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p></div></div>
       <button class="btn btn-primary full mt" onclick="window.startNavigation()"><i class="fas fa-play"></i> Bắt đầu dẫn đường</button>
@@ -937,12 +947,33 @@ function updateNavigation() {
 
 window.openEndTripModal = () => {
   if (!state.currentRoute) return;
+  
   const el = state.tripStartTime ? (Date.now() - state.tripStartTime) / 1000 : 0;
+  
+  // Hiển thị thông số
   $('endTripDist').textContent = (state.currentRoute.distance / 1000).toFixed(1) + ' km';
-  $('endTripTime').textContent = Math.max(1, Math.round(el / 60)) + ' phút';
-  $('endTripAvgSpeed').textContent = el > 5 ? ((state.currentRoute.distance / 1000) / (el / 3600)).toFixed(1) + ' km/h' : '--';
   $('endTripDest').textContent = state.endPoint?.name || '--';
+  
+  // FIX: Chống tốc độ ảo nếu kết thúc chuyến đi quá sớm (< 30 giây)
+  if (el < 30) {
+    $('endTripTime').textContent = Math.round(el) + ' giây';
+    $('endTripAvgSpeed').textContent = '--';
+  } else {
+    $('endTripTime').textContent = Math.round(el / 60) + ' phút';
+    const avgSpeed = (state.currentRoute.distance / 1000) / (el / 3600);
+    $('endTripAvgSpeed').textContent = avgSpeed.toFixed(1) + ' km/h';
+  }
+  
   $('endTripModal').classList.add('open');
+
+  // FIX: Tự động zoom bản đồ ra để nhìn thấy toàn bộ tuyến đường (không còn bị kẹt ở mức zoom 17)
+  if (state.currentRoute.coords && state.currentRoute.coords.length > 0) {
+    const lngs = state.currentRoute.coords.map(c => c[0]), lats = state.currentRoute.coords.map(c => c[1]);
+    state.map.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], 
+      { padding: 60, bottom: 300, duration: 800 }
+    );
+  }
 };
 
 window.endTrip = async (save) => {
@@ -1194,7 +1225,11 @@ window.reloadSavedRoute = (id) => {
   const r = state.allSavedRoutes.find(x => x.id === id);
   if (!r?.coordsJson) return showToast('Không có dữ liệu tuyến', 'warning');
   try {
-    const coords = JSON.parse(r.coordsJson);
+    let coords = JSON.parse(r.coordsJson);
+    // FIX: Đảo ngược tọa độ nếu cần
+    if (coords.length > 0 && Math.abs(coords[0][0]) < 90 && Math.abs(coords[0][1]) > 90) {
+      coords = coords.map(c => [c[1], c[0]]);
+    }
     state.startPoint = { lat: r.startLat, lng: r.startLng, name: r.startName };
     state.endPoint = { lat: r.endLat, lng: r.endLng, name: r.endName };
     $('dirInputStart').value = r.startName; $('dirInputEnd').value = r.endName;
