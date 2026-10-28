@@ -7,142 +7,185 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link href="https://unpkg.com/maplibre-gl@^4.7.1/dist/maplibre-gl.css" rel="stylesheet">
 <style>
-:root{--bg:#0b1220;--surface:#1e293b;--surface-2:#334155;--surface-3:#475569;--primary:#3b82f6;--success:#10b981;--danger:#ef4444;--warning:#f59e0b;--text:#f1f5f9;--muted:#94a3b8;--border:rgba(255,255,255,.08);--safe-top:env(safe-area-inset-top,0);--safe-bot:env(safe-area-inset-bottom,0)}
-body.light{--bg:#f8fafc;--surface:#fff;--surface-2:#e2e8f0;--surface-3:#cbd5e1;--text:#0f172a;--muted:#64748b;--border:rgba(0,0,0,.08)}
+:root{--bg:#0b1220;--surface:#1e293b;--surface-2:#334155;--surface-3:#475569;--primary:#3b82f6;--success:#10b981;--danger:#ef4444;--warning:#f59e0b;--text:#f1f5f9;--muted:#94a3b8;--border:rgba(255,255,255,.08);--safe-top:env(safe-area-inset-top,0);--safe-bot:env(safe-area-inset-bottom,0);--surface-glass:rgba(30,41,59,.85)}
+body.light{--bg:#f8fafc;--surface:#fff;--surface-2:#e2e8f0;--surface-3:#cbd5e1;--text:#0f172a;--muted:#64748b;--border:rgba(0,0,0,.08);--surface-glass:rgba(255,255,255,.85)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:15px}
+
+/* Global Interactive Feedback */
+button, .chip, .layer-item, .list-item, .nav-item { cursor: pointer; transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s; user-select: none; }
+button:active, .chip:active, .layer-item:active, .report-btn:active, .nav-item:active, .ctrl-btn:active, .compass:active { transform: scale(0.95); }
+input, select { transition: border-color 0.2s, box-shadow 0.2s; }
+input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
+
+/* Backdrop overlay for sheets */
+.backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 250; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+body:has(.sheet.open) .backdrop { opacity: 1; pointer-events: auto; }
+
 .hidden{display:none!important}.full{width:100%}.mt{margin-top:12px}.mb{margin-bottom:12px}.muted{color:var(--muted);font-size:.85rem}
 .fullscreen{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);padding:24px}
 .logo-pulse{font-size:4rem;color:var(--primary);animation:pulse 1.8s infinite}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.95)}}
 .brand{font-size:2rem;font-weight:900;margin:16px 0}
 .progress-track{width:220px;height:4px;background:var(--surface);border-radius:2px;overflow:hidden;margin:12px 0}
-.progress-fill{height:100%;background:linear-gradient(90deg,var(--primary),var(--success));transition:width .3s;width:0}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--primary),var(--success));transition:width .3s ease-out;width:0}
 .loading-text{color:var(--muted);font-size:.85rem}
 .auth-card{width:100%;max-width:400px;background:var(--surface);padding:32px 24px;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
 .auth-card h1{text-align:center;font-size:1.8rem;margin-bottom:6px}
 .auth-card p{text-align:center;color:var(--muted);margin-bottom:24px;font-size:.9rem}
 .auth-card input{width:100%;padding:14px;margin-bottom:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:1rem;outline:none}
-.auth-error{color:var(--danger);font-size:.85rem;margin-bottom:12px;display:none}
+.auth-error{color:var(--danger);font-size:.85rem;margin-bottom:12px;display:none; animation: slide 0.2s ease-out;}
 .auth-toggle{text-align:center;font-size:.9rem;margin-top:16px;color:var(--muted)}
 .auth-toggle a{color:var(--primary);text-decoration:none;font-weight:700;margin-left:4px}
-.btn{padding:13px 16px;border-radius:10px;border:none;font-weight:700;font-size:.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:filter .15s;width:100%}
-.btn:active{transform:scale(.98)}.btn:disabled{opacity:.45;cursor:not-allowed}
+
+.btn{padding:13px 16px;border-radius:12px;border:none;font-weight:700;font-size:.95rem;display:flex;align-items:center;justify-content:center;gap:8px;width:100%}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
 .btn-primary{background:var(--primary);color:#fff}
 .btn-secondary{background:var(--surface-2);color:var(--text)}
 .btn-danger{background:var(--danger);color:#fff}
 .btn-google{background:#fff;color:#1f2937;border:1px solid var(--border)}
-.btn-sm{padding:8px 12px;font-size:.8rem}
+.btn-sm{padding:8px 12px;font-size:.8rem;border-radius:8px}
+
 #map{position:fixed;inset:0;width:100%;height:100%}
+
+/* Glassmorphism Top & Bottom */
 .top-bar{position:fixed;top:calc(12px + var(--safe-top));left:12px;right:12px;display:flex;gap:8px;z-index:100}
-.search-field{flex:1;display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:10px 16px;box-shadow:0 8px 24px rgba(0,0,0,.3);cursor:pointer}
+.search-field{flex:1;display:flex;align-items:center;gap:10px;background:var(--surface-glass);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:999px;padding:10px 16px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
 .search-field i{color:var(--muted)}
 .search-field input{flex:1;border:none;background:transparent;color:var(--text);font-size:.95rem;outline:none;pointer-events:none}
-.avatar-btn{width:44px;height:44px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.3);overflow:hidden;flex-shrink:0}
+.avatar-btn{width:44px;height:44px;border-radius:50%;background:var(--surface-glass);backdrop-filter:blur(12px);border:1px solid var(--border);color:var(--text);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.2);overflow:hidden;flex-shrink:0}
 .avatar-btn img{width:100%;height:100%;object-fit:cover}
-.suggestions{position:fixed;top:calc(72px + var(--safe-top));left:12px;right:12px;max-height:55vh;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:none;z-index:150}
-.suggestions.show{display:block}
-.sug-item{padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:.9rem}
-.sug-item:last-child{border-bottom:none}.sug-item:hover{background:var(--surface-2)}
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:8px 8px calc(8px + var(--safe-bot));z-index:100;box-shadow:0 -4px 20px rgba(0,0,0,.3)}
-.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;color:var(--muted);cursor:pointer;padding:8px 4px;font-size:.7rem;font-weight:700;border-radius:8px;transition:color .15s}
+
+.suggestions{position:fixed;top:calc(72px + var(--safe-top));left:12px;right:12px;max-height:55vh;overflow-y:auto;background:var(--surface-glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:none;z-index:150;transform:translateY(-10px);opacity:0;transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1);}
+.suggestions.show{display:block;transform:translateY(0);opacity:1;}
+.sug-item{padding:14px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);font-size:.9rem}
+.sug-item:last-child{border-bottom:none}
+.sug-item:hover{background:rgba(255,255,255,0.05)}
+
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface-glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:8px 8px calc(8px + var(--safe-bot));z-index:100;box-shadow:0 -4px 20px rgba(0,0,0,.2)}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;color:var(--muted);padding:8px 4px;font-size:.7rem;font-weight:700;border-radius:12px;}
 .nav-item i{font-size:1.15rem}
-.nav-item:active{background:var(--surface-2)}
-.nav-item.center i{color:var(--primary);font-size:1.5rem;background:var(--bg);width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:2px;border:2px solid var(--primary)}
+.nav-item.center i{color:var(--primary);font-size:1.5rem;background:var(--bg);width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:2px;border:2px solid var(--primary);box-shadow:0 4px 12px rgba(59,130,246,.3)}
 .nav-item.center{color:var(--primary)}
-.right-ctrls{position:fixed;right:12px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:90}
-.ctrl-btn,.compass{width:44px;height:44px;border-radius:12px;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.3);font-size:1rem}
+
+.right-ctrls{position:fixed;right:12px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;z-index:90}
+.ctrl-btn,.compass{width:44px;height:44px;border-radius:14px;background:var(--surface-glass);backdrop-filter:blur(12px);border:1px solid var(--border);color:var(--text);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.2);font-size:1rem}
 .ctrl-btn.active{background:var(--primary);color:#fff;border-color:transparent}
 .compass{border-radius:50%;position:relative}
-.compass-arrow{width:2px;height:22px;background:linear-gradient(to bottom,var(--danger) 50%,var(--muted) 50%);border-radius:1px;transition:transform .3s;position:relative}
+.compass-arrow{width:2px;height:22px;background:linear-gradient(to bottom,var(--danger) 50%,var(--muted) 50%);border-radius:1px;transition:transform .3s cubic-bezier(0.4, 0, 0.2, 1);position:relative}
 .compass-arrow::before{content:'';position:absolute;top:-3px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:7px solid var(--danger)}
-.sheet{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-radius:22px 22px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.4);z-index:300;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);max-height:88vh;display:flex;flex-direction:column;padding-bottom:var(--safe-bot)}
+
+.sheet{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-radius:24px 24px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.5);z-index:300;transform:translateY(100%);transition:transform .35s cubic-bezier(.32,.72,0,1);max-height:88vh;display:flex;flex-direction:column;padding-bottom:var(--safe-bot)}
 .sheet.open{transform:translateY(0)}
-.sheet-handle{width:40px;height:4px;background:var(--surface-3);border-radius:2px;margin:10px auto 0}
-.sheet-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 10px;flex-shrink:0}
-.sheet-header h2{font-size:1.1rem;font-weight:800}
-.close-btn{width:34px;height:34px;border-radius:50%;border:none;background:var(--surface-2);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center}
-.sheet-body{padding:12px 18px 20px;overflow-y:auto;flex:1}
-.layer-item{padding:14px 16px;border-radius:12px;background:var(--bg);border:1px solid var(--border);margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:12px;font-weight:600;font-size:.95rem}
+.sheet-handle{width:40px;height:5px;background:var(--surface-3);border-radius:3px;margin:10px auto 0}
+.sheet-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;flex-shrink:0}
+.sheet-header h2{font-size:1.15rem;font-weight:800}
+.close-btn{width:36px;height:36px;border-radius:50%;border:none;background:var(--surface-2);color:var(--text);display:flex;align-items:center;justify-content:center}
+.sheet-body{padding:12px 20px 24px;overflow-y:auto;flex:1}
+
+.layer-item{padding:16px;border-radius:14px;background:var(--bg);border:1px solid var(--border);margin-bottom:10px;display:flex;align-items:center;gap:14px;font-weight:600;font-size:.95rem}
 .layer-item.active{border-color:var(--primary);background:rgba(59,130,246,.1)}
 .layer-item i:first-child{color:var(--primary);width:20px;text-align:center}
 .layer-item i:last-child{margin-left:auto;color:var(--success);display:none}
-.layer-item.active i:last-child{display:block}
-.dir-inputs{display:flex;flex-direction:column;gap:10px}
-.dir-row{display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:12px;padding:10px 14px}
+.layer-item.active i:last-child{display:block; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);}
+
+.dir-inputs{display:flex;flex-direction:column;gap:12px}
+.dir-row{display:flex;align-items:center;gap:12px;background:var(--bg);border-radius:14px;padding:12px 16px;border:1px solid var(--border)}
 .dir-row i{width:18px;text-align:center;font-size:.75rem}
 .dot-start{color:var(--success)}.dot-end{color:var(--danger);font-size:.9rem}
 .dir-row input{flex:1;border:none;background:transparent;color:var(--text);outline:none;font-size:.95rem}
-.section-label{font-size:.75rem;font-weight:800;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;letter-spacing:.5px}
-.chip-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.section-label{font-size:.75rem;font-weight:800;text-transform:uppercase;color:var(--muted);margin:20px 0 10px;letter-spacing:.5px}
+.chip-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;}
+.chip-row::-webkit-scrollbar{display:none}
 .chip-row.wrap{flex-wrap:wrap}
-.chip{padding:9px 14px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);color:var(--text);font-size:.85rem;font-weight:600;white-space:nowrap;cursor:pointer;display:flex;align-items:center;gap:6px}
-.chip.active{background:var(--primary);color:#fff;border-color:transparent}
-.truck-params{margin-top:12px;padding:12px;background:var(--bg);border-radius:10px}
-.param-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.param-grid label{display:flex;flex-direction:column;gap:4px;font-size:.75rem;color:var(--muted)}
-.param-grid input{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.9rem;outline:none}
-.select,.input-full{width:100%;padding:12px 14px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:.95rem;outline:none;margin-bottom:8px}
-.route-card{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:12px}
-.route-card:hover{background:var(--surface-2)}
-.route-card.active{border-color:var(--primary);background:rgba(59,130,246,.1)}
-.route-card h3{font-size:.95rem;margin-bottom:4px}
+.chip{padding:10px 16px;border-radius:999px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:.85rem;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.chip.active{background:var(--primary);color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(59,130,246,.3)}
+.truck-params{margin-top:14px;padding:14px;background:var(--bg);border-radius:14px;border:1px solid var(--border);animation: slide 0.3s ease-out;}
+.param-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.param-grid label{display:flex;flex-direction:column;gap:6px;font-size:.75rem;color:var(--muted);font-weight:600}
+.param-grid input{padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:.9rem;outline:none}
+.select,.input-full{width:100%;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:.95rem;outline:none;margin-bottom:12px}
+
+.route-card{background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:14px}
+.route-card.active{border-color:var(--primary);background:rgba(59,130,246,.1);box-shadow:0 4px 16px rgba(59,130,246,.15)}
+.route-card h3{font-size:.95rem;margin-bottom:6px;display:flex;align-items:center;gap:8px;}
 .route-card p{font-size:.8rem;color:var(--muted)}
-.profile-head{display:flex;align-items:center;gap:14px;margin-bottom:20px}
-.avatar{width:56px;height:56px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:var(--muted);overflow:hidden;flex-shrink:0}
-.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:14px;background:var(--bg);border-radius:10px;margin-bottom:10px}
-.toggle-row input[type="checkbox"]{width:42px;height:24px;appearance:none;background:var(--surface-2);border-radius:12px;position:relative;cursor:pointer;transition:background .2s}
-.toggle-row input[type="checkbox"]::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s}
+
+.profile-head{display:flex;align-items:center;gap:16px;margin-bottom:24px}
+.avatar{width:60px;height:60px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:var(--muted);overflow:hidden;flex-shrink:0;border:2px solid var(--border)}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:16px;background:var(--bg);border-radius:14px;margin-bottom:12px;border:1px solid var(--border)}
+.toggle-row input[type="checkbox"]{width:44px;height:26px;appearance:none;background:var(--surface-3);border-radius:13px;position:relative;cursor:pointer;transition:background .2s}
+.toggle-row input[type="checkbox"]::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s cubic-bezier(0.4, 0, 0.2, 1)}
 .toggle-row input[type="checkbox"]:checked{background:var(--primary)}
 .toggle-row input[type="checkbox"]:checked::after{transform:translateX(18px)}
-.tabs{display:flex;gap:4px;background:var(--bg);border-radius:10px;padding:4px;margin-bottom:14px;overflow-x:auto}
-.tab{flex:1;min-width:80px;padding:9px;border:none;background:transparent;color:var(--muted);font-size:.8rem;font-weight:700;border-radius:8px;cursor:pointer;white-space:nowrap}
-.tab.active{background:var(--primary);color:#fff}
+
+.tabs{display:flex;gap:4px;background:var(--bg);border-radius:12px;padding:4px;margin-bottom:16px;overflow-x:auto;border:1px solid var(--border)}
+.tab{flex:1;min-width:80px;padding:10px;border:none;background:transparent;color:var(--muted);font-size:.8rem;font-weight:700;border-radius:8px;white-space:nowrap}
+.tab.active{background:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(59,130,246,.3)}
 .tab-panel{display:none}
-.tab-panel.active{display:block}
-.list{display:flex;flex-direction:column;gap:10px;max-height:50vh;overflow-y:auto}
-.list-item{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;position:relative}
-.list-item .time{font-size:.7rem;color:var(--muted);margin-bottom:6px}
-.list-item .line{font-size:.85rem;display:flex;align-items:center;gap:6px;margin-top:3px}
+.tab-panel.active{display:block; animation: slide 0.3s ease-out;}
+
+.list{display:flex;flex-direction:column;gap:12px;max-height:50vh;overflow-y:auto;padding-bottom:8px;}
+.list-item{background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:14px;position:relative}
+.list-item .time{font-size:.7rem;color:var(--muted);margin-bottom:8px}
+.list-item .line{font-size:.85rem;display:flex;align-items:center;gap:8px;margin-top:4px}
 .list-item .line i{font-size:.6rem}
 .list-item .line .start{color:var(--success)}
 .list-item .line .end{color:var(--danger)}
-.list-item .meta{font-size:.75rem;color:var(--muted);margin-top:6px}
-.list-item .actions{display:flex;gap:8px;margin-top:8px}
-.report-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.report-btn{padding:16px 8px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:.75rem;font-weight:700}
-.report-btn:hover{background:var(--surface-2)}
-.report-btn i{font-size:1.3rem;color:var(--primary)}
-.hud{position:fixed;top:calc(12px + var(--safe-top));left:12px;right:12px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:14px;z-index:200}
-.hud-main{display:flex;align-items:center;gap:14px;margin-bottom:12px}
-.hud-arrow{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#2563eb);color:#fff;font-size:1.4rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.list-item .meta{font-size:.75rem;color:var(--muted);margin-top:8px}
+.list-item .actions{display:flex;gap:8px;margin-top:10px}
+
+.report-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.report-btn{padding:16px 8px;border-radius:14px;border:1px solid var(--border);background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;gap:8px;font-size:.75rem;font-weight:700}
+.report-btn i{font-size:1.4rem;color:var(--primary)}
+
+.hud{position:fixed;top:calc(12px + var(--safe-top));left:12px;right:12px;background:var(--surface-glass);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:16px;z-index:200;animation: slideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);}
+.hud-main{display:flex;align-items:center;gap:16px;margin-bottom:14px}
+.hud-arrow{width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#2563eb);color:#fff;font-size:1.5rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(59,130,246,.4)}
 .hud-info{flex:1;min-width:0}
-.hud-dist{font-size:1.05rem;font-weight:800;color:var(--primary);margin-bottom:2px}
-.hud-instr{font-size:.85rem;line-height:1.3}
-.hud-stats{display:flex;gap:16px;padding-top:10px;border-top:1px solid var(--border);font-size:.8rem}
-.hud-stats i{color:var(--muted);margin-right:4px}
-.hud-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
-.hud-actions .ctrl-btn{width:40px;height:40px}
-.live-header{display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--bg);border-radius:10px;margin-bottom:12px;font-weight:700}
-.badge-off{font-size:.7rem;padding:2px 8px;border-radius:4px;background:var(--surface-2);color:var(--muted)}
-.badge-on{font-size:.7rem;padding:2px 8px;border-radius:4px;background:var(--success);color:#fff}
-.live-code{font-family:monospace;font-size:1.6rem;font-weight:900;letter-spacing:4px;color:var(--success);text-align:center;padding:12px;background:var(--bg);border-radius:10px;margin-bottom:10px}
-.join-row{display:flex;gap:8px}
-.join-row input{flex:1;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);outline:none}
-.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.stat{background:var(--bg);padding:14px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;font-weight:700}
-.stat i{font-size:1.2rem;color:var(--primary)}
-.row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.toast-container{position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
-.toast{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 18px;font-size:.85rem;font-weight:600;box-shadow:0 20px 60px rgba(0,0,0,.5);display:flex;align-items:center;gap:10px;animation:slide .3s ease-out;max-width:300px}
+.hud-dist{font-size:1.15rem;font-weight:800;color:var(--primary);margin-bottom:2px}
+.hud-instr{font-size:.9rem;line-height:1.3}
+.hud-stats{display:flex;gap:16px;padding-top:12px;border-top:1px solid var(--border);font-size:.85rem}
+.hud-stats i{color:var(--muted);margin-right:6px}
+.hud-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
+.hud-actions .ctrl-btn{width:44px;height:44px}
+
+.live-header{display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg);border-radius:14px;margin-bottom:16px;font-weight:700;border:1px solid var(--border)}
+.badge-off{font-size:.7rem;padding:2px 8px;border-radius:6px;background:var(--surface-2);color:var(--muted)}
+.badge-on{font-size:.7rem;padding:2px 8px;border-radius:6px;background:var(--success);color:#fff;animation: pulse 1.5s infinite}
+.live-code{font-family:monospace;font-size:1.8rem;font-weight:900;letter-spacing:6px;color:var(--success);text-align:center;padding:16px;background:var(--bg);border-radius:14px;margin-bottom:12px;border:1px dashed var(--success)}
+.join-row{display:flex;gap:10px}
+.join-row input{flex:1;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:12px;color:var(--text);outline:none;text-transform:uppercase}
+
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stat{background:var(--bg);padding:16px;border-radius:14px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;font-weight:700;border:1px solid var(--border)}
+.stat i{font-size:1.4rem;color:var(--primary)}
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+.toast-container{position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:10px;align-items:center;pointer-events:none}
+.toast{background:var(--surface-glass);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:14px;padding:14px 20px;font-size:.85rem;font-weight:600;box-shadow:0 20px 60px rgba(0,0,0,.5);display:flex;align-items:center;gap:12px;animation: slideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);max-width:320px}
 .toast.success{border-color:var(--success)}.toast.success i{color:var(--success)}
 .toast.error{border-color:var(--danger)}.toast.error i{color:var(--danger)}
 .toast.warning{border-color:var(--warning)}.toast.warning i{color:var(--warning)}
-@keyframes slide{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+
+@keyframes slide{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes popIn{0%{transform:scale(0.5);opacity:0}80%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+@keyframes ripple{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4);}100%{box-shadow:0 0 0 20px rgba(16,185,129,0);}}
+
 body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrls{display:none}
+
+/* Skeleton Loading for Search */
+.skeleton { background: linear-gradient(90deg, var(--bg) 25%, var(--surface-2) 50%, var(--bg) 75%); background-size: 200% 100%; animation: skeleton-loading 1.5s infinite; border-radius: 6px; }
+.skeleton-text { height: 14px; margin-bottom: 6px; width: 100%; }
+.skeleton-text.short { width: 60%; }
+@keyframes skeleton-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 </style>
 </head>
 <body>
+
+<!-- Backdrop cho Bottom Sheet -->
+<div class="backdrop"></div>
 
 <div id="loadingScreen" class="fullscreen">
   <div class="logo-pulse"><i class="fas fa-route"></i></div>
@@ -174,7 +217,7 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
     <div class="search-field" onclick="window.activateSearch('view')">
       <i class="fas fa-search"></i>
       <input id="topSearchInput" readonly placeholder="Tìm địa điểm hoặc dán link Google Maps...">
-      <button id="searchClearBtn" class="hidden" style="background:none;border:none;color:var(--muted);cursor:pointer" onclick="event.stopPropagation();window.clearTopSearch()"><i class="fas fa-times"></i></button>
+      <button id="searchClearBtn" class="hidden" style="background:none;border:none;color:var(--muted);padding:4px" onclick="event.stopPropagation();window.clearTopSearch()"><i class="fas fa-times-circle"></i></button>
     </div>
     <button class="avatar-btn" onclick="window.openMenu()" id="avatarBtn"><i class="fas fa-user"></i></button>
   </div>
@@ -222,8 +265,8 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
     <div class="sheet-header"><h2>Chỉ đường</h2><button class="close-btn" onclick="window.closeDirections()"><i class="fas fa-times"></i></button></div>
     <div class="sheet-body">
       <div class="dir-inputs">
-        <div class="dir-row"><i class="fas fa-circle dot-start"></i><input id="dirInputStart" readonly placeholder="Điểm đi" onclick="window.activateSearch('start')"><button class="clear-btn" style="background:none;border:none;color:var(--muted);cursor:pointer" onclick="window.clearPoint('start')"><i class="fas fa-times"></i></button></div>
-        <div class="dir-row"><i class="fas fa-map-marker-alt dot-end"></i><input id="dirInputEnd" readonly placeholder="Điểm đến" onclick="window.activateSearch('end')"><button class="clear-btn" style="background:none;border:none;color:var(--muted);cursor:pointer" onclick="window.clearPoint('end')"><i class="fas fa-times"></i></button></div>
+        <div class="dir-row"><i class="fas fa-circle dot-start"></i><input id="dirInputStart" readonly placeholder="Điểm đi" onclick="window.activateSearch('start')"><button class="clear-btn" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px" onclick="window.clearPoint('start')"><i class="fas fa-times"></i></button></div>
+        <div class="dir-row"><i class="fas fa-map-marker-alt dot-end"></i><input id="dirInputEnd" readonly placeholder="Điểm đến" onclick="window.activateSearch('end')"><button class="clear-btn" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px" onclick="window.clearPoint('end')"><i class="fas fa-times"></i></button></div>
       </div>
       <div class="section-label">Phương tiện</div>
       <div class="chip-row" id="vehicleModes">
@@ -242,16 +285,10 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
           <label>Dài (m)<input id="truckLength" type="number" step="0.5" value="8"></label>
         </div>
       </div>
-      <div class="section-label">Nguồn tuyến (Auto = Worker tự chọn theo xe)</div>
-      <select id="routingProvider" class="select">
-        <option value="">Tự động (khuyến nghị)</option>
-        <option value="ors">OpenRouteService</option>
-        <option value="mapbox">Mapbox</option>
-        <option value="geoapify">Geoapify</option>
-        <option value="goong">Goong</option>
-        <option value="trackasia">TrackAsia</option>
-      </select>
-      <button class="btn btn-primary full" onclick="window.fetchAndShowRoute()"><i class="fas fa-search"></i> Tìm tuyến đường</button>
+      
+      <!-- ĐÃ BỎ KHUNG NGUỒN TUYẾN Ở ĐÂY -->
+
+      <button class="btn btn-primary full mt" onclick="window.fetchAndShowRoute()"><i class="fas fa-search"></i> Tìm tuyến đường</button>
     </div>
   </div>
 
@@ -327,7 +364,7 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
     <div class="sheet-body">
       <div class="profile-head">
         <div id="profileAvatar" class="avatar"><i class="fas fa-user"></i></div>
-        <div style="flex:1"><div id="profileName" style="font-weight:800">--</div><div id="profileEmail" class="muted">--</div></div>
+        <div style="flex:1"><div id="profileName" style="font-weight:800;font-size:1.1rem">--</div><div id="profileEmail" class="muted">--</div></div>
       </div>
       <div class="toggle-row">
         <span><i class="fas fa-moon"></i> Chế độ sáng</span>
@@ -451,8 +488,8 @@ const state = {
   startPoint: null, endPoint: null,
   currentRoute: null, isNavigating: false,
   watchId: null, lastUserPos: null, lastHeading: 0, smoothedSpeed: 0,
-  vehicleMode: 'motorcycle', routingProvider: '',
-  searchContext: 'view', searchTimer: null, searchAbort: null,
+  vehicleMode: 'motorcycle', searchContext: 'view',
+  searchTimer: null, searchAbort: null,
   userMarker: null, bearing: 0, pitch: 0,
   tripStartTime: null, tempPin: null, tempPoi: null, tempPoiTag: null,
   allReports: {}, allSavedPlaces: {}, allHistory: [], allSavedRoutes: {},
@@ -461,6 +498,9 @@ const state = {
   livePushInterval: null, liveUnsub: null
 };
 const $ = id => document.getElementById(id);
+
+// Haptic feedback helper
+function haptic() { if (navigator.vibrate) navigator.vibrate(10); }
 
 // ═══════════════ LOADING ═══════════════
 let loadProgress = 0, loadingFinished = false;
@@ -487,7 +527,7 @@ setTimeout(() => finishLoading(true), 6000);
 // ═══════════════ AUTH ═══════════════
 let isRegisterMode = false;
 $('authToggleBtn').onclick = (e) => {
-  e.preventDefault();
+  e.preventDefault(); haptic();
   isRegisterMode = !isRegisterMode;
   $('authTitle').textContent = isRegisterMode ? 'Tạo tài khoản 📝' : 'DriveKit 🚌';
   $('authSubtitle').textContent = isRegisterMode ? 'Đăng ký để bắt đầu' : 'Mọi hành trình, một giải pháp';
@@ -498,6 +538,7 @@ $('authToggleBtn').onclick = (e) => {
 };
 
 $('btnSubmitAuth').onclick = async () => {
+  haptic();
   const email = $('authEmail').value.trim(), pass = $('authPassword').value;
   if (!email || !pass) return showAuthErr('Nhập đủ email và mật khẩu');
   $('btnSubmitAuth').disabled = true;
@@ -511,6 +552,7 @@ $('btnSubmitAuth').onclick = async () => {
 };
 
 $('btnGoogleAuth').onclick = async () => {
+  haptic();
   try { await signInWithPopup(auth, new GoogleAuthProvider()); }
   catch (e) { showAuthErr(getAuthErr(e.code)); }
 };
@@ -539,6 +581,7 @@ onAuthStateChanged(auth, (user) => {
 });
 
 window.logout = async () => {
+  haptic();
   if (!confirm('Đăng xuất?')) return;
   if (state.watchId) navigator.geolocation.clearWatch(state.watchId);
   if (state.liveRoomCode) await leaveLiveRoomSilent();
@@ -594,20 +637,22 @@ function initMap() {
   state.map.on('click', async (e) => {
     if (state.isNavigating) return;
     const { lng, lat } = e.lngLat;
+    haptic();
     showToast('Đang lấy địa chỉ...', 'info');
     const name = await reverseGeocode(lat, lng);
     const safeName = escapeHtml(name).replace(/'/g, '&#39;');
-    new maplibregl.Popup({ closeOnClick: true })
+    new maplibregl.Popup({ closeOnClick: true, offset: 10 })
       .setLngLat([lng, lat])
       .setHTML(`<div style="min-width:200px;font-family:inherit">
-        <div style="font-weight:700;font-size:.85rem;margin-bottom:8px">${escapeHtml(name)}</div>
-        <button onclick="window.showSavePlace(${lat},${lng},'${safeName}')" style="width:100%;padding:8px;background:#10b981;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:.8rem;cursor:pointer;margin-bottom:6px">📍 Ghim địa điểm</button>
-        <button onclick="window.goToLocation(${lat},${lng},'${safeName}')" style="width:100%;padding:8px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:.8rem;cursor:pointer">🧭 Chỉ đường tới đây</button>
+        <div style="font-weight:700;font-size:.85rem;margin-bottom:10px">${escapeHtml(name)}</div>
+        <button onclick="window.showSavePlace(${lat},${lng},'${safeName}')" style="width:100%;padding:10px;background:#10b981;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:.8rem;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;gap:6px;justify-content:center"><i class="fas fa-map-pin"></i> Ghim địa điểm</button>
+        <button onclick="window.goToLocation(${lat},${lng},'${safeName}')" style="width:100%;padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:.8rem;cursor:pointer;display:flex;align-items:center;gap:6px;justify-content:center"><i class="fas fa-directions"></i> Chỉ đường tới đây</button>
       </div>`).addTo(state.map);
   });
 }
 
 window.goToLocation = (lat, lng, name) => {
+  haptic();
   state.endPoint = { lat, lng, name };
   $('dirInputEnd').value = name;
   state.map.closePopup();
@@ -622,7 +667,7 @@ function askPositionOnce() {
     state.lastUserPos = { lat, lng, speed: pos.coords.speed || 0 };
     state.lastHeading = heading || 0;
     updateUserMarker(lat, lng, state.lastHeading);
-    state.map.flyTo({ center: [lng, lat], zoom: 16 });
+    state.map.flyTo({ center: [lng, lat], zoom: 16, duration: 2000 });
     if (!state.startPoint) {
       state.startPoint = { lat, lng, name: 'Vị trí của tôi' };
       $('dirInputStart').value = 'Vị trí của tôi';
@@ -643,29 +688,37 @@ function startGPSWatch() {
 
 function updateUserMarker(lat, lng, heading) {
   if (!state.map) return;
-  const html = `<div style="transform:rotate(${heading || 0}deg);width:40px;height:40px;display:flex;align-items:center;justify-content:center"><svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 2L22 20L12 16L2 20L12 2Z" fill="#10b981" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg></div>`;
+  // Marker với pulse animation
+  const html = `<div class="user-loc" style="position:relative;width:40px;height:40px;">
+    <div style="position:absolute;inset:0;background:rgba(16,185,129,0.3);border-radius:50%;animation:ripple 1.5s infinite;"></div>
+    <div style="position:absolute;inset:4px;background:var(--success);border-radius:50%;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;">
+      <svg width="18" height="18" viewBox="0 0 24 24" style="transform:rotate(${heading || 0}deg);transition:transform 0.3s linear;"><path d="M12 2L22 20L12 16L2 20L12 2Z" fill="white"/></svg>
+    </div>
+  </div>`;
   if (state.userMarker) {
     state.userMarker.setLngLat([lng, lat]);
     state.userMarker.getElement().innerHTML = html;
   } else {
     const el = document.createElement('div');
     el.innerHTML = html;
-    state.userMarker = new maplibregl.Marker({ element: el.firstElementChild }).setLngLat([lng, lat]).addTo(state.map);
+    state.userMarker = new maplibregl.Marker({ element: el.firstElementChild, pitchAlignment: 'map' }).setLngLat([lng, lat]).addTo(state.map);
   }
 }
 
 window.centerToLocation = () => {
+  haptic();
   if (!state.lastUserPos) return showToast('Chưa có GPS', 'warning');
-  state.map.flyTo({ center: [state.lastUserPos.lng, state.lastUserPos.lat], zoom: 16 });
+  state.map.flyTo({ center: [state.lastUserPos.lng, state.lastUserPos.lat], zoom: 16, duration: 1000 });
 };
 
-// ═══════════════ SEARCH (via Worker) ═══════════════
+// ═══════════════ SEARCH ═══════════════
 window.activateSearch = (context) => {
+  haptic();
   state.searchContext = context;
   if (context !== 'view') $('dirSheet').classList.add('open');
   const box = $('suggestionsBox');
   box.classList.add('show');
-  box.innerHTML = '<div class="sug-item"><i class="fas fa-search"></i> Nhập tên địa điểm hoặc dán link Google Maps...</div>';
+  box.innerHTML = '<div class="sug-item" style="pointer-events:none"><i class="fas fa-search" style="color:var(--muted)"></i><div style="color:var(--muted)">Nhập tên địa điểm hoặc dán link Google Maps...</div></div>';
   const inp = $('topSearchInput');
   inp.readOnly = false; inp.value = ''; inp.focus(); inp.style.pointerEvents = 'auto';
   $('searchClearBtn').classList.add('hidden');
@@ -679,6 +732,7 @@ window.activateSearch = (context) => {
 };
 
 window.clearTopSearch = () => {
+  haptic();
   $('topSearchInput').value = ''; $('topSearchInput').readOnly = true;
   $('topSearchInput').style.pointerEvents = 'none';
   $('searchClearBtn').classList.add('hidden');
@@ -691,7 +745,7 @@ async function doSearch(q) {
   // Link Google Maps
   if (q.startsWith('http')) {
     if (q.includes('google.com/maps') || q.includes('goo.gl/maps') || q.includes('maps.app.goo.gl')) {
-      box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang giải mã link...</div>';
+      box.innerHTML = '<div class="sug-item" style="pointer-events:none"><i class="fas fa-spinner fa-spin"></i> Đang giải mã link...</div>';
       try {
         const res = await fetch(`${WORKER_URL}/resolve-gmaps?url=${encodeURIComponent(q)}`);
         const data = await res.json();
@@ -708,7 +762,23 @@ async function doSearch(q) {
     }
   }
 
-  box.innerHTML = '<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang tìm...</div>';
+  // Skeleton Loading
+  box.innerHTML = `
+    <div class="sug-item" style="pointer-events:none">
+      <div class="skeleton" style="width:24px;height:24px;border-radius:50%"></div>
+      <div style="flex:1">
+        <div class="skeleton skeleton-text"></div>
+        <div class="skeleton skeleton-text short"></div>
+      </div>
+    </div>
+    <div class="sug-item" style="pointer-events:none">
+      <div class="skeleton" style="width:24px;height:24px;border-radius:50%"></div>
+      <div style="flex:1">
+        <div class="skeleton skeleton-text"></div>
+        <div class="skeleton skeleton-text short"></div>
+      </div>
+    </div>`;
+
   try {
     if (state.searchAbort) state.searchAbort.abort();
     state.searchAbort = new AbortController();
@@ -717,12 +787,12 @@ async function doSearch(q) {
     const res = await fetch(url, { signal: state.searchAbort.signal });
     const data = await res.json();
     const results = data.results || [];
-    if (!results.length) { box.innerHTML = '<div class="sug-item">Không tìm thấy</div>'; return; }
+    if (!results.length) { box.innerHTML = '<div class="sug-item" style="pointer-events:none">Không tìm thấy địa điểm nào</div>'; return; }
     box.innerHTML = '';
     results.slice(0, 15).forEach(r => {
       const div = document.createElement('div');
       div.className = 'sug-item';
-      div.innerHTML = `<i class="fas fa-map-marker-alt" style="color:var(--primary)"></i><div style="flex:1"><div style="font-weight:700">${escapeHtml(r.name || 'Không tên')}</div><div style="font-size:.75rem;color:var(--muted)">${escapeHtml(r.address || '')}</div></div>`;
+      div.innerHTML = `<i class="fas fa-map-marker-alt" style="color:var(--primary);font-size:1.1rem"></i><div style="flex:1"><div style="font-weight:700">${escapeHtml(r.name || 'Không tên')}</div><div style="font-size:.75rem;color:var(--muted);margin-top:2px">${escapeHtml(r.address || '')}</div></div>`;
       div.onclick = () => selectLocation(r.lat, r.lng, r.name);
       box.appendChild(div);
     });
@@ -732,15 +802,17 @@ async function doSearch(q) {
 }
 
 async function selectLocation(lat, lng, name) {
+  haptic();
   $('topSearchInput').value = name; $('topSearchInput').readOnly = true;
   $('topSearchInput').style.pointerEvents = 'none';
   $('suggestionsBox').classList.remove('show');
-  state.map.flyTo({ center: [lng, lat], zoom: 16 });
+  state.map.flyTo({ center: [lng, lat], zoom: 16, duration: 1500 });
   if (state.searchContext === 'start') { state.startPoint = { lat, lng, name }; $('dirInputStart').value = name; }
   else if (state.searchContext === 'end') { state.endPoint = { lat, lng, name }; $('dirInputEnd').value = name; }
 }
 
 window.clearPoint = (w) => {
+  haptic();
   if (w === 'start') { state.startPoint = null; $('dirInputStart').value = ''; }
   else { state.endPoint = null; $('dirInputEnd').value = ''; }
 };
@@ -754,10 +826,11 @@ async function reverseGeocode(lat, lng) {
 }
 
 // ═══════════════ LAYERS / TRAFFIC / 3D ═══════════════
-window.openLayerSheet = () => $('layerSheet').classList.add('open');
-window.closeLayerSheet = () => $('layerSheet').classList.remove('open');
+window.openLayerSheet = () => { haptic(); $('layerSheet').classList.add('open'); };
+window.closeLayerSheet = () => { haptic(); $('layerSheet').classList.remove('open'); };
 
 window.setMapLayer = (name, item) => {
+  haptic();
   document.querySelectorAll('.layer-item').forEach(i => i.classList.remove('active'));
   item.classList.add('active');
   state.currentLayer = name;
@@ -772,6 +845,7 @@ window.setMapLayer = (name, item) => {
   };
   state.map.setStyle(style);
   setTimeout(() => { if (state.trafficOn) addTrafficLayer(); }, 800);
+  closeLayerSheet();
 };
 
 function addTrafficLayer() {
@@ -797,6 +871,7 @@ function removeTrafficLayer() {
 }
 
 window.toggleTraffic = () => {
+  haptic();
   state.trafficOn = !state.trafficOn;
   $('trafficToggle').checked = state.trafficOn;
   $('btnTraffic').classList.toggle('active', state.trafficOn);
@@ -805,25 +880,28 @@ window.toggleTraffic = () => {
 };
 
 window.toggle3D = () => {
+  haptic();
   state.is3D = !state.is3D;
-  state.map.easeTo({ pitch: state.is3D ? 55 : 0, duration: 500 });
+  state.map.easeTo({ pitch: state.is3D ? 55 : 0, duration: 800 });
   $('btn3D').classList.toggle('active', state.is3D);
   $('mode3DToggle').checked = state.is3D;
 };
 
-window.resetNorth = () => { state.bearing = 0; state.map.easeTo({ bearing: 0, duration: 500 }); };
+window.resetNorth = () => { haptic(); state.bearing = 0; state.map.easeTo({ bearing: 0, duration: 500 }); };
 
-// ═══════════════ ROUTING (via Worker) ═══════════════
+// ═══════════════ ROUTING (via Worker Auto) ═══════════════
 window.openDirections = () => {
+  haptic();
   $('dirSheet').classList.add('open');
   if (!state.startPoint && state.lastUserPos) {
     state.startPoint = { lat: state.lastUserPos.lat, lng: state.lastUserPos.lng, name: 'Vị trí của tôi' };
     $('dirInputStart').value = 'Vị trí của tôi';
   }
 };
-window.closeDirections = () => { $('dirSheet').classList.remove('open'); $('suggestionsBox').classList.remove('show'); };
+window.closeDirections = () => { haptic(); $('dirSheet').classList.remove('open'); $('suggestionsBox').classList.remove('show'); };
 
 window.setVehicleMode = (m, btn) => {
+  haptic();
   state.vehicleMode = m;
   document.querySelectorAll('#vehicleModes .chip').forEach(c => c.classList.remove('active'));
   btn.classList.add('active');
@@ -831,16 +909,23 @@ window.setVehicleMode = (m, btn) => {
 };
 
 window.fetchAndShowRoute = async () => {
+  haptic();
   if (!state.startPoint || !state.endPoint) return showToast('Chọn đủ điểm đi và đến', 'warning');
-  state.routingProvider = $('routingProvider').value || '';
+  
   const body = $('routeOptionsBody');
-  body.innerHTML = '<div style="text-align:center;padding:30px"><i class="fas fa-spinner fa-spin" style="font-size:2rem;color:var(--primary)"></i><p style="margin-top:10px;color:var(--muted)">Đang tìm tuyến...</p></div>';
+  // Skeleton cho routing
+  body.innerHTML = `
+    <div style="padding:20px 0;">
+      <div class="skeleton" style="height:80px;border-radius:12px;margin-bottom:16px"></div>
+      <div class="skeleton" style="height:50px;border-radius:12px;margin-bottom:12px"></div>
+      <div class="skeleton" style="height:50px;border-radius:12px"></div>
+    </div>`;
   $('routeOptionsModal').classList.add('open');
   $('dirSheet').classList.remove('open');
 
   try {
+    // Luôn gọi Auto (không truyền provider)
     let url = `${WORKER_URL}/route?origin=${state.startPoint.lat},${state.startPoint.lng}&destination=${state.endPoint.lat},${state.endPoint.lng}&mode=${state.vehicleMode}`;
-    if (state.routingProvider) url += `&provider=${state.routingProvider}`;
     if (state.vehicleMode === 'truck') {
       const truck = {
         height: parseFloat($('truckHeight').value) || 3.5,
@@ -857,7 +942,7 @@ window.fetchAndShowRoute = async () => {
     if (!data.routes?.length) {
       let err = data.error || 'Không tìm được tuyến';
       if (data.details) err += ' — ' + (Array.isArray(data.details) ? data.details.join('; ') : data.details);
-      body.innerHTML = `<div style="padding:20px;text-align:center;color:var(--danger)"><i class="fas fa-exclamation-triangle" style="font-size:2rem"></i><p style="margin-top:10px">${escapeHtml(err)}</p><p style="font-size:.75rem;color:var(--muted);margin-top:6px">Đã thử: ${escapeHtml(data.tried?.join(', ') || 'không rõ')}</p></div>`;
+      body.innerHTML = `<div style="padding:30px 10px;text-align:center;color:var(--danger)"><i class="fas fa-exclamation-triangle" style="font-size:2.5rem;margin-bottom:12px;opacity:0.8"></i><p>${escapeHtml(err)}</p><p style="font-size:.75rem;color:var(--muted);margin-top:8px">Đã thử: ${escapeHtml(data.tried?.join(', ') || 'không rõ')}</p></div>`;
       return;
     }
 
@@ -881,10 +966,15 @@ window.fetchAndShowRoute = async () => {
     
     // Tự động thu phóng để thấy toàn bộ tuyến
     const lngs = route.coords.map(c => c[0]), lats = route.coords.map(c => c[1]);
-    state.map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 100, bottom: 120 });
+    state.map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 100, bottom: 120, duration: 1200 });
     
     const dist = (route.distance / 1000).toFixed(1), dur = Math.round(route.duration / 60);
-    body.innerHTML = `<div class="route-card active"><div style="flex:1"><h3><i class="fas fa-route"></i> Tuyến đường <span style="font-size:.7rem;background:var(--surface-2);padding:2px 6px;border-radius:4px;color:var(--muted);margin-left:6px">${escapeHtml(route.provider || '')}</span></h3><p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p></div></div>
+    body.innerHTML = `<div class="route-card active" style="animation: slide 0.3s ease-out;">
+        <div style="flex:1">
+          <h3><i class="fas fa-route"></i> Tuyến đường <span style="font-size:.7rem;background:var(--surface-2);padding:2px 6px;border-radius:4px;color:var(--muted);margin-left:6px">${escapeHtml(route.provider || '')}</span></h3>
+          <p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p>
+        </div>
+      </div>
       <button class="btn btn-primary full mt" onclick="window.startNavigation()"><i class="fas fa-play"></i> Bắt đầu dẫn đường</button>
       <button class="btn btn-secondary full mt" onclick="window.shareRoute()"><i class="fas fa-share-alt"></i> Chia sẻ tuyến</button>
       <button class="btn btn-secondary full mt" onclick="window.closeRouteOptions()">Đóng</button>`;
@@ -900,14 +990,15 @@ function drawRouteLine(coords) {
   state.map.addLayer({
     id: 'route-line', type: 'line', source: 'route',
     layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: { 'line-color': '#3b82f6', 'line-width': 6, 'line-opacity': 0.9 }
+    paint: { 'line-color': '#3b82f6', 'line-width': 7, 'line-opacity': 0.9 }
   }, state.map.getLayer('tomtom-traffic-layer') ? 'tomtom-traffic-layer' : undefined);
 }
 
-window.closeRouteOptions = () => $('routeOptionsModal').classList.remove('open');
+window.closeRouteOptions = () => { haptic(); $('routeOptionsModal').classList.remove('open'); };
 
 // ═══════════════ NAVIGATION ═══════════════
 window.startNavigation = () => {
+  haptic();
   if (!state.currentRoute) return;
   state.isNavigating = true;
   state.tripStartTime = Date.now();
@@ -917,13 +1008,13 @@ window.startNavigation = () => {
   $('hud').classList.remove('hidden');
   $('hudRemainDist').textContent = (state.currentRoute.distance / 1000).toFixed(1) + ' km';
   $('hudRemainTime').textContent = Math.round(state.currentRoute.duration / 60) + ' phút';
-  if (state.lastUserPos) state.map.easeTo({ center: [state.lastUserPos.lng, state.lastUserPos.lat], zoom: 17, duration: 500 });
+  if (state.lastUserPos) state.map.easeTo({ center: [state.lastUserPos.lng, state.lastUserPos.lat], zoom: 17, duration: 1000 });
   updateNavigation();
 };
 
 function updateNavigation() {
   if (!state.isNavigating || !state.lastUserPos) return;
-  if (state.lastHeading != null) state.map.easeTo({ bearing: state.lastHeading, duration: 500 });
+  if (state.lastHeading != null) state.map.easeTo({ bearing: state.lastHeading, duration: 800 });
   $('hudSpeed').textContent = Math.round((state.lastUserPos.speed || 0) * 3.6) + ' km/h';
   const steps = state.currentRoute?.steps || [];
   if (!steps.length) {
@@ -946,15 +1037,14 @@ function updateNavigation() {
 }
 
 window.openEndTripModal = () => {
+  haptic();
   if (!state.currentRoute) return;
   
   const el = state.tripStartTime ? (Date.now() - state.tripStartTime) / 1000 : 0;
   
-  // Hiển thị thông số
   $('endTripDist').textContent = (state.currentRoute.distance / 1000).toFixed(1) + ' km';
   $('endTripDest').textContent = state.endPoint?.name || '--';
   
-  // FIX: Chống tốc độ ảo nếu kết thúc chuyến đi quá sớm (< 30 giây)
   if (el < 30) {
     $('endTripTime').textContent = Math.round(el) + ' giây';
     $('endTripAvgSpeed').textContent = '--';
@@ -966,17 +1056,17 @@ window.openEndTripModal = () => {
   
   $('endTripModal').classList.add('open');
 
-  // FIX: Tự động zoom bản đồ ra để nhìn thấy toàn bộ tuyến đường (không còn bị kẹt ở mức zoom 17)
   if (state.currentRoute.coords && state.currentRoute.coords.length > 0) {
     const lngs = state.currentRoute.coords.map(c => c[0]), lats = state.currentRoute.coords.map(c => c[1]);
     state.map.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], 
-      { padding: 60, bottom: 300, duration: 800 }
+      { padding: 60, bottom: 300, duration: 1000 }
     );
   }
 };
 
 window.endTrip = async (save) => {
+  haptic();
   if (save && state.user && state.currentRoute) {
     try {
       const r = push(ref(db, `users/${state.user.uid}/history`));
@@ -1005,11 +1095,12 @@ window.endTrip = async (save) => {
   state.endPoint = null;
   if (state.map.getLayer('route-line')) state.map.removeLayer('route-line');
   if (state.map.getSource('route')) state.map.removeSource('route');
-  state.map.easeTo({ bearing: 0, pitch: 0, duration: 500 });
+  state.map.easeTo({ bearing: 0, pitch: 0, duration: 800 });
 };
 
 // ═══════════════ SHARE ═══════════════
 window.shareRoute = () => {
+  haptic();
   if (!state.startPoint || !state.endPoint) return showToast('Chưa đủ điểm', 'warning');
   const base = location.origin + location.pathname;
   const params = new URLSearchParams({
@@ -1032,22 +1123,25 @@ function loadSharedLinks() {
   list.innerHTML = links.map((l, i) => `<div class="list-item"><div class="time">${new Date(l.timestamp).toLocaleString('vi-VN')}</div><div class="line"><i class="fas fa-circle start"></i>${escapeHtml(l.fromName)}</div><div class="line"><i class="fas fa-map-marker-alt end"></i>${escapeHtml(l.toName)}</div><div class="actions"><button class="btn btn-sm btn-primary" onclick="navigator.clipboard.writeText('${l.url}').then(()=>window.showToast&&window.showToast('Đã copy','success'))"><i class="fas fa-copy"></i> Copy</button><button class="btn btn-sm btn-danger" onclick="window.deleteSharedLink(${i})"><i class="fas fa-trash"></i></button></div></div>`).join('');
 }
 window.deleteSharedLink = (i) => {
+  haptic();
   const links = JSON.parse(localStorage.getItem('sharedLinks') || '[]');
   links.splice(i, 1);
   localStorage.setItem('sharedLinks', JSON.stringify(links));
   loadSharedLinks();
 };
 window.clearAllSharedLinks = () => {
+  haptic();
   if (!confirm('Xoá tất cả link?')) return;
   localStorage.removeItem('sharedLinks');
   loadSharedLinks();
 };
 
 // ═══════════════ REPORTS ═══════════════
-window.openReportMenu = () => $('reportModal').classList.add('open');
-window.closeReportMenu = () => $('reportModal').classList.remove('open');
+window.openReportMenu = () => { haptic(); $('reportModal').classList.add('open'); };
+window.closeReportMenu = () => { haptic(); $('reportModal').classList.remove('open'); };
 
 window.submitReport = async (type) => {
+  haptic();
   if (!state.user || !state.lastUserPos) return showToast('Chưa có GPS', 'warning');
   const ttl = { pothole: 86400000, flood: 10800000, traffic: 1800000, bridge_collapse: 604800000, road_collapse: 604800000 }[type] || 3600000;
   try {
@@ -1070,9 +1164,9 @@ function renderReports() {
   Object.entries(state.allReports).forEach(([id, r]) => {
     if (now > r.expiresAt) return;
     const el = document.createElement('div');
-    el.style.cssText = `width:30px;height:30px;background:${colors[r.type] || '#ef4444'};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.75rem;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer`;
+    el.style.cssText = `width:32px;height:32px;background:${colors[r.type] || '#ef4444'};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.85rem;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;animation:popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)`;
     el.innerHTML = '<i class="fas fa-exclamation"></i>';
-    el.onclick = () => showToast(typeLabel(r.type), 'warning');
+    el.onclick = () => { haptic(); showToast(typeLabel(r.type), 'warning'); };
     state.reportMarkers[id] = new maplibregl.Marker(el).setLngLat([r.lng, r.lat]).addTo(state.map);
   });
 }
@@ -1083,13 +1177,16 @@ function typeLabel(t) {
 
 // ═══════════════ SAVE PLACE ═══════════════
 window.showSavePlace = (lat, lng, name) => {
+  haptic();
   state.tempPin = { lat, lng, name };
   $('savePlaceAddress').textContent = name;
   $('savePlaceModal').classList.add('open');
+  if (state.map) state.map.closePopup();
 };
-window.closeSavePlaceModal = () => $('savePlaceModal').classList.remove('open');
+window.closeSavePlaceModal = () => { haptic(); $('savePlaceModal').classList.remove('open'); };
 
 window.submitSavePlace = async (type) => {
+  haptic();
   if (!state.user || !state.tempPin) return;
   try {
     const r = push(ref(db, `users/${state.user.uid}/savedPlaces`));
@@ -1114,15 +1211,16 @@ function renderSavedPlaces() {
   const colors = { home: '#10b981', company: '#3b82f6', school: '#8b5cf6', cafe: '#f59e0b', restaurant: '#ef4444', other: '#64748b' };
   Object.entries(state.allSavedPlaces).forEach(([id, p]) => {
     const el = document.createElement('div');
-    el.style.cssText = `width:32px;height:32px;background:${colors[p.type] || '#64748b'};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.8rem;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer`;
+    el.style.cssText = `width:32px;height:32px;background:${colors[p.type] || '#64748b'};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.8rem;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;animation:popIn 0.3s`;
     el.innerHTML = `<i class="fas ${icons[p.type] || 'fa-map-marker-alt'}"></i>`;
-    el.onclick = () => showToast(p.address, 'info');
+    el.onclick = () => { haptic(); showToast(p.address, 'info'); };
     state.savedPlaceMarkers[id] = new maplibregl.Marker(el).setLngLat([p.lng, p.lat]).addTo(state.map);
   });
 }
 
 // ═══════════════ POI COMMUNITY ═══════════════
 window.openPoiSheet = () => {
+  haptic();
   if (!state.tempPin) return showToast('Chưa chọn vị trí', 'warning');
   state.tempPoi = { lat: state.tempPin.lat, lng: state.tempPin.lng };
   state.tempPoiTag = null;
@@ -1133,8 +1231,9 @@ window.openPoiSheet = () => {
   $('savePlaceModal').classList.remove('open');
   $('poiSheet').classList.add('open');
 };
-window.closePoiSheet = () => { $('poiSheet').classList.remove('open'); state.tempPoi = null; state.tempPoiTag = null; };
+window.closePoiSheet = () => { haptic(); $('poiSheet').classList.remove('open'); state.tempPoi = null; state.tempPoiTag = null; };
 window.selectPoiTag = (tag, btn) => {
+  haptic();
   state.tempPoiTag = tag;
   document.querySelectorAll('.poi-tag').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -1147,6 +1246,7 @@ function updatePoiBtn() {
 }
 
 window.submitCommunityPoi = async () => {
+  haptic();
   if (!state.user || !state.tempPoi || !state.tempPoiTag) return;
   const name = $('poiNameInput').value.trim();
   if (name.length < 2) return showToast('Tên quá ngắn', 'warning');
@@ -1172,9 +1272,9 @@ function renderCommunityPois() {
   const icons = { supermarket: 'fa-shopping-cart', rest_stop: 'fa-bed', gas_station: 'fa-gas-pump', cafe: 'fa-coffee', restaurant: 'fa-utensils', pharmacy: 'fa-prescription-bottle-medical', atm: 'fa-money-bill-wave', repair: 'fa-wrench', hotel: 'fa-hotel' };
   Object.entries(state.allCommunityPois).forEach(([id, p]) => {
     const el = document.createElement('div');
-    el.style.cssText = `width:34px;height:34px;background:${colors[p.tag] || '#64748b'};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.85rem;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer`;
+    el.style.cssText = `width:36px;height:36px;background:${colors[p.tag] || '#64748b'};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.9rem;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;animation:popIn 0.3s`;
     el.innerHTML = `<i class="fas ${icons[p.tag] || 'fa-map-marker-alt'}"></i>`;
-    el.onclick = () => showPoiDetail(id);
+    el.onclick = () => { haptic(); showPoiDetail(id); };
     state.poiMarkers[id] = new maplibregl.Marker(el).setLngLat([p.lng, p.lat]).addTo(state.map);
   });
 }
@@ -1222,11 +1322,11 @@ function renderSavedRoutes() {
 }
 
 window.reloadSavedRoute = (id) => {
+  haptic();
   const r = state.allSavedRoutes.find(x => x.id === id);
   if (!r?.coordsJson) return showToast('Không có dữ liệu tuyến', 'warning');
   try {
     let coords = JSON.parse(r.coordsJson);
-    // FIX: Đảo ngược tọa độ nếu cần
     if (coords.length > 0 && Math.abs(coords[0][0]) < 90 && Math.abs(coords[0][1]) > 90) {
       coords = coords.map(c => [c[1], c[0]]);
     }
@@ -1236,24 +1336,27 @@ window.reloadSavedRoute = (id) => {
     state.currentRoute = { coords, distance: r.distance || 0, duration: r.duration || 0, steps: [] };
     drawRouteLine(coords);
     const lngs = coords.map(c => c[0]), lats = coords.map(c => c[1]);
-    state.map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 80 });
+    state.map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 80, duration: 1000 });
     closeMenu();
     showToast('Đã tải tuyến đã lưu', 'success');
   } catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
 };
 
 window.deleteSavedRoute = async (id) => {
+  haptic();
   if (!confirm('Xoá tuyến này?')) return;
   try { await remove(ref(db, `users/${state.user.uid}/savedRoutes/${id}`)); }
   catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
 };
 
 window.clearAllHistory = async () => {
+  haptic();
   if (!confirm('Xoá tất cả lịch sử?')) return;
   try { await remove(ref(db, `users/${state.user.uid}/history`)); showToast('Đã xoá', 'success'); }
   catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
 };
 window.clearAllSavedRoutes = async () => {
+  haptic();
   if (!confirm('Xoá tất cả tuyến lưu?')) return;
   try { await remove(ref(db, `users/${state.user.uid}/savedRoutes`)); showToast('Đã xoá', 'success'); }
   catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
@@ -1261,6 +1364,7 @@ window.clearAllSavedRoutes = async () => {
 
 // ═══════════════ LIVE ROOM ═══════════════
 window.toggleLiveSession = async () => {
+  haptic();
   if ($('liveToggleSwitch').checked) {
     if (!state.liveRoomCode) await createLiveRoom();
     else startLivePush();
@@ -1289,6 +1393,7 @@ async function createLiveRoom() {
 }
 
 window.joinLiveRoom = async () => {
+  haptic();
   const code = $('liveJoinCodeInput').value.trim().toUpperCase();
   if (code.length !== 6) return showToast('Mã phải 6 ký tự', 'warning');
   state.liveRoomCode = code;
@@ -1345,18 +1450,20 @@ function renderLiveMemberMarkers() {
   Object.entries(state.liveMembers).forEach(([uid, m]) => {
     if (uid === state.user?.uid) return;
     const el = document.createElement('div');
-    el.style.cssText = 'width:36px;height:36px;background:#8b5cf6;border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.85rem;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+    el.style.cssText = 'width:36px;height:36px;background:#8b5cf6;border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.85rem;box-shadow:0 2px 8px rgba(0,0,0,.4);animation:popIn 0.3s';
     el.innerHTML = '<i class="fas fa-user"></i>';
     state.liveMemberMarkers[uid] = new maplibregl.Marker(el).setLngLat([m.lng, m.lat]).addTo(state.map);
   });
 }
 
 window.copyLiveRoomCode = () => {
+  haptic();
   if (!state.liveRoomCode) return;
   navigator.clipboard.writeText(state.liveRoomCode).then(() => showToast('Đã copy: ' + state.liveRoomCode, 'success'));
 };
 
 window.leaveLiveRoom = async () => {
+  haptic();
   if (!confirm('Rời phòng?')) return;
   await leaveLiveRoomSilent();
 };
@@ -1381,14 +1488,16 @@ async function leaveLiveRoomSilent() {
 }
 
 // ═══════════════ MENU / TABS ═══════════════
-window.openMenu = () => $('profileModal').classList.add('open');
-window.closeMenu = () => $('profileModal').classList.remove('open');
+window.openMenu = () => { haptic(); $('profileModal').classList.add('open'); };
+window.closeMenu = () => { haptic(); $('profileModal').classList.remove('open'); };
 window.toggleTheme = () => {
+  haptic();
   const on = $('themeToggle').checked;
   document.body.classList.toggle('light', on);
   localStorage.setItem('theme', on ? 'light' : 'dark');
 };
 window.switchTab = (name, btn) => {
+  haptic();
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -1414,10 +1523,10 @@ function showToast(msg, type = 'info') {
   const icon = { info: 'fa-info-circle', success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle' }[type] || 'fa-info-circle';
   el.innerHTML = `<i class="fas ${icon}"></i><span>${escapeHtml(msg)}</span>`;
   $('toastContainer').appendChild(el);
-  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, 2500);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-10px)'; el.style.transition = 'all .3s'; setTimeout(() => el.remove(), 300); }, 2500);
 }
 
-console.log('[DriveKit] Ready — Worker:', WORKER_URL);
+console.log('[DriveKit] Ready — Worker Auto Mode');
 
 </script>
 </body>
