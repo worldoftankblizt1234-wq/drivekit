@@ -42,6 +42,8 @@ let lastUserPos = null;
 let lastHeading = 0;
 let searchContext = 'view';
 let currentMapLayer = null;
+let tomtomTrafficLayer = null; // Biến cho lớp Traffic
+let isTrafficEnabled = false; // Trạng thái bật/tắt traffic
 let initialCenter = [21.0285, 105.8542];
 let initialZoom = 17;
 let lastSnapIndex = 0;
@@ -476,7 +478,20 @@ function updateUIState() {
 
 function initMap() {
   if (map) return;
-  map = L.map('map', { center: initialCenter, zoom: initialZoom, zoomControl: false });
+  
+  // 1. KHỞI TẠO BẢN ĐỒ CÓ TÍNH NĂNG XOAY 360 ĐỘ
+  map = L.map('map', { 
+    center: initialCenter, 
+    zoom: initialZoom, 
+    zoomControl: false,
+    rotate: true,            // Bật xoay 360 độ
+    bearing: 0,              // Góc xoay ban đầu
+    touchRotate: true,       // Cho phép xoay bằng 2 ngón tay
+    rotateControl: {         // Nút la bàn góc trên
+      closeOnZeroBearing: false
+    }
+  });
+  
   setTimeout(() => { changeLayer('trackasia', document.querySelector('.layer-option.active')); }, 100);
 
   let pressTimer = null;
@@ -1207,7 +1222,6 @@ window.openEndTripModal = function() {
 
 window.closeEndTripModal = function() { document.getElementById('endTripModal').classList.remove('open'); };
 
-// HÀM LƯU LỘ TRÌNH ĐÃ ĐƯỢC NÂNG CẤP (KHÔNG RELOAD)
 window.endTrip = async function(save) {
   closeEndTripModal();
   
@@ -1229,26 +1243,21 @@ window.endTrip = async function(save) {
         timestamp: Date.now()
       };
 
-      // 1. Lưu lên Firestore
       const docRef = await addDoc(collection(fsdb, `users/${currentUser.uid}/savedRoutes`), routeData);
       
-      // 2. Thêm vào mảng hiển thị (Optimistic UI)
       const newRoute = { ...routeData, id: docRef.id, _id: docRef.id, source: 'firestore' };
       _fsSavedRoutes.push(newRoute);
       recomputeSavedRoutes();
       
-      // 3. Cập nhật Cache LocalStorage (Để F5 không bị mất)
       let cachedSaved = JSON.parse(localStorage.getItem('cache_saved_routes_' + currentUser.uid) || '{"timestamp":0,"data":[]}');
       cachedSaved.data.push(newRoute);
       cachedSaved.timestamp = Date.now();
       localStorage.setItem('cache_saved_routes_' + currentUser.uid, JSON.stringify(cachedSaved));
 
-      // 4. Nếu Menu đang mở thì cập nhật lại giao diện
       if (document.getElementById('profileModal').classList.contains('open')) {
         loadSavedRoutes();
       }
       
-      // 5. Hiển thị Toast thông báo (Không reload)
       const t = document.createElement('div');
       t.style.cssText = 'position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#10b981,#059669);color:white;padding:14px 22px;border-radius:14px;font-weight:800;z-index:9999;display:flex;gap:10px;align-items:center;';
       t.innerHTML = '<i class="fas fa-check-circle"></i><span>Đã lưu lộ trình thành công!</span>';
@@ -1268,7 +1277,6 @@ window.endTrip = async function(save) {
     }
   }
 
-  // --- PHẦN DỌN DẸP BẢN ĐỒ VÀ HUD (Giữ nguyên) ---
   if (liveEnabled && liveRoomCode && isLiveHost) {
     remove(ref(db, `live_rooms/${liveRoomCode}/navigation`)).catch(()=>{});
   }
@@ -1290,7 +1298,6 @@ window.endTrip = async function(save) {
   if (lastUserPos) map.flyTo([lastUserPos.lat, lastUserPos.lng], 16, { animate: true, duration: 1 });
 };
 
-// NÂNG CẤP HÀM LƯU LỊCH SỬ ĐỂ ĐỒNG BỘ LOCAL
 async function saveHistoryToFirestore(start, end, distance) {
   if (!currentUser) return;
   try {
@@ -1410,7 +1417,6 @@ window.deleteItem = async function(type, source, id) {
     if (source === 'firestore') await deleteDoc(doc(fsdb, `users/${currentUser.uid}/${type}/${id}`));
     else await remove(ref(db, `users/${currentUser.uid}/${type}/${id}`));
     
-    // Cập nhật Local Cache để không bị load lại khi F5
     if (type === 'history') {
       _fsHistory = _fsHistory.filter(h => h._id !== id);
       recomputeHistory();
@@ -1785,30 +1791,32 @@ function calcDist(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+// ==========================================
+// XỬ LÝ GIAO DIỆN BẢNG LAYER (BOTTOM SHEET)
+// ==========================================
 window.toggleLayerMenu = function() {
-  const menu = document.getElementById('layerMenu');
-  if (menu.classList.contains('show')) menu.classList.remove('show');
-  else {
-    menu.classList.add('show');
-    setTimeout(() => {
-      const closeHandler = (e) => {
-        if (!menu.contains(e.target) && e.target.id !== 'btnLayerMenu' && !e.target.closest('#btnLayerMenu')) {
-          menu.classList.remove('show');
-          document.removeEventListener('click', closeHandler);
-          document.removeEventListener('touchstart', closeHandler);
-        }
-      };
-      document.addEventListener('click', closeHandler);
-      document.addEventListener('touchstart', closeHandler);
-    }, 100);
+  const sheet = document.getElementById('layerMenu');
+  const overlay = document.getElementById('layerOverlay');
+  if (sheet.classList.contains('open')) {
+    closeLayerMenu();
+  } else {
+    sheet.classList.add('open');
+    overlay.classList.add('show');
   }
+};
+
+window.closeLayerMenu = function() {
+  const sheet = document.getElementById('layerMenu');
+  const overlay = document.getElementById('layerOverlay');
+  if (sheet) sheet.classList.remove('open');
+  if (overlay) overlay.classList.remove('show');
 };
 
 function changeLayer(type, btn) {
   if (currentMapLayer) { map.removeLayer(currentMapLayer); currentMapLayer = null; }
   document.querySelectorAll('.layer-option').forEach(el => el.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  document.getElementById('layerMenu').classList.remove('show');
+  
   if (type === 'trackasia') {
     try { currentMapLayer = L.trackasiaGL({ style: `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}` }).addTo(map); }
     catch (error) { currentMapLayer = L.tileLayer(`https://maps.track-asia.com/styles/v2/streets/{z}/{x}/{y}.png?key=${TRACKASIA_KEY}`, { maxZoom: 19, tileSize: 256 }).addTo(map); }
@@ -1817,6 +1825,40 @@ function changeLayer(type, btn) {
   else if (type === 'thunderforest') currentMapLayer = L.tileLayer(`${WORKER_URL}/tf-tiles/{z}/{x}/{y}`, { maxZoom: 19 }).addTo(map);
   else if (type === 'satellite') currentMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
 }
+
+window.setTrafficMode = function(enable) {
+  isTrafficEnabled = enable;
+  
+  document.getElementById('modeDefault').classList.toggle('active', !enable);
+  document.getElementById('modeTraffic').classList.toggle('active', enable);
+
+  if (enable) {
+    if (!tomtomTrafficLayer) {
+      // Gọi qua Worker để bảo mật API key
+      tomtomTrafficLayer = L.tileLayer(
+        `${WORKER_URL}/tomtom-tiles/{z}/{x}/{y}`, 
+        {
+          maxZoom: 22,
+          opacity: 0.8,
+          pane: 'overlayPane'
+        }
+      ).addTo(map);
+    }
+  } else {
+    if (tomtomTrafficLayer) {
+      map.removeLayer(tomtomTrafficLayer);
+      tomtomTrafficLayer = null;
+    }
+  }
+};
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' || e.key === 'Esc') {
+    closeLayerMenu();
+  }
+});
+// ==========================================
+
 
 window.goToLongPressLocation = function(lat, lng, name) {
   endPoint = { lat, lng, name };
