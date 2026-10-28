@@ -6,25 +6,15 @@
   <meta name="theme-color" content="#0f172a" />
   <title>DriveKit — Mọi hành trình, một giải pháp</title>
   
-  <!-- Nhúng file CSS chính -->
   <link rel="stylesheet" href="style.css" />
-
-  <!-- Các thư viện bên ngoài -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&family=Fira+Code:wght@500;600;700&display=swap&subset=vietnamese" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
   
-  <!-- Thêm thư viện xoay 360 độ cho Leaflet -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate.css" />
-  
-  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
-  
-  <script src="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js"></script>
-  <link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
-  <script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
+  <!-- MAPLIBRE GL JS -->
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 </head>
 <body>
   <!-- Màn hình chờ -->
@@ -59,6 +49,11 @@
   <div id="appUI" class="hidden">
     <div id="map"></div>
     
+    <!-- Nút La bàn Xoay 3D (MỚI) -->
+    <button class="fab-layers" id="btnCompass" onclick="rotateMap360()" style="bottom: calc(140px + var(--safe-bottom)); left: 16px; background: #8b5cf6; color: white; border: none; box-shadow: 0 4px 15px rgba(139,92,246,0.4);" title="Xoay 360 & Nghiêng 3D">
+      <i class="fas fa-compass"></i>
+    </button>
+
     <!-- Thanh tìm kiếm & Nút chức năng -->
     <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
       <i class="fas fa-search"></i>
@@ -67,17 +62,18 @@
     </div>
     <button class="fab-menu" id="mainMenuBtn" onclick="openMenu()"><i class="fas fa-bars"></i></button>
     <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
+    
     <button class="fab-layers" id="btnLayerMenu" onclick="event.stopPropagation(); toggleLayerMenu()" title="Lớp bản đồ">
       <i class="fas fa-layer-group"></i>
     </button>
-    <button class="fab-layers" id="btnQuickPin" onclick="event.stopPropagation(); openQuickPin()" style="bottom: calc(140px + var(--safe-bottom)); right: 16px; left: auto; background: var(--success); color: white; border: none; box-shadow: 0 4px 15px rgba(16,185,129,0.4);" title="Ghim nhanh vị trí">
+    <button class="fab-layers" id="btnQuickPin" onclick="event.stopPropagation(); openQuickPin()" style="bottom: calc(200px + var(--safe-bottom)); right: 16px; left: auto; background: var(--success); color: white; border: none; box-shadow: 0 4px 15px rgba(16,185,129,0.4);" title="Ghim nhanh vị trí">
       <i class="fas fa-map-marker-alt"></i>
     </button>
     <button class="fab-rest-stop-filter" id="btnRestStopFilter" onclick="toggleRestStopFilter()" title="Hiện/ẩn trạm dừng nghỉ">
       <i class="fas fa-bed"></i>
     </button>
 
-    <!-- BẢNG LAYER BOTTOM SHEET MỚI -->
+    <!-- BẢNG LAYER BOTTOM SHEET -->
     <div class="layer-overlay" id="layerOverlay" onclick="closeLayerMenu()"></div>
     <div class="layer-bottom-sheet" id="layerMenu">
       <div class="sheet-handle" onclick="closeLayerMenu()"></div>
@@ -177,7 +173,7 @@
     </div>
   </div>
 
-  <!-- Các Modal (Bảng trượt lên) -->
+  <!-- Các Modal -->
   <div class="route-options-modal" id="routeOptionsModal">
     <div class="route-options-header">
       <h2><i class="fas fa-route"></i> Các tuyến đường gợi ý</h2>
@@ -399,7 +395,6 @@
     </div>
   </div>
 
-  <!-- Script xử lý lỗi tải cơ bản -->
   <script>
     window.addEventListener('error', function (e) {
       var t = document.getElementById('loadingText');
@@ -414,7 +409,6 @@
     }, 3500);
   </script>
 
-  <!-- Nhúng file JS chính (Bắt buộc phải có type="module") -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
