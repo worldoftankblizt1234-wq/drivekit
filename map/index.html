@@ -15,7 +15,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&family=Fira+Code:wght@500;600;700&display=swap&subset=vietnamese" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <!-- Thêm thư viện xoay 360 độ cho Leaflet -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate.css" />
+  
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
+  
   <script src="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js"></script>
   <link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
   <script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
@@ -70,25 +76,38 @@
     <button class="fab-rest-stop-filter" id="btnRestStopFilter" onclick="toggleRestStopFilter()" title="Hiện/ẩn trạm dừng nghỉ">
       <i class="fas fa-bed"></i>
     </button>
-    
-    <!-- Menu chọn lớp bản đồ -->
-    <div class="layer-menu" id="layerMenu">
-      <button class="layer-option active" onclick="changeLayer('trackasia', this)">
-        <div class="layer-title"><i class="fas fa-map"></i> Tiêu chuẩn V1</div>
-        <div class="layer-desc">Bản đồ mặc định</div>
-      </button>
-      <button class="layer-option" onclick="changeLayer('mapbox', this)">
-        <div class="layer-title"><i class="fas fa-map-marked-alt"></i> Tiêu chuẩn</div>
-        <div class="layer-desc">Đường phố chi tiết</div>
-      </button>
-      <button class="layer-option" onclick="changeLayer('thunderforest', this)">
-        <div class="layer-title"><i class="fas fa-road"></i> Street</div>
-        <div class="layer-desc">Tên đường, POI địa phương</div>
-      </button>
-      <button class="layer-option" onclick="changeLayer('satellite', this)">
-        <div class="layer-title"><i class="fas fa-satellite"></i> Vệ tinh</div>
-        <div class="layer-desc">Ảnh vệ tinh thực tế</div>
-      </button>
+
+    <!-- BẢNG LAYER BOTTOM SHEET MỚI -->
+    <div class="layer-overlay" id="layerOverlay" onclick="closeLayerMenu()"></div>
+    <div class="layer-bottom-sheet" id="layerMenu">
+      <div class="sheet-handle" onclick="closeLayerMenu()"></div>
+      <h3><i class="fas fa-layer-group"></i> Bản đồ & Chế độ</h3>
+      
+      <div class="layer-section-title">Lớp bản đồ nền</div>
+      <div class="layer-grid">
+        <button class="layer-option active" onclick="changeLayer('trackasia', this)">
+          <i class="fas fa-map"></i> <span>Tiêu chuẩn V1</span>
+        </button>
+        <button class="layer-option" onclick="changeLayer('mapbox', this)">
+          <i class="fas fa-map-marked-alt"></i> <span>Tiêu chuẩn</span>
+        </button>
+        <button class="layer-option" onclick="changeLayer('thunderforest', this)">
+          <i class="fas fa-road"></i> <span>Street</span>
+        </button>
+        <button class="layer-option" onclick="changeLayer('satellite', this)">
+          <i class="fas fa-satellite"></i> <span>Vệ tinh</span>
+        </button>
+      </div>
+
+      <div class="layer-section-title" style="margin-top: 20px;">Chế độ hiển thị</div>
+      <div class="mode-toggle-group">
+        <button class="mode-btn active" id="modeDefault" onclick="setTrafficMode(false)">
+          <i class="fas fa-map"></i> Mặc định
+        </button>
+        <button class="mode-btn" id="modeTraffic" onclick="setTrafficMode(true)">
+          <i class="fas fa-traffic-light"></i> Giao thông Realtime
+        </button>
+      </div>
     </div>
 
     <button class="fab-report" id="btnReport" onclick="openReportMenu()"><i class="fas fa-exclamation-triangle"></i></button>
