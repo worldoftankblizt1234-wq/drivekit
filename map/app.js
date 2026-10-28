@@ -117,6 +117,11 @@ let currentLiveIndex = 0;
 let autoRotateWithHeading = false;
 let userRotatedMap = false;
 
+// ===== ROTATION STATE (THÊM MỚI) =====
+let currentBearing = 0;
+let currentPitch = 0;
+let isProgrammaticRotation = false;
+
 const POI_TAG_CONFIG = {
   supermarket: { icon: 'fa-shopping-cart', label: 'Siêu thị', color: '#10b981' },
   rest_stop: { icon: 'fa-bed', label: 'Trạm dừng nghỉ', color: '#3b82f6' },
@@ -239,6 +244,7 @@ function initAppUI() {
   initMap();
   initDualDataSubscriptions();
   loadSharedLinksFromStorage();
+  createRotationControls(); // <-- THÊM MỚI: tạo bộ nút xoay
 
   if (lastUserPos) {
     if (!startPoint) {
@@ -289,13 +295,23 @@ window.toggleTheme = function() {
   refreshMapLibreStyle();
 };
 
+// ===== SỬA: giữ bearing/pitch khi đổi theme =====
 function refreshMapLibreStyle() {
   if (!currentMapLayer) return;
   if (typeof currentMapLayer.getMaplibreMap === 'function') {
     const ml = currentMapLayer.getMaplibreMap();
     if (ml) {
       const isLight = document.body.classList.contains('light-mode');
-      try { ml.setStyle(isLight ? MAPLIBRE_STYLE_LIGHT : MAPLIBRE_STYLE_DARK); } catch(e) {}
+      const savedBearing = currentBearing;
+      const savedPitch = currentPitch;
+      try {
+        ml.setStyle(isLight ? MAPLIBRE_STYLE_LIGHT : MAPLIBRE_STYLE_DARK);
+        const onStyleData = () => {
+          try { ml.jumpTo({ bearing: savedBearing, pitch: savedPitch }); } catch(e) {}
+          try { ml.off('styledata', onStyleData); } catch(e) {}
+        };
+        ml.on('styledata', onStyleData);
+      } catch(e) {}
     }
   }
 }
@@ -493,6 +509,9 @@ function updateUIState() {
     fabQuickPin.style.display = 'flex'; fabReport.style.display = 'flex'; fabRestStop.style.display = 'flex';
     if (btnResetBearing) btnResetBearing.style.display = 'flex';
   }
+
+  // ===== THÊM MỚI: cập nhật visibility cho bộ nút xoay =====
+  updateRotationControlsVisibility();
 }
 
 function getMaplibreInstance() {
@@ -1319,7 +1338,15 @@ window.endTrip = async function(save) {
   updateUIState();
 
   const ml = getMaplibreInstance();
-  if (ml) { try { ml.easeTo({ bearing: 0, pitch: 0, duration: 500 }); } catch(e) {} }
+  if (ml) {
+    try {
+      currentBearing = 0; currentPitch = 0;
+      isProgrammaticRotation = true;
+      ml.easeTo({ bearing: 0, pitch: 0, duration: 500 });
+      setTimeout(() => { isProgrammaticRotation = false; }, 550);
+      updateCompassUI();
+    } catch(e) {}
+  }
 
   document.getElementById('dirInputEnd').value = ''; document.getElementById('topSearchInput').value = ''; document.getElementById('btnClearEnd').classList.add('hidden'); document.getElementById('searchClearBtn').classList.add('hidden'); endPoint = null;
 
@@ -1790,10 +1817,17 @@ function startWatching() {
     animateMarkerTo(lastUserPos);
     if (map) map.setView([lastUserPos.lat, lastUserPos.lng], map.getZoom(), { animate: false });
 
+    // ===== SỬA: auto-rotate cập nhật currentBearing và cờ programmatic =====
     if (autoRotateWithHeading && !userRotatedMap) {
       const ml = getMaplibreInstance();
-      if (ml && lastHeading) {
-        try { ml.easeTo({ bearing: lastHeading, duration: 800 }); } catch(e) {}
+      if (ml && lastHeading != null) {
+        try {
+          currentBearing = lastHeading;
+          isProgrammaticRotation = true;
+          ml.easeTo({ bearing: lastHeading, duration: 800 });
+          setTimeout(() => { isProgrammaticRotation = false; }, 850);
+          updateCompassUI();
+        } catch(e) {}
       }
     }
 
@@ -1860,6 +1894,7 @@ window.toggleLayerMenu = function() {
   }
 };
 
+// ===== SỬA: changeLayer — trackasia branch có track bearing/pitch + gesture 2 ngón =====
 function changeLayer(type, btn) {
   if (currentMapLayer) { map.removeLayer(currentMapLayer); currentMapLayer = null; }
   document.querySelectorAll('.layer-option').forEach(el => el.classList.remove('active'));
@@ -1882,17 +1917,58 @@ function changeLayer(type, btn) {
             ml.touchPitch.enable();
           } catch(e) {}
 
-          ml.on('rotate', () => { userRotatedMap = true; });
-          ml.on('pitch', () => { userRotatedMap = true; });
+          // Theo dõi bearing/pitch hiện tại
+          ml.on('rotate', () => { currentBearing = ml.getBearing(); updateCompassUI(); });
+          ml.on('pitch',  () => { currentPitch = ml.getPitch();     updateCompassUI(); });
 
-          console.log('[MapLibre] ready');
-          console.log('  canvas pointer-events:', getComputedStyle(ml.getCanvas()).pointerEvents);
-          console.log('  canvas touch-action:', getComputedStyle(ml.getCanvas()).touchAction);
-          console.log('  container pointer-events:', getComputedStyle(ml.getContainer()).pointerEvents);
-          console.log('  touchZoomRotate enabled:', ml.touchZoomRotate.isEnabled());
-          console.log('  touchPitch enabled:', ml.touchPitch.isEnabled());
-          console.log('  maxPitch:', ml.getMaxPitch());
+          // ---- Gesture 2 ngón để xoay (bổ sung cho nút) ----
+          const canvas = ml.getCanvas();
+          if (canvas && !canvas._rotGestureAttached) {
+            canvas._rotGestureAttached = true;
+            let startAngle = 0, startBearing = 0, startDist = 0, isRotating = false;
+
+            canvas.addEventListener('touchstart', (e) => {
+              if (e.touches.length === 2) {
+                const dx = e.touches[1].clientX - e.touches[0].clientX;
+                const dy = e.touches[1].clientY - e.touches[0].clientY;
+                startAngle = Math.atan2(dy, dx);
+                startBearing = currentBearing;
+                startDist = Math.hypot(dx, dy);
+                isRotating = false;
+              }
+            }, { passive: true, capture: true });
+
+            canvas.addEventListener('touchmove', (e) => {
+              if (e.touches.length !== 2) return;
+              const dx = e.touches[1].clientX - e.touches[0].clientX;
+              const dy = e.touches[1].clientY - e.touches[0].clientY;
+              const dist = Math.hypot(dx, dy);
+
+              // Nếu khoảng cách 2 ngón thay đổi >15% => đang pinch zoom, bỏ qua
+              if (startDist > 0 && Math.abs(dist / startDist - 1) > 0.15) {
+                isRotating = false;
+                return;
+              }
+
+              const angle = Math.atan2(dy, dx);
+              const deltaDeg = (angle - startAngle) * 180 / Math.PI;
+              if (Math.abs(deltaDeg) > 5) {
+                isRotating = true;
+                currentBearing = (startBearing + deltaDeg + 360) % 360;
+                userRotatedMap = true;
+                autoRotateWithHeading = false;
+                try { ml.jumpTo({ bearing: currentBearing }); } catch(err) {}
+                updateCompassUI();
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            }, { passive: false, capture: true });
+          }
+          // ---- End gesture ----
+
+          console.log('[MapLibre] ready, bearing:', ml.getBearing(), 'pitch:', ml.getPitch());
         }
+        updateRotationControlsVisibility();
       }, 500);
     } catch (error) {
       console.warn('MapLibre failed, fallback to OSM raster:', error);
@@ -1900,31 +1976,165 @@ function changeLayer(type, btn) {
         maxZoom: 19,
         attribution: '© OpenStreetMap'
       }).addTo(map);
+      updateRotationControlsVisibility();
     }
   }
   else if (type === 'mapbox') {
     currentMapLayer = L.tileLayer(`${WORKER_URL}/mapbox-tiles/{z}/{x}/{y}`, { maxZoom: 19, tileSize: 512, zoomOffset: -1 }).addTo(map);
+    updateRotationControlsVisibility();
   }
   else if (type === 'thunderforest') {
     currentMapLayer = L.tileLayer(`${WORKER_URL}/tf-tiles/{z}/{x}/{y}`, { maxZoom: 19 }).addTo(map);
+    updateRotationControlsVisibility();
   }
   else if (type === 'satellite') {
     currentMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
+    updateRotationControlsVisibility();
   }
 }
 
+// ===== SỬA: resetMapBearing =====
 window.resetMapBearing = function() {
   const ml = getMaplibreInstance();
   if (ml) {
-    try { ml.easeTo({ bearing: 0, pitch: 0, duration: 500 }); } catch(e) {}
+    try {
+      currentBearing = 0;
+      currentPitch = 0;
+      isProgrammaticRotation = true;
+      ml.easeTo({ bearing: 0, pitch: 0, duration: 500 });
+      setTimeout(() => { isProgrammaticRotation = false; }, 550);
+    } catch(e) {}
     userRotatedMap = false;
     if (document.body.classList.contains('navigating')) autoRotateWithHeading = true;
+    updateCompassUI();
     return;
   }
   if (lastUserPos) {
     map.flyTo([lastUserPos.lat, lastUserPos.lng], map.getZoom(), { animate: true });
   }
 };
+
+// ===== THÊM MỚI: các hàm điều khiển xoay =====
+window.rotateMap = function(delta) {
+  const ml = getMaplibreInstance();
+  if (!ml) return alert('Vui lòng chọn lớp bản đồ TrackAsia (MapLibre) trước!');
+  userRotatedMap = true;
+  autoRotateWithHeading = false;
+  currentBearing = (currentBearing + delta + 360) % 360;
+  isProgrammaticRotation = true;
+  try { ml.easeTo({ bearing: currentBearing, duration: 300 }); } catch(e) {}
+  setTimeout(() => { isProgrammaticRotation = false; }, 350);
+  updateCompassUI();
+};
+
+window.toggleTilt = function() {
+  const ml = getMaplibreInstance();
+  if (!ml) return;
+  currentPitch = currentPitch > 10 ? 0 : 45;
+  isProgrammaticRotation = true;
+  try { ml.easeTo({ pitch: currentPitch, duration: 500 }); } catch(e) {}
+  setTimeout(() => { isProgrammaticRotation = false; }, 550);
+  updateCompassUI();
+};
+
+function updateCompassUI() {
+  const arrow = document.getElementById('compassArrow');
+  if (arrow) arrow.style.transform = `rotate(${-currentBearing}deg)`;
+  const tiltBtn = document.getElementById('tiltBtn');
+  if (tiltBtn) tiltBtn.classList.toggle('active', currentPitch > 10);
+}
+
+function updateRotationControlsVisibility() {
+  const box = document.getElementById('mapRotateControls');
+  if (!box) return;
+  const ml = getMaplibreInstance();
+  const dirSheetOpen = document.getElementById('dirSheet')?.classList.contains('open');
+  const suggOpen = document.getElementById('suggestionsBox')?.classList.contains('show');
+  const isNav = document.body.classList.contains('navigating');
+
+  // Chỉ hiện khi có MapLibre (layer trackasia) và không đang dùng sheet/điều hướng
+  const show = !!ml && !isNav && !dirSheetOpen && !suggOpen;
+  box.style.display = show ? 'flex' : 'none';
+}
+
+function createRotationControls() {
+  if (document.getElementById('mapRotateControls')) return;
+
+  const box = document.createElement('div');
+  box.id = 'mapRotateControls';
+  box.className = 'map-rotate-controls';
+  box.style.display = 'none';
+  box.innerHTML = `
+    <div class="compass-btn" id="compassBtn" onclick="resetMapBearing()" title="Reset hướng Bắc (0°)">
+      <div class="compass-arrow" id="compassArrow"></div>
+    </div>
+    <button class="map-rotate-btn" onclick="rotateMap(-15)" title="Xoay trái 15°">
+      <i class="fas fa-undo"></i>
+    </button>
+    <button class="map-rotate-btn" onclick="rotateMap(15)" title="Xoay phải 15°">
+      <i class="fas fa-redo"></i>
+    </button>
+    <button class="map-rotate-btn" id="tiltBtn" onclick="toggleTilt()" title="Nghiêng bản đồ">
+      <i class="fas fa-mountain"></i>
+    </button>
+  `;
+  document.body.appendChild(box);
+
+  if (!document.getElementById('mapRotateStyles')) {
+    const style = document.createElement('style');
+    style.id = 'mapRotateStyles';
+    style.textContent = `
+      .map-rotate-controls {
+        position: fixed;
+        right: calc(12px + env(safe-area-inset-right, 0px));
+        top: 50%;
+        transform: translateY(-50%);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 500;
+      }
+      .map-rotate-btn, .compass-btn {
+        width: 44px; height: 44px;
+        border-radius: 12px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-size: 1.1rem;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+        transition: background .2s, color .2s;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .map-rotate-btn:hover, .map-rotate-btn:active,
+      .compass-btn:hover, .compass-btn:active {
+        background: var(--primary); color: #fff;
+      }
+      .compass-btn { border-radius: 50%; position: relative; }
+      .compass-arrow {
+        width: 2px; height: 22px;
+        background: linear-gradient(to bottom, #ef4444 50%, #94a3b8 50%);
+        border-radius: 1px;
+        transition: transform .3s ease;
+        position: relative;
+      }
+      .compass-arrow::before {
+        content: '';
+        position: absolute; top: -3px; left: 50%;
+        transform: translateX(-50%);
+        width: 0; height: 0;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-bottom: 7px solid #ef4444;
+      }
+      .map-rotate-btn.active { background: var(--primary); color: #fff; }
+    `;
+    document.head.appendChild(style);
+  }
+  updateCompassUI();
+}
 
 window.goToLongPressLocation = function(lat, lng, name) {
   endPoint = { lat, lng, name };
@@ -2085,6 +2295,7 @@ window.toggleRestStopFilter = function() {
   setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2000);
 };
 
+// ===== LIVE SECTION (giữ nguyên) =====
 function liveLerp(a, b, t) { return a + (b - a) * t; }
 function liveEase(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2; }
 function liveHaversine(lat1, lng1, lat2, lng2) {
