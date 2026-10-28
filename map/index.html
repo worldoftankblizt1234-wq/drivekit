@@ -2,10 +2,10 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#0f172a" />
   <title>DriveKit — Mọi hành trình, một giải pháp</title>
-  
+
   <!-- Nhúng file CSS chính -->
   <link rel="stylesheet" href="style.css" />
 
@@ -16,9 +16,11 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js"></script>
-  <link href="https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css" rel="stylesheet" />
-  <script src="https://unpkg.com/trackasia-gl-leaflet@0.0.21/leaflet-trackasia-gl.js"></script>
+
+  <!-- MapLibre GL thay cho TrackAsia -->
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
 </head>
 <body>
   <!-- Màn hình chờ -->
@@ -52,7 +54,7 @@
   <!-- Giao diện chính App -->
   <div id="appUI" class="hidden">
     <div id="map"></div>
-    
+
     <!-- Thanh tìm kiếm & Nút chức năng -->
     <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
       <i class="fas fa-search"></i>
@@ -70,12 +72,15 @@
     <button class="fab-rest-stop-filter" id="btnRestStopFilter" onclick="toggleRestStopFilter()" title="Hiện/ẩn trạm dừng nghỉ">
       <i class="fas fa-bed"></i>
     </button>
-    
+    <button id="btnResetBearing" onclick="resetMapBearing()" title="Reset hướng bản đồ">
+      <i class="fas fa-compass"></i>
+    </button>
+
     <!-- Menu chọn lớp bản đồ -->
     <div class="layer-menu" id="layerMenu">
       <button class="layer-option active" onclick="changeLayer('trackasia', this)">
         <div class="layer-title"><i class="fas fa-map"></i> Tiêu chuẩn V1</div>
-        <div class="layer-desc">Bản đồ mặc định</div>
+        <div class="layer-desc">Bản đồ mặc định (MapLibre)</div>
       </button>
       <button class="layer-option" onclick="changeLayer('mapbox', this)">
         <div class="layer-title"><i class="fas fa-map-marked-alt"></i> Tiêu chuẩn</div>
@@ -127,9 +132,9 @@
         <i class="fas fa-search-location"></i> Xem tất cả tuyến đường
       </button>
     </div>
-    
+
     <div class="suggestions-box" id="suggestionsBox"></div>
-    
+
     <!-- Màn hình dẫn đường (HUD) -->
     <div class="hidden" id="hud">
       <div class="hud-top">
