@@ -1676,9 +1676,16 @@ function getUserIcon(heading) {
 
 function updateUserMarkerOnMap(pos, heading) {
   if (userMarker) map.removeLayer(userMarker);
-  userMarker = L.marker([pos.lat, pos.lng], { icon: getUserIcon(heading) }).addTo(map);
+  userMarker = L.marker([pos.lat, pos.lng], {
+    icon: getUserIcon(heading),
+    interactive: false
+  }).addTo(map);
   if (gpsCircle) map.removeLayer(gpsCircle);
-  gpsCircle = L.circle([pos.lat, pos.lng], { radius: pos.accuracy || 10, color: '#10b981', fillColor: '#10b981', fillOpacity: 0.15, weight: 1 }).addTo(map);
+  gpsCircle = L.circle([pos.lat, pos.lng], {
+    radius: pos.accuracy || 10,
+    color: '#10b981', fillColor: '#10b981', fillOpacity: 0.15, weight: 1,
+    interactive: false
+  }).addTo(map);
 }
 
 function animateMarkerTo(targetPos) {
@@ -1748,7 +1755,11 @@ function animateMarkerTo(targetPos) {
   requestAnimationFrame(step);
 
   if (gpsCircle) map.removeLayer(gpsCircle);
-  gpsCircle = L.circle([snappedLat, snappedLng], { radius: targetPos.accuracy || 10, color: '#10b981', fillColor: '#10b981', fillOpacity: 0.15, weight: 1 }).addTo(map);
+  gpsCircle = L.circle([snappedLat, snappedLng], {
+    radius: targetPos.accuracy || 10,
+    color: '#10b981', fillColor: '#10b981', fillOpacity: 0.15, weight: 1,
+    interactive: false
+  }).addTo(map);
 }
 
 function startWatching() {
@@ -1861,7 +1872,7 @@ function changeLayer(type, btn) {
         dragRotate: true,
         touchZoomRotate: true,
         touchPitch: true,
-        bearingSnap: 7,
+        bearingSnap: 0,
         maxPitch: 60,
         minPitch: 0,
         maxZoom: 20,
@@ -2420,7 +2431,7 @@ function updateLiveMyMarker() {
   const icon = L.divIcon({ html: '<div class="live-me-pin"><i class="fas fa-location-arrow"></i></div>', className: '', iconSize: [40, 40], iconAnchor: [20, 20] });
   if (liveMyMarker) liveMyMarker.setLatLng([lastUserPos.lat, lastUserPos.lng]);
   else {
-    liveMyMarker = L.marker([lastUserPos.lat, lastUserPos.lng], { icon, zIndexOffset: 1000 }).addTo(map).bindPopup('Vị trí của bạn (Live)');
+    liveMyMarker = L.marker([lastUserPos.lat, lastUserPos.lng], { icon, zIndexOffset: 1000, interactive: false }).addTo(map);
     liveMyAnimState = { from: { lat: lastUserPos.lat, lng: lastUserPos.lng }, to: { lat: lastUserPos.lat, lng: lastUserPos.lng }, startTime: performance.now(), duration: LIVE_ANIM_DURATION, marker: liveMyMarker, animId: null };
   }
 }
@@ -2444,7 +2455,7 @@ function renderLiveMemberMarkers() {
     } else {
       const isPub = m.isPublic || m.source === 'public';
       const icon = L.divIcon({ html: `<div class="live-other-pin ${isPub ? 'public' : ''}"><i class="fas fa-user"></i></div>`, className: '', iconSize: [34, 34], iconAnchor: [17, 17] });
-      const marker = L.marker([m.lat, m.lng], { icon }).addTo(map).bindPopup(`<b>${escapeHtml(m.name)}</b><br>${m.distance ? m.distance.toFixed(1)+' km' : ''}`);
+      const marker = L.marker([m.lat, m.lng], { icon, interactive: false }).addTo(map);
       liveMemberMarkers[m.uid] = marker;
       liveMemberAnimStates[m.uid] = { from: { lat: m.lat, lng: m.lng }, to: { lat: m.lat, lng: m.lng }, startTime: performance.now(), duration: LIVE_ANIM_DURATION, marker: marker, animId: null };
     }
@@ -2496,7 +2507,7 @@ async function initViewerLiveRoom(roomCode) {
         if (a) animateLiveTo(a, m.lat, m.lng);
       } else {
         const icon = L.divIcon({ html: '<div class="live-me-pin"><i class="fas fa-user"></i></div>', className: '', iconSize: [40, 40], iconAnchor: [20, 20] });
-        const marker = L.marker([m.lat, m.lng], { icon, zIndexOffset: 1000 }).addTo(map).bindPopup(`<b>${escapeHtml(m.name)}</b>`);
+        const marker = L.marker([m.lat, m.lng], { icon, zIndexOffset: 1000, interactive: false }).addTo(map);
         liveMemberMarkers[m.uid] = marker;
         liveMemberAnimStates[m.uid] = { from: { lat: m.lat, lng: m.lng }, to: { lat: m.lat, lng: m.lng }, startTime: performance.now(), duration: LIVE_ANIM_DURATION, marker: marker, animId: null };
       }
@@ -2571,7 +2582,6 @@ window.switchLiveUser = function(dir) {
   const targetUser = activeLiveUsers[currentLiveIndex];
   if (liveMemberMarkers[targetUser.uid]) {
     map.flyTo([targetUser.lat, targetUser.lng], 16, { animate: true, duration: 1 });
-    liveMemberMarkers[targetUser.uid].openPopup();
   }
   showLiveInfoCard(targetUser);
 };
