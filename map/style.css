@@ -27,14 +27,41 @@ button { cursor: pointer; }
 .layer-option .layer-title { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 .layer-option .layer-desc { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; margin-left: 24px; }
 .layer-option.active .layer-desc { color: rgba(255,255,255,0.8); }
-#map { position: fixed; inset: 0; z-index: 1; background: #e5e5e5; touch-action: pan-x pan-y pinch-zoom; }
+
+/* ===== MAP + TOUCH ACTION (MapLibre cần none để nhận gesture) ===== */
+#map {
+  position: fixed; inset: 0; z-index: 1; background: #e5e5e5;
+  touch-action: none;
+}
 body.light-mode #map { background: #f1f5f9; }
-.leaflet-container { font-family: var(--font-main) !important; background: #e5e5e5 !important; touch-action: pan-x pan-y pinch-zoom; }
+.leaflet-container {
+  font-family: var(--font-main) !important;
+  background: #e5e5e5 !important;
+  touch-action: none !important;
+}
 body.light-mode .leaflet-container { background: #f1f5f9 !important; }
 .leaflet-control-attribution { font-size: 9px !important; background: rgba(15,23,42,0.7) !important; color: #94a3b8 !important; }
 .leaflet-control-attribution a { color: #60a5fa !important; }
 .maplibregl-ctrl-attrib { font-size: 9px !important; }
-.maplibregl-canvas { touch-action: pan-x pan-y pinch-zoom !important; }
+
+/* MapLibre canvas phải có touch-action: none, KHÔNG được pinch-zoom */
+.maplibregl-canvas,
+.maplibregl-map,
+.maplibregl-control-container {
+  touch-action: none !important;
+}
+
+/* Mọi pane + SVG + marker của Leaflet cũng phải none,
+   để gesture xuyên qua marker/route tới maplibre canvas */
+.leaflet-pane,
+.leaflet-pane svg,
+.leaflet-pane svg path,
+.leaflet-marker-icon,
+.leaflet-marker-pane > div,
+.leaflet-tooltip {
+  touch-action: none !important;
+}
+
 .hud-top { position: fixed; top: 0; left: 0; right: 0; z-index: 500; padding: calc(10px + var(--safe-top)) 12px 10px; display: flex; gap: 8px; pointer-events: none; }
 .hud-stat { flex: 1; background: rgba(15,23,42,0.9); backdrop-filter: blur(10px); border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; pointer-events: auto; }
 .hud-stat .label { font-size: 0.6rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
