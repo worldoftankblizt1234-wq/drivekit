@@ -1,406 +1,380 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#0f172a" />
-  <title>DriveKit — Mọi hành trình, một giải pháp</title>
-
-  <!-- Nhúng file CSS chính -->
-  <link rel="stylesheet" href="style.css" />
-
-  <!-- Các thư viện bên ngoài -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&family=Fira+Code:wght@500;600;700&display=swap&subset=vietnamese" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- MapLibre GL thay cho TrackAsia -->
-  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
-  <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>DriveKit</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link href="https://unpkg.com/maplibre-gl@^4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Màn hình chờ -->
-  <div class="loading-screen" id="loadingScreen">
-    <div class="spinner"></div>
-    <div style="text-align:center;">
-      <h2 style="color:var(--text); margin-bottom:8px;">DriveKit</h2>
-      <p class="loading-text" id="loadingText">Đang khởi tạo hệ thống...</p>
-      <div class="loading-percent" id="loadingPercent">0%</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- LOADING SCREEN                                  -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="loadingScreen" class="fullscreen">
+  <div class="logo-pulse"><i class="fas fa-route"></i></div>
+  <h1 class="brand">DriveKit</h1>
+  <div class="progress-track"><div id="loadingPercent" class="progress-fill" style="width:0%"></div></div>
+  <p id="loadingText" class="loading-text">Đang khởi tạo...</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- AUTH SCREEN                                     -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="authScreen" class="fullscreen hidden">
+  <div class="auth-card">
+    <h1 id="authTitle">DriveKit 🚌</h1>
+    <p id="authSubtitle">Mọi hành trình, một giải pháp</p>
+    <input id="authEmail" type="email" placeholder="Email" autocomplete="email">
+    <input id="authPassword" type="password" placeholder="Mật khẩu" autocomplete="current-password">
+    <div id="authError" class="auth-error"></div>
+    <button id="btnSubmitAuth" class="btn btn-primary">Đăng nhập</button>
+    <button id="btnGoogleAuth" class="btn btn-google"><i class="fab fa-google"></i> Đăng nhập Google</button>
+    <div class="auth-toggle">
+      <span id="authToggleText">Chưa có tài khoản?</span>
+      <a href="#" id="authToggleBtn">Đăng ký ngay</a>
     </div>
   </div>
+</div>
 
-  <!-- Màn hình Đăng nhập -->
-  <div class="auth-screen hidden" id="authScreen">
-    <div class="auth-box">
-      <h2 id="authTitle">DriveKit 🚌</h2>
-      <p id="authSubtitle">Mọi hành trình, một giải pháp</p>
-      <button class="btn-auth btn-google" id="btnGoogleAuth"><i class="fab fa-google"></i> Đăng nhập bằng Google</button>
-      <div style="text-align:center; color:var(--text-muted); margin: 16px 0; font-size:0.85rem;">hoặc dùng Email</div>
-      <div id="authError" style="color:var(--danger); font-size:0.85rem; margin-bottom:10px; display:none; text-align:center; font-weight:600;"></div>
-      <input type="email" id="authEmail" class="auth-input" placeholder="Email" />
-      <input type="password" id="authPassword" class="auth-input" placeholder="Mật khẩu" />
-      <button class="btn-auth btn-email" id="btnSubmitAuth">Đăng nhập</button>
-      <div style="text-align:center; margin-top:16px; font-size:0.9rem;">
-        <span id="authToggleText" style="color:var(--text-muted);">Chưa có tài khoản?</span>
-        <a href="#" id="authToggleBtn" style="color:var(--primary); font-weight:700; text-decoration:none; margin-left:5px;">Đăng ký ngay</a>
-      </div>
-    </div>
-  </div>
+<!-- ═══════════════════════════════════════════════ -->
+<!-- MAIN APP                                        -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="appUI" class="hidden">
 
-  <!-- Giao diện chính App -->
-  <div id="appUI" class="hidden">
-    <div id="map"></div>
+  <!-- Map -->
+  <div id="map"></div>
 
-    <!-- Thanh tìm kiếm & Nút chức năng -->
-    <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
+  <!-- ─── Top Search Bar ─── -->
+  <div id="searchBar" class="search-bar">
+    <div class="search-field" onclick="activateSearch('view')">
       <i class="fas fa-search"></i>
-      <input type="text" id="topSearchInput" placeholder="Tìm địa điểm hoặc dán link Google Maps..." readonly />
-      <i class="fas fa-times search-clear-btn hidden" id="searchClearBtn" onclick="event.stopPropagation(); clearTopSearch()"></i>
+      <input id="topSearchInput" readonly placeholder="Tìm địa điểm hoặc dán link Google Maps...">
+      <button id="searchClearBtn" class="clear-btn hidden" onclick="event.stopPropagation();clearTopSearch()"><i class="fas fa-times"></i></button>
     </div>
-    <button class="fab-menu" id="mainMenuBtn" onclick="openMenu()"><i class="fas fa-bars"></i></button>
-    <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
-    <button class="fab-layers" id="btnLayerMenu" onclick="event.stopPropagation(); toggleLayerMenu()" title="Lớp bản đồ">
-      <i class="fas fa-layer-group"></i>
-    </button>
-    <button class="fab-layers" id="btnQuickPin" onclick="event.stopPropagation(); openQuickPin()" style="bottom: calc(140px + var(--safe-bottom)); right: 16px; left: auto; background: var(--success); color: white; border: none; box-shadow: 0 4px 15px rgba(16,185,129,0.4);" title="Ghim nhanh vị trí">
-      <i class="fas fa-map-marker-alt"></i>
-    </button>
-    <button class="fab-rest-stop-filter" id="btnRestStopFilter" onclick="toggleRestStopFilter()" title="Hiện/ẩn trạm dừng nghỉ">
-      <i class="fas fa-bed"></i>
-    </button>
-    <button id="btnResetBearing" onclick="resetMapBearing()" title="Reset hướng bản đồ">
-      <i class="fas fa-compass"></i>
-    </button>
+    <button id="mainMenuBtn" class="fab-btn" onclick="openMenu()"><i class="fas fa-user"></i></button>
+  </div>
 
-    <!-- Menu chọn lớp bản đồ -->
-    <div class="layer-menu" id="layerMenu">
-      <button class="layer-option active" onclick="changeLayer('trackasia', this)">
-        <div class="layer-title"><i class="fas fa-map"></i> Tiêu chuẩn V1</div>
-        <div class="layer-desc">Bản đồ mặc định (MapLibre)</div>
-      </button>
-      <button class="layer-option" onclick="changeLayer('mapbox', this)">
-        <div class="layer-title"><i class="fas fa-map-marked-alt"></i> Tiêu chuẩn</div>
-        <div class="layer-desc">Đường phố chi tiết</div>
-      </button>
-      <button class="layer-option" onclick="changeLayer('thunderforest', this)">
-        <div class="layer-title"><i class="fas fa-road"></i> Street</div>
-        <div class="layer-desc">Tên đường, POI địa phương</div>
-      </button>
-      <button class="layer-option" onclick="changeLayer('satellite', this)">
-        <div class="layer-title"><i class="fas fa-satellite"></i> Vệ tinh</div>
-        <div class="layer-desc">Ảnh vệ tinh thực tế</div>
-      </button>
+  <!-- ─── Suggestions Dropdown ─── -->
+  <div id="suggestionsBox" class="suggestions"></div>
+
+  <!-- ─── Right FAB Stack ─── -->
+  <div id="fabStack" class="fab-stack">
+    <button id="btnLayerMenu" class="fab-btn" onclick="toggleLayerMenu()" title="Lớp bản đồ"><i class="fas fa-layer-group"></i></button>
+    <button id="btnTraffic"  class="fab-btn" onclick="toggleTraffic()"   title="Traffic TomTom"><i class="fas fa-traffic-light"></i></button>
+    <button id="btn3D"       class="fab-btn" onclick="toggle3D()"        title="3D/2D"><i class="fas fa-cube"></i></button>
+    <button id="btnReport"   class="fab-btn" onclick="openReportMenu()"  title="Báo cáo"><i class="fas fa-exclamation-triangle"></i></button>
+    <button id="mainLocateBtn" class="fab-btn" onclick="centerToLocation()" title="Vị trí của tôi"><i class="fas fa-crosshairs"></i></button>
+    <button id="mainDirBtn"    class="fab-btn primary" onclick="openDirections()" title="Chỉ đường"><i class="fas fa-directions"></i></button>
+  </div>
+
+  <!-- ─── Layer Menu ─── -->
+  <div id="layerMenu" class="popup-menu">
+    <div class="popup-item active" data-layer="trackasia" onclick="setMapLayer('trackasia',this)">
+      <i class="fas fa-map"></i> TrackAsia 2D
     </div>
-
-    <button class="fab-report" id="btnReport" onclick="openReportMenu()"><i class="fas fa-exclamation-triangle"></i></button>
-    <button class="fab-directions" id="mainDirBtn" onclick="openDirections()"><i class="fas fa-directions"></i></button>
-
-    <!-- Bảng nhập điểm đi/đến -->
-    <div class="dir-sheet" id="dirSheet">
-      <div class="dir-handle"></div>
-      <div class="input-group" style="margin-top: 10px;">
-        <div class="dot start"></div>
-        <input type="text" id="dirInputStart" placeholder="Điểm đi (Mặc định GPS)" onclick="activateSearch('start')" />
-        <button class="btn-clear-input hidden" id="btnClearStart" onclick="event.stopPropagation(); clearPoint('start')"><i class="fas fa-times"></i></button>
-        <button onclick="refreshGPS()"><i class="fas fa-location-arrow" style="color:var(--primary); font-size: 1rem;"></i></button>
-      </div>
-      <div class="input-group">
-        <div class="dot end"></div>
-        <input type="text" id="dirInputEnd" placeholder="Điểm đến" onclick="activateSearch('end')" />
-        <button class="btn-clear-input hidden" id="btnClearEnd" onclick="event.stopPropagation(); clearPoint('end')"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="vehicle-selector">
-        <button class="vehicle-mode-btn" data-mode="driving" onclick="setVehicleMode('driving', this)"><i class="fas fa-car"></i> Ô tô</button>
-        <button class="vehicle-mode-btn" data-mode="driving-traffic" onclick="setVehicleMode('driving-traffic', this)"><i class="fas fa-car-side"></i> Kẹt xe</button>
-        <button class="vehicle-mode-btn" data-mode="hd" onclick="setVehicleMode('hd', this)"><i class="fas fa-motorcycle"></i> Xe CN</button>
-        <button class="vehicle-mode-btn" data-mode="truck" onclick="setVehicleMode('truck', this)"><i class="fas fa-truck"></i> Xe tải</button>
-        <button class="vehicle-mode-btn" data-mode="motorcycle" onclick="setVehicleMode('motorcycle', this)"><i class="fas fa-motorcycle"></i> Xe máy</button>
-        <button class="vehicle-mode-btn" data-mode="walking" onclick="setVehicleMode('walking', this)"><i class="fas fa-walking"></i> Đi bộ</button>
-        <button class="vehicle-mode-btn" data-mode="bicycle" onclick="setVehicleMode('bicycle', this)"><i class="fas fa-bicycle"></i> Xe đạp</button>
-      </div>
-      <div id="truckWarning" class="hidden" style="background: rgba(245, 158, 11, 0.15); border: 1px solid var(--warning); border-radius: 8px; padding: 10px; margin-bottom: 10px; display: flex; gap: 8px; align-items: flex-start;">
-        <i class="fas fa-exclamation-triangle" style="color: var(--warning); font-size: 1.1rem; margin-top: 2px;"></i>
-        <div style="font-size: 0.75rem; color: var(--text); line-height: 1.4;">
-          <b style="color: var(--warning);">Lưu ý cho Xe tải:</b> Bản đồ sử dụng dữ liệu OpenStreetMap (ORS). Vui lòng <b>tự quan sát biển báo cấm tải, giới hạn chiều cao và tải trọng</b> trên thực tế!
-        </div>
-      </div>
-      <button class="btn-auth btn-email" style="margin-top:6px; margin-bottom:0;" onclick="fetchAndShowRouteOptions()">
-        <i class="fas fa-search-location"></i> Xem tất cả tuyến đường
-      </button>
+    <div class="popup-item" data-layer="mapbox" onclick="setMapLayer('mapbox',this)">
+      <i class="fas fa-map-marked-alt"></i> Mapbox
     </div>
-
-    <div class="suggestions-box" id="suggestionsBox"></div>
-
-    <!-- Màn hình dẫn đường (HUD) -->
-    <div class="hidden" id="hud">
-      <div class="hud-top">
-        <div class="hud-stat"><span class="label">Còn lại</span><span class="value" id="hudRemainDist">—</span></div>
-        <div class="hud-stat"><span class="label">Đến nơi</span><span class="value" id="hudRemainTime">—</span></div>
-        <div class="hud-stat speed"><span class="label">Tốc độ</span><span class="value" id="hudSpeed">0 km/h</span></div>
-        <button class="hud-end-btn-top" onclick="openEndTripModal()">
-          <i class="fas fa-flag-checkered"></i>
-          <span>Kết thúc</span>
-        </button>
-      </div>
-      <div class="hud-next">
-        <div class="arrow" id="hudNextArrow">↑</div>
-        <div class="info"><div class="dist" id="hudNextDist">—</div><div class="instr" id="hudNextInstr">Đang tải...</div></div>
-      </div>
-      <div class="hud-bottom">
-        <div class="hud-next-stop">
-          <div class="name" id="hudNextStopName">—</div>
-          <div class="dist" id="hudNextStopDist">—</div>
-        </div>
-        <div class="hud-btn-group">
-          <button class="hud-btn swap" onclick="openAlternativeRoutes()" title="Đổi đường"><i class="fas fa-random"></i></button>
-          <button class="hud-btn" id="hudBtnVoice"><i class="fas fa-volume-up"></i></button>
-        </div>
-      </div>
+    <div class="popup-item" data-layer="satellite" onclick="setMapLayer('satellite',this)">
+      <i class="fas fa-satellite"></i> Vệ tinh
     </div>
   </div>
 
-  <!-- Các Modal (Bảng trượt lên) -->
-  <div class="route-options-modal" id="routeOptionsModal">
-    <div class="route-options-header">
-      <h2><i class="fas fa-route"></i> Các tuyến đường gợi ý</h2>
-      <button class="report-close" onclick="closeRouteOptions()" style="background:var(--bg-2);color:var(--text);"><i class="fas fa-times"></i></button>
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- BOTTOM SHEETS                              -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <!-- ▸ Directions Sheet -->
+  <div id="dirSheet" class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <h2>Chỉ đường</h2>
+      <button class="close-btn" onclick="closeDirections()"><i class="fas fa-times"></i></button>
     </div>
-    <div class="route-options-body" id="routeOptionsBody"></div>
+    <div class="sheet-body">
+      <div class="dir-inputs">
+        <div class="dir-row">
+          <i class="fas fa-circle dot-start"></i>
+          <input id="dirInputStart" readonly placeholder="Điểm đi" onclick="activateSearch('start')">
+          <button class="clear-btn" onclick="clearPoint('start')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="dir-row">
+          <i class="fas fa-map-marker-alt dot-end"></i>
+          <input id="dirInputEnd" readonly placeholder="Điểm đến" onclick="activateSearch('end')">
+          <button class="clear-btn" onclick="clearPoint('end')"><i class="fas fa-times"></i></button>
+        </div>
+      </div>
+
+      <!-- Vehicle Modes -->
+      <div class="section-label">Phương tiện</div>
+      <div class="chip-row" id="vehicleModes">
+        <button class="chip active" data-mode="motorcycle" onclick="setVehicleMode('motorcycle',this)"><i class="fas fa-motorcycle"></i> Xe máy</button>
+        <button class="chip" data-mode="car"        onclick="setVehicleMode('car',this)"><i class="fas fa-car"></i> Xe hơi</button>
+        <button class="chip" data-mode="truck"      onclick="setVehicleMode('truck',this)"><i class="fas fa-truck"></i> Xe tải</button>
+        <button class="chip" data-mode="bicycle"    onclick="setVehicleMode('bicycle',this)"><i class="fas fa-bicycle"></i> Xe đạp</button>
+        <button class="chip" data-mode="walking"    onclick="setVehicleMode('walking',this)"><i class="fas fa-walking"></i> Đi bộ</button>
+      </div>
+
+      <!-- Truck params (hidden by default, shown for truck mode) -->
+      <div id="truckParams" class="truck-params hidden">
+        <div class="section-label">Thông số xe tải</div>
+        <div class="param-grid">
+          <label>Cao (m)<input id="truckHeight" type="number" step="0.1" value="3.5"></label>
+          <label>Nặng (tấn)<input id="truckWeight" type="number" step="0.5" value="10"></label>
+          <label>Rộng (m)<input id="truckWidth" type="number" step="0.1" value="2.5"></label>
+          <label>Dài (m)<input id="truckLength" type="number" step="0.5" value="8"></label>
+        </div>
+      </div>
+
+      <!-- Routing Provider -->
+      <div class="section-label">Nguồn dữ liệu tuyến</div>
+      <select id="routingProvider" class="select">
+        <option value="mapbox">Mapbox</option>
+        <option value="freeroute">FreeRoute</option>
+        <option value="geoapify">Geoapify</option>
+        <option value="goong">Goong</option>
+      </select>
+
+      <button class="btn btn-primary full" onclick="fetchAndShowRoute()">
+        <i class="fas fa-search"></i> Tìm tuyến đường
+      </button>
+    </div>
   </div>
 
-  <div class="report-modal" id="reportModal">
-    <div class="report-header">
+  <!-- ▸ Route Options Sheet -->
+  <div id="routeOptionsModal" class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <h2>Chọn tuyến đường</h2>
+      <button class="close-btn" onclick="closeRouteOptions()"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="routeOptionsBody" class="sheet-body"></div>
+  </div>
+
+  <!-- ▸ Profile Menu -->
+  <div id="profileModal" class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <h2>Tài khoản</h2>
+      <button class="close-btn" onclick="closeMenu()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="sheet-body">
+      <div class="profile-head">
+        <div id="profileAvatar" class="avatar"><i class="fas fa-user"></i></div>
+        <div class="profile-info">
+          <div id="profileName">--</div>
+          <div id="profileEmail" class="muted">--</div>
+        </div>
+      </div>
+
+      <div class="toggle-row">
+        <span><i class="fas fa-moon"></i> Chế độ sáng</span>
+        <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="history" onclick="switchTab('history',this)">Lịch sử</button>
+        <button class="tab" data-tab="saved"   onclick="switchTab('saved',this)">Tuyến lưu</button>
+        <button class="tab" data-tab="live"    onclick="switchTab('live',this)">Live</button>
+        <button class="tab" data-tab="links"   onclick="switchTab('links',this)">Link</button>
+      </div>
+
+      <!-- Tab: History -->
+      <div id="tabHistory" class="tab-panel active">
+        <div id="historyList" class="list"></div>
+        <button class="btn btn-danger full mt" onclick="clearAllHistory()">Xoá tất cả</button>
+      </div>
+
+      <!-- Tab: Saved Routes -->
+      <div id="tabSaved" class="tab-panel">
+        <div id="savedRoutesList" class="list"></div>
+        <button class="btn btn-danger full mt" onclick="clearAllSavedRoutes()">Xoá tất cả</button>
+      </div>
+
+      <!-- Tab: Live -->
+      <div id="tabLive" class="tab-panel">
+        <div class="live-header">
+          <span><i class="fas fa-satellite-dish"></i> Chia sẻ trực tiếp</span>
+          <span id="liveStatusBadge" class="badge-off">OFF</span>
+        </div>
+        <div class="toggle-row">
+          <span>Bật Live</span>
+          <input type="checkbox" id="liveToggleSwitch" onchange="toggleLiveSession()">
+        </div>
+        <div id="liveRoomCodeBox" class="live-code-box hidden">
+          <div class="live-code-label">Mã phòng</div>
+          <div class="live-code" id="liveRoomCodeText">------</div>
+          <button class="btn btn-primary full" onclick="copyLiveRoomCode()"><i class="fas fa-copy"></i> Copy mã</button>
+        </div>
+        <div id="liveRoomActions" class="live-actions">
+          <button class="btn btn-primary full" onclick="createLiveRoom()">Tạo phòng</button>
+          <div class="join-row">
+            <input id="liveJoinCodeInput" placeholder="Mã phòng" maxlength="6">
+            <button class="btn btn-secondary" onclick="joinLiveRoom()">Vào</button>
+          </div>
+        </div>
+        <div id="liveMembersBox" class="hidden">
+          <div class="section-label">Thành viên (<span id="liveMemberCount">0</span>)</div>
+          <div id="liveMemberList" class="list"></div>
+        </div>
+        <button id="liveLeaveBtn" class="btn btn-danger full mt hidden" onclick="leaveLiveRoom()">Rời phòng</button>
+      </div>
+
+      <!-- Tab: Shared Links -->
+      <div id="tabLinks" class="tab-panel">
+        <div id="sharedLinksList" class="list"></div>
+        <button class="btn btn-danger full mt" onclick="clearAllSharedLinks()">Xoá tất cả</button>
+      </div>
+
+      <button class="btn btn-danger full mt" onclick="logout()">
+        <i class="fas fa-sign-out-alt"></i> Đăng xuất
+      </button>
+    </div>
+  </div>
+
+  <!-- ▸ Report Sheet -->
+  <div id="reportModal" class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
       <h2>Báo cáo sự cố</h2>
-      <button class="report-close" onclick="closeReportMenu()"><i class="fas fa-times"></i></button>
+      <button class="close-btn" onclick="closeReportMenu()"><i class="fas fa-times"></i></button>
     </div>
-    <div class="report-body">
-      <button class="report-btn police" onclick="submitReport('police')"><i class="fas fa-shield-alt"></i> CSGT</button>
-      <button class="report-btn accident" onclick="submitReport('accident')"><i class="fas fa-car-crash"></i> Tai nạn</button>
-      <button class="report-btn traffic" onclick="submitReport('traffic')"><i class="fas fa-traffic-light"></i> Kẹt xe</button>
-      <button class="report-btn pothole" onclick="submitReport('pothole')"><i class="fas fa-exclamation-circle"></i> Ổ gà</button>
-      <button class="report-btn" onclick="submitReport('flood')"><i class="fas fa-water"></i> Ngập nước</button>
-      <button class="report-btn" onclick="submitReport('bridge_collapse')"><i class="fas fa-road-circle-xmark"></i> Sập cầu</button>
-      <button class="report-btn" onclick="submitReport('road_collapse')"><i class="fas fa-triangle-exclamation"></i> Sập đường</button>
+    <div class="sheet-body">
+      <div class="report-grid">
+        <button class="report-btn" onclick="submitReport('police')"><i class="fas fa-shield-alt"></i> CSGT</button>
+        <button class="report-btn" onclick="submitReport('accident')"><i class="fas fa-car-crash"></i> Tai nạn</button>
+        <button class="report-btn" onclick="submitReport('traffic')"><i class="fas fa-traffic-light"></i> Kẹt xe</button>
+        <button class="report-btn" onclick="submitReport('pothole')"><i class="fas fa-exclamation-circle"></i> Ổ gà</button>
+        <button class="report-btn" onclick="submitReport('flood')"><i class="fas fa-water"></i> Ngập</button>
+        <button class="report-btn" onclick="submitReport('bridge_collapse')"><i class="fas fa-road-circle-xmark"></i> Sập cầu</button>
+        <button class="report-btn" onclick="submitReport('road_collapse')"><i class="fas fa-triangle-exclamation"></i> Sập đường</button>
+      </div>
     </div>
   </div>
 
-  <div class="profile-modal" id="profileModal">
-    <div class="profile-header">
-      <button class="profile-close" onclick="closeMenu()"><i class="fas fa-times"></i></button>
-      <div class="profile-avatar" id="profileAvatar"><i class="fas fa-user"></i></div>
-      <div class="profile-name" id="profileName">Đang tải...</div>
-      <div class="profile-email" id="profileEmail">...</div>
-      <div class="profile-time" id="profileTime">00:00:00</div>
+  <!-- ▸ Save Place Sheet -->
+  <div id="savePlaceModal" class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <h2>Ghim địa điểm</h2>
+      <button class="close-btn" onclick="closeSavePlaceModal()"><i class="fas fa-times"></i></button>
     </div>
-    <div class="profile-body">
-      <div class="profile-card" id="liveRoomCard">
-        <h3>
-          <span><i class="fas fa-satellite-dish" style="color:#10b981;"></i> Live Room</span>
-          <span class="live-badge-status" id="liveStatusBadge" style="display:none;">OFF</span>
-        </h3>
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:var(--bg-2); border-radius:10px; margin-bottom:12px;">
-          <div>
-            <div style="font-weight:800; font-size:0.9rem;">Chế độ Live</div>
-            <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">Chia sẻ vị trí 6s/lần</div>
-          </div>
-          <label class="switch">
-            <input type="checkbox" id="liveToggleSwitch" onchange="toggleLiveRoom()">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div id="liveFeatures" style="opacity:0.4; pointer-events:none; display:flex; flex-direction:column; gap:12px; position:relative;">
-          <div id="liveDisabledOverlay" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(15,23,42,0.85); border-radius:8px; z-index:5; font-size:0.75rem; font-weight:700; color:var(--warning);">
-            🔒 Bật Live để sử dụng
-          </div>
-          <div id="liveRoomCodeBox" style="display:none; flex-direction:column; gap:6px;">
-            <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted);">Mã phòng của bạn</label>
-            <div style="display:flex; align-items:center; gap:8px; padding:12px; background:var(--bg); border:2px dashed #10b981; border-radius:10px;">
-              <span id="liveRoomCodeText" style="flex:1; text-align:center; font-family:var(--font-mono); font-size:1.3rem; font-weight:900; letter-spacing:4px; color:#10b981;">------</span>
-              <button onclick="copyLiveRoomCode()" style="background:#10b981; color:white; border:none; padding:8px 12px; border-radius:6px; font-size:0.75rem; font-weight:700; cursor:pointer;"><i class="fas fa-copy"></i> Copy</button>
-            </div>
-            <div style="font-size:0.7rem; color:var(--text-muted); text-align:center;">Chia sẻ mã này để người khác vào xem vị trí</div>
-          </div>
-          <div id="liveRoomActions" style="display:flex; flex-direction:column; gap:8px;">
-            <button class="profile-btn" onclick="createLiveRoom()" style="background:var(--primary); color:white; border:none; justify-content:center;">
-              <span><i class="fas fa-plus-circle"></i> Tạo phòng mới</span>
-            </button>
-            <div style="display:flex; gap:8px;">
-              <input type="text" id="liveJoinCodeInput" placeholder="Nhập mã phòng..." maxlength="6" style="flex:1; padding:10px; background:var(--bg-2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:var(--font-mono); font-weight:800; letter-spacing:2px; text-align:center; text-transform:uppercase;">
-              <button onclick="joinLiveRoom()" style="background:var(--success); color:white; border:none; padding:0 16px; border-radius:8px; font-weight:700; cursor:pointer;"><i class="fas fa-sign-in-alt"></i> Vào</button>
-            </div>
-          </div>
-          <div id="livePublicBox" style="display:none; padding:12px; background:var(--bg-2); border-radius:10px; border-left:3px solid var(--warning);">
-            <div style="display:flex; align-items:center; justify-content:space-between;">
-              <div>
-                <div style="font-weight:800; font-size:0.85rem;"><i class="fas fa-globe" style="color:var(--warning);"></i> Chế độ Public</div>
-                <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">Người trong 10km thấy bạn</div>
-              </div>
-              <label class="switch">
-                <input type="checkbox" id="livePublicSwitch" onchange="toggleLivePublic()">
-                <span class="slider"></span>
-              </label>
-            </div>
-          </div>
-          <div id="liveMembersBox" style="display:none;">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-              <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted);">Người đang live</label>
-              <span id="liveMemberCount" style="font-size:0.75rem; color:var(--text-muted);">0</span>
-            </div>
-            <div id="liveMemberList" style="display:flex; flex-direction:column; gap:6px; max-height:200px; overflow-y:auto;">
-              <div style="text-align:center; padding:16px; color:var(--text-muted); font-size:0.75rem;">
-                <i class="fas fa-users" style="font-size:1.5rem; opacity:0.3; display:block; margin-bottom:6px;"></i>
-                Chưa có ai
-              </div>
-            </div>
-          </div>
-          <button id="liveLeaveBtn" onclick="leaveLiveRoom()" style="display:none; width:100%; padding:12px; background:var(--danger); color:white; border:none; border-radius:10px; font-weight:800; cursor:pointer;">
-            <i class="fas fa-sign-out-alt"></i> Rời phòng
-          </button>
-        </div>
+    <div class="sheet-body">
+      <div id="savePlaceAddress" class="muted mb">--</div>
+      <div class="grid-3">
+        <button class="report-btn" onclick="submitSavePlace('home')"><i class="fas fa-home"></i> Nhà</button>
+        <button class="report-btn" onclick="submitSavePlace('company')"><i class="fas fa-building"></i> Công ty</button>
+        <button class="report-btn" onclick="submitSavePlace('school')"><i class="fas fa-school"></i> Trường</button>
+        <button class="report-btn" onclick="submitSavePlace('cafe')"><i class="fas fa-coffee"></i> Cafe</button>
+        <button class="report-btn" onclick="submitSavePlace('restaurant')"><i class="fas fa-utensils"></i> Quán ăn</button>
+        <button class="report-btn" onclick="submitSavePlace('other')"><i class="fas fa-map-marker-alt"></i> Khác</button>
       </div>
-      <button class="profile-btn" onclick="shareRoute()">
-        <span><i class="fas fa-share-alt"></i> Chia sẻ lộ trình hiện tại</span>
-        <i class="fas fa-chevron-right"></i>
-      </button>
-      <div class="profile-btn" style="cursor: default;">
-        <span><i class="fas fa-moon"></i> Chế độ Sáng / Tối</span>
-        <label class="switch">
-          <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
-          <span class="slider"></span>
-        </label>
+    </div>
+  </div>
+
+  <!-- ▸ POI Sheet -->
+  <div id="poiSheet" class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <h2>Thêm địa điểm cộng đồng</h2>
+      <button class="close-btn" onclick="closePoiSheet()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="sheet-body">
+      <div id="poiCoords" class="muted mb">--</div>
+      <input id="poiNameInput" class="input-full" placeholder="Tên địa điểm (≥2 ký tự)">
+      <div class="chip-row wrap" id="poiTags">
+        <button class="chip poi-tag" data-tag="supermarket" onclick="selectPoiTag('supermarket',this)"><i class="fas fa-shopping-cart"></i> Siêu thị</button>
+        <button class="chip poi-tag" data-tag="rest_stop" onclick="selectPoiTag('rest_stop',this)"><i class="fas fa-bed"></i> Trạm nghỉ</button>
+        <button class="chip poi-tag" data-tag="gas_station" onclick="selectPoiTag('gas_station',this)"><i class="fas fa-gas-pump"></i> Xăng</button>
+        <button class="chip poi-tag" data-tag="cafe" onclick="selectPoiTag('cafe',this)"><i class="fas fa-coffee"></i> Cafe</button>
+        <button class="chip poi-tag" data-tag="restaurant" onclick="selectPoiTag('restaurant',this)"><i class="fas fa-utensils"></i> Quán ăn</button>
+        <button class="chip poi-tag" data-tag="pharmacy" onclick="selectPoiTag('pharmacy',this)"><i class="fas fa-prescription-bottle-medical"></i> Thuốc</button>
+        <button class="chip poi-tag" data-tag="atm" onclick="selectPoiTag('atm',this)"><i class="fas fa-money-bill-wave"></i> ATM</button>
+        <button class="chip poi-tag" data-tag="repair" onclick="selectPoiTag('repair',this)"><i class="fas fa-wrench"></i> Sửa xe</button>
+        <button class="chip poi-tag" data-tag="hotel" onclick="selectPoiTag('hotel',this)"><i class="fas fa-hotel"></i> Khách sạn</button>
       </div>
-      <button class="profile-btn" onclick="clearAppCache()" style="color: var(--warning); border-color: var(--warning); margin-top:10px;">
-        <span><i class="fas fa-sync-alt"></i> Làm mới dữ liệu (Xoá Cache)</span>
-      </button>
-      <div class="profile-card">
-        <h3><i class="fas fa-bookmark"></i> Lộ trình đã lưu
-          <button onclick="clearAllSavedRoutes()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button>
-        </h3>
-        <div class="history-list" id="savedRoutesList">
-          <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có lộ trình nào được lưu</div>
-        </div>
-      </div>
-      <div class="profile-card">
-        <h3><i class="fas fa-history"></i> Lịch sử chuyến đi
-          <button onclick="clearAllHistory()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button>
-        </h3>
-        <div class="history-list" id="historyList">
-          <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có chuyến đi nào</div>
-        </div>
-      </div>
-      <div class="profile-card">
-        <h3><i class="fas fa-link"></i> Link đã chia sẻ
-          <button onclick="clearAllSharedLinks()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button>
-        </h3>
-        <div class="history-list" id="sharedLinksList">
-          <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có link nào</div>
-        </div>
-      </div>
-      <button class="profile-btn logout" onclick="logout()">
-        <span><i class="fas fa-sign-out-alt"></i> Đăng xuất</span>
+      <button id="poiSaveBtn" class="btn btn-primary full mt" onclick="submitCommunityPoi()" disabled>
+        <i class="fas fa-check"></i> Lưu địa điểm
       </button>
     </div>
   </div>
 
-  <div class="end-trip-modal" id="endTripModal">
-    <div class="end-trip-box">
-      <h2>🏁 Hoàn thành chuyến đi</h2>
-      <div class="end-trip-stats">
-        <div class="row"><span><i class="fas fa-road"></i> Quãng đường</span><b id="endTripDist">—</b></div>
-        <div class="row"><span><i class="fas fa-clock"></i> Thời gian</span><b id="endTripTime">—</b></div>
-        <div class="row"><span><i class="fas fa-tachometer-alt"></i> Tốc độ TB</span><b id="endTripAvgSpeed">—</b></div>
-        <div class="row"><span><i class="fas fa-map-marker-alt"></i> Điểm đến</span><b id="endTripDest" style="font-size:0.85rem; font-family:var(--font-main); max-width:160px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">—</b></div>
-      </div>
-      <button class="end-trip-btn save" onclick="endTrip(true)"><i class="fas fa-save"></i> Lưu & Kết thúc</button>
-      <button class="end-trip-btn discard" onclick="endTrip(false)"><i class="fas fa-flag-checkered"></i> Kết thúc không lưu</button>
-      <button class="end-trip-btn cancel" onclick="closeEndTripModal()"><i class="fas fa-arrow-left"></i> Tiếp tục chuyến đi</button>
-    </div>
+  <!-- ▸ POI Detail Sheet -->
+  <div id="poiDetailSheet" class="sheet">
+    <div class="sheet-handle"></div>
+    <div id="poiDetailContent" class="sheet-body"></div>
   </div>
 
-  <div class="end-trip-modal" id="savePlaceModal">
-    <div class="end-trip-box">
-      <h2>📍 Lưu địa điểm</h2>
-      <p style="text-align: center; color: var(--text-muted); margin-bottom: 16px; font-size: 0.9rem;" id="savePlaceAddress">Đang lấy địa chỉ...</p>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
-        <button class="report-btn" onclick="submitSavePlace('home')"><i class="fas fa-home" style="color:#10b981;"></i> Nhà riêng</button>
-        <button class="report-btn" onclick="submitSavePlace('cafe')"><i class="fas fa-coffee" style="color:#f59e0b;"></i> Quán Cafe</button>
-        <button class="report-btn" onclick="submitSavePlace('restaurant')"><i class="fas fa-utensils" style="color:#ef4444;"></i> Nhà hàng</button>
-        <button class="report-btn" onclick="submitSavePlace('company')"><i class="fas fa-building" style="color:#3b82f6;"></i> Công ty</button>
-        <button class="report-btn" onclick="submitSavePlace('school')"><i class="fas fa-school" style="color:#8b5cf6;"></i> Trường học</button>
-        <button class="report-btn" onclick="submitSavePlace('other')"><i class="fas fa-map-marker-alt" style="color:#64748b;"></i> Khác</button>
-      </div>
-      <button class="end-trip-btn cancel" onclick="closeSavePlaceModal()"><i class="fas fa-times"></i> Huỷ</button>
+  <!-- ▸ End Trip Sheet -->
+  <div id="endTripModal" class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <h2>Kết thúc chuyến đi</h2>
     </div>
-  </div>
-
-  <div class="client-vehicle-modal" id="clientVehicleModal">
-    <div class="end-trip-box">
-      <h2>🚗 Chọn phương tiện</h2>
-      <p style="text-align: center; color: var(--text-muted); margin-bottom: 16px; font-size: 0.9rem;">Host đã bắt đầu chuyến đi. Hãy chọn phương tiện của bạn!</p>
-      <div class="vehicle-selector" style="flex-direction: column;">
-        <button class="vehicle-mode-btn" style="flex: none; padding: 15px; font-size: 1rem; flex-direction: row; gap: 12px;" onclick="selectClientVehicle('driving')"><i class="fas fa-car"></i> Ô tô</button>
-        <button class="vehicle-mode-btn" style="flex: none; padding: 15px; font-size: 1rem; flex-direction: row; gap: 12px;" onclick="selectClientVehicle('motorcycle')"><i class="fas fa-motorcycle"></i> Xe máy</button>
-        <button class="vehicle-mode-btn" style="flex: none; padding: 15px; font-size: 1rem; flex-direction: row; gap: 12px;" onclick="selectClientVehicle('truck')"><i class="fas fa-truck"></i> Xe tải</button>
-        <button class="vehicle-mode-btn" style="flex: none; padding: 15px; font-size: 1rem; flex-direction: row; gap: 12px;" onclick="selectClientVehicle('hd')"><i class="fas fa-motorcycle"></i> Xe công nghệ</button>
-        <button class="vehicle-mode-btn" style="flex: none; padding: 15px; font-size: 1rem; flex-direction: row; gap: 12px;" onclick="selectClientVehicle('walking')"><i class="fas fa-walking"></i> Đi bộ</button>
-        <button class="vehicle-mode-btn" style="flex: none; padding: 15px; font-size: 1rem; flex-direction: row; gap: 12px;" onclick="selectClientVehicle('bicycle')"><i class="fas fa-bicycle"></i> Xe đạp</button>
+    <div class="sheet-body">
+      <div class="stats-grid">
+        <div class="stat"><i class="fas fa-road"></i><span id="endTripDist">--</span></div>
+        <div class="stat"><i class="fas fa-clock"></i><span id="endTripTime">--</span></div>
+        <div class="stat"><i class="fas fa-tachometer-alt"></i><span id="endTripAvgSpeed">--</span></div>
+        <div class="stat"><i class="fas fa-flag-checkered"></i><span id="endTripDest">--</span></div>
+      </div>
+      <div class="row-2 mt">
+        <button class="btn btn-secondary" onclick="endTrip(false)">Không lưu</button>
+        <button class="btn btn-primary" onclick="endTrip(true)"><i class="fas fa-save"></i> Lưu tuyến</button>
       </div>
     </div>
   </div>
 
-  <div class="poi-detail-sheet" id="poiDetailSheet">
-    <div class="sheet-swipe-hint" id="poiDetailSwipeHandle">
-      <div class="sheet-swipe-bar"></div>
-      <div class="sheet-swipe-text"><span>Vuốt xuống để đóng</span><i class="fas fa-chevron-down"></i></div>
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- HUD NAVIGATION                             -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="hud" class="hud hidden">
+    <div class="hud-main">
+      <div id="hudNextArrow" class="hud-arrow"><i class="fas fa-arrow-up"></i></div>
+      <div class="hud-info">
+        <div id="hudNextDist" class="hud-dist">--</div>
+        <div id="hudNextInstr" class="hud-instr">--</div>
+      </div>
     </div>
-    <div id="poiDetailContent"></div>
-  </div>
-
-  <div class="poi-sheet" id="poiSheet">
-    <div class="sheet-swipe-hint" id="poiSheetSwipeHandle">
-      <div class="sheet-swipe-bar"></div>
-      <div class="sheet-swipe-text"><span>Vuốt xuống để đóng</span><i class="fas fa-chevron-down"></i></div>
+    <div class="hud-stats">
+      <div><i class="fas fa-road"></i> <span id="hudRemainDist">--</span></div>
+      <div><i class="fas fa-clock"></i> <span id="hudRemainTime">--</span></div>
+      <div><i class="fas fa-tachometer-alt"></i> <span id="hudSpeed">0 km/h</span></div>
     </div>
-    <h3><i class="fas fa-map-marker-alt" style="color:var(--success);"></i> Thêm địa điểm cộng đồng</h3>
-    <div class="poi-coords" id="poiCoords">—</div>
-    <div class="poi-tag-grid" id="poiTagGrid">
-      <button class="poi-tag-btn" data-tag="supermarket" onclick="selectPoiTag('supermarket', this)"><i class="fas fa-shopping-cart"></i> Siêu thị</button>
-      <button class="poi-tag-btn" data-tag="rest_stop" onclick="selectPoiTag('rest_stop', this)" style="border-color: #3b82f6; color: #3b82f6; position: relative;"><i class="fas fa-bed"></i> Trạm dừng nghỉ<span style="position:absolute; top:-6px; right:-6px; background:#3b82f6; color:white; font-size:0.55rem; padding:2px 6px; border-radius:8px; font-weight:800;">HOT</span></button>
-      <button class="poi-tag-btn" data-tag="gas_station" onclick="selectPoiTag('gas_station', this)"><i class="fas fa-gas-pump"></i> Cây xăng</button>
-      <button class="poi-tag-btn" data-tag="cafe" onclick="selectPoiTag('cafe', this)"><i class="fas fa-coffee"></i> Cafe</button>
-      <button class="poi-tag-btn" data-tag="restaurant" onclick="selectPoiTag('restaurant', this)"><i class="fas fa-utensils"></i> Nhà hàng</button>
-      <button class="poi-tag-btn" data-tag="pharmacy" onclick="selectPoiTag('pharmacy', this)"><i class="fas fa-prescription-bottle-medical"></i> Nhà thuốc</button>
-      <button class="poi-tag-btn" data-tag="atm" onclick="selectPoiTag('atm', this)"><i class="fas fa-money-bill-wave"></i> ATM</button>
-      <button class="poi-tag-btn" data-tag="repair" onclick="selectPoiTag('repair', this)"><i class="fas fa-wrench"></i> Sửa xe</button>
-      <button class="poi-tag-btn" data-tag="hotel" onclick="selectPoiTag('hotel', this)"><i class="fas fa-hotel"></i> Khách sạn</button>
-    </div>
-    <input type="text" class="poi-input-name" id="poiNameInput" placeholder="Nhập tên địa điểm..." maxlength="80" />
-    <div class="poi-actions">
-      <button class="poi-btn cancel" onclick="closePoiSheet()"><i class="fas fa-times"></i> Huỷ</button>
-      <button class="poi-btn save" id="poiSaveBtn" onclick="submitCommunityPoi()" disabled><i class="fas fa-check"></i> Lưu địa điểm</button>
+    <div class="hud-actions">
+      <button id="hudBtnVoice" class="fab-btn" onclick="toggleVoice()"><i class="fas fa-volume-up"></i></button>
+      <button class="fab-btn" onclick="openAlternativeRoutes()"><i class="fas fa-route"></i></button>
+      <button class="fab-btn" onclick="openEndTripModal()"><i class="fas fa-flag-checkered"></i></button>
     </div>
   </div>
 
-  <!-- Script xử lý lỗi tải cơ bản -->
-  <script>
-    window.addEventListener('error', function (e) {
-      var t = document.getElementById('loadingText');
-      if (t) t.textContent = 'Lỗi tải: ' + (e.message || 'không rõ') + ' — mở F12 → Console';
-    });
-    setTimeout(function () {
-      var el = document.getElementById('loadingPercent');
-      if (el && el.textContent === '0%') {
-        var t = document.getElementById('loadingText');
-        if (t) t.textContent = 'Không tải được ứng dụng. Mở F12 → Console để xem lỗi.';
-      }
-    }, 3500);
-  </script>
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- LIVE VIEWER CONTROLS                       -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="liveViewerControls" class="live-viewer hidden">
+    <button class="live-arrow" onclick="switchLiveUser(-1)"><i class="fas fa-chevron-left"></i></div>
+    <div class="live-center" id="liveCenterText">Chuyển user</div>
+    <button class="live-arrow" onclick="switchLiveUser(1)"><i class="fas fa-chevron-right"></i></button>
+  </div>
 
-  <!-- Nhúng file JS chính (Bắt buộc phải có type="module") -->
-  <script type="module" src="app.js"></script>
+  <!-- Map rotate controls (MapLibre) -->
+  <div id="mapRotateControls" class="rotate-controls hidden">
+    <button id="compassBtn" class="compass" onclick="resetNorth()"><div class="compass-arrow"></div></button>
+    <button class="rotate-btn" onclick="rotateMap(-15)"><i class="fas fa-undo"></i></button>
+    <button class="rotate-btn" onclick="rotateMap(15)"><i class="fas fa-redo"></i></button>
+    <button id="tiltBtn" class="rotate-btn" onclick="toggleTilt()"><i class="fas fa-mountain"></i></button>
+  </div>
+
+</div>
+
+<!-- Toast container -->
+<div id="toastContainer" class="toast-container"></div>
+
+<script src="https://unpkg.com/maplibre-gl@^4.7.1/dist/maplibre-gl.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
