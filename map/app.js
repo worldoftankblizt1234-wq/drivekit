@@ -20,7 +20,9 @@ const db = getDatabase(app);
 const fsdb = getFirestore(app);
 
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
-const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
+
+const MAPLIBRE_STYLE_LIGHT = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+const MAPLIBRE_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
 async function fetchWorker(path, options = {}) {
   return fetch(`${WORKER_URL}${path}`, { ...options, headers: { ...(options.headers || {}) } });
@@ -48,7 +50,7 @@ let lastSnapIndex = 0;
 let smoothedSpeed = 0;
 let offRouteCount = 0;
 let isRerouting = false;
-let lastRerouteTime = 0; 
+let lastRerouteTime = 0;
 let warnedReports = new Set();
 let voiceEnabled = true;
 let voiceRouteSteps = null;
@@ -111,6 +113,9 @@ const LIVE_HEARTBEAT_TIMEOUT = 120000;
 let isViewingLiveTrack = false;
 let activeLiveUsers = [];
 let currentLiveIndex = 0;
+
+let autoRotateWithHeading = false;
+let userRotatedMap = false;
 
 const POI_TAG_CONFIG = {
   supermarket: { icon: 'fa-shopping-cart', label: 'Siêu thị', color: '#10b981' },
@@ -199,7 +204,7 @@ onAuthStateChanged(auth, (user) => {
     document.getElementById('profileName').textContent = user.displayName || user.email.split('@')[0];
     document.getElementById('profileEmail').textContent = user.email;
     if (user.photoURL) document.getElementById('profileAvatar').innerHTML = `<img src="${user.photoURL}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
-    
+
     const params = new URLSearchParams(window.location.search);
     if (params.get('fromLat')) {
       startPoint = { lat: parseFloat(params.get('fromLat')), lng: parseFloat(params.get('fromLng')), name: params.get('fromName') || 'Điểm đi' };
@@ -264,7 +269,7 @@ function initAppUI() {
       else showSharedLocationMarker(toLat, toLng, toName, true);
     }, 800);
   }
-  
+
   const liveRoomParam = params.get('room');
   if (liveRoomParam) {
     setTimeout(() => { initViewerLiveRoom(liveRoomParam); }, 1000);
@@ -281,7 +286,19 @@ function initTheme() {
 window.toggleTheme = function() {
   if (document.getElementById('themeToggle').checked) { document.body.classList.add('light-mode'); localStorage.setItem('theme', 'light'); }
   else { document.body.classList.remove('light-mode'); localStorage.setItem('theme', 'dark'); }
+  refreshMapLibreStyle();
 };
+
+function refreshMapLibreStyle() {
+  if (!currentMapLayer) return;
+  if (typeof currentMapLayer.getMaplibreMap === 'function') {
+    const ml = currentMapLayer.getMaplibreMap();
+    if (ml) {
+      const isLight = document.body.classList.contains('light-mode');
+      try { ml.setStyle(isLight ? MAPLIBRE_STYLE_LIGHT : MAPLIBRE_STYLE_DARK); } catch(e) {}
+    }
+  }
+}
 
 setInterval(() => { const c = document.getElementById('profileTime'); if (c) c.textContent = new Date().toLocaleTimeString('vi-VN'); }, 1000);
 
@@ -347,19 +364,19 @@ if (btnSubmitAuth) {
 const btnGoogleAuth = document.getElementById('btnGoogleAuth');
 if (btnGoogleAuth) {
   btnGoogleAuth.addEventListener('click', async () => {
-    try { 
-      await signInWithPopup(auth, new GoogleAuthProvider()); 
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
       window.location.reload();
     }
     catch (e) { authError.textContent = getAuthErrorMessage(e.code); authError.style.display = 'block'; }
   });
 }
 
-async function logout() { 
-  if (liveEnabled) await stopLiveSession(); 
-  await signOut(auth); 
+async function logout() {
+  if (liveEnabled) await stopLiveSession();
+  await signOut(auth);
   window.location.reload();
-  closeMenu(); 
+  closeMenu();
 }
 
 async function getCachedFirestoreData(collectionName, cacheKey, ttlMs, isUserSub = false) {
@@ -461,17 +478,29 @@ function updateUIState() {
   const fabQuickPin = document.getElementById('btnQuickPin');
   const fabReport = document.getElementById('btnReport');
   const fabRestStop = document.getElementById('btnRestStopFilter');
+  const btnResetBearing = document.getElementById('btnResetBearing');
 
   if (isDirOpen || isSearchBoxShow) {
     fabLocate.style.display = 'none'; fabDir.style.display = 'none'; fabLayers.style.display = 'none';
     fabQuickPin.style.display = 'none'; fabReport.style.display = 'none'; fabRestStop.style.display = 'none';
+    if (btnResetBearing) btnResetBearing.style.display = 'none';
   } else if (isNav) {
     fabLocate.style.display = 'none'; fabDir.style.display = 'none'; fabLayers.style.display = 'none';
     fabQuickPin.style.display = 'none'; fabReport.style.display = 'flex'; fabRestStop.style.display = 'none';
+    if (btnResetBearing) btnResetBearing.style.display = 'flex';
   } else {
     fabLocate.style.display = 'flex'; fabDir.style.display = 'flex'; fabLayers.style.display = 'flex';
     fabQuickPin.style.display = 'flex'; fabReport.style.display = 'flex'; fabRestStop.style.display = 'flex';
+    if (btnResetBearing) btnResetBearing.style.display = 'flex';
   }
+}
+
+function getMaplibreInstance() {
+  if (!currentMapLayer) return null;
+  if (typeof currentMapLayer.getMaplibreMap === 'function') {
+    try { return currentMapLayer.getMaplibreMap(); } catch(e) { return null; }
+  }
+  return null;
 }
 
 function initMap() {
@@ -495,6 +524,10 @@ function initMap() {
     if (document.getElementById('dirSheet').classList.contains('open')) return;
     if (document.getElementById('suggestionsBox').classList.contains('show')) closeSearch();
     if (e.touches && e.touches.length > 1) return;
+
+    const ml = getMaplibreInstance();
+    if (ml && ml.isMoving()) return;
+
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     startX = clientX; startY = clientY; isDragging = false; isMouseDown = true;
@@ -503,10 +536,10 @@ function initMap() {
       if (moveEvent.touches && moveEvent.touches.length > 1) { isDragging = true; cancelPress(); return; }
       const moveX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
       const moveY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
-      if (Math.abs(moveX - startX) > 10 || Math.abs(moveY - startY) > 10) { 
-        isDragging = true; cancelPress(); 
-        map.getContainer().removeEventListener('touchmove', checkMove); 
-        map.getContainer().removeEventListener('mousemove', checkMove); 
+      if (Math.abs(moveX - startX) > 10 || Math.abs(moveY - startY) > 10) {
+        isDragging = true; cancelPress();
+        map.getContainer().removeEventListener('touchmove', checkMove);
+        map.getContainer().removeEventListener('mousemove', checkMove);
       }
     }
 
@@ -515,7 +548,7 @@ function initMap() {
 
     const rect = map.getContainer().getBoundingClientRect();
     const latlng = map.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
-    
+
     pressIndicator.style.left = clientX + 'px'; pressIndicator.style.top = clientY + 'px';
     pressIndicator.style.transform = 'translate(-50%, -50%) scale(1)'; pressIndicator.style.opacity = '1';
 
@@ -690,7 +723,7 @@ function renderCommunityPoisOnMap() {
   allCommunityPois.forEach(poi => {
     if (!poi.lat || !poi.lng) return;
     const conf = POI_TAG_CONFIG[poi.tag] || POI_TAG_CONFIG.supermarket;
-    const icon = L.divIcon({ 
+    const icon = L.divIcon({
       html: `<div class="community-poi-pin"><i class="fas ${conf.icon}"></i><div class="verified-badge"><i class="fas fa-check"></i></div></div>`,
       className: '', iconSize: [32, 32], iconAnchor: [16, 32]
     });
@@ -735,10 +768,10 @@ function renderAvoidZonesOnMap() {
       if (zone.startTime && now < zone.startTime) return;
       if (zone.endTime && now > zone.endTime) return;
     }
-    
+
     let polylineCoords = [];
     let isMulti = false;
-    
+
     if (zone.waypoints) {
       try {
         const parsed = typeof zone.waypoints === 'string' ? JSON.parse(zone.waypoints) : zone.waypoints;
@@ -755,7 +788,7 @@ function renderAvoidZonesOnMap() {
 
     let line;
     let midLat, midLng;
-    
+
     if (isMulti) {
       const layers = [];
       polylineCoords.forEach(lineCoords => {
@@ -774,7 +807,7 @@ function renderAvoidZonesOnMap() {
       midLat = polylineCoords[midIdx][0];
       midLng = polylineCoords[midIdx][1];
     }
-    
+
     const icon = L.divIcon({ html: `<div class="avoid-zone-pin"><i class="fas fa-ban"></i></div>`, className: '', iconSize: [36, 36], iconAnchor: [18, 18] });
     const marker = L.marker([midLat, midLng], { icon, zIndexOffset: 400 }).addTo(map);
     let detailHtml = '';
@@ -827,18 +860,18 @@ window.changeSort = function(mode) { currentSortMode = mode; if (startPoint && e
 
 window.fetchAndShowRouteOptions = async function() {
   if (!startPoint || !endPoint || !startPoint.lat || !endPoint.lat) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến hợp lệ!');
-  
+
   const modeToFetch = currentVehicleMode === 'none' ? 'driving' : currentVehicleMode;
   const modeLabel = modeToFetch === 'driving' ? 'ô tô' : modeToFetch === 'driving-traffic' ? 'ô tô (kẹt xe)' : modeToFetch === 'truck' ? 'xe tải' : modeToFetch === 'hd' ? 'xe công nghệ' : modeToFetch === 'walking' ? 'đi bộ' : modeToFetch === 'bicycle' ? 'xe đạp' : 'xe máy';
   const bodyEl = document.getElementById('routeOptionsBody');
   bodyEl.innerHTML = `<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px; color:var(--text-muted);">Đang tìm tuyến (${modeLabel})...</p></div>`;
   document.getElementById('routeOptionsModal').classList.add('open');
-  
+
   try {
     const res = await fetchWorker(`/trackasia-route?origin=${startPoint.lat},${startPoint.lng}&destination=${endPoint.lat},${endPoint.lng}&mode=${modeToFetch}`);
     const data = await res.json();
     let routes = [];
-    
+
     if (data.code === 'Ok' || data.status === 'OK') {
       routes = (data.routes || []).map(r => {
         let coords = [];
@@ -852,16 +885,16 @@ window.fetchAndShowRouteOptions = async function() {
           dist = r.legs[0].distance?.value || r.legs[0].distance || 0;
           dur = r.legs[0].duration?.value || r.legs[0].duration || 0;
           steps = r.legs[0].steps || [];
-        } else { 
-          dist = r.distance || 0; 
-          dur = r.duration || 0; 
+        } else {
+          dist = r.distance || 0;
+          dur = r.duration || 0;
         }
         return { ...r, geometry: { coordinates: coords }, distance: dist, duration: dur, legs: [{ steps }], provider: r.provider || 'Worker', mode: modeToFetch };
       });
     }
 
     routes = routes.filter(r => {
-      if (!r.distance || r.distance <= 0) return false; 
+      if (!r.distance || r.distance <= 0) return false;
       const coords = r.geometry?.coordinates;
       if (!coords || coords.length < 2) return false;
       return coords.every(c => c[0] >= -90 && c[0] <= 90 && c[1] >= -180 && c[1] <= 180 && !(c[0] === 0 && c[1] === 0));
@@ -873,7 +906,7 @@ window.fetchAndShowRouteOptions = async function() {
         errorDetails = data.details.join('<br>• ');
         errorDetails = '• ' + errorDetails;
       }
-      
+
       bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);">
         <i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i>
         <p>Không tìm được tuyến đường hợp lệ.</p>
@@ -883,7 +916,7 @@ window.fetchAndShowRouteOptions = async function() {
       </div>`;
       return;
     }
-    
+
     routes.sort((a, b) => currentSortMode === 'shortest' ? a.distance - b.distance : a.duration - b.duration);
     routes = routes.slice(0, 5);
     alternativeRoutesData = routes;
@@ -926,7 +959,7 @@ window.selectRouteOption = function(index) {
   if (!selectedRoute.geometry?.coordinates?.length) return alert('Lỗi: Tuyến đường không có dữ liệu!');
   if (!selectedRoute.legs || !Array.isArray(selectedRoute.legs) || selectedRoute.legs.length === 0) selectedRoute.legs = [{ steps: [] }];
   if (!selectedRoute.legs[0].steps) selectedRoute.legs[0].steps = [];
-  
+
   const unselectedRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(unselectedRoutes));
   alternativeLayers.forEach((l, i) => { if (i === index) l.setStyle({ color: '#3b82f6', weight: 8, opacity: 1, dashArray: '' }); else l.setStyle({ color: '#9ca3af', weight: 5, opacity: 0.5, dashArray: '10, 10' }); });
@@ -934,7 +967,7 @@ window.selectRouteOption = function(index) {
   currentRouteLayer = alternativeLayers[index]; alternativeLayers = [currentRouteLayer];
   currentRouteData = selectedRoute; currentRouteCoords = selectedRoute.geometry.coordinates;
   if (window._routeBadges) { window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = []; }
-  closeRouteOptions(); 
+  closeRouteOptions();
   startNavigationHUD();
 };
 
@@ -957,25 +990,27 @@ function startNavigationHUD() {
     updateUIState();
     voiceRouteSteps = currentRouteData.legs[0].steps;
     voiceStepIndex = 0; lastSnapIndex = 0; tripStartTime = Date.now(); arrivalHandled = false;
-    
+    autoRotateWithHeading = true;
+    userRotatedMap = false;
+
     const dist = currentRouteData.legs?.[0]?.distance?.value || currentRouteData.legs?.[0]?.distance || currentRouteData.distance || 0;
     const dur = currentRouteData.legs?.[0]?.duration?.value || currentRouteData.legs?.[0]?.duration || currentRouteData.duration || 0;
 
     document.getElementById('hudRemainDist').textContent = (dist / 1000).toFixed(1) + ' km';
     document.getElementById('hudRemainTime').textContent = Math.round(dur / 60) + ' phút';
     document.getElementById('hudNextStopName').textContent = endPoint?.name || 'Điểm đến';
-    
+
     if (lastUserPos) {
-        map.setView([lastUserPos.lat, lastUserPos.lng], 18, { animate: true });
+      map.setView([lastUserPos.lat, lastUserPos.lng], 18, { animate: true });
     } else if (startPoint) {
-        map.setView([startPoint.lat, startPoint.lng], 18, { animate: true });
+      map.setView([startPoint.lat, startPoint.lng], 18, { animate: true });
     }
 
-    startWatching(); 
-    startVoice(); 
+    startWatching();
+    startVoice();
     saveHistoryToFirestore(startPoint, endPoint, dist);
     if (lastUserPos) updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
-    
+
     if (liveEnabled && liveRoomCode && isLiveHost) {
       set(ref(db, `live_rooms/${liveRoomCode}/navigation`), {
         endLat: endPoint.lat, endLng: endPoint.lng, endName: endPoint.name,
@@ -1017,9 +1052,9 @@ window.switchToRoute = function(index) {
   voiceRouteSteps = selectedRoute.legs[0].steps; voiceStepIndex = 0; lastSnapIndex = 0;
   if (currentRouteLayer) map.removeLayer(currentRouteLayer);
   currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8 }).addTo(map);
-  
+
   if (lastUserPos) {
-      map.setView([lastUserPos.lat, lastUserPos.lng], 18, { animate: true });
+    map.setView([lastUserPos.lat, lastUserPos.lng], 18, { animate: true });
   }
 
   document.getElementById('hudRemainDist').textContent = (selectedRoute.distance / 1000).toFixed(1) + ' km';
@@ -1029,24 +1064,24 @@ window.switchToRoute = function(index) {
 
 function translateInstruction(instr) {
   if (!instr) return 'Tiếp tục di chuyển';
-  if (!/[a-zA-Z]/.test(instr)) return instr; 
-  
+  if (!/[a-zA-Z]/.test(instr)) return instr;
+
   let text = instr;
-  
+
   text = text.replace(/Head\s+(\w+)/i, function(match, dir) {
      const lowerDir = dir.toLowerCase();
      return `Đi về hướng ${DIR_DICT[lowerDir] || dir}`;
   });
-  
+
   const sortedKeys = Object.keys(NAV_DICT).sort((a, b) => b.length - a.length);
-  
+
   sortedKeys.forEach(key => {
     const regex = new RegExp(key, 'gi');
     text = text.replace(regex, NAV_DICT[key]);
   });
-  
+
   text = text.replace(/\s+/g, ' ').trim();
-  
+
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
@@ -1057,8 +1092,8 @@ function updateNextManeuverHUD(lat, lng) {
     document.getElementById('hudNextInstr').textContent = 'Tiếp tục di chuyển đến đích';
     return;
   }
-  
-  let nextStep = null; 
+
+  let nextStep = null;
   let minDist = Infinity;
   for (let i = Math.max(0, voiceStepIndex); i < Math.min(voiceRouteSteps.length, voiceStepIndex + 5); i++) {
     const step = voiceRouteSteps[i];
@@ -1073,7 +1108,7 @@ function updateNextManeuverHUD(lat, lng) {
     } else if (type.includes('roundabout')) icon = 'fa-sync-alt'; else if (type.includes('arrive')) icon = 'fa-flag-checkered'; else if (type.includes('uturn')) icon = 'fa-undo';
     document.getElementById('hudNextArrow').innerHTML = `<i class="fas ${icon}"></i>`;
     document.getElementById('hudNextDist').textContent = minDist > 1000 ? (minDist / 1000).toFixed(1) + ' km' : Math.round(minDist) + ' m';
-    
+
     document.getElementById('hudNextInstr').textContent = translateInstruction(nextStep.maneuver.instruction);
   } else {
     document.getElementById('hudNextArrow').innerHTML = `<i class="fas fa-arrow-up"></i>`;
@@ -1107,48 +1142,48 @@ function showArrivalToast() {
 
 function checkOffRoute(userLat, userLng) {
   if (!currentRouteCoords || currentRouteCoords.length < 2 || isRerouting || arrivalHandled) return;
-  
+
   if (Date.now() - lastRerouteTime < 15000) return;
 
-  let minDist = Infinity; 
-  const startScan = Math.max(0, lastSnapIndex - 10); 
+  let minDist = Infinity;
+  const startScan = Math.max(0, lastSnapIndex - 10);
   const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 150);
   for (let i = startScan; i < endScan; i++) {
     const pt = getClosestPointOnSegment({ lat: userLat, lng: userLng }, { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] }, { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] });
-    const d = calcDist(userLat, userLng, pt.lat, pt.lng); 
+    const d = calcDist(userLat, userLng, pt.lat, pt.lng);
     if (d < minDist) minDist = d;
   }
-  
-  if (minDist > 80) { 
-    offRouteCount++; 
-    if (offRouteCount >= 5) { 
-      offRouteCount = 0; 
-      autoReroute(userLat, userLng); 
-    } 
+
+  if (minDist > 80) {
+    offRouteCount++;
+    if (offRouteCount >= 5) {
+      offRouteCount = 0;
+      autoReroute(userLat, userLng);
+    }
   } else {
     offRouteCount = 0;
   }
 }
 
 async function autoReroute(userLat, userLng) {
-  if (isRerouting) return; 
+  if (isRerouting) return;
   isRerouting = true;
-  lastRerouteTime = Date.now(); 
-  
+  lastRerouteTime = Date.now();
+
   const currentMode = currentRouteData?.mode || (currentVehicleMode === 'none' ? 'driving' : currentVehicleMode);
-  
+
   try {
     const res = await fetchWorker(`/trackasia-route?origin=${userLat},${userLng}&destination=${endPoint.lat},${endPoint.lng}&mode=${currentMode}`);
-    const data = await res.json(); 
-    
+    const data = await res.json();
+
     if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
       throw new Error(data.error || 'Không tìm thấy đường mới');
     }
-    
+
     let r = data.routes[0];
     if (!r.legs || !Array.isArray(r.legs) || r.legs.length === 0) r.legs = [{ steps: [] }];
     if (!r.legs[0].steps) r.legs[0].steps = [];
-    
+
     const dist = r.legs[0]?.distance?.value || r.legs[0]?.distance || r.distance || 0;
     const dur = r.legs[0]?.duration?.value || r.legs[0]?.duration || r.duration || 0;
 
@@ -1157,33 +1192,33 @@ async function autoReroute(userLat, userLng) {
       if (dist > oldDist * 1.2) {
         console.log('[Reroute] Bỏ qua tuyến mới vì dài hơn tuyến cũ quá nhiều.');
         isRerouting = false;
-        return; 
+        return;
       }
     }
 
     r.distance = dist;
     r.duration = dur;
 
-    currentRouteData = r; 
-    voiceRouteSteps = r.legs[0].steps; 
+    currentRouteData = r;
+    voiceRouteSteps = r.legs[0].steps;
     voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
     currentRouteCoords = r.geometry.coordinates;
-    
+
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
     currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
-    
+
     document.getElementById('hudRemainDist').textContent = (dist / 1000).toFixed(1) + ' km';
     document.getElementById('hudRemainTime').textContent = Math.round(dur / 60) + ' phút';
-    
+
     updateNextManeuverHUD(userLat, userLng);
     speak('Đã cập nhật lộ trình.');
-    
-  } catch (e) { 
-    console.error('Lỗi Reroute:', e); 
-    setTimeout(() => { isRerouting = false; }, 5000); 
+
+  } catch (e) {
+    console.error('Lỗi Reroute:', e);
+    setTimeout(() => { isRerouting = false; }, 5000);
     return;
-  } 
-  isRerouting = false; 
+  }
+  isRerouting = false;
 }
 
 window.openEndTripModal = function() {
@@ -1207,48 +1242,42 @@ window.openEndTripModal = function() {
 
 window.closeEndTripModal = function() { document.getElementById('endTripModal').classList.remove('open'); };
 
-// HÀM LƯU LỘ TRÌNH ĐÃ ĐƯỢC NÂNG CẤP (KHÔNG RELOAD)
 window.endTrip = async function(save) {
   closeEndTripModal();
-  
+
   if (save && currentRouteData && currentUser) {
-    const coordsToSave = [...currentRouteCoords]; 
+    const coordsToSave = [...currentRouteCoords];
     const startData = { ...startPoint };
     const endData = { ...endPoint };
 
     try {
       const compressedCoords = coordsToSave.map(c => [
-        parseFloat(c[0].toFixed(5)), 
+        parseFloat(c[0].toFixed(5)),
         parseFloat(c[1].toFixed(5))
       ]);
 
       const routeData = {
         startName: startData.name, startLng: startData.lng, startLat: startData.lat,
         endName: endData.name, endLng: endData.lng, endLat: endData.lat,
-        coordsJson: JSON.stringify(compressedCoords), 
+        coordsJson: JSON.stringify(compressedCoords),
         timestamp: Date.now()
       };
 
-      // 1. Lưu lên Firestore
       const docRef = await addDoc(collection(fsdb, `users/${currentUser.uid}/savedRoutes`), routeData);
-      
-      // 2. Thêm vào mảng hiển thị (Optimistic UI)
+
       const newRoute = { ...routeData, id: docRef.id, _id: docRef.id, source: 'firestore' };
       _fsSavedRoutes.push(newRoute);
       recomputeSavedRoutes();
-      
-      // 3. Cập nhật Cache LocalStorage (Để F5 không bị mất)
+
       let cachedSaved = JSON.parse(localStorage.getItem('cache_saved_routes_' + currentUser.uid) || '{"timestamp":0,"data":[]}');
       cachedSaved.data.push(newRoute);
       cachedSaved.timestamp = Date.now();
       localStorage.setItem('cache_saved_routes_' + currentUser.uid, JSON.stringify(cachedSaved));
 
-      // 4. Nếu Menu đang mở thì cập nhật lại giao diện
       if (document.getElementById('profileModal').classList.contains('open')) {
         loadSavedRoutes();
       }
-      
-      // 5. Hiển thị Toast thông báo (Không reload)
+
       const t = document.createElement('div');
       t.style.cssText = 'position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#10b981,#059669);color:white;padding:14px 22px;border-radius:14px;font-weight:800;z-index:9999;display:flex;gap:10px;align-items:center;';
       t.innerHTML = '<i class="fas fa-check-circle"></i><span>Đã lưu lộ trình thành công!</span>';
@@ -1257,10 +1286,10 @@ window.endTrip = async function(save) {
     } catch (e) {
       console.error("Lỗi lưu Firestore:", e);
       alert('❌ Không thể lưu lộ trình lên Cloud: ' + e.message);
-      
+
       const localRoutes = JSON.parse(localStorage.getItem('localSavedRoutes') || '[]');
       localRoutes.push({
-        startName: startData.name, endName: endData.name, 
+        startName: startData.name, endName: endData.name,
         coords: coordsToSave, timestamp: Date.now()
       });
       localStorage.setItem('localSavedRoutes', JSON.stringify(localRoutes));
@@ -1268,7 +1297,6 @@ window.endTrip = async function(save) {
     }
   }
 
-  // --- PHẦN DỌN DẸP BẢN ĐỒ VÀ HUD (Giữ nguyên) ---
   if (liveEnabled && liveRoomCode && isLiveHost) {
     remove(ref(db, `live_rooms/${liveRoomCode}/navigation`)).catch(()=>{});
   }
@@ -1278,32 +1306,35 @@ window.endTrip = async function(save) {
   if (currentRouteLayer) { map.removeLayer(currentRouteLayer); currentRouteLayer = null; }
   alternativeLayers.forEach(l => { try { map.removeLayer(l); } catch (e) {} }); alternativeLayers = [];
   if (window._routeBadges) { window._routeBadges.forEach(m => map.removeLayer(m)); window._routeBadges = []; }
-  
+
   currentRouteCoords = []; currentRouteData = null; alternativeRoutesData = []; voiceRouteSteps = null; voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0; isRerouting = false; tripStartTime = null; arrivalHandled = false; warnedReports.clear(); localStorage.removeItem('alternativeRoutes');
-  
+  autoRotateWithHeading = false; userRotatedMap = false;
+
   document.body.classList.remove('navigating');
   document.getElementById('hud').classList.add('hidden');
   updateUIState();
-  
+
+  const ml = getMaplibreInstance();
+  if (ml) { try { ml.easeTo({ bearing: 0, pitch: 0, duration: 500 }); } catch(e) {} }
+
   document.getElementById('dirInputEnd').value = ''; document.getElementById('topSearchInput').value = ''; document.getElementById('btnClearEnd').classList.add('hidden'); document.getElementById('searchClearBtn').classList.add('hidden'); endPoint = null;
-  
+
   if (lastUserPos) map.flyTo([lastUserPos.lat, lastUserPos.lng], 16, { animate: true, duration: 1 });
 };
 
-// NÂNG CẤP HÀM LƯU LỊCH SỬ ĐỂ ĐỒNG BỘ LOCAL
 async function saveHistoryToFirestore(start, end, distance) {
   if (!currentUser) return;
   try {
     const histData = {
       startName: start.name, endName: end.name, distance, timestamp: Date.now()
     };
-    
+
     const docRef = await addDoc(collection(fsdb, `users/${currentUser.uid}/history`), histData);
-    
+
     const newHist = { ...histData, id: docRef.id, _id: docRef.id, source: 'firestore' };
     _fsHistory.push(newHist);
     recomputeHistory();
-    
+
     let cachedHist = JSON.parse(localStorage.getItem('cache_history_' + currentUser.uid) || '{"timestamp":0,"data":[]}');
     cachedHist.data.push(newHist);
     cachedHist.timestamp = Date.now();
@@ -1394,9 +1425,9 @@ window.reloadSavedRoute = function(source, id) {
   endPoint = { lat: item.endLat, lng: item.endLng, name: item.endName };
   document.getElementById('dirInputStart').value = startPoint.name; document.getElementById('dirInputEnd').value = endPoint.name;
   document.getElementById('topSearchInput').value = endPoint.name; document.getElementById('btnClearStart').classList.remove('hidden'); document.getElementById('btnClearEnd').classList.remove('hidden'); document.getElementById('searchClearBtn').classList.remove('hidden');
-  
-  currentRouteCoords = typeof item.coordsJson === 'string' ? JSON.parse(item.coordsJson) : (item.coords || []); 
-  
+
+  currentRouteCoords = typeof item.coordsJson === 'string' ? JSON.parse(item.coordsJson) : (item.coords || []);
+
   lastSnapIndex = 0;
   if (currentRouteLayer) map.removeLayer(currentRouteLayer);
   currentRouteLayer = L.polyline(currentRouteCoords, { color: '#3b82f6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
@@ -1409,8 +1440,7 @@ window.deleteItem = async function(type, source, id) {
   try {
     if (source === 'firestore') await deleteDoc(doc(fsdb, `users/${currentUser.uid}/${type}/${id}`));
     else await remove(ref(db, `users/${currentUser.uid}/${type}/${id}`));
-    
-    // Cập nhật Local Cache để không bị load lại khi F5
+
     if (type === 'history') {
       _fsHistory = _fsHistory.filter(h => h._id !== id);
       recomputeHistory();
@@ -1435,7 +1465,7 @@ window.clearAllHistory = async function() {
     const fsSnap = await getDocs(collection(fsdb, `users/${currentUser.uid}/history`));
     for (const d of fsSnap.docs) await deleteDoc(d.ref);
     await remove(ref(db, `users/${currentUser.uid}/history`));
-    
+
     _fsHistory = []; _rtdbHistory = [];
     recomputeHistory();
     localStorage.removeItem('cache_history_' + currentUser.uid);
@@ -1449,7 +1479,7 @@ window.clearAllSavedRoutes = async function() {
     const fsSnap = await getDocs(collection(fsdb, `users/${currentUser.uid}/savedRoutes`));
     for (const d of fsSnap.docs) await deleteDoc(d.ref);
     await remove(ref(db, `users/${currentUser.uid}/savedRoutes`));
-    
+
     _fsSavedRoutes = []; _rtdbSavedRoutes = [];
     recomputeSavedRoutes();
     localStorage.removeItem('cache_saved_routes_' + currentUser.uid);
@@ -1466,13 +1496,13 @@ window.clearPoint = function(type) {
 };
 
 function openDirections() {
-  document.getElementById('dirSheet').classList.add('open'); 
+  document.getElementById('dirSheet').classList.add('open');
   document.getElementById('dirSheet').style.transform = '';
   updateUIState();
 }
 
 function closeDirections() {
-  document.getElementById('dirSheet').classList.remove('open'); 
+  document.getElementById('dirSheet').classList.remove('open');
   document.getElementById('dirSheet').style.transform = '';
   if (searchContext !== 'view') document.getElementById('suggestionsBox').classList.remove('show');
   if (document.getElementById('hud').classList.contains('hidden')) {
@@ -1512,8 +1542,8 @@ function closeSearch() {
 }
 
 window.clearTopSearch = function() {
-  document.getElementById('topSearchInput').value = ''; 
-  document.getElementById('searchClearBtn').classList.add('hidden'); 
+  document.getElementById('topSearchInput').value = '';
+  document.getElementById('searchClearBtn').classList.add('hidden');
   clearPoint('end');
   map.eachLayer(layer => { if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options.className === 'custom-touch-marker') map.removeLayer(layer); });
   closeSearch();
@@ -1653,39 +1683,39 @@ function updateUserMarkerOnMap(pos, heading) {
 
 function animateMarkerTo(targetPos) {
   if (!userMarker) { updateUserMarkerOnMap(targetPos, targetPos.heading); return; }
-  
+
   let snappedLat = targetPos.lat, snappedLng = targetPos.lng, targetHeading = targetPos.heading;
-  
+
   if (currentRouteCoords && currentRouteCoords.length > 1 && lastSnapIndex < currentRouteCoords.length - 1) {
     let minDist = Infinity, bestPoint = null, bestSegmentIndex = lastSnapIndex;
-    const startScan = Math.max(0, lastSnapIndex - 2); 
+    const startScan = Math.max(0, lastSnapIndex - 2);
     const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 100);
-    
+
     for (let i = startScan; i < endScan; i++) {
       const pt = getClosestPointOnSegment(
-        { lat: targetPos.lat, lng: targetPos.lng }, 
-        { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] }, 
+        { lat: targetPos.lat, lng: targetPos.lng },
+        { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] },
         { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] }
       );
-      const d = calcDist(targetPos.lat, targetPos.lng, pt.lat, pt.lng); 
-      if (d < minDist) { 
-        minDist = d; 
-        bestPoint = pt; 
-        bestSegmentIndex = i; 
+      const d = calcDist(targetPos.lat, targetPos.lng, pt.lat, pt.lng);
+      if (d < minDist) {
+        minDist = d;
+        bestPoint = pt;
+        bestSegmentIndex = i;
       }
     }
-    
+
     if (bestPoint && minDist < 60) {
-      snappedLat = bestPoint.lat; 
-      snappedLng = bestPoint.lng; 
-      
+      snappedLat = bestPoint.lat;
+      snappedLng = bestPoint.lng;
+
       if (bestSegmentIndex > lastSnapIndex) {
         lastSnapIndex = bestSegmentIndex;
       }
-      
-      const p1 = currentRouteCoords[bestSegmentIndex]; 
+
+      const p1 = currentRouteCoords[bestSegmentIndex];
       const p2 = currentRouteCoords[bestSegmentIndex + 1];
-      
+
       if (targetPos.heading && targetPos.speed > 1.5) {
          targetHeading = targetPos.heading;
       } else {
@@ -1694,29 +1724,29 @@ function animateMarkerTo(targetPos) {
       }
     }
   }
-  
+
   if (currentRouteCoords && currentRouteCoords.length > 0 && lastSnapIndex > 0 && currentRouteLayer) {
     const remaining = currentRouteCoords.slice(lastSnapIndex);
     if (remaining.length > 1) {
-      currentRouteLayer.setLatLngs(remaining); 
-    } else { 
-      map.removeLayer(currentRouteLayer); 
-      currentRouteLayer = null; 
+      currentRouteLayer.setLatLngs(remaining);
+    } else {
+      map.removeLayer(currentRouteLayer);
+      currentRouteLayer = null;
     }
   }
-  
+
   const startLat = userMarker.getLatLng().lat, startLng = userMarker.getLatLng().lng;
   const startTime = performance.now(), duration = 1000;
-  
+
   function step(time) {
-    const progress = Math.min((time - startTime) / duration, 1); 
-    const ease = 1 - Math.pow(1 - progress, 3); 
-    userMarker.setLatLng([startLat + (snappedLat - startLat) * ease, startLng + (snappedLng - startLng) * ease]); 
+    const progress = Math.min((time - startTime) / duration, 1);
+    const ease = 1 - Math.pow(1 - progress, 3);
+    userMarker.setLatLng([startLat + (snappedLat - startLat) * ease, startLng + (snappedLng - startLng) * ease]);
     userMarker.setIcon(getUserIcon(targetHeading));
     if (progress < 1) requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
-  
+
   if (gpsCircle) map.removeLayer(gpsCircle);
   gpsCircle = L.circle([snappedLat, snappedLng], { radius: targetPos.accuracy || 10, color: '#10b981', fillColor: '#10b981', fillOpacity: 0.15, weight: 1 }).addTo(map);
 }
@@ -1738,9 +1768,20 @@ function startWatching() {
     smoothedSpeed = (0.2 * newPos.speed) + (0.8 * smoothedSpeed);
     document.getElementById('hudSpeed').textContent = Math.round(smoothedSpeed * 3.6) + ' km/h';
     if (lastUserPos && !newPos.heading) { const dy = newPos.lat - lastUserPos.lat, dx = newPos.lng - lastUserPos.lng; newPos.heading = 90 - (Math.atan2(dy, dx) * 180 / Math.PI); }
-    lastUserPos = newPos; 
+    lastUserPos = newPos;
+
+    if (newPos.heading && Math.abs(newPos.heading) > 5) lastHeading = newPos.heading;
+
     animateMarkerTo(lastUserPos);
     if (map) map.setView([lastUserPos.lat, lastUserPos.lng], map.getZoom(), { animate: false });
+
+    if (autoRotateWithHeading && !userRotatedMap) {
+      const ml = getMaplibreInstance();
+      if (ml && lastHeading) {
+        try { ml.easeTo({ bearing: lastHeading, duration: 800 }); } catch(e) {}
+      }
+    }
+
     checkReportProximity(lastUserPos.lat, lastUserPos.lng); checkOffRoute(lastUserPos.lat, lastUserPos.lng); checkArrival(lastUserPos.lat, lastUserPos.lng); updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
   }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
 }
@@ -1770,10 +1811,10 @@ function startVoice() {
     for (let i = voiceStepIndex; i < Math.min(voiceRouteSteps.length, voiceStepIndex + 3); i++) {
       const step = voiceRouteSteps[i]; if (!step?.maneuver?.location) continue;
       const d = calcDist(lastUserPos.lat, lastUserPos.lng, step.maneuver.location[1], step.maneuver.location[0]);
-      if (d < 50) { 
-        speak(translateInstruction(step.maneuver.instruction)); 
-        voiceStepIndex = i + 1; 
-        break; 
+      if (d < 50) {
+        speak(translateInstruction(step.maneuver.instruction));
+        voiceStepIndex = i + 1;
+        break;
       }
     }
   }, 3000);
@@ -1809,14 +1850,64 @@ function changeLayer(type, btn) {
   document.querySelectorAll('.layer-option').forEach(el => el.classList.remove('active'));
   if (btn) btn.classList.add('active');
   document.getElementById('layerMenu').classList.remove('show');
+
   if (type === 'trackasia') {
-    try { currentMapLayer = L.trackasiaGL({ style: `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}` }).addTo(map); }
-    catch (error) { currentMapLayer = L.tileLayer(`https://maps.track-asia.com/styles/v2/streets/{z}/{x}/{y}.png?key=${TRACKASIA_KEY}`, { maxZoom: 19, tileSize: 256 }).addTo(map); }
+    try {
+      const isLight = document.body.classList.contains('light-mode');
+      currentMapLayer = L.maplibreGL({
+        style: isLight ? MAPLIBRE_STYLE_LIGHT : MAPLIBRE_STYLE_DARK,
+        attribution: '© OpenStreetMap © CARTO',
+        pitchWithRotate: true,
+        dragRotate: true,
+        touchZoomRotate: true,
+        touchPitch: true,
+        bearingSnap: 7,
+        maxPitch: 60,
+        minPitch: 0,
+        maxZoom: 20,
+        minZoom: 2,
+        antialias: false,
+        preserveDrawingBuffer: false
+      }).addTo(map);
+
+      setTimeout(() => {
+        const ml = getMaplibreInstance();
+        if (ml) {
+          ml.on('rotate', () => { userRotatedMap = true; });
+          ml.on('pitch', () => { userRotatedMap = true; });
+        }
+      }, 500);
+    } catch (error) {
+      console.warn('MapLibre failed, fallback to OSM raster:', error);
+      currentMapLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+    }
   }
-  else if (type === 'mapbox') currentMapLayer = L.tileLayer(`${WORKER_URL}/mapbox-tiles/{z}/{x}/{y}`, { maxZoom: 19, tileSize: 512, zoomOffset: -1 }).addTo(map);
-  else if (type === 'thunderforest') currentMapLayer = L.tileLayer(`${WORKER_URL}/tf-tiles/{z}/{x}/{y}`, { maxZoom: 19 }).addTo(map);
-  else if (type === 'satellite') currentMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
+  else if (type === 'mapbox') {
+    currentMapLayer = L.tileLayer(`${WORKER_URL}/mapbox-tiles/{z}/{x}/{y}`, { maxZoom: 19, tileSize: 512, zoomOffset: -1 }).addTo(map);
+  }
+  else if (type === 'thunderforest') {
+    currentMapLayer = L.tileLayer(`${WORKER_URL}/tf-tiles/{z}/{x}/{y}`, { maxZoom: 19 }).addTo(map);
+  }
+  else if (type === 'satellite') {
+    currentMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
+  }
 }
+
+window.resetMapBearing = function() {
+  const ml = getMaplibreInstance();
+  if (ml) {
+    try { ml.easeTo({ bearing: 0, pitch: 0, duration: 500 }); } catch(e) {}
+    userRotatedMap = false;
+    if (document.body.classList.contains('navigating')) autoRotateWithHeading = true;
+    return;
+  }
+  if (lastUserPos) {
+    map.flyTo([lastUserPos.lat, lastUserPos.lng], map.getZoom(), { animate: true });
+  }
+};
 
 window.goToLongPressLocation = function(lat, lng, name) {
   endPoint = { lat, lng, name };
@@ -2062,7 +2153,7 @@ async function stopLiveSession() {
   if (liveRoomUnsub) { liveRoomUnsub(); liveRoomUnsub = null; }
   if (livePublicUnsub) { livePublicUnsub(); livePublicUnsub = null; }
   if (liveNavUnsub) { liveNavUnsub(); liveNavUnsub = null; }
-  
+
   if (currentUser && liveRoomCode) {
     await remove(ref(db, `live_rooms/${liveRoomCode}/members/${currentUser.uid}`)).catch(()=>{});
     await remove(ref(db, `public_users/${currentUser.uid}`)).catch(()=>{});
@@ -2070,7 +2161,7 @@ async function stopLiveSession() {
       await remove(ref(db, `live_rooms/${liveRoomCode}`)).catch(()=>{});
     }
   }
-  
+
   Object.values(liveMemberAnimStates).forEach(a => { if (a.animId) cancelAnimationFrame(a.animId); });
   Object.values(liveMemberMarkers).forEach(m => { try { map.removeLayer(m); } catch(e){} });
   liveMemberMarkers = {}; liveMemberAnimStates = {};
@@ -2078,15 +2169,15 @@ async function stopLiveSession() {
   if (liveMyMarker) { try { map.removeLayer(liveMyMarker); } catch(e){} liveMyMarker = null; }
   if (liveNavLayer) { try { map.removeLayer(liveNavLayer); } catch(e){} liveNavLayer = null; }
   liveMyAnimState = null;
-  
+
   liveRoomCode = null; liveIsPublic = false; liveRoomMembers = []; livePublicUsers = [];
   isLiveHost = false; currentLiveNavData = null;
-  
+
   const controls = document.getElementById('liveViewerControls');
   if (controls) controls.style.display = 'none';
   const infoCard = document.getElementById('liveInfoCard');
   if (infoCard) infoCard.classList.remove('show');
-  
+
   updateLiveUI();
 }
 
@@ -2100,7 +2191,7 @@ function updateLiveUI() {
   const membersBox = document.getElementById('liveMembersBox');
   const leaveBtn = document.getElementById('liveLeaveBtn');
   const codeText = document.getElementById('liveRoomCodeText');
-  
+
   if (liveEnabled) {
     badge.textContent = 'LIVE'; badge.classList.add('on'); badge.style.display = 'inline-block';
     features.style.opacity = '1'; features.style.pointerEvents = 'auto';
@@ -2113,7 +2204,7 @@ function updateLiveUI() {
     publicBox.style.display = 'none'; membersBox.style.display = 'none'; leaveBtn.style.display = 'none';
     return;
   }
-  
+
   if (liveRoomCode) {
     codeText.textContent = liveRoomCode;
     codeBox.style.display = 'flex'; actions.style.display = 'none';
@@ -2140,7 +2231,7 @@ function setupLiveUI() {
     `;
     document.body.appendChild(controls);
   }
-  
+
   let infoCard = document.getElementById('liveInfoCard');
   if (!infoCard) {
     infoCard = document.createElement('div');
@@ -2166,7 +2257,7 @@ window.createLiveRoom = async function(silent) {
   isLiveHost = true;
   try {
     await set(ref(db, `live_rooms/${code}`), { hostUid: currentUser.uid, hostName: currentUser.displayName || currentUser.email.split('@')[0], isPublic: false, createdAt: Date.now() });
-    onDisconnect(ref(db, `live_rooms/${code}`)).remove(); 
+    onDisconnect(ref(db, `live_rooms/${code}`)).remove();
     const memberRef = ref(db, `live_rooms/${code}/members/${currentUser.uid}`);
     onDisconnect(memberRef).remove();
     const publicRef = ref(db, `public_users/${currentUser.uid}`);
@@ -2234,10 +2325,10 @@ window.toggleLivePublic = async function() {
 async function pushLivePositionToRTDB() {
   if (!currentUser || !lastUserPos || !liveRoomCode) return;
   const ts = Date.now();
-  const data = { 
-    lat: lastUserPos.lat, lng: lastUserPos.lng, 
-    name: currentUser.displayName || currentUser.email.split('@')[0], 
-    vehicle: currentVehicleMode, isPublic: liveIsPublic, lastPing: ts 
+  const data = {
+    lat: lastUserPos.lat, lng: lastUserPos.lng,
+    name: currentUser.displayName || currentUser.email.split('@')[0],
+    vehicle: currentVehicleMode, isPublic: liveIsPublic, lastPing: ts
   };
   set(ref(db, `live_rooms/${liveRoomCode}/members/${currentUser.uid}`), data).catch(()=>{});
   if (liveIsPublic) set(ref(db, `public_users/${currentUser.uid}`), { ...data, roomCode: liveRoomCode }).catch(()=>{});
@@ -2267,13 +2358,13 @@ function subscribeLiveRoom() {
     liveRoomMembers = Object.entries(data).map(([uid, m]) => ({ uid, ...m })).filter(m => !m.lastPing || (now - m.lastPing) < LIVE_HEARTBEAT_TIMEOUT);
     renderLiveMembers(); renderLiveMemberMarkers(); updateLivePlayerControls();
   });
-  
+
   if (liveNavUnsub) liveNavUnsub();
   liveNavUnsub = onValue(ref(db, `live_rooms/${liveRoomCode}/navigation`), (snap) => {
     if (!snap.exists() || isLiveHost) return;
     const navData = snap.val();
     currentLiveNavData = navData;
-    
+
     if (navData.routeCoords && navData.routeCoords.length > 0) {
       if (liveNavLayer) map.removeLayer(liveNavLayer);
       liveNavLayer = L.polyline(navData.routeCoords, { color: '#8b5cf6', weight: 6, opacity: 0.7, dashArray: '8, 8' }).addTo(map);
@@ -2370,7 +2461,7 @@ function renderLiveMemberMarkers() {
 async function initViewerLiveRoom(roomCode) {
   isViewingLiveTrack = true;
   map.flyTo(initialCenter, 15);
-  
+
   const hud = document.createElement('div');
   hud.id = 'liveHud';
   hud.style.cssText = 'position:fixed;top:calc(16px + var(--safe-top));left:50%;transform:translateX(-50%);background:var(--card);border:1px solid #10b981;border-radius:20px;padding:8px 16px;z-index:1000;font-weight:800;font-size:0.85rem;color:#10b981;display:flex;gap:8px;align-items:center;box-shadow:0 4px 15px rgba(16,185,129,0.3);';
@@ -2378,7 +2469,7 @@ async function initViewerLiveRoom(roomCode) {
   document.body.appendChild(hud);
 
   setupLiveUI();
-  
+
   const membersRef = ref(db, `live_rooms/${roomCode}/members`);
   onValue(membersRef, (snap) => {
     const data = snap.val() || {};
@@ -2410,7 +2501,7 @@ async function initViewerLiveRoom(roomCode) {
         liveMemberAnimStates[m.uid] = { from: { lat: m.lat, lng: m.lng }, to: { lat: m.lat, lng: m.lng }, startTime: performance.now(), duration: LIVE_ANIM_DURATION, marker: marker, animId: null };
       }
     });
-    
+
     Object.keys(liveMemberMarkers).forEach(uid => {
       if (!activeLiveUsers.some(m => m.uid === uid)) {
         if (liveMemberAnimStates[uid]?.animId) cancelAnimationFrame(liveMemberAnimStates[uid].animId);
@@ -2456,7 +2547,7 @@ window.selectClientVehicle = function(vehicle) {
     }
     endPoint = { lat: currentLiveNavData.endLat, lng: currentLiveNavData.endLng, name: currentLiveNavData.endName || 'Điểm đến của Host' };
     currentRouteCoords = currentLiveNavData.routeCoords;
-    
+
     currentRouteData = {
       distance: 0, duration: 0,
       geometry: { coordinates: currentRouteCoords },
@@ -2466,7 +2557,7 @@ window.selectClientVehicle = function(vehicle) {
 
     if (currentRouteLayer) map.removeLayer(currentRouteLayer);
     currentRouteLayer = L.polyline(currentRouteCoords, { color: '#8b5cf6', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
-    
+
     startNavigationHUD();
     alert('Đã bắt đầu dẫn đường theo lộ trình của Host!');
   } else {
