@@ -104,7 +104,6 @@ body:has(.sheet.open) .backdrop { opacity: 1; pointer-events: auto; }
 .param-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .param-grid label{display:flex;flex-direction:column;gap:6px;font-size:.75rem;color:var(--muted);font-weight:600}
 .param-grid input{padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:.9rem;outline:none}
-.select,.input-full{width:100%;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:.95rem;outline:none;margin-bottom:12px}
 
 .route-card{background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:14px}
 .route-card.active{border-color:var(--primary);background:rgba(59,130,246,.1);box-shadow:0 4px 16px rgba(59,130,246,.15)}
@@ -180,6 +179,21 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
 .skeleton-text { height: 14px; margin-bottom: 6px; width: 100%; }
 .skeleton-text.short { width: 60%; }
 @keyframes skeleton-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* Hiệu ứng gợn sóng khi click bản đồ */
+@keyframes mapClickRipple {
+  0% { transform: scale(0.2); opacity: 1; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+.map-ripple {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 3px solid var(--primary);
+  background: rgba(59, 130, 246, 0.2);
+  animation: mapClickRipple 0.6s ease-out forwards;
+  pointer-events: none;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
 </style>
 </head>
 <body>
@@ -285,9 +299,6 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
           <label>Dài (m)<input id="truckLength" type="number" step="0.5" value="8"></label>
         </div>
       </div>
-      
-      <!-- ĐÃ BỎ KHUNG NGUỒN TUYẾN Ở ĐÂY -->
-
       <button class="btn btn-primary full mt" onclick="window.fetchAndShowRoute()"><i class="fas fa-search"></i> Tìm tuyến đường</button>
     </div>
   </div>
@@ -634,20 +645,50 @@ function initMap() {
     $('mode3DToggle').checked = state.pitch > 10;
   });
 
+  // Click Map với hiệu ứng Ripple và fix lỗi nút Popup
   state.map.on('click', async (e) => {
     if (state.isNavigating) return;
     const { lng, lat } = e.lngLat;
     haptic();
+
+    // 1. Ripple Effect
+    const rippleEl = document.createElement('div');
+    rippleEl.className = 'map-ripple';
+    const rippleMarker = new maplibregl.Marker({ element: rippleEl, anchor: 'center' })
+      .setLngLat([lng, lat])
+      .addTo(state.map);
+    setTimeout(() => rippleMarker.remove(), 600);
+
+    // 2. Lấy địa chỉ
     showToast('Đang lấy địa chỉ...', 'info');
     const name = await reverseGeocode(lat, lng);
-    const safeName = escapeHtml(name).replace(/'/g, '&#39;');
-    new maplibregl.Popup({ closeOnClick: true, offset: 10 })
+    
+    // 3. Tạo Popup bằng DOM (tránh lỗi dấu nháy & sự kiện bị chặn)
+    const popupNode = document.createElement('div');
+    popupNode.style.cssText = 'min-width:220px;font-family:inherit;padding:4px;color:var(--text)';
+    popupNode.innerHTML = `
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:12px;line-height:1.3;">${escapeHtml(name)}</div>
+      <button class="popup-btn-save" style="width:100%;padding:10px;background:#10b981;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:.85rem;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;gap:8px;justify-content:center">
+        <i class="fas fa-map-pin"></i> Ghim địa điểm
+      </button>
+      <button class="popup-btn-go" style="width:100%;padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:.85rem;cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center">
+        <i class="fas fa-directions"></i> Chỉ đường tới đây
+      </button>
+    `;
+
+    popupNode.querySelector('.popup-btn-save').onclick = (ev) => {
+      ev.stopPropagation();
+      window.showSavePlace(lat, lng, name);
+    };
+    popupNode.querySelector('.popup-btn-go').onclick = (ev) => {
+      ev.stopPropagation();
+      window.goToLocation(lat, lng, name);
+    };
+
+    new maplibregl.Popup({ closeOnClick: true, offset: 15, className: 'custom-popup' })
       .setLngLat([lng, lat])
-      .setHTML(`<div style="min-width:200px;font-family:inherit">
-        <div style="font-weight:700;font-size:.85rem;margin-bottom:10px">${escapeHtml(name)}</div>
-        <button onclick="window.showSavePlace(${lat},${lng},'${safeName}')" style="width:100%;padding:10px;background:#10b981;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:.8rem;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;gap:6px;justify-content:center"><i class="fas fa-map-pin"></i> Ghim địa điểm</button>
-        <button onclick="window.goToLocation(${lat},${lng},'${safeName}')" style="width:100%;padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:.8rem;cursor:pointer;display:flex;align-items:center;gap:6px;justify-content:center"><i class="fas fa-directions"></i> Chỉ đường tới đây</button>
-      </div>`).addTo(state.map);
+      .setDOMContent(popupNode)
+      .addTo(state.map);
   });
 }
 
@@ -688,7 +729,6 @@ function startGPSWatch() {
 
 function updateUserMarker(lat, lng, heading) {
   if (!state.map) return;
-  // Marker với pulse animation
   const html = `<div class="user-loc" style="position:relative;width:40px;height:40px;">
     <div style="position:absolute;inset:0;background:rgba(16,185,129,0.3);border-radius:50%;animation:ripple 1.5s infinite;"></div>
     <div style="position:absolute;inset:4px;background:var(--success);border-radius:50%;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;">
@@ -913,7 +953,6 @@ window.fetchAndShowRoute = async () => {
   if (!state.startPoint || !state.endPoint) return showToast('Chọn đủ điểm đi và đến', 'warning');
   
   const body = $('routeOptionsBody');
-  // Skeleton cho routing
   body.innerHTML = `
     <div style="padding:20px 0;">
       <div class="skeleton" style="height:80px;border-radius:12px;margin-bottom:16px"></div>
@@ -924,7 +963,6 @@ window.fetchAndShowRoute = async () => {
   $('dirSheet').classList.remove('open');
 
   try {
-    // Luôn gọi Auto (không truyền provider)
     let url = `${WORKER_URL}/route?origin=${state.startPoint.lat},${state.startPoint.lng}&destination=${state.endPoint.lat},${state.endPoint.lng}&mode=${state.vehicleMode}`;
     if (state.vehicleMode === 'truck') {
       const truck = {
@@ -949,7 +987,7 @@ window.fetchAndShowRoute = async () => {
     const r = data.routes[0];
     let coords = r.geometry.coordinates;
     
-    // FIX: Tự động phát hiện và đảo ngược tọa độ nếu bị trả sai [Vĩ độ, Kinh độ]
+    // Fix ngược tọa độ
     if (coords.length > 0 && Math.abs(coords[0][0]) < 90 && Math.abs(coords[0][1]) > 90) {
       coords = coords.map(c => [c[1], c[0]]);
     }
@@ -964,7 +1002,6 @@ window.fetchAndShowRoute = async () => {
     state.currentRoute = route;
     drawRouteLine(route.coords);
     
-    // Tự động thu phóng để thấy toàn bộ tuyến
     const lngs = route.coords.map(c => c[0]), lats = route.coords.map(c => c[1]);
     state.map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 100, bottom: 120, duration: 1200 });
     
@@ -1526,7 +1563,7 @@ function showToast(msg, type = 'info') {
   setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-10px)'; el.style.transition = 'all .3s'; setTimeout(() => el.remove(), 300); }, 2500);
 }
 
-console.log('[DriveKit] Ready — Worker Auto Mode');
+console.log('[DriveKit] Ready — Full Interactive UX');
 
 </script>
 </body>
