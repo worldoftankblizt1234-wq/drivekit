@@ -342,6 +342,175 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
 /* Improve dir sheet scroll */
 #dirSheet .sheet-body{padding-bottom:calc(28px + var(--safe-bot))}
 
+
+/* === FIX TOP BAR CÂN BẰNG === */
+.top-bar{
+  left:50%;transform:translateX(-50%);
+  width:calc(100% - 16px);max-width:740px;
+  display:flex;gap:8px;align-items:center;
+  box-sizing:border-box;
+}
+.logo-brand{
+  display:flex;align-items:center;gap:9px;
+  background:var(--surface-glass-2);
+  backdrop-filter:blur(20px) saturate(1.4);
+  -webkit-backdrop-filter:blur(20px) saturate(1.4);
+  border:1px solid var(--border-strong);
+  border-radius:999px;
+  padding:6px 14px 6px 6px;
+  box-shadow:var(--shadow-lg);
+  flex-shrink:0;cursor:pointer;
+  transition:all 0.2s;
+}
+.logo-brand:hover{transform:translateY(-1px)}
+.logo-brand .logo-icon{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--primary-gradient);
+  display:flex;align-items:center;justify-content:center;
+  color:white;font-size:0.95rem;
+  box-shadow:var(--shadow-primary);
+  flex-shrink:0;
+}
+.logo-brand .logo-text{display:flex;flex-direction:column;line-height:1}
+.logo-brand .logo-text b{font-size:0.9rem;font-weight:900;letter-spacing:-0.02em;color:var(--text)}
+.logo-brand .logo-text span{font-size:0.62rem;font-weight:800;letter-spacing:0.12em;color:var(--primary);margin-top:-1px}
+.search-field{
+  flex:1;min-width:0;
+  padding:10px 12px 10px 16px;
+  background:var(--surface-glass-2);
+  backdrop-filter:blur(20px) saturate(1.4);
+  -webkit-backdrop-filter:blur(20px) saturate(1.4);
+  border:1px solid var(--border-strong);
+  border-radius:999px;
+  box-shadow:var(--shadow-lg);
+}
+.search-field input{flex:1;min-width:0;pointer-events:none}
+.search-field i.fa-search{flex-shrink:0}
+
+/* === FIX BOTTOM NAV - HIỆN ĐỦ 5 NÚT === */
+.bottom-nav{
+  width:calc(100% - 16px);max-width:440px;
+  left:50%;transform:translateX(-50%);
+  display:flex;justify-content:space-between;align-items:center;
+  gap:2px;padding:6px;
+  box-sizing:border-box;
+  overflow:visible;
+}
+.nav-item{
+  flex:1;min-width:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;
+  padding:10px 4px;
+  font-size:0.68rem;font-weight:700;
+  border-radius:999px;
+  white-space:nowrap;
+}
+.nav-item i{font-size:1.15rem;flex-shrink:0}
+.nav-item span{
+  font-size:0.66rem;line-height:1;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.nav-item.center{
+  flex:0 0 auto;
+  flex-direction:row;
+  padding:12px 18px;
+  gap:8px;
+  margin:0 2px;
+}
+.nav-item.center i{font-size:1.15rem}
+.nav-item.center span{font-size:0.78rem;display:block}
+
+/* Mobile nhỏ: chỉ hiện icon cho gọn */
+@media (max-width:380px){
+  .logo-brand .logo-text{display:none}
+  .logo-brand{padding:6px}
+  .nav-item{padding:10px 6px;gap:3px}
+  .nav-item span{font-size:0.6rem}
+  .nav-item.center{padding:11px 14px}
+  .nav-item.center span{display:none}
+}
+@media (max-width:340px){
+  .nav-item span{display:none}
+  .nav-item{padding:10px 8px}
+}
+
+#suggestionsBox{left:50%;transform:translateX(-50%) translateY(-8px);width:calc(100% - 16px);max-width:740px}
+#suggestionsBox.show{transform:translateX(-50%) translateY(0)}
+
+
+/* === BỎ GRADIENT ĐEN Ở CHÂN TRANG === */
+.bottom-nav{
+  background:var(--surface-glass-2) !important;
+  background-image:none !important;
+  backdrop-filter:blur(24px) saturate(1.4) !important;
+  -webkit-backdrop-filter:blur(24px) saturate(1.4) !important;
+  box-shadow:0 8px 32px rgba(0,0,0,0.22), 0 0 0 1px var(--border-strong) inset !important;
+}
+.bottom-nav::before,
+.bottom-nav::after,
+#map::before,
+#map::after,
+.maplibregl-map::before,
+.maplibregl-map::after,
+.maplibregl-canvas-container::before,
+.maplibregl-canvas-container::after{
+  display:none !important;
+  background:none !important;
+  content:none !important;
+}
+/* Nếu có lớp phủ mờ cũ */
+.bottom-fade, .map-fade, .footer-gradient, .map-overlay-bottom{
+  display:none !important;
+  background:none !important;
+}
+/* Attribution gọn, không nền đen */
+.maplibregl-ctrl-bottom-left,
+.maplibregl-ctrl-bottom-right,
+.maplibregl-ctrl-attrib{
+  background:transparent !important;
+  background-image:none !important;
+  box-shadow:none !important;
+}
+.maplibregl-ctrl-attrib a{color:var(--muted) !important}
+
+
+/* === COMPACT MAP ACTION SHEET - 30% màn hình === */
+#mapActionSheet{
+  max-height:42vh !important;
+  min-height:unset !important;
+  border-radius:24px 24px 0 0 !important;
+}
+#mapActionSheet .sheet-header{padding:14px 18px 10px !important}
+#mapActionSheet .sheet-header h2{font-size:0.98rem !important}
+#mapActionSheet #mapActionCoords{font-size:0.7rem !important}
+#mapActionSheet .sheet-body{padding:8px 16px 16px !important;overflow-y:auto}
+#mapActionSheet #mapActionAddress{
+  font-size:0.88rem !important;
+  padding:10px 12px !important;
+  margin-bottom:12px !important;
+  border-radius:12px !important;
+  line-height:1.35 !important;
+}
+#mapActionSheet .btn{
+  padding:12px 14px !important;
+  border-radius:12px !important;
+  font-size:0.9rem !important;
+}
+#mapActionSheet .btn div[style*="38px"]{width:32px !important;height:32px !important;border-radius:9px !important}
+#mapActionSheet .btn div[style*="text-align:left"] div:first-child{font-size:0.88rem !important}
+#mapActionSheet .btn div[style*="text-align:left"] div:last-child{font-size:0.7rem !important}
+
+/* Đảm bảo map vẫn hiện 70% khi sheet mở */
+#mapActionSheet.open ~ #map,
+body:has(#mapActionSheet.open) #map{
+  /* không che map */
+}
+
+
+/* Dir sheet khi mở từ map - cũng gọn, để lộ map 50% */
+#dirSheet{max-height:58vh !important}
+
 </style>
 </head>
 <body>
@@ -375,50 +544,19 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
 <div id="appUI" class="hidden">
   <div id="map"></div>
 
-  <div class="top-bar">
-    <div class="search-field" onclick="window.activateSearch('view')"><div style="width:36px;height:36px;border-radius:11px;background:var(--primary-gradient);display:flex;align-items:center;justify-content:center;color:white;flex-shrink:0;box-shadow:0 4px 12px rgba(99,102,241,0.3)" aria-label="DriveKit Maps Logo"><i class="fas fa-route" style="color:white;font-size:1rem"></i></div>
-      <div style="display:flex;flex-direction:column;line-height:1;flex-shrink:0;margin-right:2px"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:900;font-size:0.95rem;letter-spacing:-0.03em;color:var(--text)">DriveKit</span><span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;color:var(--primary);margin-top:1px">MAPS</span></div>
+    <div class="top-bar">
+    <div class="logo-brand" onclick="window.centerToLocation()" title="DriveKit Maps">
+      <div class="logo-icon"><i class="fas fa-route"></i></div>
+      <div class="logo-text"><b>DriveKit</b><span>MAPS</span></div>
+    </div>
+    <div class="search-field" onclick="window.activateSearch('view')">
       <i class="fas fa-search"></i>
-      <input id="topSearchInput" readonly placeholder="Tìm địa điểm hoặc dán link Google Maps...">
-      <button id="searchClearBtn" class="hidden" style="background:none;border:none;color:var(--muted);padding:4px" onclick="event.stopPropagation();window.clearTopSearch()"><i class="fas fa-times-circle"></i></button>
+      <input id="topSearchInput" readonly placeholder="Tìm địa điểm, dán link Google Maps...">
+      <button id="searchClearBtn" class="hidden" style="background:none;border:none;color:var(--muted);padding:6px;display:flex" onclick="event.stopPropagation();window.clearTopSearch()"><i class="fas fa-times-circle"></i></button>
     </div>
     <button id="clearDestBtn" class="clear-dest-btn hidden" onclick="window.clearRoute()" title="Xoá điểm đến"><i class="fas fa-times"></i></button>
     <button class="avatar-btn" onclick="window.openMenu()" id="avatarBtn"><i class="fas fa-user"></i></button>
   </div>
-
-  <div id="suggestionsBox" class="suggestions"></div>
-
-  <div class="right-ctrls" id="rightCtrls">
-    <button class="ctrl-btn" id="btn3D" onclick="window.toggle3D()" title="3D"><i class="fas fa-cube"></i></button>
-    <button class="ctrl-btn" id="btnTraffic" onclick="window.toggleTraffic()" title="Traffic"><i class="fas fa-traffic-light"></i></button>
-    <button class="compass" onclick="window.resetNorth()" title="Bắc"><div class="compass-arrow" id="compassArrow"></div></button>
-  </div>
-
-  <div class="bottom-nav" id="bottomNav">
-    <button class="nav-item" onclick="window.openLayerSheet()"><i class="fas fa-layer-group"></i><span>Bản đồ</span></button>
-    <button class="nav-item" onclick="window.openDirections()"><i class="fas fa-route"></i><span>Chỉ đường</span></button>
-    <button class="nav-item center" onclick="window.centerToLocation()"><i class="fas fa-location-crosshairs"></i><span>Định vị</span></button>
-    <button class="nav-item" onclick="window.openReportMenu()"><i class="fas fa-triangle-exclamation"></i><span>Báo cáo</span></button>
-    <button class="nav-item" onclick="window.openMenu()"><i class="fas fa-user"></i><span>Tôi</span></button>
-  </div>
-
-  <!-- Layer sheet -->
-  <div id="layerSheet" class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header"><h2>Bản đồ</h2><button class="close-btn" onclick="window.closeLayerSheet()"><i class="fas fa-times"></i></button></div>
-    <div class="sheet-body">
-      <div class="layer-item active" data-layer="trackasia" onclick="window.setMapLayer('trackasia',this)"><i class="fas fa-map"></i><span>TrackAsia</span><i class="fas fa-check"></i></div>
-      <div class="layer-item" data-layer="satellite" onclick="window.setMapLayer('satellite',this)"><i class="fas fa-satellite"></i><span>Vệ tinh</span><i class="fas fa-check"></i></div>
-      <div class="section-label">Lớp phủ</div>
-      <div class="toggle-row">
-        <span><i class="fas fa-traffic-light"></i> Traffic Realtime (TomTom)</span>
-        <input type="checkbox" id="trafficToggle" onchange="window.toggleTraffic()">
-      </div>
-      <div class="toggle-row">
-        <span><i class="fas fa-cube"></i> Chế độ 3D</span>
-        <input type="checkbox" id="mode3DToggle" onchange="window.toggle3D()">
-      </div>
-    </div>
   </div>
 
   <!-- Directions -->
@@ -969,13 +1107,26 @@ window.handleMapAction = (action) => {
   haptic();
   if (!window._mapActionData) return;
   const { lat, lng, name } = window._mapActionData;
+  const data = {...window._mapActionData};
   window.closeMapActionSheet();
   if (action === 'save') {
-    setTimeout(()=> window.showSavePlace(lat, lng, name), 280);
+    setTimeout(()=> window.showSavePlace(data.lat, data.lng, data.name), 260);
   } else if (action === 'go') {
-    setTimeout(()=> window.goToLocation(lat, lng, name), 150);
+    // Chuyển thẳng sang bảng tìm tuyến đường (đen)
+    setTimeout(()=> {
+      state.endPoint = { lat: data.lat, lng: data.lng, name: data.name };
+      $('dirInputEnd').value = data.name;
+      $('topSearchInput').value = data.name;
+      $('clearDestBtn').classList.remove('hidden');
+      // Mở bảng chỉ đường ngay
+      window.openDirections();
+      // Nếu đã có điểm đi thì tự động tìm tuyến sau 400ms
+      if(state.startPoint){
+        setTimeout(()=> { window.fetchAndShowRoute(); }, 500);
+      }
+    }, 180);
   } else if (action === 'poi') {
-    setTimeout(()=> window.openPoiSheet(lat, lng, name), 280);
+    setTimeout(()=> window.openPoiSheet(data.lat, data.lng, data.name), 260);
   }
 };
 
@@ -1015,8 +1166,16 @@ window.goToLocation = (lat, lng, name) => {
   $('topSearchInput').value = state.endPoint.name;
   $('clearDestBtn').classList.remove('hidden');
   
-  if (state.map) state.map.closePopup();
+  if (state.map) try{ state.map.closePopup(); }catch{}
+  // Đảm bảo đóng sheet bản đồ cũ trước khi mở chỉ đường
+  const maSheet = document.getElementById('mapActionSheet');
+  if(maSheet) maSheet.classList.remove('open');
+  
   openDirections();
+  // Auto tìm tuyến nếu đã có điểm đi
+  if(state.startPoint){
+    setTimeout(()=> { window.fetchAndShowRoute(); }, 400);
+  }
 };
 
 // ═══════════════ GPS ═══════════════
