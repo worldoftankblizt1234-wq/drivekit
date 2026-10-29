@@ -18,6 +18,11 @@ button:active, .chip:active, .layer-item:active, .report-btn:active, .nav-item:a
 input, select { transition: border-color 0.2s, box-shadow 0.2s; }
 input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
 
+/* Fix lỗi Popup MapLibre không click được */
+.maplibregl-popup { z-index: 1000 !important; }
+.maplibregl-popup-content { pointer-events: auto !important; }
+.custom-popup { pointer-events: auto !important; }
+
 /* Backdrop overlay for sheets */
 .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 250; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
 body:has(.sheet.open) .backdrop { opacity: 1; pointer-events: auto; }
@@ -663,7 +668,7 @@ function initMap() {
     showToast('Đang lấy địa chỉ...', 'info');
     const name = await reverseGeocode(lat, lng);
     
-    // 3. Tạo Popup bằng DOM (tránh lỗi dấu nháy & sự kiện bị chặn)
+    // 3. Tạo Popup bằng DOM
     const popupNode = document.createElement('div');
     popupNode.style.cssText = 'min-width:220px;font-family:inherit;padding:4px;color:var(--text)';
     popupNode.innerHTML = `
@@ -676,16 +681,23 @@ function initMap() {
       </button>
     `;
 
-    popupNode.querySelector('.popup-btn-save').onclick = (ev) => {
-      ev.stopPropagation();
-      window.showSavePlace(lat, lng, name);
-    };
-    popupNode.querySelector('.popup-btn-go').onclick = (ev) => {
-      ev.stopPropagation();
-      window.goToLocation(lat, lng, name);
+    // 4. Gắn sự kiện pointerdown (bắt sớm hơn click) + capture: true
+    const btnSave = popupNode.querySelector('.popup-btn-save');
+    const btnGo = popupNode.querySelector('.popup-btn-go');
+
+    const handleAction = (ev, action) => {
+      ev.preventDefault();
+      ev.stopPropagation(); // Chặn MapLibre đóng popup
+      if (action === 'save') window.showSavePlace(lat, lng, name);
+      if (action === 'go') window.goToLocation(lat, lng, name);
     };
 
-    new maplibregl.Popup({ closeOnClick: true, offset: 15, className: 'custom-popup' })
+    btnSave.addEventListener('pointerdown', (ev) => handleAction(ev, 'save'), { capture: true });
+    btnGo.addEventListener('pointerdown', (ev) => handleAction(ev, 'go'), { capture: true });
+    btnSave.addEventListener('click', (ev) => handleAction(ev, 'save'), { capture: true });
+    btnGo.addEventListener('click', (ev) => handleAction(ev, 'go'), { capture: true });
+
+    new maplibregl.Popup({ closeOnClick: false, offset: 15, className: 'custom-popup' })
       .setLngLat([lng, lat])
       .setDOMContent(popupNode)
       .addTo(state.map);
@@ -747,8 +759,48 @@ function updateUserMarker(lat, lng, heading) {
 
 window.centerToLocation = () => {
   haptic();
-  if (!state.lastUserPos) return showToast('Chưa có GPS', 'warning');
-  state.map.flyTo({ center: [state.lastUserPos.lng, state.lastUserPos.lat], zoom: 16, duration: 1000 });
+  
+  // Nếu đã có GPS thì bay tới luôn
+  if (state.lastUserPos) {
+    state.map.flyTo({ center: [state.lastUserPos.lng, state.lastUserPos.lat], zoom: 16, duration: 1000 });
+    return;
+  }
+
+  // Nếu chưa có GPS, chủ động yêu cầu lại
+  showToast('Đang định vị...', 'info');
+  
+  if (!navigator.geolocation) {
+    return showToast('Thiết bị/Trình duyệt không hỗ trợ GPS', 'error');
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude: lat, longitude: lng, heading } = pos.coords;
+      state.lastUserPos = { lat, lng, speed: pos.coords.speed || 0 };
+      state.lastHeading = heading || 0;
+      updateUserMarker(lat, lng, state.lastHeading);
+      state.map.flyTo({ center: [lng, lat], zoom: 16, duration: 1500 });
+      
+      if (!state.startPoint) {
+        state.startPoint = { lat, lng, name: 'Vị trí của tôi' };
+        $('dirInputStart').value = 'Vị trí của tôi';
+      }
+      showToast('Đã xác định vị trí', 'success');
+    },
+    (err) => {
+      console.warn('GPS Error:', err);
+      if (err.code === 1) { // PERMISSION_DENIED
+        showToast('Vui lòng cấp quyền vị trí trong cài đặt trình duyệt!', 'error');
+      } else if (err.code === 2) { // POSITION_UNAVAILABLE
+        showToast('Không tìm thấy tín hiệu GPS. Hãy bật định vị trên thiết bị.', 'error');
+      } else if (err.code === 3) { // TIMEOUT
+        showToast('Quá thời gian lấy vị trí. Vui lòng thử lại.', 'warning');
+      } else {
+        showToast('Lỗi không xác định khi lấy GPS.', 'error');
+      }
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
 };
 
 // ═══════════════ SEARCH ═══════════════
@@ -1563,7 +1615,7 @@ function showToast(msg, type = 'info') {
   setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-10px)'; el.style.transition = 'all .3s'; setTimeout(() => el.remove(), 300); }, 2500);
 }
 
-console.log('[DriveKit] Ready — Full Interactive UX');
+console.log('[DriveKit] Ready — Full Interactive UX (Fixed Popup & GPS)');
 
 </script>
 </body>
