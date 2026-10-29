@@ -18,36 +18,10 @@ button:active, .chip:active, .layer-item:active, .report-btn:active, .nav-item:a
 input, select { transition: border-color 0.2s, box-shadow 0.2s; }
 input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
 
-/* Fix lỗi Popup MapLibre không click được & Cải thiện giao diện */
+/* Fix lỗi Popup MapLibre không click được */
 .maplibregl-popup { z-index: 1000 !important; }
-.maplibregl-popup-content { pointer-events: auto !important; background: var(--surface) !important; border-radius: 16px !important; padding: 14px !important; box-shadow: 0 10px 30px rgba(0,0,0,.3) !important; border: 1px solid var(--border) !important; color: var(--text) !important; }
-.maplibregl-popup-tip { border-top-color: var(--surface) !important; border-bottom-color: var(--surface) !important; }
+.maplibregl-popup-content { pointer-events: auto !important; }
 .custom-popup { pointer-events: auto !important; }
-
-.map-popup-card { min-width: 220px; font-family: inherit; }
-.map-popup-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 12px; line-height: 1.3; display: flex; align-items: flex-start; gap: 8px; }
-.map-popup-title i { color: var(--danger); margin-top: 2px; }
-.map-popup-actions { display: flex; gap: 8px; }
-.map-popup-btn { flex: 1; padding: 10px; border: none; border-radius: 10px; font-weight: 700; font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; transition: transform 0.1s; }
-.map-popup-btn i { font-size: 1.2rem; }
-.map-popup-btn:active { transform: scale(0.95); }
-.popup-btn-save { background: rgba(16,185,129,0.15); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
-.popup-btn-go { background: var(--primary); color: white; border: 1px solid var(--primary); }
-
-/* Cấu trúc Marker chuẩn */
-.custom-marker-wrapper {
-  width: 40px; height: 40px; /* Khung cố định để dấu X không bị lệch */
-  position: relative;
-  pointer-events: auto;
-}
-.marker-content {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  transition: transform 0.1s linear;
-}
 
 /* Backdrop overlay for sheets */
 .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 250; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
@@ -86,6 +60,7 @@ body:has(.sheet.open) .backdrop { opacity: 1; pointer-events: auto; }
 .search-field input{flex:1;border:none;background:transparent;color:var(--text);font-size:.95rem;outline:none;pointer-events:none}
 .avatar-btn{width:44px;height:44px;border-radius:50%;background:var(--surface-glass);backdrop-filter:blur(12px);border:1px solid var(--border);color:var(--text);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.2);overflow:hidden;flex-shrink:0}
 .avatar-btn img{width:100%;height:100%;object-fit:cover}
+.clear-dest-btn{width:44px;height:44px;border-radius:50%;background:var(--danger);border:1px solid var(--border);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(239,68,68,.4);flex-shrink:0}
 
 .suggestions{position:fixed;top:calc(72px + var(--safe-top));left:12px;right:12px;max-height:55vh;overflow-y:auto;background:var(--surface-glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:none;z-index:150;transform:translateY(-10px);opacity:0;transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1);}
 .suggestions.show{display:block;transform:translateY(0);opacity:1;}
@@ -176,8 +151,9 @@ body:has(.sheet.open) .backdrop { opacity: 1; pointer-events: auto; }
 .hud-main-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
 .hud-dist{font-size:1.05rem;font-weight:800;color:var(--primary);line-height:1.1;}
 .hud-instr{font-size:.85rem;color:var(--text);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.hud-close{width:32px;height:32px;border-radius:50%;background:var(--bg);color:var(--muted);border:none;display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;flex-shrink:0;}
-.hud-report{width:32px;height:32px;border-radius:50%;background:rgba(245,158,11,0.15);color:var(--warning);border:none;display:flex;align-items:center;justify-content:center;font-size:.9rem;cursor:pointer;flex-shrink:0;margin-right:4px;}
+.hud-btn{width:32px;height:32px;border-radius:50%;background:var(--bg);color:var(--muted);border:none;display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;flex-shrink:0;}
+.hud-btn.report{color:var(--warning);}
+.hud-btn.close{color:var(--danger);}
 .hud-row-2{display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--border);font-size:.75rem;color:var(--muted);font-weight:600;}
 .hud-row-2 span{display:flex;align-items:center;gap:4px;}
 .hud-row-2 i{color:var(--surface-3);}
@@ -243,6 +219,7 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
       <input id="topSearchInput" readonly placeholder="Tìm địa điểm hoặc dán link Google Maps...">
       <button id="searchClearBtn" class="hidden" style="background:none;border:none;color:var(--muted);padding:4px" onclick="event.stopPropagation();window.clearTopSearch()"><i class="fas fa-times-circle"></i></button>
     </div>
+    <button id="clearDestBtn" class="clear-dest-btn hidden" onclick="window.clearRoute()" title="Xoá điểm đến"><i class="fas fa-times"></i></button>
     <button class="avatar-btn" onclick="window.openMenu()" id="avatarBtn"><i class="fas fa-user"></i></button>
   </div>
 
@@ -472,8 +449,8 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
         <span id="hudNextDist" class="hud-dist">--</span>
         <span id="hudNextInstr" class="hud-instr">--</span>
       </div>
-      <button class="hud-report" onclick="window.openReportMenu()"><i class="fas fa-exclamation-triangle"></i></button>
-      <button class="hud-close" onclick="window.openEndTripModal()"><i class="fas fa-times"></i></button>
+      <button class="hud-btn report" onclick="window.openReportMenu()" title="Báo cáo sự cố"><i class="fas fa-exclamation-triangle"></i></button>
+      <button class="hud-btn close" onclick="window.openEndTripModal()" title="Kết thúc"><i class="fas fa-times"></i></button>
     </div>
     <div class="hud-row-2">
       <span><i class="fas fa-route"></i> <span id="hudRemainDist">--</span></span>
@@ -504,7 +481,6 @@ const FIREBASE_CONFIG = {
 };
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
-const ARRIVAL_RADIUS_M = 15; // Tự động kết thúc khi còn 15m
 
 const app = initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
@@ -527,14 +503,14 @@ const state = {
   allCommunityPois: {}, allAvoidZones: {},
   poiMarkers: {}, reportMarkers: {}, savedPlaceMarkers: {}, avoidZoneMarkers: {},
   liveEnabled: false, liveRoomCode: null, liveMembers: {}, liveMemberMarkers: {},
-  livePushInterval: null, liveUnsub: null
+  livePushInterval: null, liveUnsub: null,
+  hasArrived: false
 };
 
 // Biến toàn cục cho Auto-Reroute
 let isRerouting = false;
 let lastRerouteTime = 0;
 let offRouteCounter = 0;
-let arrivalHandled = false;
 
 const $ = id => document.getElementById(id);
 
@@ -694,15 +670,10 @@ function initMap() {
     if (state.trafficOn) addTrafficLayer();
   });
 
-  // Xoay toàn bộ nội dung Marker ngược lại với bản đồ
   state.map.on('rotate', () => {
     const bearing = state.map.getBearing();
     state.bearing = bearing;
     $('compassArrow').style.transform = `rotate(${-bearing}deg)`;
-    
-    document.querySelectorAll('.marker-content').forEach(el => {
-      el.style.transform = `rotate(${-bearing}deg)`;
-    });
   });
 
   state.map.on('pitch', () => {
@@ -718,13 +689,11 @@ function initMap() {
     renderAvoidZones();
   });
 
-  // Sự kiện click Bản đồ
   state.map.on('click', async (e) => {
     if (state.isNavigating) return;
     const { lng, lat } = e.lngLat;
     haptic();
 
-    // Nếu đang trong chế độ chọn vị trí cho POI
     if (state.isPickingPoiLocation) {
       state.isPickingPoiLocation = false;
       showToast('Đang lấy địa chỉ...', 'info');
@@ -733,11 +702,9 @@ function initMap() {
       return;
     }
 
-    // Xoá popup và ripple cũ
     if (state.activePopup) { state.activePopup.remove(); state.activePopup = null; }
     if (state.activeRipple) { state.activeRipple.remove(); state.activeRipple = null; }
 
-    // Tạo Ripple mới
     const rippleEl = document.createElement('div');
     rippleEl.className = 'map-ripple';
     state.activeRipple = new maplibregl.Marker({ element: rippleEl, anchor: 'center' })
@@ -750,25 +717,18 @@ function initMap() {
     showToast('Đang lấy địa chỉ...', 'info');
     const name = await reverseGeocode(lat, lng);
     
-    // Lưu dữ liệu vào biến toàn cục
     window._popupData = { lat, lng, name };
     const safeName = escapeHtml(name);
 
-    // Giao diện Popup mới
     const html = `
-      <div class="map-popup-card">
-        <div class="map-popup-title">
-          <i class="fas fa-map-marker-alt"></i> 
-          <span>${safeName}</span>
-        </div>
-        <div class="map-popup-actions">
-          <button class="map-popup-btn popup-btn-save" onclick="window.handlePopupClick('save')">
-            <i class="fas fa-bookmark"></i> Ghim
-          </button>
-          <button class="map-popup-btn popup-btn-go" onclick="window.handlePopupClick('go')">
-            <i class="fas fa-diamond-turn-right"></i> Dẫn đường
-          </button>
-        </div>
+      <div style="min-width:220px;font-family:inherit;padding:4px;color:var(--text)">
+        <div style="font-weight:700;font-size:.9rem;margin-bottom:12px;line-height:1.3;">${safeName}</div>
+        <button onclick="window.handlePopupClick('save')" style="width:100%;padding:10px;background:#10b981;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:.85rem;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;gap:8px;justify-content:center">
+          <i class="fas fa-map-pin"></i> Ghim địa điểm
+        </button>
+        <button onclick="window.handlePopupClick('go')" style="width:100%;padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:.85rem;cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center">
+          <i class="fas fa-directions"></i> Chỉ đường tới đây
+        </button>
       </div>
     `;
 
@@ -788,28 +748,16 @@ window.handlePopupClick = (action) => {
   if (action === 'save') {
     window.showSavePlace(lat, lng, name);
   } else if (action === 'go') {
-    window.quickNavigate(lat, lng, name);
+    window.goToLocation(lat, lng, name);
   }
 };
 
-// Hàm dẫn đường nhanh từ popup
-window.quickNavigate = async (lat, lng, name) => {
+window.goToLocation = (lat, lng, name) => {
   haptic();
-  
-  if (!state.lastUserPos) {
-    showToast('Đang chờ tín hiệu GPS...', 'info');
-    await new Promise(r => setTimeout(r, 1500));
-    if (!state.lastUserPos) return showToast('Không lấy được GPS. Vui lòng bật định vị!', 'error');
-  }
-  
-  state.startPoint = { lat: state.lastUserPos.lat, lng: state.lastUserPos.lng, name: 'Vị trí của tôi' };
   state.endPoint = { lat, lng, name };
-  
-  $('dirInputStart').value = 'Vị trí của tôi';
   $('dirInputEnd').value = name;
-  
-  // Tự động chuyển sang bảng Route Options
-  fetchAndShowRoute();
+  if (state.map) state.map.closePopup();
+  openDirections();
 };
 
 // ═══════════════ GPS ═══════════════
@@ -847,12 +795,10 @@ function updateUserMarker(lat, lng, heading) {
     arrowRotate = 0; // Hướng lên trên khi dẫn đường
   }
 
-  const html = `<div class="custom-marker-wrapper">
-    <div class="marker-content">
-      <div style="position:absolute;inset:0;background:rgba(16,185,129,0.3);border-radius:50%;animation:ripple 1.5s infinite;"></div>
-      <div style="position:absolute;inset:4px;background:var(--success);border-radius:50%;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;">
-        <svg width="18" height="18" viewBox="0 0 24 24" style="transform:rotate(${arrowRotate}deg);transition:transform 0.3s linear;"><path d="M12 2L22 20L12 16L2 20L12 2Z" fill="white"/></svg>
-      </div>
+  const html = `<div class="user-loc" style="position:relative;width:40px;height:40px;">
+    <div style="position:absolute;inset:0;background:rgba(16,185,129,0.3);border-radius:50%;animation:ripple 1.5s infinite;"></div>
+    <div style="position:absolute;inset:4px;background:var(--success);border-radius:50%;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;">
+      <svg width="18" height="18" viewBox="0 0 24 24" style="transform:rotate(${arrowRotate}deg);transition:transform 0.3s linear;"><path d="M12 2L22 20L12 16L2 20L12 2Z" fill="white"/></svg>
     </div>
   </div>`;
   
@@ -864,6 +810,7 @@ function updateUserMarker(lat, lng, heading) {
     el.innerHTML = html;
     state.userMarker = new maplibregl.Marker({ 
       element: el.firstElementChild, 
+      rotationAlignment: 'viewport', 
       pitchAlignment: 'viewport' 
     }).setLngLat([lng, lat]).addTo(state.map);
   }
@@ -941,11 +888,26 @@ window.clearTopSearch = () => {
   $('suggestionsBox').classList.remove('show');
 };
 
+window.clearRoute = () => {
+  haptic();
+  state.startPoint = null;
+  state.endPoint = null;
+  state.currentRoute = null;
+  $('dirInputStart').value = '';
+  $('dirInputEnd').value = '';
+  $('topSearchInput').value = '';
+  $('clearDestBtn').classList.add('hidden');
+  $('searchClearBtn').classList.add('hidden');
+  if (state.map.getLayer('route-line')) state.map.removeLayer('route-line');
+  if (state.map.getSource('route')) state.map.removeSource('route');
+  if (state.activePopup) { state.activePopup.remove(); state.activePopup = null; }
+  showToast('Đã xoá tuyến đường', 'info');
+};
+
 async function doSearch(q) {
   const box = $('suggestionsBox');
   const searchStr = q.toLowerCase().trim();
   
-  // 1. Tìm kiếm trong dữ liệu Local (Trạm nghỉ, POI cộng đồng)
   const localResults = Object.entries(state.allCommunityPois)
     .filter(([id, p]) => p.name && p.name.toLowerCase().includes(searchStr))
     .map(([id, p]) => ({ ...p, id }));
@@ -977,7 +939,6 @@ async function doSearch(q) {
     });
   }
 
-  // 2. Tìm kiếm qua API TrackAsia
   const apiLoading = document.createElement('div');
   apiLoading.className = 'sug-item';
   apiLoading.style.pointerEvents = 'none';
@@ -1027,6 +988,7 @@ async function selectLocation(lat, lng, name) {
   $('topSearchInput').value = name; $('topSearchInput').readOnly = true;
   $('topSearchInput').style.pointerEvents = 'none';
   $('suggestionsBox').classList.remove('show');
+  $('clearDestBtn').classList.remove('hidden');
   
   state.map.flyTo({ center: [lng, lat], zoom: 16, duration: 1500 });
   
@@ -1192,6 +1154,7 @@ window.fetchAndShowRoute = async () => {
       provider: data.provider
     };
     state.currentRoute = route;
+    state.hasArrived = false;
     drawRouteLine(route.coords);
     
     const lngs = route.coords.map(c => c[0]), lats = route.coords.map(c => c[1]);
@@ -1231,8 +1194,7 @@ window.startNavigation = () => {
   if (!state.currentRoute) return;
   state.isNavigating = true;
   state.tripStartTime = Date.now();
-  arrivalHandled = false; // Reset trạng thái đến nơi
-  
+  state.hasArrived = false;
   document.body.classList.add('navigating');
   $('routeOptionsModal').classList.remove('open');
   $('dirSheet').classList.remove('open');
@@ -1254,23 +1216,24 @@ window.startNavigation = () => {
 };
 
 function updateNavigation() {
-  if (!state.isNavigating || !state.lastUserPos || !state.currentRoute || arrivalHandled) return;
+  if (!state.isNavigating || !state.lastUserPos || !state.currentRoute) return;
   
   const coords = state.currentRoute.coords;
   const userLat = state.lastUserPos.lat;
   const userLng = state.lastUserPos.lng;
 
-  // Tự động kết thúc khi còn cách đích <= 15m
-  const distToEnd = haversine(userLat, userLng, state.endPoint.lat, state.endPoint.lng);
-  if (distToEnd <= ARRIVAL_RADIUS_M) {
-    arrivalHandled = true;
-    showToast('Đã đến nơi!', 'success');
-    haptic();
-    setTimeout(() => { window.openEndTripModal(); }, 1500);
-    return;
+  // FIX 3: Tự động kết thúc khi cách đích 15m
+  if (state.endPoint && !state.hasArrived) {
+    const distToEnd = haversine(userLat, userLng, state.endPoint.lat, state.endPoint.lng);
+    if (distToEnd < 15) {
+      state.hasArrived = true;
+      showToast('Đã đến nơi!', 'success');
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+      setTimeout(() => { window.openEndTripModal(); }, 1500);
+    }
   }
 
-  // 1. Tìm điểm gần nhất trên tuyến đường (Snap to road)
+  // 1. Snap to road
   let minD = Infinity;
   let snappedLat = userLat;
   let snappedLng = userLng;
@@ -1287,7 +1250,7 @@ function updateNavigation() {
     }
   }
 
-  // 2. Xử lý lệch đường (Off-route) -> Tự động đổi tuyến
+  // 2. Auto reroute
   if (minD > 40 && !isRerouting && Date.now() - lastRerouteTime > 10000) {
     offRouteCounter++;
     if (offRouteCounter >= 3) {
@@ -1299,10 +1262,16 @@ function updateNavigation() {
     offRouteCounter = 0;
   }
 
-  // 3. Cập nhật Marker (Kéo vào đường)
+  // 3. Update Marker
+  const originalLat = state.lastUserPos.lat;
+  const originalLng = state.lastUserPos.lng;
+  state.lastUserPos.lat = snappedLat;
+  state.lastUserPos.lng = snappedLng;
   updateUserMarker(snappedLat, snappedLng, 0);
+  state.lastUserPos.lat = originalLat;
+  state.lastUserPos.lng = originalLng;
 
-  // 4. Cập nhật Camera
+  // 4. Camera
   let targetBearing = state.map.getBearing();
   if (nearestIdx < coords.length - 2) {
     targetBearing = getBearing(
@@ -1319,7 +1288,7 @@ function updateNavigation() {
     duration: 600 
   });
 
-  // 5. Cập nhật HUD
+  // 5. HUD Update
   $('hudSpeed').textContent = Math.round((state.lastUserPos.speed || 0) * 3.6) + ' km/h';
   
   const remainCoords = coords.slice(nearestIdx);
@@ -1330,7 +1299,7 @@ function updateNavigation() {
   const remainTime = state.currentRoute.duration * remainRatio;
   $('hudRemainTime').textContent = Math.max(1, Math.round(remainTime / 60)) + ' phút';
 
-  // 6. Cập nhật chỉ dẫn rẽ
+  // 6. Maneuver
   updateNextManeuver(snappedLat, snappedLng);
 }
 
@@ -1462,11 +1431,13 @@ window.endTrip = async (save) => {
   state.isNavigating = false;
   state.currentRoute = null;
   state.tripStartTime = null;
-  arrivalHandled = false;
+  state.hasArrived = false;
   document.body.classList.remove('navigating');
   $('endTripModal').classList.remove('open');
   $('hud').classList.add('hidden');
   $('dirInputEnd').value = '';
+  $('topSearchInput').value = '';
+  $('clearDestBtn').classList.add('hidden');
   state.endPoint = null;
   if (state.map.getLayer('route-line')) state.map.removeLayer('route-line');
   if (state.map.getSource('route')) state.map.removeSource('route');
@@ -1544,24 +1515,26 @@ function renderReports() {
   Object.entries(state.allReports).forEach(([id, r]) => {
     if (now > r.expiresAt) return;
     
-    const html = `<div class="custom-marker-wrapper">
-      <div class="marker-content">
+    const html = `
+      <div style="display:flex; flex-direction:column; align-items:center;">
         <div style="width:28px;height:28px;background:${colors[r.type] || '#ef4444'};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:12px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
           <i class="fas fa-exclamation"></i>
         </div>
-        <div style="position:absolute;top:32px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
+        <div style="margin-top:4px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
           ${typeNames[r.type] || 'Sự cố'}
         </div>
       </div>
-    </div>`;
+    `;
     
     const el = document.createElement('div');
+    el.style.cssText = 'cursor:pointer;pointer-events:auto;';
     el.innerHTML = html;
     el.onclick = (e) => { e.stopPropagation(); haptic(); showToast(typeLabel(r.type), 'warning'); };
     
     const marker = new maplibregl.Marker({ 
-      element: el.firstElementChild, 
-      anchor: 'center',
+      element: el, 
+      anchor: 'top',
+      rotationAlignment: 'viewport',
       pitchAlignment: 'viewport'
     }).setLngLat([r.lng, r.lat]).addTo(state.map);
       
@@ -1594,16 +1567,6 @@ window.submitSavePlace = async (type) => {
   } catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
 };
 
-window.deleteSavedPlace = async (id, e) => {
-  e.stopPropagation();
-  haptic();
-  if (!confirm('Xoá ghim này?')) return;
-  try {
-    await remove(ref(db, `users/${state.user.uid}/savedPlaces/${id}`));
-    showToast('Đã xoá địa điểm', 'success');
-  } catch (err) { showToast('Lỗi: ' + err.message, 'error'); }
-};
-
 function subscribeSavedPlaces() {
   if (!state.user) return;
   onValue(ref(db, `users/${state.user.uid}/savedPlaces`), snap => {
@@ -1628,27 +1591,27 @@ function renderSavedPlaces() {
     let shortName = p.address || 'Địa điểm';
     if (shortName.length > 22) shortName = shortName.substring(0, 22) + '...';
     
-    const html = `<div class="custom-marker-wrapper">
-      <div class="marker-content">
+    const html = `
+      <div style="display:flex; flex-direction:column; align-items:center;">
         <div style="width:32px;height:32px;background:${iconBg};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
           <i class="fas ${iconCls}"></i>
         </div>
-        <div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:var(--danger);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:9px;cursor:pointer;border:1px solid white;z-index:3;" onclick="window.deleteSavedPlace('${id}', event)"><i class="fas fa-times"></i></div>
-        <div style="position:absolute;top:36px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
+        <div style="margin-top:4px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
           ${escapeHtml(shortName)}
         </div>
       </div>
-    </div>`;
+    `;
     
     const el = document.createElement('div');
+    el.style.cssText = 'cursor:pointer;pointer-events:auto;';
     el.innerHTML = html;
-    el.style.pointerEvents = 'auto';
     el.onclick = (e) => { e.stopPropagation(); haptic(); showToast(p.address, 'info'); };
 
     const marker = new maplibregl.Marker({ 
-      element: el.firstElementChild, 
-      anchor: 'center',
-      pitchAlignment: 'viewport' 
+      element: el, 
+      anchor: 'top',
+      rotationAlignment: 'viewport',
+      pitchAlignment: 'viewport'
     }).setLngLat([p.lng, p.lat]).addTo(state.map);
       
     state.savedPlaceMarkers[id] = marker;
@@ -1719,16 +1682,6 @@ window.submitCommunityPoi = async () => {
   } catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
 };
 
-window.deleteCommunityPoi = async (id, e) => {
-  e.stopPropagation();
-  haptic();
-  if (!confirm('Xoá địa điểm cộng đồng này?')) return;
-  try {
-    await remove(ref(db, `communityPois/${id}`));
-    showToast('Đã xoá POI', 'success');
-  } catch (err) { showToast('Lỗi: ' + err.message, 'error'); }
-};
-
 function subscribeCommunityPois() {
   onValue(ref(db, 'communityPois'), snap => {
     state.allCommunityPois = snap.val() || {};
@@ -1752,27 +1705,27 @@ function renderCommunityPois() {
     let shortName = p.name || 'Địa điểm';
     if (shortName.length > 22) shortName = shortName.substring(0, 22) + '...';
     
-    const html = `<div class="custom-marker-wrapper">
-      <div class="marker-content">
+    const html = `
+      <div style="display:flex; flex-direction:column; align-items:center;">
         <div style="width:34px;height:34px;background:${iconBg};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:15px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
           <i class="fas ${iconCls}"></i>
         </div>
-        <div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:var(--danger);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:9px;cursor:pointer;border:1px solid white;z-index:3;" onclick="window.deleteCommunityPoi('${id}', event)"><i class="fas fa-times"></i></div>
-        <div style="position:absolute;top:38px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
+        <div style="margin-top:4px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
           ${escapeHtml(shortName)}
         </div>
       </div>
-    </div>`;
+    `;
     
     const el = document.createElement('div');
+    el.style.cssText = 'cursor:pointer;pointer-events:auto;';
     el.innerHTML = html;
-    el.style.pointerEvents = 'auto';
     el.onclick = (e) => { e.stopPropagation(); haptic(); showPoiDetail(id); };
 
     const marker = new maplibregl.Marker({ 
-      element: el.firstElementChild, 
-      anchor: 'center',
-      pitchAlignment: 'viewport' 
+      element: el, 
+      anchor: 'top',
+      rotationAlignment: 'viewport',
+      pitchAlignment: 'viewport'
     }).setLngLat([p.lng, p.lat]).addTo(state.map);
       
     state.poiMarkers[id] = marker;
@@ -1863,26 +1816,27 @@ function renderAvoidZones() {
       let shortName = m.name;
       if (shortName.length > 22) shortName = shortName.substring(0, 22) + '...';
       
-      const html = `<div class="custom-marker-wrapper">
-        <div class="marker-content">
+      const html = `
+        <div style="display:flex; flex-direction:column; align-items:center;">
           <div style="width:32px;height:32px;background:#ef4444;border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
             <i class="fas fa-ban"></i>
           </div>
-          <div style="position:absolute;top:34px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--danger);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
+          <div style="margin-top:4px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--danger);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
             ${escapeHtml(shortName)}
           </div>
         </div>
-      </div>`;
+      `;
       
       const el = document.createElement('div');
+      el.style.cssText = 'cursor:pointer;pointer-events:auto;';
       el.innerHTML = html;
-      el.style.pointerEvents = 'auto';
       el.onclick = (e) => { e.stopPropagation(); haptic(); showToast(m.name, 'warning'); };
       
       state.avoidZoneMarkers[m.id] = new maplibregl.Marker({ 
-        element: el.firstElementChild, 
-        anchor: 'center',
-        pitchAlignment: 'viewport' 
+        element: el, 
+        anchor: 'top',
+        rotationAlignment: 'viewport',
+        pitchAlignment: 'viewport'
       }).setLngLat(m.lngLat).addTo(state.map);
     });
   }
@@ -2047,18 +2001,13 @@ function renderLiveMemberMarkers() {
   state.liveMemberMarkers = {};
   Object.entries(state.liveMembers).forEach(([uid, m]) => {
     if (uid === state.user?.uid) return;
-    
-    const html = `<div class="custom-marker-wrapper">
-      <div class="marker-content">
-        <div style="width:36px;height:36px;background:#8b5cf6;border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.85rem;box-shadow:0 2px 8px rgba(0,0,0,.4);"><i class="fas fa-user"></i></div>
-      </div>
-    </div>`;
-    
+    const html = `<div style="width:36px;height:36px;background:#8b5cf6;border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.85rem;box-shadow:0 2px 8px rgba(0,0,0,.4);"><i class="fas fa-user"></i></div>`;
     const el = document.createElement('div');
     el.innerHTML = html;
     
     state.liveMemberMarkers[uid] = new maplibregl.Marker({ 
       element: el.firstElementChild,
+      rotationAlignment: 'viewport',
       pitchAlignment: 'viewport'
     }).setLngLat([m.lng, m.lat]).addTo(state.map);
   });
@@ -2134,7 +2083,7 @@ function showToast(msg, type = 'info') {
   setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-10px)'; el.style.transition = 'all .3s'; setTimeout(() => el.remove(), 300); }, 2500);
 }
 
-console.log('[DriveKit] Ready — Fixed Marker Position & Rotation');
+console.log('[DriveKit] Ready — Fixed Marker Rotation & Auto Arrival');
 
 </script>
 </body>
