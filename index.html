@@ -579,6 +579,7 @@ div[style*="linear-gradient"][style*="rgba(0,0,0,0.6)"]{
         <span id="hudNextInstr" class="hud-instr">--</span>
       </div>
       <button class="hud-btn report" onclick="window.openReportMenu()" title="Báo cáo sự cố"><i class="fas fa-exclamation-triangle"></i></button>
+      <button class="hud-btn" id="voiceToggleBtn" onclick="window.toggleVoice()" title="Giọng nói" style="color:var(--primary)"><i class="fas fa-volume-high"></i></button>
       <button class="hud-btn close" onclick="window.openEndTripModal()" title="Kết thúc"><i class="fas fa-times"></i></button>
     </div>
     <div class="hud-row-2">
@@ -872,10 +873,14 @@ window.handleMapAction = (action) => {
   if (action === 'save') setTimeout(()=> window.showSavePlace(d.lat, d.lng, d.name), 200);
   else if (action === 'go') {
     setTimeout(()=> {
+      // Chỉ set điểm đến + mở bảng chọn xe, KHÔNG tự tìm đường
       state.endPoint = { lat: d.lat, lng: d.lng, name: d.name };
-      $('dirInputEnd').value=d.name; $('topSearchInput').value=d.name; $('clearDestBtn').classList.remove('hidden');
-      window.openDirections();
-      if(state.startPoint) setTimeout(()=> window.fetchAndShowRoute(), 500);
+      if($('dirInputEnd')) $('dirInputEnd').value=d.name;
+      if($('topSearchInput')) $('topSearchInput').value=d.name;
+      if($('clearDestBtn')) $('clearDestBtn').classList.remove('hidden');
+      window.openDirections(); // Mở bảng để user chọn Xe máy/Ô tô/Xe tải + nhập kích thước
+      showToast('Chọn loại xe rồi ấn Tìm tuyến', 'info');
+      // KHÔNG tự fetchAndShowRoute nữa - để user tự ấn
     }, 150);
   } else if (action === 'poi') setTimeout(()=> window.openPoiSheet(d.lat, d.lng, d.name), 200);
   else if (action === 'camera') setTimeout(()=> { if(window.reportCameraAt) window.reportCameraAt(d.lat, d.lng); }, 200);
@@ -1375,6 +1380,7 @@ function updateNavigation() {
     if (distToEnd < 15) {
       state.hasArrived = true;
       showToast('Đã đến nơi!', 'success');
+      speak('Bạn đã đến nơi');
       if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
       setTimeout(() => { window.openEndTripModal(); }, 1500);
     }
@@ -1472,8 +1478,9 @@ function updateNextManeuver(lat, lng) {
   if (next) {
     $('hudNextDist').textContent = distToNext > 1000 ? (distToNext / 1000).toFixed(1) + ' km' : Math.round(distToNext) + ' m';
     let instr = next.instruction || next.instructions || next.maneuver?.instruction || 'Tiếp tục di chuyển';
+    let cleanInstr = instr.replace(/<[^>]*>/g, '').trim();
     $('hudNextInstr').textContent = instr;
-    
+    speakManeuverIfNeeded(distToNext, cleanInstr);
     let icon = 'fa-arrow-up';
     const modifier = next.maneuver?.modifier || '';
     if (modifier.includes('left')) icon = 'fa-arrow-left';
@@ -1486,12 +1493,13 @@ function updateNextManeuver(lat, lng) {
   }
 }
 
-async function autoReroute(lat, lng) {
+async async function autoReroute(lat, lng) {
   if (isRerouting) return;
   isRerouting = true;
   lastRerouteTime = Date.now();
   
   showToast('Phát hiện đi sai đường, đang tìm đường mới...', 'warning');
+  speak('Bạn đã đi sai đường, đang tìm đường mới');
   haptic();
 
   try {
@@ -1515,6 +1523,7 @@ async function autoReroute(lat, lng) {
       
       drawRouteLine(coords);
       showToast('Đã cập nhật tuyến đường mới!', 'success');
+      speak('Đã cập nhật tuyến đường mới');
     } else {
       showToast('Không thể tìm đường mới. Vui lòng quay lại tuyến cũ.', 'error');
     }
@@ -2252,6 +2261,49 @@ function checkSpeeding(lat,lng,kmh){
     document.getElementById('cameraAlertDist').textContent=`Chú ý tốc độ! Cẩn thận có camera phạt nguội • Giới hạn ${limit} km/h`;
     el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),5000);
   }
+}
+
+
+// ===== GIỌNG NÓI DẪN ĐƯỜNG =====
+let lastSpokenInstr = '';
+let lastSpeakTime = 0;
+let voiceEnabled = true;
+if('speechSynthesis' in window){ window.speechSynthesis.onvoiceschanged = ()=>{ window.speechSynthesis.getVoices(); }; }
+function speak(text){
+  if(!voiceEnabled) return;
+  if(!text) return;
+  const now = Date.now();
+  if(text === lastSpokenInstr && now - lastSpeakTime < 8000) return;
+  lastSpokenInstr = text;
+  lastSpeakTime = now;
+  try{
+    if('speechSynthesis' in window){
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'vi-VN';
+      utter.rate = 1.0;
+      utter.volume = 1.0;
+      const voices = window.speechSynthesis.getVoices();
+      const viVoice = voices.find(v => v.lang.includes('vi') || v.name.toLowerCase().includes('viet'));
+      if(viVoice) utter.voice = viVoice;
+      window.speechSynthesis.speak(utter);
+    }
+  }catch(e){}
+}
+window.toggleVoice = () => {
+  voiceEnabled = !voiceEnabled;
+  const btn = document.getElementById('voiceToggleBtn');
+  if(btn){ btn.classList.toggle('active', voiceEnabled); btn.innerHTML = voiceEnabled ? '<i class="fas fa-volume-high"></i>' : '<i class="fas fa-volume-xmark"></i>'; }
+  showToast(voiceEnabled ? 'Đã bật giọng nói' : 'Đã tắt giọng nói', 'info');
+  if(voiceEnabled) speak('Đã bật giọng nói dẫn đường');
+};
+function speakManeuverIfNeeded(dist, instr){
+  if(dist > 500 || dist < 15) return;
+  let prefix = '';
+  if(dist > 300) prefix = `Còn ${Math.round(dist/100)*100} mét nữa, `;
+  else if(dist > 100) prefix = `Còn ${Math.round(dist)} mét, `;
+  else prefix = 'Sắp tới, ';
+  speak(prefix + instr);
 }
 
 // ═══════════════ MENU / TABS ═══════════════
