@@ -629,7 +629,7 @@ function initMap() {
     subscribeReports();
     subscribeSavedPlaces();
     subscribeCommunityPois();
-    subscribeAvoidZones(); // Load tuyến cấm
+    subscribeAvoidZones();
     loadHistoryRTDB();
     loadSavedRoutesRTDB();
     loadSharedLinks();
@@ -652,7 +652,6 @@ function initMap() {
     $('mode3DToggle').checked = state.pitch > 10;
   });
 
-  // Tự động render lại khi thay đổi Zoom
   state.map.on('zoomend', () => {
     renderCommunityPois();
     renderSavedPlaces();
@@ -660,13 +659,11 @@ function initMap() {
     renderAvoidZones();
   });
 
-  // Click Map với hiệu ứng Ripple và fix lỗi nút Popup
   state.map.on('click', async (e) => {
     if (state.isNavigating) return;
     const { lng, lat } = e.lngLat;
     haptic();
 
-    // 1. Ripple Effect
     const rippleEl = document.createElement('div');
     rippleEl.className = 'map-ripple';
     const rippleMarker = new maplibregl.Marker({ element: rippleEl, anchor: 'center' })
@@ -674,11 +671,9 @@ function initMap() {
       .addTo(state.map);
     setTimeout(() => rippleMarker.remove(), 600);
 
-    // 2. Lấy địa chỉ
     showToast('Đang lấy địa chỉ...', 'info');
     const name = await reverseGeocode(lat, lng);
     
-    // 3. Tạo Popup bằng DOM
     const popupNode = document.createElement('div');
     popupNode.style.cssText = 'min-width:220px;font-family:inherit;padding:4px;color:var(--text)';
     popupNode.innerHTML = `
@@ -691,7 +686,6 @@ function initMap() {
       </button>
     `;
 
-    // 4. Gắn sự kiện pointerdown
     const btnSave = popupNode.querySelector('.popup-btn-save');
     const btnGo = popupNode.querySelector('.popup-btn-go');
 
@@ -763,7 +757,12 @@ function updateUserMarker(lat, lng, heading) {
   } else {
     const el = document.createElement('div');
     el.innerHTML = html;
-    state.userMarker = new maplibregl.Marker({ element: el.firstElementChild, pitchAlignment: 'map' }).setLngLat([lng, lat]).addTo(state.map);
+    // Thêm rotationAlignment và pitchAlignment để marker không bị xoay theo map
+    state.userMarker = new maplibregl.Marker({ 
+      element: el.firstElementChild, 
+      rotationAlignment: 'viewport', 
+      pitchAlignment: 'viewport' 
+    }).setLngLat([lng, lat]).addTo(state.map);
   }
 }
 
@@ -841,43 +840,46 @@ window.clearTopSearch = () => {
 
 async function doSearch(q) {
   const box = $('suggestionsBox');
+  const searchStr = q.toLowerCase().trim();
+  
+  // 1. Tìm kiếm trong dữ liệu Local (Trạm nghỉ, POI cộng đồng)
+  const localResults = Object.entries(state.allCommunityPois)
+    .filter(([id, p]) => p.name && p.name.toLowerCase().includes(searchStr))
+    .map(([id, p]) => ({ ...p, id }));
 
-  // Link Google Maps
-  if (q.startsWith('http')) {
-    if (q.includes('google.com/maps') || q.includes('goo.gl/maps') || q.includes('maps.app.goo.gl')) {
-      box.innerHTML = '<div class="sug-item" style="pointer-events:none"><i class="fas fa-spinner fa-spin"></i> Đang giải mã link...</div>';
-      try {
-        const res = await fetch(`${WORKER_URL}/resolve-gmaps?url=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        if (data.success && data.coords) {
-          box.innerHTML = '';
-          const div = document.createElement('div');
-          div.className = 'sug-item';
-          div.innerHTML = `<i class="fas fa-map-marker-alt" style="color:var(--primary)"></i><div>${escapeHtml(data.placeName || 'Vị trí từ Google Maps')}</div>`;
-          div.onclick = () => selectLocation(data.coords.lat, data.coords.lng, data.placeName || 'Vị trí chia sẻ');
-          box.appendChild(div);
-        } else box.innerHTML = `<div class="sug-item" style="color:var(--danger)">${escapeHtml(data.error || 'Không giải mã được link')}</div>`;
-      } catch (e) { box.innerHTML = `<div class="sug-item" style="color:var(--danger)">Lỗi: ${escapeHtml(e.message)}</div>`; }
-      return;
-    }
+  let hasLocal = false;
+  if (localResults.length > 0) {
+    hasLocal = true;
+    box.innerHTML = `<div class="sug-item" style="pointer-events:none;font-weight:800;color:var(--primary);font-size:.75rem;background:rgba(59,130,246,0.1)">Địa điểm cộng đồng / Trạm nghỉ</div>`;
+    
+    const icons = { supermarket: 'fa-shopping-cart', rest_stop: 'fa-bed', gas_station: 'fa-gas-pump', cafe: 'fa-coffee', restaurant: 'fa-utensils', pharmacy: 'fa-prescription-bottle-medical', atm: 'fa-money-bill-wave', repair: 'fa-wrench', hotel: 'fa-hotel' };
+    
+    localResults.forEach(p => {
+      const div = document.createElement('div');
+      div.className = 'sug-item';
+      const iconCls = icons[p.tag] || 'fa-map-marker-alt';
+      div.innerHTML = `<i class="fas ${iconCls}" style="color:var(--success)"></i><div style="flex:1"><div style="font-weight:700">${escapeHtml(p.name)}</div><div style="font-size:.75rem;color:var(--muted)">${p.tag === 'rest_stop' ? 'Trạm dừng nghỉ' : 'Cộng đồng'}</div></div>`;
+      div.onclick = () => {
+        haptic();
+        $('topSearchInput').value = p.name;
+        $('suggestionsBox').classList.remove('show');
+        state.map.flyTo({ center: [p.lng, p.lat], zoom: 16, duration: 1500 });
+        
+        setTimeout(() => {
+          renderCommunityPois();
+          showPoiDetail(p.id);
+        }, 1600);
+      };
+      box.appendChild(div);
+    });
   }
 
-  // Skeleton Loading
-  box.innerHTML = `
-    <div class="sug-item" style="pointer-events:none">
-      <div class="skeleton" style="width:24px;height:24px;border-radius:50%"></div>
-      <div style="flex:1">
-        <div class="skeleton skeleton-text"></div>
-        <div class="skeleton skeleton-text short"></div>
-      </div>
-    </div>
-    <div class="sug-item" style="pointer-events:none">
-      <div class="skeleton" style="width:24px;height:24px;border-radius:50%"></div>
-      <div style="flex:1">
-        <div class="skeleton skeleton-text"></div>
-        <div class="skeleton skeleton-text short"></div>
-      </div>
-    </div>`;
+  // 2. Tìm kiếm qua API TrackAsia
+  const apiLoading = document.createElement('div');
+  apiLoading.className = 'sug-item';
+  apiLoading.style.pointerEvents = 'none';
+  apiLoading.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tìm thêm từ bản đồ...';
+  box.appendChild(apiLoading);
 
   try {
     if (state.searchAbort) state.searchAbort.abort();
@@ -887,17 +889,33 @@ async function doSearch(q) {
     const res = await fetch(url, { signal: state.searchAbort.signal });
     const data = await res.json();
     const results = data.results || [];
-    if (!results.length) { box.innerHTML = '<div class="sug-item" style="pointer-events:none">Không tìm thấy địa điểm nào</div>'; return; }
-    box.innerHTML = '';
-    results.slice(0, 15).forEach(r => {
-      const div = document.createElement('div');
-      div.className = 'sug-item';
-      div.innerHTML = `<i class="fas fa-map-marker-alt" style="color:var(--primary);font-size:1.1rem"></i><div style="flex:1"><div style="font-weight:700">${escapeHtml(r.name || 'Không tên')}</div><div style="font-size:.75rem;color:var(--muted);margin-top:2px">${escapeHtml(r.address || '')}</div></div>`;
-      div.onclick = () => selectLocation(r.lat, r.lng, r.name);
-      box.appendChild(div);
-    });
+    
+    apiLoading.remove();
+
+    if (results.length > 0) {
+      if (hasLocal) {
+        const title = document.createElement('div');
+        title.className = 'sug-item';
+        title.style.cssText = 'pointer-events:none;font-weight:800;color:var(--muted);font-size:.75rem;background:var(--surface-2)';
+        title.textContent = 'Kết quả từ bản đồ';
+        box.appendChild(title);
+      }
+      
+      results.slice(0, 15).forEach(r => {
+        const div = document.createElement('div');
+        div.className = 'sug-item';
+        div.innerHTML = `<i class="fas fa-map-marker-alt" style="color:var(--primary);font-size:1.1rem"></i><div style="flex:1"><div style="font-weight:700">${escapeHtml(r.name || 'Không tên')}</div><div style="font-size:.75rem;color:var(--muted);margin-top:2px">${escapeHtml(r.address || '')}</div></div>`;
+        div.onclick = () => selectLocation(r.lat, r.lng, r.name);
+        box.appendChild(div);
+      });
+    } else if (!hasLocal) {
+      box.innerHTML = '<div class="sug-item" style="pointer-events:none">Không tìm thấy địa điểm nào</div>';
+    }
   } catch (e) {
-    if (e.name !== 'AbortError') box.innerHTML = `<div class="sug-item" style="color:var(--danger)"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(e.message)}</div>`;
+    apiLoading.remove();
+    if (e.name !== 'AbortError' && !hasLocal) {
+      box.innerHTML = `<div class="sug-item" style="color:var(--danger)"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(e.message)}</div>`;
+    }
   }
 }
 
@@ -906,7 +924,16 @@ async function selectLocation(lat, lng, name) {
   $('topSearchInput').value = name; $('topSearchInput').readOnly = true;
   $('topSearchInput').style.pointerEvents = 'none';
   $('suggestionsBox').classList.remove('show');
+  
   state.map.flyTo({ center: [lng, lat], zoom: 16, duration: 1500 });
+  
+  setTimeout(() => {
+    renderCommunityPois();
+    renderSavedPlaces();
+    renderReports();
+    renderAvoidZones();
+  }, 1600);
+
   if (state.searchContext === 'start') { state.startPoint = { lat, lng, name }; $('dirInputStart').value = name; }
   else if (state.searchContext === 'end') { state.endPoint = { lat, lng, name }; $('dirInputEnd').value = name; }
 }
@@ -1257,7 +1284,6 @@ function renderReports() {
   Object.values(state.reportMarkers).forEach(m => m.remove());
   state.reportMarkers = {};
   
-  // Chỉ hiện khi zoom đủ to
   if (!state.map || state.map.getZoom() < 14.5) return;
 
   const now = Date.now();
@@ -1279,9 +1305,13 @@ function renderReports() {
     `;
     el.onclick = (e) => { e.stopPropagation(); haptic(); showToast(typeLabel(r.type), 'warning'); };
     
-    const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-      .setLngLat([r.lng, r.lat])
-      .addTo(state.map);
+    // Thêm rotationAlignment và pitchAlignment
+    const marker = new maplibregl.Marker({ 
+      element: el, 
+      anchor: 'center',
+      rotationAlignment: 'viewport',
+      pitchAlignment: 'viewport'
+    }).setLngLat([r.lng, r.lat]).addTo(state.map);
       
     state.reportMarkers[id] = marker;
   });
@@ -1324,7 +1354,6 @@ function renderSavedPlaces() {
   Object.values(state.savedPlaceMarkers).forEach(m => m.remove());
   state.savedPlaceMarkers = {};
   
-  // Chỉ hiện khi zoom đủ to
   if (!state.map || state.map.getZoom() < 15) return;
 
   const icons = { home: 'fa-home', company: 'fa-building', school: 'fa-school', cafe: 'fa-coffee', restaurant: 'fa-utensils', other: 'fa-map-marker-alt' };
@@ -1334,7 +1363,6 @@ function renderSavedPlaces() {
     const iconBg = colors[p.type] || '#64748b';
     const iconCls = icons[p.type] || 'fa-map-marker-alt';
     
-    // Rút gọn tên nếu quá dài
     let shortName = p.address || 'Địa điểm';
     if (shortName.length > 22) shortName = shortName.substring(0, 22) + '...';
     
@@ -1355,9 +1383,13 @@ function renderSavedPlaces() {
       showToast(p.address, 'info'); 
     };
 
-    const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-      .setLngLat([p.lng, p.lat])
-      .addTo(state.map);
+    // Thêm rotationAlignment và pitchAlignment
+    const marker = new maplibregl.Marker({ 
+      element: el, 
+      anchor: 'center',
+      rotationAlignment: 'viewport',
+      pitchAlignment: 'viewport'
+    }).setLngLat([p.lng, p.lat]).addTo(state.map);
       
     state.savedPlaceMarkers[id] = marker;
   });
@@ -1414,7 +1446,6 @@ function renderCommunityPois() {
   Object.values(state.poiMarkers).forEach(m => m.remove());
   state.poiMarkers = {};
   
-  // Chỉ hiện khi zoom đủ to
   if (!state.map || state.map.getZoom() < 15) return;
 
   const colors = { supermarket: '#10b981', rest_stop: '#3b82f6', gas_station: '#f59e0b', cafe: '#8b5cf6', restaurant: '#ef4444', pharmacy: '#06b6d4', atm: '#ec4899', repair: '#64748b', hotel: '#dc2626' };
@@ -1424,7 +1455,6 @@ function renderCommunityPois() {
     const iconBg = colors[p.tag] || '#64748b';
     const iconCls = icons[p.tag] || 'fa-map-marker-alt';
     
-    // Rút gọn tên nếu quá dài
     let shortName = p.name || 'Địa điểm';
     if (shortName.length > 22) shortName = shortName.substring(0, 22) + '...';
     
@@ -1445,9 +1475,13 @@ function renderCommunityPois() {
       showPoiDetail(id); 
     };
 
-    const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-      .setLngLat([p.lng, p.lat])
-      .addTo(state.map);
+    // Thêm rotationAlignment và pitchAlignment
+    const marker = new maplibregl.Marker({ 
+      element: el, 
+      anchor: 'center',
+      rotationAlignment: 'viewport',
+      pitchAlignment: 'viewport'
+    }).setLngLat([p.lng, p.lat]).addTo(state.map);
       
     state.poiMarkers[id] = marker;
   });
@@ -1473,11 +1507,9 @@ function subscribeAvoidZones() {
 }
 
 function renderAvoidZones() {
-  // 1. Xóa marker cũ
   if (state.avoidZoneMarkers) Object.values(state.avoidZoneMarkers).forEach(m => m.remove());
   state.avoidZoneMarkers = {};
 
-  // 2. Xóa layer vẽ đường cũ
   if (state.map.getLayer('avoid-zone-line')) state.map.removeLayer('avoid-zone-line');
   if (state.map.getSource('avoid-zones-source')) state.map.removeSource('avoid-zones-source');
 
@@ -1486,14 +1518,13 @@ function renderAvoidZones() {
   const features = [];
   const markers = [];
 
-  // 3. Duyệt danh sách tuyến cấm
   Object.entries(state.allAvoidZones).forEach(([id, zone]) => {
     let coords = [];
     try {
       if (zone.waypoints) {
         const parsed = typeof zone.waypoints === 'string' ? JSON.parse(zone.waypoints) : zone.waypoints;
         if (Array.isArray(parsed)) {
-          coords = Array.isArray(parsed[0]) ? parsed : [parsed]; // [[lat,lng], ...] hoặc [lat,lng]
+          coords = Array.isArray(parsed[0]) ? parsed : [parsed];
         }
       }
     } catch(e) {}
@@ -1503,7 +1534,6 @@ function renderAvoidZones() {
     }
 
     if (coords.length > 0) {
-      // Convert [lat, lng] của DB thành [lng, lat] cho MapLibre
       const lngLatCoords = coords.map(c => [c[1], c[0]]);
       
       features.push({
@@ -1512,13 +1542,11 @@ function renderAvoidZones() {
         properties: { id, name: zone.name || 'Tuyến cấm' }
       });
 
-      // Tìm điểm giữa để đặt marker
       const midIdx = Math.floor(lngLatCoords.length / 2);
       markers.push({ id, lngLat: lngLatCoords[midIdx], name: zone.name || 'Tuyến cấm' });
     }
   });
 
-  // 4. Vẽ đường nét đứt (Hiển thị ở mọi mức zoom để cảnh báo)
   if (features.length > 0) {
     state.map.addSource('avoid-zones-source', {
       type: 'geojson',
@@ -1538,7 +1566,6 @@ function renderAvoidZones() {
     }, state.map.getLayer('tomtom-traffic-layer') ? 'tomtom-traffic-layer' : undefined);
   }
 
-  // 5. Vẽ Marker Icon 🚫 + Tên (Chỉ hiện khi zoom >= 14)
   if (state.map.getZoom() >= 14) {
     markers.forEach(m => {
       let shortName = m.name;
@@ -1556,9 +1583,13 @@ function renderAvoidZones() {
       `;
       el.onclick = (e) => { e.stopPropagation(); haptic(); showToast(m.name, 'warning'); };
       
-      state.avoidZoneMarkers[m.id] = new maplibregl.Marker({ element: el, anchor: 'center' })
-        .setLngLat(m.lngLat)
-        .addTo(state.map);
+      // Thêm rotationAlignment và pitchAlignment
+      state.avoidZoneMarkers[m.id] = new maplibregl.Marker({ 
+        element: el, 
+        anchor: 'center',
+        rotationAlignment: 'viewport',
+        pitchAlignment: 'viewport'
+      }).setLngLat(m.lngLat).addTo(state.map);
     });
   }
 }
@@ -1725,7 +1756,12 @@ function renderLiveMemberMarkers() {
     const el = document.createElement('div');
     el.style.cssText = 'width:36px;height:36px;background:#8b5cf6;border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.85rem;box-shadow:0 2px 8px rgba(0,0,0,.4);animation:popIn 0.3s';
     el.innerHTML = '<i class="fas fa-user"></i>';
-    state.liveMemberMarkers[uid] = new maplibregl.Marker(el).setLngLat([m.lng, m.lat]).addTo(state.map);
+    // Thêm rotationAlignment và pitchAlignment
+    state.liveMemberMarkers[uid] = new maplibregl.Marker({ 
+      element: el,
+      rotationAlignment: 'viewport',
+      pitchAlignment: 'viewport'
+    }).setLngLat([m.lng, m.lat]).addTo(state.map);
   });
 }
 
@@ -1799,7 +1835,7 @@ function showToast(msg, type = 'info') {
   setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-10px)'; el.style.transition = 'all .3s'; setTimeout(() => el.remove(), 300); }, 2500);
 }
 
-console.log('[DriveKit] Ready — Full Interactive UX + Avoid Zones');
+console.log('[DriveKit] Ready — Fixed Rotation + Local Search');
 
 </script>
 </body>
