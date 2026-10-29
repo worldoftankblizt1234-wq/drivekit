@@ -151,6 +151,7 @@ body:has(.sheet.open) .backdrop { opacity: 1; pointer-events: auto; }
 .hud-dist{font-size:1.05rem;font-weight:800;color:var(--primary);line-height:1.1;}
 .hud-instr{font-size:.85rem;color:var(--text);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .hud-close{width:32px;height:32px;border-radius:50%;background:var(--bg);color:var(--muted);border:none;display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;flex-shrink:0;}
+.hud-report{width:32px;height:32px;border-radius:50%;background:rgba(245,158,11,0.15);color:var(--warning);border:none;display:flex;align-items:center;justify-content:center;font-size:.9rem;cursor:pointer;flex-shrink:0;margin-right:4px;}
 .hud-row-2{display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--border);font-size:.75rem;color:var(--muted);font-weight:600;}
 .hud-row-2 span{display:flex;align-items:center;gap:4px;}
 .hud-row-2 i{color:var(--surface-3);}
@@ -445,6 +446,7 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
         <span id="hudNextDist" class="hud-dist">--</span>
         <span id="hudNextInstr" class="hud-instr">--</span>
       </div>
+      <button class="hud-report" onclick="window.openReportMenu()"><i class="fas fa-exclamation-triangle"></i></button>
       <button class="hud-close" onclick="window.openEndTripModal()"><i class="fas fa-times"></i></button>
     </div>
     <div class="hud-row-2">
@@ -476,6 +478,7 @@ const FIREBASE_CONFIG = {
 };
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
+const ARRIVAL_RADIUS_M = 15; // Tự động kết thúc khi còn 15m
 
 const app = initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
@@ -505,6 +508,7 @@ const state = {
 let isRerouting = false;
 let lastRerouteTime = 0;
 let offRouteCounter = 0;
+let arrivalHandled = false;
 
 const $ = id => document.getElementById(id);
 
@@ -522,7 +526,6 @@ function calculateRouteDistance(coords) {
 
 // Tìm điểm gần nhất trên tuyến đường (Snap to Road)
 function getClosestPointOnSegment(p, a, b) {
-  // p, a, b là [lng, lat]
   const atob = { x: b[0] - a[0], y: b[1] - a[1] };
   const atop = { x: p[0] - a[0], y: p[1] - a[1] };
   const len = atob.x * atob.x + atob.y * atob.y;
@@ -540,26 +543,6 @@ function getBearing(lon1, lat1, lon2, lat2) {
   const y = Math.sin(dLon) * Math.cos(toRad(lat2));
   const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
-}
-
-// Helper tạo Marker luôn hướng về màn hình
-function createRotatableMarker(htmlContent, onClick) {
-  const el = document.createElement('div');
-  el.style.cssText = 'pointer-events:auto;';
-  
-  const inner = document.createElement('div');
-  inner.className = 'map-marker-rotate';
-  inner.style.cssText = 'display:flex;justify-content:center;position:relative;transition:transform 0.1s linear;';
-  inner.innerHTML = htmlContent;
-  
-  el.appendChild(inner);
-  if (onClick) el.onclick = onClick;
-  
-  // Cập nhật góc xoay ngay lập tức
-  if (state.map) {
-    inner.style.transform = `rotate(${-state.map.getBearing()}deg)`;
-  }
-  return el;
 }
 
 // ═══════════════ LOADING ═══════════════
@@ -685,16 +668,11 @@ function initMap() {
     if (state.trafficOn) addTrafficLayer();
   });
 
-  // Xử lý xoay: Cập nhật la bàn và xoay ngược Marker
+  // Chỉ xoay la bàn, KHÔNG xoay marker (đã dùng rotationAlignment)
   state.map.on('rotate', () => {
     const bearing = state.map.getBearing();
     state.bearing = bearing;
     $('compassArrow').style.transform = `rotate(${-bearing}deg)`;
-    
-    // Xoay ngược toàn bộ Marker
-    document.querySelectorAll('.map-marker-rotate').forEach(el => {
-      el.style.transform = `rotate(${-bearing}deg)`;
-    });
   });
 
   state.map.on('pitch', () => {
@@ -832,10 +810,12 @@ function updateUserMarker(lat, lng, heading) {
     state.userMarker.setLngLat([lng, lat]);
     state.userMarker.getElement().innerHTML = html;
   } else {
-    const el = createRotatableMarker(html);
+    const el = document.createElement('div');
+    el.innerHTML = html;
     state.userMarker = new maplibregl.Marker({ 
-      element: el, 
-      pitchAlignment: 'viewport'
+      element: el.firstElementChild, 
+      rotationAlignment: 'viewport', 
+      pitchAlignment: 'viewport' 
     }).setLngLat([lng, lat]).addTo(state.map);
   }
 }
@@ -1202,6 +1182,8 @@ window.startNavigation = () => {
   if (!state.currentRoute) return;
   state.isNavigating = true;
   state.tripStartTime = Date.now();
+  arrivalHandled = false; // Reset trạng thái đến nơi
+  
   document.body.classList.add('navigating');
   $('routeOptionsModal').classList.remove('open');
   $('dirSheet').classList.remove('open');
@@ -1223,11 +1205,21 @@ window.startNavigation = () => {
 };
 
 function updateNavigation() {
-  if (!state.isNavigating || !state.lastUserPos || !state.currentRoute) return;
+  if (!state.isNavigating || !state.lastUserPos || !state.currentRoute || arrivalHandled) return;
   
   const coords = state.currentRoute.coords;
   const userLat = state.lastUserPos.lat;
   const userLng = state.lastUserPos.lng;
+
+  // Tự động kết thúc khi còn cách đích <= 15m
+  const distToEnd = haversine(userLat, userLng, state.endPoint.lat, state.endPoint.lng);
+  if (distToEnd <= ARRIVAL_RADIUS_M) {
+    arrivalHandled = true;
+    showToast('Đã đến nơi!', 'success');
+    haptic();
+    setTimeout(() => { window.openEndTripModal(); }, 1500);
+    return;
+  }
 
   // 1. Tìm điểm gần nhất trên tuyến đường (Snap to road)
   let minD = Infinity;
@@ -1252,20 +1244,14 @@ function updateNavigation() {
     if (offRouteCounter >= 3) {
       offRouteCounter = 0;
       autoReroute(userLat, userLng);
-      return; // Dừng cập nhật camera trong frame này
+      return;
     }
   } else {
     offRouteCounter = 0;
   }
 
   // 3. Cập nhật Marker (Kéo vào đường)
-  const originalLat = state.lastUserPos.lat;
-  const originalLng = state.lastUserPos.lng;
-  state.lastUserPos.lat = snappedLat;
-  state.lastUserPos.lng = snappedLng;
   updateUserMarker(snappedLat, snappedLng, 0);
-  state.lastUserPos.lat = originalLat;
-  state.lastUserPos.lng = originalLng;
 
   // 4. Cập nhật Camera
   let targetBearing = state.map.getBearing();
@@ -1427,6 +1413,7 @@ window.endTrip = async (save) => {
   state.isNavigating = false;
   state.currentRoute = null;
   state.tripStartTime = null;
+  arrivalHandled = false;
   document.body.classList.remove('navigating');
   $('endTripModal').classList.remove('open');
   $('hud').classList.add('hidden');
@@ -1517,11 +1504,15 @@ function renderReports() {
       </div>
     `;
     
-    const el = createRotatableMarker(html, (e) => { e.stopPropagation(); haptic(); showToast(typeLabel(r.type), 'warning'); });
+    const el = document.createElement('div');
+    el.innerHTML = html;
+    el.onclick = (e) => { e.stopPropagation(); haptic(); showToast(typeLabel(r.type), 'warning'); };
     
+    // Sử dụng rotationAlignment và pitchAlignment
     const marker = new maplibregl.Marker({ 
-      element: el, 
+      element: el.firstElementChild, 
       anchor: 'center',
+      rotationAlignment: 'viewport',
       pitchAlignment: 'viewport'
     }).setLngLat([r.lng, r.lat]).addTo(state.map);
       
@@ -1554,6 +1545,16 @@ window.submitSavePlace = async (type) => {
   } catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
 };
 
+window.deleteSavedPlace = async (id, e) => {
+  e.stopPropagation();
+  haptic();
+  if (!confirm('Xoá ghim này?')) return;
+  try {
+    await remove(ref(db, `users/${state.user.uid}/savedPlaces/${id}`));
+    showToast('Đã xoá địa điểm', 'success');
+  } catch (err) { showToast('Lỗi: ' + err.message, 'error'); }
+};
+
 function subscribeSavedPlaces() {
   if (!state.user) return;
   onValue(ref(db, `users/${state.user.uid}/savedPlaces`), snap => {
@@ -1579,19 +1580,27 @@ function renderSavedPlaces() {
     if (shortName.length > 22) shortName = shortName.substring(0, 22) + '...';
     
     const html = `
-      <div style="width:32px;height:32px;background:${iconBg};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
-        <i class="fas ${iconCls}"></i>
-      </div>
-      <div style="position:absolute;top:36px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
-        ${escapeHtml(shortName)}
+      <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+        <div style="width:32px;height:32px;background:${iconBg};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
+          <i class="fas ${iconCls}"></i>
+        </div>
+        <div style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:var(--danger);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:9px;cursor:pointer;border:1px solid white;z-index:3;" onclick="window.deleteSavedPlace('${id}', event)"><i class="fas fa-times"></i></div>
+        <div style="position:absolute;top:34px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
+          ${escapeHtml(shortName)}
+        </div>
       </div>
     `;
     
-    const el = createRotatableMarker(html, (e) => { e.stopPropagation(); haptic(); showToast(p.address, 'info'); });
+    const el = document.createElement('div');
+    el.innerHTML = html;
+    el.style.pointerEvents = 'auto';
+    el.onclick = (e) => { e.stopPropagation(); haptic(); showToast(p.address, 'info'); };
 
+    // Cố định marker không xoay
     const marker = new maplibregl.Marker({ 
-      element: el, 
+      element: el.firstElementChild, 
       anchor: 'center',
+      rotationAlignment: 'viewport',
       pitchAlignment: 'viewport'
     }).setLngLat([p.lng, p.lat]).addTo(state.map);
       
@@ -1663,6 +1672,16 @@ window.submitCommunityPoi = async () => {
   } catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
 };
 
+window.deleteCommunityPoi = async (id, e) => {
+  e.stopPropagation();
+  haptic();
+  if (!confirm('Xoá địa điểm cộng đồng này?')) return;
+  try {
+    await remove(ref(db, `communityPois/${id}`));
+    showToast('Đã xoá POI', 'success');
+  } catch (err) { showToast('Lỗi: ' + err.message, 'error'); }
+};
+
 function subscribeCommunityPois() {
   onValue(ref(db, 'communityPois'), snap => {
     state.allCommunityPois = snap.val() || {};
@@ -1687,19 +1706,27 @@ function renderCommunityPois() {
     if (shortName.length > 22) shortName = shortName.substring(0, 22) + '...';
     
     const html = `
-      <div style="width:34px;height:34px;background:${iconBg};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:15px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
-        <i class="fas ${iconCls}"></i>
-      </div>
-      <div style="position:absolute;top:38px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
-        ${escapeHtml(shortName)}
+      <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+        <div style="width:34px;height:34px;background:${iconBg};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:15px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
+          <i class="fas ${iconCls}"></i>
+        </div>
+        <div style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:var(--danger);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:9px;cursor:pointer;border:1px solid white;z-index:3;" onclick="window.deleteCommunityPoi('${id}', event)"><i class="fas fa-times"></i></div>
+        <div style="position:absolute;top:36px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
+          ${escapeHtml(shortName)}
+        </div>
       </div>
     `;
     
-    const el = createRotatableMarker(html, (e) => { e.stopPropagation(); haptic(); showPoiDetail(id); });
+    const el = document.createElement('div');
+    el.innerHTML = html;
+    el.style.pointerEvents = 'auto';
+    el.onclick = (e) => { e.stopPropagation(); haptic(); showPoiDetail(id); };
 
+    // Cố định marker không xoay
     const marker = new maplibregl.Marker({ 
-      element: el, 
+      element: el.firstElementChild, 
       anchor: 'center',
+      rotationAlignment: 'viewport',
       pitchAlignment: 'viewport'
     }).setLngLat([p.lng, p.lat]).addTo(state.map);
       
@@ -1792,19 +1819,26 @@ function renderAvoidZones() {
       if (shortName.length > 22) shortName = shortName.substring(0, 22) + '...';
       
       const html = `
-        <div style="width:32px;height:32px;background:#ef4444;border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
-          <i class="fas fa-ban"></i>
-        </div>
-        <div style="position:absolute;top:36px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--danger);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
-          ${escapeHtml(shortName)}
+        <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+          <div style="width:32px;height:32px;background:#ef4444;border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
+            <i class="fas fa-ban"></i>
+          </div>
+          <div style="position:absolute;top:34px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--danger);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
+            ${escapeHtml(shortName)}
+          </div>
         </div>
       `;
       
-      const el = createRotatableMarker(html, (e) => { e.stopPropagation(); haptic(); showToast(m.name, 'warning'); });
+      const el = document.createElement('div');
+      el.innerHTML = html;
+      el.style.pointerEvents = 'auto';
+      el.onclick = (e) => { e.stopPropagation(); haptic(); showToast(m.name, 'warning'); };
       
+      // Cố định marker không xoay
       state.avoidZoneMarkers[m.id] = new maplibregl.Marker({ 
-        element: el, 
+        element: el.firstElementChild, 
         anchor: 'center',
+        rotationAlignment: 'viewport',
         pitchAlignment: 'viewport'
       }).setLngLat(m.lngLat).addTo(state.map);
     });
@@ -1971,10 +2005,12 @@ function renderLiveMemberMarkers() {
   Object.entries(state.liveMembers).forEach(([uid, m]) => {
     if (uid === state.user?.uid) return;
     const html = `<div style="width:36px;height:36px;background:#8b5cf6;border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.85rem;box-shadow:0 2px 8px rgba(0,0,0,.4);"><i class="fas fa-user"></i></div>`;
-    const el = createRotatableMarker(html);
+    const el = document.createElement('div');
+    el.innerHTML = html;
     
     state.liveMemberMarkers[uid] = new maplibregl.Marker({ 
-      element: el,
+      element: el.firstElementChild,
+      rotationAlignment: 'viewport',
       pitchAlignment: 'viewport'
     }).setLngLat([m.lng, m.lat]).addTo(state.map);
   });
@@ -2050,7 +2086,7 @@ function showToast(msg, type = 'info') {
   setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-10px)'; el.style.transition = 'all .3s'; setTimeout(() => el.remove(), 300); }, 2500);
 }
 
-console.log('[DriveKit] Ready — Snap to Road & Auto-Reroute');
+console.log('[DriveKit] Ready — Xoá Marker, Báo cáo trong dẫn đường, Tự kết thúc 15m, Fix xoay');
 
 </script>
 </body>
