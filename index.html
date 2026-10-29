@@ -143,16 +143,17 @@ body:has(.sheet.open) .backdrop { opacity: 1; pointer-events: auto; }
 .report-btn{padding:16px 8px;border-radius:14px;border:1px solid var(--border);background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;gap:8px;font-size:.75rem;font-weight:700}
 .report-btn i{font-size:1.4rem;color:var(--primary)}
 
-.hud{position:fixed;top:calc(12px + var(--safe-top));left:12px;right:12px;background:var(--surface-glass);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:16px;z-index:200;animation: slideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);}
-.hud-main{display:flex;align-items:center;gap:16px;margin-bottom:14px}
-.hud-arrow{width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#2563eb);color:#fff;font-size:1.5rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(59,130,246,.4)}
+/* GIAO DIỆN HUD THU GỌN */
+.hud{position:fixed;top:calc(12px + var(--safe-top));left:12px;right:12px;background:var(--surface-glass);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.4);padding:12px 14px;z-index:200;animation: slideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);}
+.hud-main{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.hud-arrow{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#2563eb);color:#fff;font-size:1.2rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(59,130,246,.3)}
 .hud-info{flex:1;min-width:0}
-.hud-dist{font-size:1.15rem;font-weight:800;color:var(--primary);margin-bottom:2px}
-.hud-instr{font-size:.9rem;line-height:1.3}
-.hud-stats{display:flex;gap:16px;padding-top:12px;border-top:1px solid var(--border);font-size:.85rem}
-.hud-stats i{color:var(--muted);margin-right:6px}
-.hud-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
-.hud-actions .ctrl-btn{width:44px;height:44px}
+.hud-dist{font-size:1rem;font-weight:800;color:var(--primary);margin-bottom:2px}
+.hud-instr{font-size:.85rem;line-height:1.2}
+.hud-stats{display:flex;gap:12px;padding-top:8px;border-top:1px solid var(--border);font-size:.8rem}
+.hud-stats i{color:var(--muted);margin-right:4px}
+.hud-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+.hud-actions .ctrl-btn{width:36px;height:36px;font-size:.9rem;border-radius:10px}
 
 .live-header{display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg);border-radius:14px;margin-bottom:16px;font-weight:700;border:1px solid var(--border)}
 .badge-off{font-size:.7rem;padding:2px 8px;border-radius:6px;background:var(--surface-2);color:var(--muted)}
@@ -352,7 +353,12 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
     <div class="sheet-handle"></div>
     <div class="sheet-header"><h2>Thêm địa điểm cộng đồng</h2><button class="close-btn" onclick="window.closePoiSheet()"><i class="fas fa-times"></i></button></div>
     <div class="sheet-body">
-      <div id="poiCoords" class="muted mb">--</div>
+      <div id="poiCoords" class="muted mb" style="display:flex; justify-content:space-between; align-items:center; background:var(--bg); padding:10px; border-radius:10px; border:1px solid var(--border);">
+        <span>--</span>
+        <button class="btn btn-secondary" onclick="window.pickPoiOnMap()" style="width:auto; padding:6px 10px; margin:0; font-size:.75rem;">
+          <i class="fas fa-map-marker-alt"></i> Chọn trên bản đồ
+        </button>
+      </div>
       <input id="poiNameInput" class="input-full" placeholder="Tên địa điểm (≥2 ký tự)">
       <div class="chip-row wrap">
         <button class="chip poi-tag" data-tag="supermarket" onclick="window.selectPoiTag('supermarket',this)"><i class="fas fa-shopping-cart"></i> Siêu thị</button>
@@ -382,6 +388,11 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
         <div id="profileAvatar" class="avatar"><i class="fas fa-user"></i></div>
         <div style="flex:1"><div id="profileName" style="font-weight:800;font-size:1.1rem">--</div><div id="profileEmail" class="muted">--</div></div>
       </div>
+      
+      <button class="btn btn-primary full mb" style="background:var(--success);color:#fff" onclick="window.openPoiSheet()">
+        <i class="fas fa-users"></i> Thêm địa điểm cộng đồng
+      </button>
+
       <div class="toggle-row">
         <span><i class="fas fa-moon"></i> Chế độ sáng</span>
         <input type="checkbox" id="themeToggle" onchange="window.toggleTheme()">
@@ -506,6 +517,8 @@ const state = {
   watchId: null, lastUserPos: null, lastHeading: 0, smoothedSpeed: 0,
   vehicleMode: 'motorcycle', searchContext: 'view',
   searchTimer: null, searchAbort: null,
+  isPickingPoiLocation: false, 
+  activePopup: null, activeRipple: null,
   userMarker: null, bearing: 0, pitch: 0,
   tripStartTime: null, tempPin: null, tempPoi: null, tempPoiTag: null,
   allReports: {}, allSavedPlaces: {}, allHistory: [], allSavedRoutes: {},
@@ -518,6 +531,15 @@ const $ = id => document.getElementById(id);
 
 // Haptic feedback helper
 function haptic() { if (navigator.vibrate) navigator.vibrate(10); }
+
+// Tính khoảng cách thực tế từ mảng tọa độ
+function calculateRouteDistance(coords) {
+  let total = 0;
+  for (let i = 0; i < coords.length - 1; i++) {
+    total += haversine(coords[i][1], coords[i][0], coords[i + 1][1], coords[i + 1][0]);
+  }
+  return total;
+}
 
 // Helper tạo Marker luôn hướng về màn hình
 function createRotatableMarker(htmlContent, onClick) {
@@ -687,60 +709,79 @@ function initMap() {
     renderAvoidZones();
   });
 
+  // Sự kiện click Bản đồ
   state.map.on('click', async (e) => {
     if (state.isNavigating) return;
     const { lng, lat } = e.lngLat;
     haptic();
 
+    // Nếu đang trong chế độ chọn vị trí cho POI
+    if (state.isPickingPoiLocation) {
+      state.isPickingPoiLocation = false;
+      showToast('Đang lấy địa chỉ...', 'info');
+      const name = await reverseGeocode(lat, lng);
+      window.openPoiSheet(lat, lng, name);
+      return;
+    }
+
+    // Xoá popup và ripple cũ
+    if (state.activePopup) { state.activePopup.remove(); state.activePopup = null; }
+    if (state.activeRipple) { state.activeRipple.remove(); state.activeRipple = null; }
+
+    // Tạo Ripple mới
     const rippleEl = document.createElement('div');
     rippleEl.className = 'map-ripple';
-    const rippleMarker = new maplibregl.Marker({ element: rippleEl, anchor: 'center' })
+    state.activeRipple = new maplibregl.Marker({ element: rippleEl, anchor: 'center' })
       .setLngLat([lng, lat])
       .addTo(state.map);
-    setTimeout(() => rippleMarker.remove(), 600);
+    setTimeout(() => { 
+      if (state.activeRipple) { state.activeRipple.remove(); state.activeRipple = null; } 
+    }, 600);
 
     showToast('Đang lấy địa chỉ...', 'info');
     const name = await reverseGeocode(lat, lng);
     
-    const popupNode = document.createElement('div');
-    popupNode.style.cssText = 'min-width:220px;font-family:inherit;padding:4px;color:var(--text)';
-    popupNode.innerHTML = `
-      <div style="font-weight:700;font-size:.9rem;margin-bottom:12px;line-height:1.3;">${escapeHtml(name)}</div>
-      <button class="popup-btn-save" style="width:100%;padding:10px;background:#10b981;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:.85rem;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;gap:8px;justify-content:center">
-        <i class="fas fa-map-pin"></i> Ghim địa điểm
-      </button>
-      <button class="popup-btn-go" style="width:100%;padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:.85rem;cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center">
-        <i class="fas fa-directions"></i> Chỉ đường tới đây
-      </button>
+    // Lưu dữ liệu vào biến toàn cục
+    window._popupData = { lat, lng, name };
+    const safeName = escapeHtml(name);
+
+    const html = `
+      <div style="min-width:220px;font-family:inherit;padding:4px;color:var(--text)">
+        <div style="font-weight:700;font-size:.9rem;margin-bottom:12px;line-height:1.3;">${safeName}</div>
+        <button onclick="window.handlePopupClick('save')" style="width:100%;padding:10px;background:#10b981;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:.85rem;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;gap:8px;justify-content:center">
+          <i class="fas fa-map-pin"></i> Ghim địa điểm
+        </button>
+        <button onclick="window.handlePopupClick('go')" style="width:100%;padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:.85rem;cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center">
+          <i class="fas fa-directions"></i> Chỉ đường tới đây
+        </button>
+      </div>
     `;
 
-    const btnSave = popupNode.querySelector('.popup-btn-save');
-    const btnGo = popupNode.querySelector('.popup-btn-go');
-
-    const handleAction = (ev, action) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      if (action === 'save') window.showSavePlace(lat, lng, name);
-      if (action === 'go') window.goToLocation(lat, lng, name);
-    };
-
-    btnSave.addEventListener('pointerdown', (ev) => handleAction(ev, 'save'), { capture: true });
-    btnGo.addEventListener('pointerdown', (ev) => handleAction(ev, 'go'), { capture: true });
-    btnSave.addEventListener('click', (ev) => handleAction(ev, 'save'), { capture: true });
-    btnGo.addEventListener('click', (ev) => handleAction(ev, 'go'), { capture: true });
-
-    new maplibregl.Popup({ closeOnClick: false, offset: 15, className: 'custom-popup' })
+    state.activePopup = new maplibregl.Popup({ closeOnClick: false, offset: 15, className: 'custom-popup' })
       .setLngLat([lng, lat])
-      .setDOMContent(popupNode)
+      .setHTML(html)
       .addTo(state.map);
   });
 }
+
+window.handlePopupClick = (action) => {
+  if (!window._popupData) return;
+  const { lat, lng, name } = window._popupData;
+  
+  if (state.activePopup) { state.activePopup.remove(); state.activePopup = null; }
+  
+  if (action === 'save') {
+    window.showSavePlace(lat, lng, name);
+  } else if (action === 'go') {
+    window.goToLocation(lat, lng, name);
+  }
+};
 
 window.goToLocation = (lat, lng, name) => {
   haptic();
   state.endPoint = { lat, lng, name };
   $('dirInputEnd').value = name;
-  state.map.closePopup();
+  if (state.map) state.map.closePopup();
   openDirections();
 };
 
@@ -782,7 +823,6 @@ function updateUserMarker(lat, lng, heading) {
   
   if (state.userMarker) {
     state.userMarker.setLngLat([lng, lat]);
-    // Cập nhật lại toàn bộ HTML để mũi tên xoay theo heading
     state.userMarker.getElement().innerHTML = html;
   } else {
     const el = createRotatableMarker(html);
@@ -1106,9 +1146,12 @@ window.fetchAndShowRoute = async () => {
       coords = coords.map(c => [c[1], c[0]]);
     }
 
+    // FIX 1: Tự động tính lại quãng đường chuẩn xác từ tọa độ (Fix lỗi 1613 km)
+    const calculatedDistance = calculateRouteDistance(coords);
+    
     const route = {
       coords: coords,
-      distance: r.distance,
+      distance: calculatedDistance, // Dùng khoảng cách tự tính
       duration: r.duration,
       steps: r.legs?.[0]?.steps || [],
       provider: data.provider
@@ -1159,31 +1202,72 @@ window.startNavigation = () => {
   $('hud').classList.remove('hidden');
   $('hudRemainDist').textContent = (state.currentRoute.distance / 1000).toFixed(1) + ' km';
   $('hudRemainTime').textContent = Math.round(state.currentRoute.duration / 60) + ' phút';
-  if (state.lastUserPos) state.map.easeTo({ center: [state.lastUserPos.lng, state.lastUserPos.lat], zoom: 17, duration: 1000 });
+  
+  // FIX 4: Góc nhìn thứ nhất (First-Person View)
+  if (state.lastUserPos) {
+    state.map.easeTo({ 
+      center: [state.lastUserPos.lng, state.lastUserPos.lat], 
+      zoom: 18, 
+      pitch: 60, 
+      bearing: state.lastHeading || 0,
+      duration: 1200 
+    });
+  }
   updateNavigation();
 };
 
 function updateNavigation() {
   if (!state.isNavigating || !state.lastUserPos) return;
-  if (state.lastHeading != null) state.map.easeTo({ bearing: state.lastHeading, duration: 800 });
+  
+  // FIX 4: Bám đuôi và giữ góc nhìn thẳng (Offset đẩy vị trí user xuống dưới)
+  if (state.lastHeading != null) {
+    state.map.easeTo({ 
+      center: [state.lastUserPos.lng, state.lastUserPos.lat], 
+      bearing: state.lastHeading, 
+      pitch: 60, 
+      offset: [0, window.innerHeight * 0.2], // Đẩy tâm bản đồ xuống 20%
+      duration: 500 
+    });
+  }
+
   $('hudSpeed').textContent = Math.round((state.lastUserPos.speed || 0) * 3.6) + ' km/h';
   const steps = state.currentRoute?.steps || [];
+  
   if (!steps.length) {
     $('hudNextDist').textContent = 'Đi thẳng';
     $('hudNextInstr').textContent = 'Tiếp tục đến đích';
     return;
   }
+
   let next = null, minD = Infinity;
   steps.forEach(s => {
-    const lat = s.location?.lat ?? s.maneuver?.location?.[1];
-    const lng = s.location?.lng ?? s.maneuver?.location?.[0];
-    if (lat == null || lng == null) return;
+    let lat, lng;
+    // FIX 2: Đọc tọa độ linh hoạt cho mọi API
+    if (s.maneuver && s.maneuver.location) { lat = s.maneuver.location[1]; lng = s.maneuver.location[0]; }
+    else if (s.location) { lat = s.location.lat; lng = s.location.lng; }
+    else return;
+
     const d = haversine(state.lastUserPos.lat, state.lastUserPos.lng, lat, lng);
     if (d > 5 && d < minD) { minD = d; next = s; }
   });
+
   if (next) {
     $('hudNextDist').textContent = minD > 1000 ? (minD / 1000).toFixed(1) + ' km' : Math.round(minD) + ' m';
-    $('hudNextInstr').textContent = next.instruction || next.maneuver?.instruction || 'Tiếp tục';
+    
+    // FIX 2: Đọc chỉ dẫn linh hoạt
+    let instr = next.instruction || next.instructions || next.maneuver?.instruction || 'Tiếp tục di chuyển';
+    $('hudNextInstr').textContent = instr;
+    
+    // Đổi Icon mũi tên theo lệnh rẽ
+    let icon = 'fa-arrow-up';
+    const modifier = next.maneuver?.modifier || '';
+    if (modifier.includes('left')) icon = 'fa-arrow-left';
+    else if (modifier.includes('right')) icon = 'fa-arrow-right';
+    $('hudNextArrow').innerHTML = `<i class="fas ${icon}"></i>`;
+  } else {
+    $('hudNextDist').textContent = 'Đi thẳng';
+    $('hudNextInstr').textContent = 'Tiếp tục đến đích';
+    $('hudNextArrow').innerHTML = `<i class="fas fa-arrow-up"></i>`;
   }
 }
 
@@ -1412,18 +1496,44 @@ function renderSavedPlaces() {
 }
 
 // ═══════════════ POI COMMUNITY ═══════════════
-window.openPoiSheet = () => {
+window.openPoiSheet = (lat, lng, name) => {
   haptic();
-  if (!state.tempPin) return showToast('Chưa chọn vị trí', 'warning');
+  
+  // Nếu được truyền tọa độ vào thì dùng, không thì dùng vị trí GPS hiện tại
+  if (lat != null && lng != null) {
+    state.tempPin = { lat, lng, name: name || 'Vị trí đã chọn' };
+  } else if (!state.tempPin) {
+    if (state.lastUserPos) {
+      state.tempPin = { lat: state.lastUserPos.lat, lng: state.lastUserPos.lng, name: 'Vị trí của tôi' };
+    } else {
+      return showToast('Chưa có GPS. Vui lòng chọn trên bản đồ.', 'warning');
+    }
+  }
+  
   state.tempPoi = { lat: state.tempPin.lat, lng: state.tempPin.lng };
   state.tempPoiTag = null;
-  $('poiCoords').textContent = `${state.tempPin.lat.toFixed(5)}, ${state.tempPin.lng.toFixed(5)}`;
+  
+  // Cập nhật UI hiển thị tọa độ
+  $('poiCoords').innerHTML = `<span>📍 ${state.tempPin.lat.toFixed(5)}, ${state.tempPin.lng.toFixed(5)}</span>
+    <button class="btn btn-secondary" onclick="window.pickPoiOnMap()" style="width:auto; padding:6px 10px; margin:0; font-size:.75rem;">
+      <i class="fas fa-map-marker-alt"></i> Chọn lại
+    </button>`;
+    
   $('poiNameInput').value = '';
   $('poiSaveBtn').disabled = true;
   document.querySelectorAll('.poi-tag').forEach(b => b.classList.remove('active'));
   $('savePlaceModal').classList.remove('open');
+  $('profileModal').classList.remove('open');
   $('poiSheet').classList.add('open');
 };
+
+window.pickPoiOnMap = () => {
+  haptic();
+  state.isPickingPoiLocation = true;
+  $('poiSheet').classList.remove('open');
+  showToast('Hãy chạm vào bản đồ để chọn vị trí', 'info');
+};
+
 window.closePoiSheet = () => { haptic(); $('poiSheet').classList.remove('open'); state.tempPoi = null; state.tempPoiTag = null; };
 window.selectPoiTag = (tag, btn) => {
   haptic();
@@ -1838,7 +1948,7 @@ function showToast(msg, type = 'info') {
   setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-10px)'; el.style.transition = 'all .3s'; setTimeout(() => el.remove(), 300); }, 2500);
 }
 
-console.log('[DriveKit] Ready — Fixed Rotation bug');
+console.log('[DriveKit] Ready — Full Fixed Navigation View');
 
 </script>
 </body>
