@@ -509,7 +509,8 @@ const state = {
   userMarker: null, bearing: 0, pitch: 0,
   tripStartTime: null, tempPin: null, tempPoi: null, tempPoiTag: null,
   allReports: {}, allSavedPlaces: {}, allHistory: [], allSavedRoutes: {},
-  allCommunityPois: {}, poiMarkers: {}, reportMarkers: {}, savedPlaceMarkers: {},
+  allCommunityPois: {}, allAvoidZones: {},
+  poiMarkers: {}, reportMarkers: {}, savedPlaceMarkers: {}, avoidZoneMarkers: {},
   liveEnabled: false, liveRoomCode: null, liveMembers: {}, liveMemberMarkers: {},
   livePushInterval: null, liveUnsub: null
 };
@@ -628,6 +629,7 @@ function initMap() {
     subscribeReports();
     subscribeSavedPlaces();
     subscribeCommunityPois();
+    subscribeAvoidZones(); // Load tuyến cấm
     loadHistoryRTDB();
     loadSavedRoutesRTDB();
     loadSharedLinks();
@@ -648,6 +650,14 @@ function initMap() {
     state.pitch = state.map.getPitch();
     $('btn3D').classList.toggle('active', state.pitch > 10);
     $('mode3DToggle').checked = state.pitch > 10;
+  });
+
+  // Tự động render lại khi thay đổi Zoom
+  state.map.on('zoomend', () => {
+    renderCommunityPois();
+    renderSavedPlaces();
+    renderReports();
+    renderAvoidZones();
   });
 
   // Click Map với hiệu ứng Ripple và fix lỗi nút Popup
@@ -681,13 +691,13 @@ function initMap() {
       </button>
     `;
 
-    // 4. Gắn sự kiện pointerdown (bắt sớm hơn click) + capture: true
+    // 4. Gắn sự kiện pointerdown
     const btnSave = popupNode.querySelector('.popup-btn-save');
     const btnGo = popupNode.querySelector('.popup-btn-go');
 
     const handleAction = (ev, action) => {
       ev.preventDefault();
-      ev.stopPropagation(); // Chặn MapLibre đóng popup
+      ev.stopPropagation();
       if (action === 'save') window.showSavePlace(lat, lng, name);
       if (action === 'go') window.goToLocation(lat, lng, name);
     };
@@ -760,13 +770,11 @@ function updateUserMarker(lat, lng, heading) {
 window.centerToLocation = () => {
   haptic();
   
-  // Nếu đã có GPS thì bay tới luôn
   if (state.lastUserPos) {
     state.map.flyTo({ center: [state.lastUserPos.lng, state.lastUserPos.lat], zoom: 16, duration: 1000 });
     return;
   }
 
-  // Nếu chưa có GPS, chủ động yêu cầu lại
   showToast('Đang định vị...', 'info');
   
   if (!navigator.geolocation) {
@@ -1248,15 +1256,34 @@ function subscribeReports() {
 function renderReports() {
   Object.values(state.reportMarkers).forEach(m => m.remove());
   state.reportMarkers = {};
+  
+  // Chỉ hiện khi zoom đủ to
+  if (!state.map || state.map.getZoom() < 14.5) return;
+
   const now = Date.now();
   const colors = { police: '#3b82f6', accident: '#ef4444', traffic: '#ef4444', pothole: '#f59e0b', flood: '#06b6d4', bridge_collapse: '#dc2626', road_collapse: '#b91c1c' };
+  const typeNames = { police: 'CSGT', accident: 'Tai nạn', traffic: 'Kẹt xe', pothole: 'Ổ gà', flood: 'Ngập', bridge_collapse: 'Sập cầu', road_collapse: 'Sập đường' };
+
   Object.entries(state.allReports).forEach(([id, r]) => {
     if (now > r.expiresAt) return;
+    
     const el = document.createElement('div');
-    el.style.cssText = `width:32px;height:32px;background:${colors[r.type] || '#ef4444'};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.85rem;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;animation:popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)`;
-    el.innerHTML = '<i class="fas fa-exclamation"></i>';
-    el.onclick = () => { haptic(); showToast(typeLabel(r.type), 'warning'); };
-    state.reportMarkers[id] = new maplibregl.Marker(el).setLngLat([r.lng, r.lat]).addTo(state.map);
+    el.style.cssText = 'position:relative;display:flex;justify-content:center;cursor:pointer;pointer-events:auto;';
+    el.innerHTML = `
+      <div style="width:28px;height:28px;background:${colors[r.type] || '#ef4444'};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:12px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
+        <i class="fas fa-exclamation"></i>
+      </div>
+      <div style="position:absolute;top:32px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
+        ${typeNames[r.type] || 'Sự cố'}
+      </div>
+    `;
+    el.onclick = (e) => { e.stopPropagation(); haptic(); showToast(typeLabel(r.type), 'warning'); };
+    
+    const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+      .setLngLat([r.lng, r.lat])
+      .addTo(state.map);
+      
+    state.reportMarkers[id] = marker;
   });
 }
 
@@ -1296,14 +1323,43 @@ function subscribeSavedPlaces() {
 function renderSavedPlaces() {
   Object.values(state.savedPlaceMarkers).forEach(m => m.remove());
   state.savedPlaceMarkers = {};
+  
+  // Chỉ hiện khi zoom đủ to
+  if (!state.map || state.map.getZoom() < 15) return;
+
   const icons = { home: 'fa-home', company: 'fa-building', school: 'fa-school', cafe: 'fa-coffee', restaurant: 'fa-utensils', other: 'fa-map-marker-alt' };
   const colors = { home: '#10b981', company: '#3b82f6', school: '#8b5cf6', cafe: '#f59e0b', restaurant: '#ef4444', other: '#64748b' };
+  
   Object.entries(state.allSavedPlaces).forEach(([id, p]) => {
+    const iconBg = colors[p.type] || '#64748b';
+    const iconCls = icons[p.type] || 'fa-map-marker-alt';
+    
+    // Rút gọn tên nếu quá dài
+    let shortName = p.address || 'Địa điểm';
+    if (shortName.length > 22) shortName = shortName.substring(0, 22) + '...';
+    
     const el = document.createElement('div');
-    el.style.cssText = `width:32px;height:32px;background:${colors[p.type] || '#64748b'};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.8rem;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;animation:popIn 0.3s`;
-    el.innerHTML = `<i class="fas ${icons[p.type] || 'fa-map-marker-alt'}"></i>`;
-    el.onclick = () => { haptic(); showToast(p.address, 'info'); };
-    state.savedPlaceMarkers[id] = new maplibregl.Marker(el).setLngLat([p.lng, p.lat]).addTo(state.map);
+    el.style.cssText = 'position:relative;display:flex;justify-content:center;cursor:pointer;pointer-events:auto;';
+    el.innerHTML = `
+      <div style="width:32px;height:32px;background:${iconBg};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
+        <i class="fas ${iconCls}"></i>
+      </div>
+      <div style="position:absolute;top:36px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
+        ${escapeHtml(shortName)}
+      </div>
+    `;
+    
+    el.onclick = (e) => { 
+      e.stopPropagation();
+      haptic(); 
+      showToast(p.address, 'info'); 
+    };
+
+    const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+      .setLngLat([p.lng, p.lat])
+      .addTo(state.map);
+      
+    state.savedPlaceMarkers[id] = marker;
   });
 }
 
@@ -1357,14 +1413,43 @@ function subscribeCommunityPois() {
 function renderCommunityPois() {
   Object.values(state.poiMarkers).forEach(m => m.remove());
   state.poiMarkers = {};
+  
+  // Chỉ hiện khi zoom đủ to
+  if (!state.map || state.map.getZoom() < 15) return;
+
   const colors = { supermarket: '#10b981', rest_stop: '#3b82f6', gas_station: '#f59e0b', cafe: '#8b5cf6', restaurant: '#ef4444', pharmacy: '#06b6d4', atm: '#ec4899', repair: '#64748b', hotel: '#dc2626' };
   const icons = { supermarket: 'fa-shopping-cart', rest_stop: 'fa-bed', gas_station: 'fa-gas-pump', cafe: 'fa-coffee', restaurant: 'fa-utensils', pharmacy: 'fa-prescription-bottle-medical', atm: 'fa-money-bill-wave', repair: 'fa-wrench', hotel: 'fa-hotel' };
+  
   Object.entries(state.allCommunityPois).forEach(([id, p]) => {
+    const iconBg = colors[p.tag] || '#64748b';
+    const iconCls = icons[p.tag] || 'fa-map-marker-alt';
+    
+    // Rút gọn tên nếu quá dài
+    let shortName = p.name || 'Địa điểm';
+    if (shortName.length > 22) shortName = shortName.substring(0, 22) + '...';
+    
     const el = document.createElement('div');
-    el.style.cssText = `width:36px;height:36px;background:${colors[p.tag] || '#64748b'};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:.9rem;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;animation:popIn 0.3s`;
-    el.innerHTML = `<i class="fas ${icons[p.tag] || 'fa-map-marker-alt'}"></i>`;
-    el.onclick = () => { haptic(); showPoiDetail(id); };
-    state.poiMarkers[id] = new maplibregl.Marker(el).setLngLat([p.lng, p.lat]).addTo(state.map);
+    el.style.cssText = 'position:relative;display:flex;justify-content:center;cursor:pointer;pointer-events:auto;';
+    el.innerHTML = `
+      <div style="width:34px;height:34px;background:${iconBg};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:15px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
+        <i class="fas ${iconCls}"></i>
+      </div>
+      <div style="position:absolute;top:38px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
+        ${escapeHtml(shortName)}
+      </div>
+    `;
+    
+    el.onclick = (e) => { 
+      e.stopPropagation();
+      haptic(); 
+      showPoiDetail(id); 
+    };
+
+    const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+      .setLngLat([p.lng, p.lat])
+      .addTo(state.map);
+      
+    state.poiMarkers[id] = marker;
   });
 }
 
@@ -1377,6 +1462,105 @@ function showPoiDetail(id) {
     <div class="muted mb">Thêm bởi: ${escapeHtml(p.authorName || 'Ẩn danh')}</div>
     <button class="btn btn-primary full" onclick="window.goToLocation(${p.lat},${p.lng},'${escapeHtml(p.name).replace(/'/g,'&#39;')}');document.getElementById('poiDetailSheet').classList.remove('open')"><i class="fas fa-directions"></i> Chỉ đường tới đây</button>`;
   $('poiDetailSheet').classList.add('open');
+}
+
+// ═══════════════ TUYẾN CẤM / AVOID ZONES ═══════════════
+function subscribeAvoidZones() {
+  onValue(ref(db, 'avoid_zones'), snap => {
+    state.allAvoidZones = snap.val() || {};
+    renderAvoidZones();
+  });
+}
+
+function renderAvoidZones() {
+  // 1. Xóa marker cũ
+  if (state.avoidZoneMarkers) Object.values(state.avoidZoneMarkers).forEach(m => m.remove());
+  state.avoidZoneMarkers = {};
+
+  // 2. Xóa layer vẽ đường cũ
+  if (state.map.getLayer('avoid-zone-line')) state.map.removeLayer('avoid-zone-line');
+  if (state.map.getSource('avoid-zones-source')) state.map.removeSource('avoid-zones-source');
+
+  if (!state.map) return;
+
+  const features = [];
+  const markers = [];
+
+  // 3. Duyệt danh sách tuyến cấm
+  Object.entries(state.allAvoidZones).forEach(([id, zone]) => {
+    let coords = [];
+    try {
+      if (zone.waypoints) {
+        const parsed = typeof zone.waypoints === 'string' ? JSON.parse(zone.waypoints) : zone.waypoints;
+        if (Array.isArray(parsed)) {
+          coords = Array.isArray(parsed[0]) ? parsed : [parsed]; // [[lat,lng], ...] hoặc [lat,lng]
+        }
+      }
+    } catch(e) {}
+
+    if (coords.length === 0 && zone.lat1 && zone.lng1 && zone.lat2 && zone.lng2) {
+      coords = [[zone.lat1, zone.lng1], [zone.lat2, zone.lng2]];
+    }
+
+    if (coords.length > 0) {
+      // Convert [lat, lng] của DB thành [lng, lat] cho MapLibre
+      const lngLatCoords = coords.map(c => [c[1], c[0]]);
+      
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: lngLatCoords },
+        properties: { id, name: zone.name || 'Tuyến cấm' }
+      });
+
+      // Tìm điểm giữa để đặt marker
+      const midIdx = Math.floor(lngLatCoords.length / 2);
+      markers.push({ id, lngLat: lngLatCoords[midIdx], name: zone.name || 'Tuyến cấm' });
+    }
+  });
+
+  // 4. Vẽ đường nét đứt (Hiển thị ở mọi mức zoom để cảnh báo)
+  if (features.length > 0) {
+    state.map.addSource('avoid-zones-source', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features }
+    });
+    state.map.addLayer({
+      id: 'avoid-zone-line',
+      type: 'line',
+      source: 'avoid-zones-source',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': '#ef4444',
+        'line-width': 5,
+        'line-opacity': 0.8,
+        'line-dasharray': [2, 2]
+      }
+    }, state.map.getLayer('tomtom-traffic-layer') ? 'tomtom-traffic-layer' : undefined);
+  }
+
+  // 5. Vẽ Marker Icon 🚫 + Tên (Chỉ hiện khi zoom >= 14)
+  if (state.map.getZoom() >= 14) {
+    markers.forEach(m => {
+      let shortName = m.name;
+      if (shortName.length > 22) shortName = shortName.substring(0, 22) + '...';
+      
+      const el = document.createElement('div');
+      el.style.cssText = 'position:relative;display:flex;justify-content:center;cursor:pointer;pointer-events:auto;';
+      el.innerHTML = `
+        <div style="width:32px;height:32px;background:#ef4444;border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
+          <i class="fas fa-ban"></i>
+        </div>
+        <div style="position:absolute;top:36px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--danger);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
+          ${escapeHtml(shortName)}
+        </div>
+      `;
+      el.onclick = (e) => { e.stopPropagation(); haptic(); showToast(m.name, 'warning'); };
+      
+      state.avoidZoneMarkers[m.id] = new maplibregl.Marker({ element: el, anchor: 'center' })
+        .setLngLat(m.lngLat)
+        .addTo(state.map);
+    });
+  }
 }
 
 // ═══════════════ HISTORY / SAVED ROUTES ═══════════════
@@ -1615,7 +1799,7 @@ function showToast(msg, type = 'info') {
   setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-10px)'; el.style.transition = 'all .3s'; setTimeout(() => el.remove(), 300); }, 2500);
 }
 
-console.log('[DriveKit] Ready — Full Interactive UX (Fixed Popup & GPS)');
+console.log('[DriveKit] Ready — Full Interactive UX + Avoid Zones');
 
 </script>
 </body>
