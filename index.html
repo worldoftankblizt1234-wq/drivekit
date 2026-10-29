@@ -24,492 +24,273 @@
 </style>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>DriveKit Maps - Bản đồ chỉ đường & giao thông realtime cho tài xế Việt</title>
-<meta name="description" content="DriveKit Maps - Nền tảng bản đồ chỉ đường thông minh cho xe máy, ô tô, xe tải. Xem traffic realtime TomTom, cảnh báo CSGT, ngập, ổ gà, trạm nghỉ cộng đồng.">
-<meta name="keywords" content="DriveKit Maps, bản đồ, chỉ đường, traffic, TomTom, TrackAsia, bản đồ xe tải, cảnh báo giao thông">
-<meta name="author" content="DriveKit">
-<meta name="application-name" content="DriveKit Maps">
-<meta name="theme-color" content="#6366F1">
-<link rel="canonical" href="https://drivekit.maps/">
-
-<!-- Favicon / Logo -->
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='url(%23g)'/%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236366F1'/%3E%3Cstop offset='100%25' stop-color='%2306B6D4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M28 38 L28 62 L38 62 L38 52 L48 72 L62 72 L52 52 L68 38 L56 38 L48 52 L40 38 Z' fill='white'/%3E%3C/svg%3E">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%236366F1'/%3E%3Cpath d='M28 38 L28 62 L38 62 L38 52 L48 72 L62 72 L52 52 L68 38 L56 38 L48 52 L40 38 Z' fill='white'/%3E%3C/svg%3E">
-
-<!-- Open Graph -->
-<meta property="og:type" content="website">
-<meta property="og:title" content="DriveKit Maps - Bản đồ chỉ đường & giao thông realtime">
-<meta property="og:description" content="Chỉ đường thông minh cho xe máy, ô tô, xe tải. Traffic realtime, cảnh báo cộng đồng, trạm nghỉ.">
-<meta property="og:site_name" content="DriveKit Maps">
-<meta property="og:logo" content="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%236366F1'/%3E%3C/svg%3E">
-
-<!-- Twitter -->
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="DriveKit Maps">
-<meta name="twitter:description" content="Bản đồ chỉ đường & giao thông realtime cho tài xế Việt">
-
-<!-- Structured Data -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "WebApplication",
-  "name": "DriveKit Maps",
-  "alternateName": "DriveKit",
-  "url": "https://drivekit.maps/",
-  "description": "Nền tảng bản đồ chỉ đường thông minh với traffic realtime, cảnh báo giao thông cộng đồng",
-  "applicationCategory": "NavigationApplication",
-  "operatingSystem": "Any",
-  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "VND"},
-  "author": {"@type": "Organization", "name": "DriveKit", "logo": {"@type": "ImageObject", "url": "https://drivekit.maps/logo.png"}},
-  "logo": "https://drivekit.maps/logo.png"
-}
-</script>
-
+<title>DriveKit</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link href="https://unpkg.com/maplibre-gl@^4.7.1/dist/maplibre-gl.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{
-  --bg:#070A12;
-  --bg-soft:#0F1423;
-  --surface:#111827;
-  --surface-2:#1E293B;
-  --surface-3:#2A3A56;
-  --surface-glass:rgba(17,24,39,0.78);
-  --surface-glass-2:rgba(17,24,39,0.92);
-  --primary:#6366F1;
-  --primary-2:#3B82F6;
-  --primary-gradient:linear-gradient(135deg,#6366F1 0%,#3B82F6 50%,#06B6D4 100%);
-  --primary-soft:rgba(99,102,241,0.12);
-  --success:#10B981;
-  --success-soft:rgba(16,185,129,0.12);
-  --danger:#EF4444;
-  --warning:#F59E0B;
-  --text:#F8FAFC;
-  --text-2:#CBD5E1;
-  --muted:#7C8AA6;
-  --border:rgba(255,255,255,0.08);
-  --border-strong:rgba(255,255,255,0.14);
-  --shadow-sm:0 2px 12px rgba(0,0,0,0.2);
-  --shadow-lg:0 20px 60px rgba(0,0,0,0.5);
-  --shadow-primary:0 12px 32px rgba(99,102,241,0.35);
-  --radius-full:999px;
-  --radius-xl:20px;
-  --radius-2xl:28px;
-  --safe-top:env(safe-area-inset-top,0);
-  --safe-bot:env(safe-area-inset-bottom,0);
-}
-body.light{
-  --bg:#F6F8FF;
-  --bg-soft:#FFFFFF;
-  --surface:#FFFFFF;
-  --surface-2:#EEF2FF;
-  --surface-3:#E0E7FF;
-  --surface-glass:rgba(255,255,255,0.85);
-  --surface-glass-2:rgba(255,255,255,0.96);
-  --text:#0F172A;
-  --text-2:#334155;
-  --muted:#94A3B8;
-  --border:rgba(15,23,42,0.08);
-  --border-strong:rgba(15,23,42,0.12);
-}
+:root{--bg:#0b1220;--surface:#1e293b;--surface-2:#334155;--surface-3:#475569;--primary:#3b82f6;--success:#10b981;--danger:#ef4444;--warning:#f59e0b;--text:#f1f5f9;--muted:#94a3b8;--border:rgba(255,255,255,.08);--safe-top:env(safe-area-inset-top,0);--safe-bot:env(safe-area-inset-bottom,0);--surface-glass:rgba(30,41,59,.85)}
+body.light{--bg:#f8fafc;--surface:#fff;--surface-2:#e2e8f0;--surface-3:#cbd5e1;--text:#0f172a;--muted:#64748b;--border:rgba(0,0,0,.08);--surface-glass:rgba(255,255,255,.85)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;overflow:hidden;font-family:"Inter",-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);font-size:15px;letter-spacing:-0.01em}
-h1,h2{font-family:"Plus Jakarta Sans",Inter,sans-serif;letter-spacing:-0.02em}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:15px}
 
-/* Interactions */
-button,.chip,.layer-item,.list-item,.nav-item,.ctrl-btn,.report-btn{cursor:pointer;transition:all 0.18s cubic-bezier(0.4,0,0.2,1);user-select:none}
-button:active,.chip:active,.layer-item:active,.report-btn:active,.nav-item:active,.ctrl-btn:active{transform:scale(0.96)}
-input,select{transition:all 0.2s}
-input:focus,select:focus{border-color:var(--primary)!important;box-shadow:0 0 0 4px var(--primary-soft)}
+/* Global Interactive Feedback */
+button, .chip, .layer-item, .list-item, .nav-item { cursor: pointer; transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s; user-select: none; }
+button:active, .chip:active, .layer-item:active, .report-btn:active, .nav-item:active, .ctrl-btn:active, .compass:active { transform: scale(0.95); }
+input, select { transition: border-color 0.2s, box-shadow 0.2s; }
+input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
 
-/* Map */
-#map{position:fixed;inset:0;width:100%;height:100%}
-
-/* Popup premium */
-.maplibregl-popup{z-index:1000!important}
-.maplibregl-popup-content{
-  background:var(--surface-glass-2)!important;
-  backdrop-filter:blur(24px) saturate(1.4);
-  -webkit-backdrop-filter:blur(24px) saturate(1.4);
-  color:var(--text)!important;
-  padding:18px!important;
-  border-radius:var(--radius-xl)!important;
-  box-shadow:var(--shadow-lg),0 0 0 1px var(--border-strong) inset!important;
-  border:1px solid var(--border)!important;
-  animation:popupIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275) forwards;
+/* LÀM MƯỢT POPUP MAPLIBRE */
+.maplibregl-popup { z-index: 1000 !important; }
+.maplibregl-popup-content {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  padding: 16px !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3) !important;
+  border: 1px solid var(--border) !important;
+  pointer-events: auto !important;
+  animation: popupFadeIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
-.maplibregl-popup-tip{display:none!important}
-@keyframes popupIn{from{opacity:0;transform:translateY(16px) scale(0.92)}to{opacity:1;transform:translateY(0) scale(1)}}
-.map-ripple{width:44px;height:44px;border-radius:50%;border:2px solid var(--primary);animation:rippleOut 0.7s cubic-bezier(0.1,0.8,0.3,1) forwards;pointer-events:none;box-shadow:0 0 20px rgba(99,102,241,0.5)}
-@keyframes rippleOut{0%{transform:scale(0.2);opacity:1}100%{transform:scale(3.2);opacity:0}}
+.maplibregl-popup-tip {
+  border-top-color: var(--surface) !important;
+  border-bottom-color: var(--surface) !important;
+  border-left-color: var(--surface) !important;
+  border-right-color: var(--surface) !important;
+}
+@keyframes popupFadeIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 
-/* Backdrop */
-.backdrop{position:fixed;inset:0;background:rgba(3,7,18,0.55);backdrop-filter:blur(8px) saturate(1.2);-webkit-backdrop-filter:blur(8px) saturate(1.2);z-index:250;opacity:0;pointer-events:none;transition:opacity 0.35s}
-body:has(.sheet.open) .backdrop{opacity:1;pointer-events:auto}
+/* Backdrop overlay for sheets */
+.backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 250; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+body:has(.sheet.open) .backdrop { opacity: 1; pointer-events: auto; }
 
-/* Loading - mesh gradient */
-.fullscreen{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);padding:24px;overflow:hidden}
-.fullscreen::before{content:'';position:absolute;inset:-50%;background:radial-gradient(600px at 30% 20%,rgba(99,102,241,0.25),transparent 60%),radial-gradient(800px at 80% 80%,rgba(6,182,214,0.2),transparent 60%),radial-gradient(500px at 10% 90%,rgba(139,92,246,0.18),transparent 60%);filter:blur(40px);animation:meshMove 12s infinite alternate}
-@keyframes meshMove{0%{transform:translate(0,0) rotate(0)}100%{transform:translate(-5%,-5%) rotate(2deg)}}
-.logo-pulse{position:relative;z-index:1;width:84px;height:84px;border-radius:22px;background:var(--primary-gradient);display:flex;align-items:center;justify-content:center;color:white;font-size:2.2rem;box-shadow:var(--shadow-primary),0 0 0 1px rgba(255,255,255,0.15) inset;animation:logoFloat 2.2s ease-in-out infinite}
-@keyframes logoFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-6px) scale(1.02)}}
-.brand{position:relative;z-index:1;font-size:2.2rem;font-weight:900;margin:22px 0 10px;letter-spacing:-0.04em}
-.progress-track{position:relative;z-index:1;width:240px;height:6px;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden;margin:14px 0;backdrop-filter:blur(10px)}
-.progress-fill{height:100%;background:var(--primary-gradient);border-radius:999px;transition:width 0.4s cubic-bezier(0.4,0,0.2,1);width:0;box-shadow:0 0 12px rgba(99,102,241,0.6)}
-.loading-text{position:relative;z-index:1;color:var(--muted);font-size:0.85rem;font-weight:500;letter-spacing:0.02em}
-
-/* Auth - glass card */
-.auth-card{position:relative;z-index:1;width:100%;max-width:400px;background:var(--surface-glass-2);backdrop-filter:blur(24px) saturate(1.3);-webkit-backdrop-filter:blur(24px) saturate(1.3);padding:32px 28px;border-radius:28px;box-shadow:var(--shadow-lg),0 0 0 1px var(--border-strong) inset;border:1px solid var(--border)}
-.auth-card h1{text-align:center;font-size:1.9rem;font-weight:900;margin-bottom:8px}
-.auth-card p{text-align:center;color:var(--muted);margin-bottom:28px;font-size:0.92rem}
-.auth-card input{width:100%;padding:15px 16px;margin-bottom:12px;border:1px solid var(--border);border-radius:14px;background:var(--bg-soft);color:var(--text);font-size:0.95rem;outline:none;font-weight:500}
-.auth-error{color:var(--danger);font-size:0.85rem;margin-bottom:14px;display:none;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.15);padding:10px 12px;border-radius:10px}
-.auth-toggle{text-align:center;font-size:0.9rem;margin-top:18px;color:var(--muted)}
+.hidden{display:none!important}.full{width:100%}.mt{margin-top:12px}.mb{margin-bottom:12px}.muted{color:var(--muted);font-size:.85rem}
+.fullscreen{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);padding:24px}
+.logo-pulse{font-size:4rem;color:var(--primary);animation:pulse 1.8s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.95)}}
+.brand{font-size:2rem;font-weight:900;margin:16px 0}
+.progress-track{width:220px;height:4px;background:var(--surface);border-radius:2px;overflow:hidden;margin:12px 0}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--primary),var(--success));transition:width .3s ease-out;width:0}
+.loading-text{color:var(--muted);font-size:.85rem}
+.auth-card{width:100%;max-width:400px;background:var(--surface);padding:32px 24px;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.auth-card h1{text-align:center;font-size:1.8rem;margin-bottom:6px}
+.auth-card p{text-align:center;color:var(--muted);margin-bottom:24px;font-size:.9rem}
+.auth-card input{width:100%;padding:14px;margin-bottom:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:1rem;outline:none}
+.auth-error{color:var(--danger);font-size:.85rem;margin-bottom:12px;display:none; animation: slide 0.2s ease-out;}
+.auth-toggle{text-align:center;font-size:.9rem;margin-top:16px;color:var(--muted)}
 .auth-toggle a{color:var(--primary);text-decoration:none;font-weight:700;margin-left:4px}
 
-/* Buttons - premium */
-.btn{padding:14px 18px;border-radius:14px;border:none;font-weight:700;font-size:0.95rem;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;letter-spacing:-0.01em;position:relative;overflow:hidden}
-.btn::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(255,255,255,0.12),transparent);pointer-events:none}
-.btn:disabled{opacity:0.45;cursor:not-allowed;transform:none!important}
-.btn-primary{background:var(--primary-gradient);color:#fff;box-shadow:var(--shadow-primary),0 0 0 1px rgba(255,255,255,0.15) inset}
-.btn-secondary{background:var(--surface-2);color:var(--text);border:1px solid var(--border)}
-.btn-danger{background:linear-gradient(135deg,#EF4444,#DC2626);color:#fff;box-shadow:0 8px 20px rgba(239,68,68,0.3)}
-.btn-google{background:#fff;color:#111827;border:1px solid rgba(0,0,0,0.08);box-shadow:var(--shadow-sm)}
-.btn-sm{padding:9px 14px;font-size:0.82rem;border-radius:10px}
+.btn{padding:13px 16px;border-radius:12px;border:none;font-weight:700;font-size:.95rem;display:flex;align-items:center;justify-content:center;gap:8px;width:100%}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-secondary{background:var(--surface-2);color:var(--text)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-google{background:#fff;color:#1f2937;border:1px solid var(--border)}
+.btn-sm{padding:8px 12px;font-size:.8rem;border-radius:8px}
 
-/* Top bar - floating pill centered */
-.top-bar{position:fixed;top:calc(14px + var(--safe-top));left:50%;transform:translateX(-50%);width:calc(100% - 24px);max-width:680px;display:flex;gap:10px;z-index:100;align-items:center}
-.search-field{flex:1;display:flex;align-items:center;gap:12px;background:var(--surface-glass-2);backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);border:1px solid var(--border-strong);border-radius:999px;padding:7px 8px 7px 18px;box-shadow:var(--shadow-lg),0 0 0 1px rgba(255,255,255,0.04) inset;transition:all 0.2s}
-.search-field:focus-within{border-color:rgba(99,102,241,0.4);box-shadow:var(--shadow-lg),0 0 0 4px var(--primary-soft)}
-.search-field i{color:var(--muted);font-size:0.95rem}
-.search-field input{flex:1;border:none;background:transparent;color:var(--text);font-size:0.95rem;outline:none;pointer-events:none;font-weight:500}
-.search-field input::placeholder{color:var(--muted)}
-.avatar-btn{width:46px;height:46px;border-radius:50%;background:var(--surface-glass-2);backdrop-filter:blur(20px);border:1px solid var(--border-strong);color:var(--text);display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-lg);overflow:hidden;flex-shrink:0;transition:all 0.2s}
+#map{position:fixed;inset:0;width:100%;height:100%}
+
+/* Glassmorphism Top & Bottom */
+.top-bar{position:fixed;top:calc(12px + var(--safe-top));left:12px;right:12px;display:flex;gap:8px;z-index:100}
+.search-field{flex:1;display:flex;align-items:center;gap:10px;background:var(--surface-glass);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:999px;padding:10px 16px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.search-field i{color:var(--muted)}
+.search-field input{flex:1;border:none;background:transparent;color:var(--text);font-size:.95rem;outline:none;pointer-events:none}
+.avatar-btn{width:44px;height:44px;border-radius:50%;background:var(--surface-glass);backdrop-filter:blur(12px);border:1px solid var(--border);color:var(--text);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.2);overflow:hidden;flex-shrink:0}
 .avatar-btn img{width:100%;height:100%;object-fit:cover}
-.avatar-btn:hover{transform:translateY(-1px);box-shadow:0 12px 32px rgba(0,0,0,0.3)}
-.clear-dest-btn{width:46px;height:46px;border-radius:50%;background:var(--danger);border:none;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(239,68,68,0.4);flex-shrink:0}
+.clear-dest-btn{width:44px;height:44px;border-radius:50%;background:var(--danger);border:1px solid var(--border);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(239,68,68,.4);flex-shrink:0}
 
-/* Suggestions - premium glass */
-.suggestions{position:fixed;top:calc(72px + var(--safe-top));left:50%;transform:translateX(-50%) translateY(-8px);width:calc(100% - 24px);max-width:680px;max-height:58vh;overflow-y:auto;background:var(--surface-glass-2);backdrop-filter:blur(28px) saturate(1.4);-webkit-backdrop-filter:blur(28px) saturate(1.4);border:1px solid var(--border-strong);border-radius:22px;box-shadow:var(--shadow-lg),0 0 0 1px rgba(255,255,255,0.05) inset;display:none;z-index:150;opacity:0;transition:all 0.3s cubic-bezier(0.32,0.72,0,1)}
-.suggestions.show{display:block;transform:translateX(-50%) translateY(0);opacity:1}
-.sug-item{padding:14px 18px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border);font-size:0.9rem;font-weight:500;transition:background 0.15s}
+.suggestions{position:fixed;top:calc(72px + var(--safe-top));left:12px;right:12px;max-height:55vh;overflow-y:auto;background:var(--surface-glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:none;z-index:150;transform:translateY(-10px);opacity:0;transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1);}
+.suggestions.show{display:block;transform:translateY(0);opacity:1;}
+.sug-item{padding:14px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);font-size:.9rem}
 .sug-item:last-child{border-bottom:none}
-.sug-item:hover{background:rgba(255,255,255,0.06)}
-.sug-item i{width:36px;height:36px;border-radius:11px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.9rem}
+.sug-item:hover{background:rgba(255,255,255,0.05)}
 
-/* Bottom nav - floating island pill */
-.bottom-nav{position:fixed;bottom:calc(18px + var(--safe-bot));left:50%;transform:translateX(-50%);width:auto;max-width:92%;background:var(--surface-glass-2);backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);border:1px solid var(--border-strong);display:flex;justify-content:center;align-items:center;gap:4px;padding:6px;z-index:100;box-shadow:var(--shadow-lg),0 0 0 1px rgba(255,255,255,0.06) inset;border-radius:999px}
-.nav-item{flex:0 0 auto;display:flex;flex-direction:row;align-items:center;gap:8px;background:transparent;border:none;color:var(--muted);padding:11px 16px;font-size:0.78rem;font-weight:700;border-radius:999px;letter-spacing:0.01em;transition:all 0.22s cubic-bezier(0.4,0,0.2,1)}
-.nav-item i{font-size:1.05rem;transition:transform 0.22s}
-.nav-item:hover{color:var(--text-2);background:rgba(255,255,255,0.06)}
-.nav-item.active{background:var(--surface-2);color:var(--text);box-shadow:var(--shadow-sm),0 0 0 1px var(--border) inset}
-.nav-item.center{background:var(--primary-gradient);color:#fff;padding:12px 20px;box-shadow:var(--shadow-primary),0 0 0 1px rgba(255,255,255,0.18) inset;gap:8px}
-.nav-item.center i{font-size:1.2rem}
-.nav-item.center:hover{transform:translateY(-1px);box-shadow:0 16px 36px rgba(99,102,241,0.45),0 0 0 1px rgba(255,255,255,0.18) inset}
-.nav-item span{white-space:nowrap}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface-glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:8px 8px calc(8px + var(--safe-bot));z-index:100;box-shadow:0 -4px 20px rgba(0,0,0,.2)}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;color:var(--muted);padding:8px 4px;font-size:.7rem;font-weight:700;border-radius:12px;}
+.nav-item i{font-size:1.15rem}
+.nav-item.center i{color:var(--primary);font-size:1.5rem;background:var(--bg);width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:2px;border:2px solid var(--primary);box-shadow:0 4px 12px rgba(59,130,246,.3)}
+.nav-item.center{color:var(--primary)}
 
-/* Right controls - modern stack */
-.right-ctrls{position:fixed;right:14px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;z-index:90}
-.ctrl-btn,.compass{width:48px;height:48px;border-radius:16px;background:var(--surface-glass-2);backdrop-filter:blur(20px);border:1px solid var(--border-strong);color:var(--text);display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-lg);font-size:1.05rem;transition:all 0.2s}
-.ctrl-btn:hover{transform:translateY(-1px)}
-.ctrl-btn.active{background:var(--primary-gradient);color:#fff;border-color:transparent;box-shadow:var(--shadow-primary)}
-.compass{border-radius:50%;position:relative;width:52px;height:52px}
-.compass-arrow{width:2px;height:24px;background:linear-gradient(to bottom,var(--danger) 50%,var(--muted) 50%);border-radius:1px;transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);position:relative}
-.compass-arrow::before{content:'';position:absolute;top:-4px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid var(--danger)}
+.right-ctrls{position:fixed;right:12px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;z-index:90}
+.ctrl-btn,.compass{width:44px;height:44px;border-radius:14px;background:var(--surface-glass);backdrop-filter:blur(12px);border:1px solid var(--border);color:var(--text);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.2);font-size:1rem}
+.ctrl-btn.active{background:var(--primary);color:#fff;border-color:transparent}
+.compass{border-radius:50%;position:relative}
+.compass-arrow{width:2px;height:22px;background:linear-gradient(to bottom,var(--danger) 50%,var(--muted) 50%);border-radius:1px;transition:transform .3s cubic-bezier(0.4, 0, 0.2, 1);position:relative}
+.compass-arrow::before{content:'';position:absolute;top:-3px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:7px solid var(--danger)}
 
-/* Sheets - iOS 26 style */
-.sheet{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-radius:32px 32px 0 0;box-shadow:0 -20px 80px rgba(0,0,0,0.6),0 0 0 1px var(--border-strong) inset;z-index:300;transform:translateY(105%);transition:transform 0.48s cubic-bezier(0.32,0.72,0,1);max-height:92vh;display:flex;flex-direction:column;padding-bottom:var(--safe-bot);backdrop-filter:blur(32px)}
+.sheet{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-radius:24px 24px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.5);z-index:300;transform:translateY(100%);transition:transform .35s cubic-bezier(.32,.72,0,1);max-height:88vh;display:flex;flex-direction:column;padding-bottom:var(--safe-bot)}
 .sheet.open{transform:translateY(0)}
-.sheet-handle{width:36px;height:5px;background:var(--surface-3);border-radius:999px;margin:14px auto 4px;opacity:0.9}
-.sheet-header{display:flex;align-items:center;justify-content:space-between;padding:18px 24px 12px;flex-shrink:0}
-.sheet-header h2{font-size:1.25rem;font-weight:800;letter-spacing:-0.02em}
-.close-btn{width:36px;height:36px;border-radius:50%;border:none;background:var(--surface-2);color:var(--text);display:flex;align-items:center;justify-content:center;font-size:0.9rem;transition:all 0.18s}
-.close-btn:hover{background:var(--surface-3);transform:rotate(90deg)}
-.sheet-body{padding:8px 24px 28px;overflow-y:auto;flex:1;scrollbar-width:none}
-.sheet-body::-webkit-scrollbar{display:none}
+.sheet-handle{width:40px;height:5px;background:var(--surface-3);border-radius:3px;margin:10px auto 0}
+.sheet-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;flex-shrink:0}
+.sheet-header h2{font-size:1.15rem;font-weight:800}
+.close-btn{width:36px;height:36px;border-radius:50%;border:none;background:var(--surface-2);color:var(--text);display:flex;align-items:center;justify-content:center}
+.sheet-body{padding:12px 20px 24px;overflow-y:auto;flex:1}
 
-.layer-item{padding:16px 18px;border-radius:16px;background:var(--bg-soft);border:1.5px solid var(--border);margin-bottom:10px;display:flex;align-items:center;gap:14px;font-weight:600;font-size:0.95rem;transition:all 0.2s}
-.layer-item:hover{border-color:var(--border-strong);transform:translateY(-1px)}
-.layer-item.active{border-color:var(--primary);background:var(--primary-soft);box-shadow:0 0 0 4px var(--primary-soft)}
-.layer-item i:first-child{width:36px;height:36px;border-radius:11px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;color:var(--primary)}
+.layer-item{padding:16px;border-radius:14px;background:var(--bg);border:1px solid var(--border);margin-bottom:10px;display:flex;align-items:center;gap:14px;font-weight:600;font-size:.95rem}
+.layer-item.active{border-color:var(--primary);background:rgba(59,130,246,.1)}
+.layer-item i:first-child{color:var(--primary);width:20px;text-align:center}
 .layer-item i:last-child{margin-left:auto;color:var(--success);display:none}
-.layer-item.active i:last-child{display:block;animation:popIn 0.35s cubic-bezier(0.175,0.885,0.32,1.275)}
-@keyframes popIn{0%{transform:scale(0)}100%{transform:scale(1)}}
+.layer-item.active i:last-child{display:block; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);}
 
 .dir-inputs{display:flex;flex-direction:column;gap:12px}
-.dir-row{display:flex;align-items:center;gap:12px;background:var(--bg-soft);border-radius:16px;padding:14px 18px;border:1.5px solid var(--border);transition:all 0.2s}
-.dir-row:focus-within{border-color:var(--primary);box-shadow:0 0 0 4px var(--primary-soft);transform:translateY(-1px)}
-.dir-row i{width:22px;text-align:center;font-size:0.8rem}
-.dot-start{color:var(--success)}.dot-end{color:var(--danger);font-size:0.95rem}
-.dir-row input{flex:1;border:none;background:transparent;color:var(--text);outline:none;font-size:0.95rem;font-weight:600}
-
-.section-label{font-size:0.72rem;font-weight:800;text-transform:uppercase;color:var(--muted);margin:24px 0 12px;letter-spacing:0.08em}
-.chip-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+.dir-row{display:flex;align-items:center;gap:12px;background:var(--bg);border-radius:14px;padding:12px 16px;border:1px solid var(--border)}
+.dir-row i{width:18px;text-align:center;font-size:.75rem}
+.dot-start{color:var(--success)}.dot-end{color:var(--danger);font-size:.9rem}
+.dir-row input{flex:1;border:none;background:transparent;color:var(--text);outline:none;font-size:.95rem}
+.section-label{font-size:.75rem;font-weight:800;text-transform:uppercase;color:var(--muted);margin:20px 0 10px;letter-spacing:.5px}
+.chip-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;}
 .chip-row::-webkit-scrollbar{display:none}
 .chip-row.wrap{flex-wrap:wrap}
-.chip{padding:11px 18px;border-radius:999px;background:var(--bg-soft);border:1.5px solid var(--border);color:var(--text-2);font-size:0.85rem;font-weight:650;white-space:nowrap;display:flex;align-items:center;gap:7px;transition:all 0.22s}
-.chip:hover{border-color:var(--border-strong);transform:translateY(-1px)}
-.chip.active{background:var(--primary-gradient);color:#fff;border-color:transparent;box-shadow:var(--shadow-primary)}
+.chip{padding:10px 16px;border-radius:999px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:.85rem;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.chip.active{background:var(--primary);color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(59,130,246,.3)}
+.truck-params{margin-top:14px;padding:14px;background:var(--bg);border-radius:14px;border:1px solid var(--border);animation: slide 0.3s ease-out;}
+.param-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.param-grid label{display:flex;flex-direction:column;gap:6px;font-size:.75rem;color:var(--muted);font-weight:600}
+.param-grid input{padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:.9rem;outline:none}
 
-.truck-params{margin-top:16px;padding:16px;background:var(--bg-soft);border-radius:18px;border:1.5px solid var(--border);animation:slideUp 0.32s cubic-bezier(0.32,0.72,0,1)}
-.param-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.param-grid label{display:flex;flex-direction:column;gap:8px;font-size:0.75rem;color:var(--muted);font-weight:700;letter-spacing:0.02em}
-.param-grid input{padding:12px 14px;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;color:var(--text);font-size:0.9rem;outline:none;font-weight:600}
+.route-card{background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:14px}
+.route-card.active{border-color:var(--primary);background:rgba(59,130,246,.1);box-shadow:0 4px 16px rgba(59,130,246,.15)}
+.route-card h3{font-size:.95rem;margin-bottom:6px;display:flex;align-items:center;gap:8px;}
+.route-card p{font-size:.8rem;color:var(--muted)}
 
-.route-card{background:var(--bg-soft);border:1.5px solid var(--border);border-radius:18px;padding:18px;margin-bottom:12px;display:flex;align-items:center;gap:14px;transition:all 0.22s}
-.route-card:hover{transform:translateY(-2px);border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
-.route-card.active{border-color:var(--primary);background:var(--primary-soft);box-shadow:0 0 0 4px var(--primary-soft),var(--shadow-sm)}
-.route-card h3{font-size:0.96rem;margin-bottom:6px;display:flex;align-items:center;gap:8px;font-weight:800}
-.route-card p{font-size:0.82rem;color:var(--muted);font-weight:500}
+.profile-head{display:flex;align-items:center;gap:16px;margin-bottom:24px}
+.avatar{width:60px;height:60px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:var(--muted);overflow:hidden;flex-shrink:0;border:2px solid var(--border)}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:16px;background:var(--bg);border-radius:14px;margin-bottom:12px;border:1px solid var(--border)}
+.toggle-row input[type="checkbox"]{width:44px;height:26px;appearance:none;background:var(--surface-3);border-radius:13px;position:relative;cursor:pointer;transition:background .2s}
+.toggle-row input[type="checkbox"]::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s cubic-bezier(0.4, 0, 0.2, 1)}
+.toggle-row input[type="checkbox"]:checked{background:var(--primary)}
+.toggle-row input[type="checkbox"]:checked::after{transform:translateX(18px)}
 
-.profile-head{display:flex;align-items:center;gap:16px;margin-bottom:28px;padding:16px;background:var(--bg-soft);border-radius:18px;border:1px solid var(--border)}
-.avatar{width:64px;height:64px;border-radius:18px;background:var(--primary-gradient);display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:#fff;overflow:hidden;flex-shrink:0;box-shadow:var(--shadow-primary);border:1px solid rgba(255,255,255,0.15)}
-.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;background:var(--bg-soft);border-radius:16px;margin-bottom:12px;border:1.5px solid var(--border);transition:all 0.2s}
-.toggle-row:hover{border-color:var(--border-strong)}
-.toggle-row input[type="checkbox"]{width:48px;height:28px;appearance:none;background:var(--surface-3);border-radius:999px;position:relative;cursor:pointer;transition:all 0.22s cubic-bezier(0.4,0,0.2,1)}
-.toggle-row input[type="checkbox"]::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform 0.28s cubic-bezier(0.32,0.72,0,1);box-shadow:0 2px 8px rgba(0,0,0,0.2)}
-.toggle-row input[type="checkbox"]:checked{background:var(--primary-gradient)}
-.toggle-row input[type="checkbox"]:checked::after{transform:translateX(20px)}
+.tabs{display:flex;gap:4px;background:var(--bg);border-radius:12px;padding:4px;margin-bottom:16px;overflow-x:auto;border:1px solid var(--border)}
+.tab{flex:1;min-width:80px;padding:10px;border:none;background:transparent;color:var(--muted);font-size:.8rem;font-weight:700;border-radius:8px;white-space:nowrap}
+.tab.active{background:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(59,130,246,.3)}
+.tab-panel{display:none}
+.tab-panel.active{display:block; animation: slide 0.3s ease-out;}
 
-.tabs{display:flex;gap:4px;background:var(--bg-soft);border-radius:14px;padding:5px;margin-bottom:18px;overflow-x:auto;border:1.5px solid var(--border)}
-.tab{flex:1;min-width:84px;padding:11px 10px;border:none;background:transparent;color:var(--muted);font-size:0.8rem;font-weight:700;border-radius:10px;white-space:nowrap;transition:all 0.2s}
-.tab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm),0 0 0 1px var(--border) inset;font-weight:800}
-
-.list{display:flex;flex-direction:column;gap:12px;max-height:52vh;overflow-y:auto;padding-bottom:8px}
-.list-item{background:var(--bg-soft);border:1.5px solid var(--border);border-radius:18px;padding:16px;position:relative;transition:all 0.2s}
-.list-item:hover{border-color:var(--border-strong);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
-.list-item .time{font-size:0.72rem;color:var(--muted);margin-bottom:8px;font-weight:600;letter-spacing:0.02em}
-.list-item .line{font-size:0.88rem;display:flex;align-items:center;gap:8px;margin-top:5px;font-weight:600}
-.list-item .meta{font-size:0.78rem;color:var(--muted);margin-top:10px}
-.list-item .actions{display:flex;gap:8px;margin-top:12px}
+.list{display:flex;flex-direction:column;gap:12px;max-height:50vh;overflow-y:auto;padding-bottom:8px;}
+.list-item{background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:14px;position:relative}
+.list-item .time{font-size:.7rem;color:var(--muted);margin-bottom:8px}
+.list-item .line{font-size:.85rem;display:flex;align-items:center;gap:8px;margin-top:4px}
+.list-item .line i{font-size:.6rem}
+.list-item .line .start{color:var(--success)}
+.list-item .line .end{color:var(--danger)}
+.list-item .meta{font-size:.75rem;color:var(--muted);margin-top:8px}
+.list-item .actions{display:flex;gap:8px;margin-top:10px}
 
 .report-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.report-btn{padding:18px 10px;border-radius:18px;border:1.5px solid var(--border);background:var(--bg-soft);color:var(--text);display:flex;flex-direction:column;align-items:center;gap:10px;font-size:0.78rem;font-weight:700;transition:all 0.22s}
-.report-btn i{width:42px;height:42px;border-radius:13px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:1.3rem;color:var(--primary);transition:all 0.22s}
-.report-btn:hover{transform:translateY(-2px);border-color:var(--primary);box-shadow:0 8px 24px rgba(0,0,0,0.15);background:var(--surface)}
-.report-btn:hover i{background:var(--primary-gradient);color:#fff;box-shadow:var(--shadow-primary)}
+.report-btn{padding:16px 8px;border-radius:14px;border:1px solid var(--border);background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;gap:8px;font-size:.75rem;font-weight:700}
+.report-btn i{font-size:1.4rem;color:var(--primary)}
 
-/* HUD - Apple Maps style */
-.hud{position:fixed;top:calc(16px + var(--safe-top));left:50%;transform:translateX(-50%);width:calc(100% - 24px);max-width:680px;background:var(--surface-glass-2);backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);border:1px solid var(--border-strong);border-radius:22px;box-shadow:var(--shadow-lg),0 0 0 1px rgba(255,255,255,0.06) inset;padding:14px 16px;z-index:200;animation:slideDown 0.5s cubic-bezier(0.32,0.72,0,1)}
-@keyframes slideDown{from{opacity:0;transform:translateX(-50%) translateY(-20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
-.hud-row-1{display:flex;align-items:center;gap:12px;margin-bottom:10px}
-.hud-icon{width:42px;height:42px;border-radius:13px;background:var(--primary-gradient);color:#fff;font-size:1.15rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:var(--shadow-primary)}
-.hud-main-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.hud-dist{font-size:1.15rem;font-weight:900;color:var(--text);line-height:1.1;letter-spacing:-0.02em}
-.hud-instr{font-size:0.88rem;color:var(--text-2);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
-.hud-btn{width:36px;height:36px;border-radius:50%;background:var(--surface-2);color:var(--muted);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;flex-shrink:0;transition:all 0.2s}
-.hud-btn:hover{background:var(--surface-3);color:var(--text);transform:scale(1.05)}
-.hud-btn.report{color:var(--warning);background:rgba(245,158,11,0.12);border-color:rgba(245,158,11,0.2)}
-.hud-btn.close{color:var(--danger);background:rgba(239,68,68,0.12);border-color:rgba(239,68,68,0.2)}
-.hud-row-2{display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--border);font-size:0.78rem;color:var(--muted);font-weight:650}
-.hud-row-2 span{display:flex;align-items:center;gap:6px;background:var(--bg-soft);padding:6px 10px;border-radius:999px;border:1px solid var(--border)}
+/* GIAO DIỆN HUD SIÊU GỌN (FLAT BANNER) */
+.hud{position:fixed;top:calc(12px + var(--safe-top));left:12px;right:12px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.15);padding:12px 14px;z-index:200;animation: slideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);}
+.hud-row-1{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+.hud-icon{width:36px;height:36px;border-radius:10px;background:var(--primary);color:#fff;font-size:1.1rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.hud-main-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.hud-dist{font-size:1.05rem;font-weight:800;color:var(--primary);line-height:1.1;}
+.hud-instr{font-size:.85rem;color:var(--text);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hud-btn{width:32px;height:32px;border-radius:50%;background:var(--bg);color:var(--muted);border:none;display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;flex-shrink:0;}
+.hud-btn.report{color:var(--warning);}
+.hud-btn.close{color:var(--danger);}
+.hud-row-2{display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--border);font-size:.75rem;color:var(--muted);font-weight:600;}
+.hud-row-2 span{display:flex;align-items:center;gap:4px;}
+.hud-row-2 i{color:var(--surface-3);}
 
 body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrls{display:none}
 
-/* Toast - pill */
-.toast-container{position:fixed;top:calc(86px + var(--safe-top));left:50%;transform:translateX(-50%);z-index:10000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:calc(100% - 32px);max-width:420px}
-.toast{pointer-events:auto;background:var(--surface-glass-2);backdrop-filter:blur(20px) saturate(1.4);border:1px solid var(--border-strong);color:var(--text);padding:12px 16px;border-radius:999px;font-size:0.88rem;font-weight:600;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow-lg);animation:toastIn 0.4s cubic-bezier(0.32,0.72,0,1);max-width:100%}
-.toast i{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.85rem}
-.toast.success i{background:var(--success-soft);color:var(--success)}
-.toast.error i{background:rgba(239,68,68,0.12);color:var(--danger)}
-.toast.warning i{background:rgba(245,158,11,0.12);color:var(--warning)}
-.toast.info i{background:var(--primary-soft);color:var(--primary)}
-@keyframes toastIn{from{opacity:0;transform:translateY(-10px) scale(0.96)}to{opacity:1;transform:translateY(0) scale(1)}}
-@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+/* Skeleton Loading for Search */
+.skeleton { background: linear-gradient(90deg, var(--bg) 25%, var(--surface-2) 50%, var(--bg) 75%); background-size: 200% 100%; animation: skeleton-loading 1.5s infinite; border-radius: 6px; }
+.skeleton-text { height: 14px; margin-bottom: 6px; width: 100%; }
+.skeleton-text.short { width: 60%; }
+@keyframes skeleton-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-/* Utilities */
-.hidden{display:none!important}.full{width:100%}.mt{margin-top:14px}.mb{margin-bottom:14px}.muted{color:var(--muted);font-size:0.85rem}
-.input-full{width:100%;padding:14px 16px;background:var(--bg-soft);border:1.5px solid var(--border);border-radius:14px;color:var(--text);outline:none;font-size:0.95rem;font-weight:500;margin-bottom:12px}
-.badge-on{background:var(--success);color:#fff;padding:4px 10px;border-radius:999px;font-size:0.7rem;font-weight:800;letter-spacing:0.04em}
-.badge-off{background:var(--surface-2);color:var(--muted);padding:4px 10px;border-radius:999px;font-size:0.7rem;font-weight:700}
+/* FIX HIỆU ỨNG GỢN SÓNG (RIPPLE) */
+@keyframes mapClickRipple {
+  0% { transform: scale(0.2); opacity: 1; background-color: rgba(59, 130, 246, 0.5); }
+  100% { transform: scale(3); opacity: 0; background-color: rgba(59, 130, 246, 0); }
+}
+.map-ripple {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  animation: mapClickRipple 0.6s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+  pointer-events: none;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
+}
 
-/* Scrollbar hide */
-*::-webkit-scrollbar{display:none}
-*{-ms-overflow-style:none;scrollbar-width:none}
-
-/* FIX: truck params overflow */
-.sheet-body{width:100%;box-sizing:border-box;overflow-x:hidden}
-.truck-params{width:100%;max-width:100%;box-sizing:border-box;overflow:hidden}
-.param-grid{width:100%;max-width:100%;box-sizing:border-box}
-.param-grid label{min-width:0;width:100%;box-sizing:border-box}
-.param-grid input{width:100%;max-width:100%;min-width:0;box-sizing:border-box}
-
-/* FIX: ensure layer sheet is on top and visible */
-#layerSheet{z-index:350}
-#mapActionSheet{z-index:340}
-
-/* Improve dir sheet scroll */
-#dirSheet .sheet-body{padding-bottom:calc(28px + var(--safe-bot))}
-
-
-/* === FIX TOP BAR CÂN BẰNG === */
+/* ===== FIX LỖI BẠN BÁO - XÓA GRADIENT ĐEN, FIX SEARCH + BOTTOM NAV ===== */
 .top-bar{
-  left:50%;transform:translateX(-50%);
-  width:calc(100% - 16px);max-width:740px;
-  display:flex;gap:8px;align-items:center;
-  box-sizing:border-box;
+  left:50% !important; transform:translateX(-50%) !important;
+  width:calc(100% - 16px) !important; max-width:740px !important;
+  z-index:200 !important;
+  display:flex !important; gap:8px !important; align-items:center !important;
 }
-.logo-brand{
-  display:flex;align-items:center;gap:9px;
-  background:var(--surface-glass-2);
-  backdrop-filter:blur(20px) saturate(1.4);
-  -webkit-backdrop-filter:blur(20px) saturate(1.4);
-  border:1px solid var(--border-strong);
-  border-radius:999px;
-  padding:6px 14px 6px 6px;
-  box-shadow:var(--shadow-lg);
-  flex-shrink:0;cursor:pointer;
-  transition:all 0.2s;
-}
-.logo-brand:hover{transform:translateY(-1px)}
-.logo-brand .logo-icon{
-  width:36px;height:36px;border-radius:50%;
-  background:var(--primary-gradient);
-  display:flex;align-items:center;justify-content:center;
-  color:white;font-size:0.95rem;
-  box-shadow:var(--shadow-primary);
-  flex-shrink:0;
-}
-.logo-brand .logo-text{display:flex;flex-direction:column;line-height:1}
-.logo-brand .logo-text b{font-size:0.9rem;font-weight:900;letter-spacing:-0.02em;color:var(--text)}
-.logo-brand .logo-text span{font-size:0.62rem;font-weight:800;letter-spacing:0.12em;color:var(--primary);margin-top:-1px}
 .search-field{
-  flex:1;min-width:0;
-  padding:10px 12px 10px 16px;
-  background:var(--surface-glass-2);
-  backdrop-filter:blur(20px) saturate(1.4);
-  -webkit-backdrop-filter:blur(20px) saturate(1.4);
-  border:1px solid var(--border-strong);
-  border-radius:999px;
-  box-shadow:var(--shadow-lg);
+  flex:1 !important; min-width:0 !important;
+  pointer-events:auto !important;
+  background:rgba(30,41,59,0.92) !important;
+  backdrop-filter:blur(16px) !important;
 }
-.search-field input{flex:1;min-width:0;pointer-events:none}
-.search-field i.fa-search{flex-shrink:0}
+.search-field input{ pointer-events:none !important; flex:1 !important; min-width:0 !important; }
+.avatar-btn, .clear-dest-btn{ flex-shrink:0 !important; display:flex !important; }
 
-/* === FIX BOTTOM NAV - HIỆN ĐỦ 5 NÚT === */
+/* Bottom nav phải luôn hiện, không bị che */
 .bottom-nav{
-  width:calc(100% - 16px);max-width:440px;
-  left:50%;transform:translateX(-50%);
-  display:flex;justify-content:space-between;align-items:center;
-  gap:2px;padding:6px;
-  box-sizing:border-box;
-  overflow:visible;
+  display:flex !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  z-index:200 !important;
+  left:50% !important;
+  transform:translateX(-50%) !important;
+  width:calc(100% - 16px) !important;
+  max-width:440px !important;
+  bottom:calc(16px + var(--safe-bot)) !important;
+  background:rgba(30,41,59,0.92) !important;
+  backdrop-filter:blur(16px) !important;
+  border:1px solid rgba(255,255,255,0.12) !important;
+  border-radius:999px !important;
+  box-shadow:0 8px 32px rgba(0,0,0,0.25) !important;
 }
-.nav-item{
-  flex:1;min-width:0;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:4px;
-  padding:10px 4px;
-  font-size:0.68rem;font-weight:700;
-  border-radius:999px;
-  white-space:nowrap;
-}
-.nav-item i{font-size:1.15rem;flex-shrink:0}
-.nav-item span{
-  font-size:0.66rem;line-height:1;
-  max-width:100%;overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap;
-}
-.nav-item.center{
-  flex:0 0 auto;
-  flex-direction:row;
-  padding:12px 18px;
-  gap:8px;
-  margin:0 2px;
-}
-.nav-item.center i{font-size:1.15rem}
-.nav-item.center span{font-size:0.78rem;display:block}
+.nav-item{ display:flex !important; flex:1 !important; }
+.nav-item.center{ flex:0 0 auto !important; }
 
-/* Mobile nhỏ: chỉ hiện icon cho gọn */
-@media (max-width:380px){
-  .logo-brand .logo-text{display:none}
-  .logo-brand{padding:6px}
-  .nav-item{padding:10px 6px;gap:3px}
-  .nav-item span{font-size:0.6rem}
-  .nav-item.center{padding:11px 14px}
-  .nav-item.center span{display:none}
+/* XÓA TRIỆT ĐỂ GRADIENT ĐEN Ở CHÂN - cái bạn thấy trong ảnh */
+#map::before, #map::after,
+.maplibregl-map::before, .maplibregl-map::after,
+.maplibregl-canvas::before, .maplibregl-canvas::after,
+.bottom-nav::before, .bottom-nav::after,
+.right-ctrls::before, .right-ctrls::after{
+  display:none !important; content:none !important; background:none !important;
 }
-@media (max-width:340px){
-  .nav-item span{display:none}
-  .nav-item{padding:10px 8px}
+.bottom-fade, .map-fade, .footer-gradient, .map-overlay-bottom,
+div[style*="linear-gradient"][style*="rgba(0,0,0,0.8)"],
+div[style*="linear-gradient"][style*="rgba(0,0,0,0.6)"]{
+  display:none !important; background:none !important;
 }
-
-#suggestionsBox{left:50%;transform:translateX(-50%) translateY(-8px);width:calc(100% - 16px);max-width:740px}
-#suggestionsBox.show{transform:translateX(-50%) translateY(0)}
-
-
-/* === BỎ GRADIENT ĐEN Ở CHÂN TRANG === */
-.bottom-nav{
-  background:var(--surface-glass-2) !important;
-  background-image:none !important;
-  backdrop-filter:blur(24px) saturate(1.4) !important;
-  -webkit-backdrop-filter:blur(24px) saturate(1.4) !important;
-  box-shadow:0 8px 32px rgba(0,0,0,0.22), 0 0 0 1px var(--border-strong) inset !important;
-}
-.bottom-nav::before,
-.bottom-nav::after,
-#map::before,
-#map::after,
-.maplibregl-map::before,
-.maplibregl-map::after,
-.maplibregl-canvas-container::before,
-.maplibregl-canvas-container::after{
-  display:none !important;
-  background:none !important;
-  content:none !important;
-}
-/* Nếu có lớp phủ mờ cũ */
-.bottom-fade, .map-fade, .footer-gradient, .map-overlay-bottom{
-  display:none !important;
-  background:none !important;
-}
-/* Attribution gọn, không nền đen */
-.maplibregl-ctrl-bottom-left,
-.maplibregl-ctrl-bottom-right,
-.maplibregl-ctrl-attrib{
+/* MapLibre attribution không được có nền đen to */
+.maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right{
   background:transparent !important;
-  background-image:none !important;
-  box-shadow:none !important;
 }
-.maplibregl-ctrl-attrib a{color:var(--muted) !important}
-
-
-/* === COMPACT MAP ACTION SHEET - 30% màn hình === */
-#mapActionSheet{
-  max-height:42vh !important;
-  min-height:unset !important;
-  border-radius:24px 24px 0 0 !important;
+.maplibregl-ctrl-attrib{
+  background:rgba(30,41,59,0.75) !important;
+  border-radius:8px !important;
+  margin:0 0 90px 8px !important;
+  padding:2px 8px !important;
 }
-#mapActionSheet .sheet-header{padding:14px 18px 10px !important}
-#mapActionSheet .sheet-header h2{font-size:0.98rem !important}
-#mapActionSheet #mapActionCoords{font-size:0.7rem !important}
-#mapActionSheet .sheet-body{padding:8px 16px 16px !important;overflow-y:auto}
-#mapActionSheet #mapActionAddress{
-  font-size:0.88rem !important;
-  padding:10px 12px !important;
-  margin-bottom:12px !important;
-  border-radius:12px !important;
-  line-height:1.35 !important;
-}
-#mapActionSheet .btn{
-  padding:12px 14px !important;
-  border-radius:12px !important;
-  font-size:0.9rem !important;
-}
-#mapActionSheet .btn div[style*="38px"]{width:32px !important;height:32px !important;border-radius:9px !important}
-#mapActionSheet .btn div[style*="text-align:left"] div:first-child{font-size:0.88rem !important}
-#mapActionSheet .btn div[style*="text-align:left"] div:last-child{font-size:0.7rem !important}
+/* Right controls luôn hiện */
+.right-ctrls{ display:flex !important; z-index:190 !important; opacity:1 !important; visibility:visible !important; }
 
-/* Đảm bảo map vẫn hiện 70% khi sheet mở */
-#mapActionSheet.open ~ #map,
-body:has(#mapActionSheet.open) #map{
-  /* không che map */
-}
+/* Sheet compact 30% cho map click */
+#mapActionSheet{ max-height:42vh !important; z-index:300 !important; }
+#dirSheet{ max-height:58vh !important; }
+#layerSheet{ z-index:310 !important; }
 
-
-/* Dir sheet khi mở từ map - cũng gọn, để lộ map 50% */
-#dirSheet{max-height:58vh !important}
+/* Fix truck overflow */
+.sheet-body{ overflow-x:hidden !important; }
+.truck-params{ max-width:100% !important; box-sizing:border-box !important; }
+.param-grid label{ min-width:0 !important; }
+.param-grid input{ width:100% !important; min-width:0 !important; box-sizing:border-box !important; }
 
 </style>
 </head>
@@ -520,14 +301,14 @@ body:has(#mapActionSheet.open) #map{
 
 <div id="loadingScreen" class="fullscreen">
   <div class="logo-pulse"><i class="fas fa-route"></i></div>
-  <h1 class="brand">DriveKit<span style="font-weight:800;color:var(--primary)">Maps</span></h1>
+  <h1 class="brand">DriveKit</h1>
   <div class="progress-track"><div id="loadingPercent" class="progress-fill"></div></div>
   <p id="loadingText" class="loading-text">Đang khởi tạo...</p>
 </div>
 
 <div id="authScreen" class="fullscreen hidden">
   <div class="auth-card">
-    <h1 id="authTitle">DriveKit Maps 🗺️</h1>
+    <h1 id="authTitle">DriveKit 🚌</h1>
     <p id="authSubtitle">Mọi hành trình, một giải pháp</p>
     <input id="authEmail" type="email" placeholder="Email">
     <input id="authPassword" type="password" placeholder="Mật khẩu">
@@ -544,19 +325,49 @@ body:has(#mapActionSheet.open) #map{
 <div id="appUI" class="hidden">
   <div id="map"></div>
 
-    <div class="top-bar">
-    <div class="logo-brand" onclick="window.centerToLocation()" title="DriveKit Maps">
-      <div class="logo-icon"><i class="fas fa-route"></i></div>
-      <div class="logo-text"><b>DriveKit</b><span>MAPS</span></div>
-    </div>
+  <div class="top-bar">
     <div class="search-field" onclick="window.activateSearch('view')">
       <i class="fas fa-search"></i>
-      <input id="topSearchInput" readonly placeholder="Tìm địa điểm, dán link Google Maps...">
-      <button id="searchClearBtn" class="hidden" style="background:none;border:none;color:var(--muted);padding:6px;display:flex" onclick="event.stopPropagation();window.clearTopSearch()"><i class="fas fa-times-circle"></i></button>
+      <input id="topSearchInput" readonly placeholder="Tìm địa điểm hoặc dán link Google Maps...">
+      <button id="searchClearBtn" class="hidden" style="background:none;border:none;color:var(--muted);padding:4px" onclick="event.stopPropagation();window.clearTopSearch()"><i class="fas fa-times-circle"></i></button>
     </div>
     <button id="clearDestBtn" class="clear-dest-btn hidden" onclick="window.clearRoute()" title="Xoá điểm đến"><i class="fas fa-times"></i></button>
     <button class="avatar-btn" onclick="window.openMenu()" id="avatarBtn"><i class="fas fa-user"></i></button>
   </div>
+
+  <div id="suggestionsBox" class="suggestions"></div>
+
+  <div class="right-ctrls" id="rightCtrls">
+    <button class="ctrl-btn" id="btn3D" onclick="window.toggle3D()" title="3D"><i class="fas fa-cube"></i></button>
+    <button class="ctrl-btn" id="btnTraffic" onclick="window.toggleTraffic()" title="Traffic"><i class="fas fa-traffic-light"></i></button>
+    <button class="compass" onclick="window.resetNorth()" title="Bắc"><div class="compass-arrow" id="compassArrow"></div></button>
+  </div>
+
+  <div class="bottom-nav" id="bottomNav">
+    <button class="nav-item" onclick="window.openLayerSheet()"><i class="fas fa-layer-group"></i><span>Bản đồ</span></button>
+    <button class="nav-item" onclick="window.openDirections()"><i class="fas fa-directions"></i><span>Chỉ đường</span></button>
+    <button class="nav-item center" onclick="window.centerToLocation()"><i class="fas fa-crosshairs"></i></button>
+    <button class="nav-item" onclick="window.openReportMenu()"><i class="fas fa-exclamation-triangle"></i><span>Báo cáo</span></button>
+    <button class="nav-item" onclick="window.openMenu()"><i class="fas fa-bars"></i><span>Menu</span></button>
+  </div>
+
+  <!-- Layer sheet -->
+  <div id="layerSheet" class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header"><h2>Bản đồ</h2><button class="close-btn" onclick="window.closeLayerSheet()"><i class="fas fa-times"></i></button></div>
+    <div class="sheet-body">
+      <div class="layer-item active" data-layer="trackasia" onclick="window.setMapLayer('trackasia',this)"><i class="fas fa-map"></i><span>TrackAsia</span><i class="fas fa-check"></i></div>
+      <div class="layer-item" data-layer="satellite" onclick="window.setMapLayer('satellite',this)"><i class="fas fa-satellite"></i><span>Vệ tinh</span><i class="fas fa-check"></i></div>
+      <div class="section-label">Lớp phủ</div>
+      <div class="toggle-row">
+        <span><i class="fas fa-traffic-light"></i> Traffic Realtime (TomTom)</span>
+        <input type="checkbox" id="trafficToggle" onchange="window.toggleTraffic()">
+      </div>
+      <div class="toggle-row">
+        <span><i class="fas fa-cube"></i> Chế độ 3D</span>
+        <input type="checkbox" id="mode3DToggle" onchange="window.toggle3D()">
+      </div>
+    </div>
   </div>
 
   <!-- Directions -->
@@ -611,45 +422,19 @@ body:has(#mapActionSheet.open) #map{
     </div>
   </div>
 
-  <!-- NEW: Map Action Sheet - replaces popup -->
   <div id="mapActionSheet" class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-header">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div style="width:42px;height:42px;border-radius:13px;background:var(--primary-gradient);display:flex;align-items:center;justify-content:center;color:white;box-shadow:var(--shadow-primary)"><i class="fas fa-location-dot"></i></div>
-        <div>
-          <h2 style="font-size:1.05rem">Địa điểm đã chọn</h2>
-          <div id="mapActionCoords" style="font-size:0.75rem;color:var(--muted);font-weight:600;margin-top:2px">--</div>
-        </div>
-      </div>
+      <div style="display:flex;align-items:center;gap:12px"><div style="width:36px;height:36px;border-radius:10px;background:#3b82f6;display:flex;align-items:center;justify-content:center;color:white"><i class="fas fa-location-dot"></i></div><div><h2 style="font-size:0.95rem">Địa điểm đã chọn</h2><div id="mapActionCoords" style="font-size:0.68rem;color:var(--muted)">--</div></div></div>
       <button class="close-btn" onclick="window.closeMapActionSheet()"><i class="fas fa-times"></i></button>
     </div>
     <div class="sheet-body">
-      <div id="mapActionAddress" style="font-weight:700;font-size:0.98rem;line-height:1.45;margin-bottom:18px;background:var(--bg-soft);padding:14px 16px;border-radius:16px;border:1.5px solid var(--border)"><i class="fas fa-spinner fa-spin" style="margin-right:8px;color:var(--muted)"></i>Đang lấy địa chỉ...</div>
-      
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <button class="btn btn-primary" onclick="window.handleMapAction('go')" style="justify-content:flex-start;padding:16px 18px;border-radius:16px">
-          <div style="width:38px;height:38px;border-radius:11px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center"><i class="fas fa-route"></i></div>
-          <div style="text-align:left;flex:1"><div style="font-weight:800">Chỉ đường tới đây</div><div style="font-size:0.78rem;opacity:0.85;font-weight:500;margin-top:1px">Tìm tuyến đường tốt nhất</div></div>
-          <i class="fas fa-chevron-right" style="opacity:0.7"></i>
-        </button>
-        
-        <button class="btn btn-secondary" onclick="window.handleMapAction('save')" style="justify-content:flex-start;padding:16px 18px;border-radius:16px;background:var(--bg-soft);border:1.5px solid var(--border)">
-          <div style="width:38px;height:38px;border-radius:11px;background:var(--success-soft);display:flex;align-items:center;justify-content:center;color:var(--success)"><i class="fas fa-map-pin"></i></div>
-          <div style="text-align:left;flex:1"><div style="font-weight:700;color:var(--text)">Ghim địa điểm</div><div style="font-size:0.78rem;color:var(--muted);font-weight:500;margin-top:1px">Lưu vào Nhà, Công ty, Yêu thích...</div></div>
-          <i class="fas fa-chevron-right" style="opacity:0.5;color:var(--muted)"></i>
-        </button>
-        
-        <button class="btn btn-secondary" onclick="window.handleMapAction('poi')" style="justify-content:flex-start;padding:16px 18px;border-radius:16px;background:var(--bg-soft);border:1.5px solid var(--border)">
-          <div style="width:38px;height:38px;border-radius:11px;background:rgba(99,102,241,0.12);display:flex;align-items:center;justify-content:center;color:var(--primary)"><i class="fas fa-users"></i></div>
-          <div style="text-align:left;flex:1"><div style="font-weight:700;color:var(--text)">Thêm POI cộng đồng</div><div style="font-size:0.78rem;color:var(--muted);font-weight:500;margin-top:1px">Đóng góp cho cộng đồng DriveKit</div></div>
-          <i class="fas fa-chevron-right" style="opacity:0.5;color:var(--muted)"></i>
-        </button>
-      </div>
-
-      <div style="display:flex;gap:10px;margin-top:18px">
-        <button class="btn btn-secondary" style="flex:1" onclick="window.copyMapActionCoords()"><i class="fas fa-copy"></i> Copy tọa độ</button>
-        <button class="btn btn-secondary" style="flex:1" onclick="window.shareMapAction()"><i class="fas fa-share-nodes"></i> Chia sẻ</button>
+      <div id="mapActionAddress" style="font-weight:700;font-size:0.85rem;margin-bottom:12px;background:var(--bg);padding:10px 12px;border-radius:12px;border:1px solid var(--border)">Đang lấy địa chỉ...</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-primary" onclick="window.handleMapAction('go')" style="padding:12px;border-radius:12px;justify-content:flex-start"><i class="fas fa-route"></i><span style="margin-left:10px"><b>Chỉ đường tới đây</b><br><small style="opacity:0.8">Mở bảng tìm tuyến</small></span></button>
+        <button class="btn btn-secondary" onclick="window.handleMapAction('save')" style="padding:12px;border-radius:12px;justify-content:flex-start"><i class="fas fa-map-pin"></i> Ghim địa điểm</button>
+        <button class="btn btn-secondary" onclick="window.handleMapAction('poi')" style="padding:12px;border-radius:12px;justify-content:flex-start"><i class="fas fa-users"></i> Thêm POI</button>
+        <button class="btn btn-secondary" onclick="window.handleMapAction('camera')" style="padding:12px;border-radius:12px;justify-content:flex-start"><i class="fas fa-camera"></i> Báo camera ẩn</button>
       </div>
     </div>
   </div>
@@ -803,6 +588,12 @@ body:has(#mapActionSheet.open) #map{
     </div>
   </div>
 
+    <div id="cameraAlert" class="camera-alert" style="position:fixed;top:calc(88px + var(--safe-top));left:50%;transform:translateX(-50%) translateY(-20px);width:calc(100% - 24px);max-width:480px;background:linear-gradient(135deg,#EF4444,#DC2626);color:white;padding:14px 18px;border-radius:18px;display:flex;align-items:center;gap:12px;box-shadow:0 16px 40px rgba(239,68,68,0.5);z-index:500;opacity:0;pointer-events:none;transition:all 0.4s">
+    <i class="fas fa-camera" style="width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center"></i>
+    <div style="flex:1"><div style="font-weight:900">Camera phạt nguội phía trước</div><div id="cameraAlertDist" style="font-size:0.8rem;opacity:0.9">--</div></div>
+    <button onclick="document.getElementById('cameraAlert').classList.remove('show')" style="background:rgba(255,255,255,0.2);border:none;width:32px;height:32px;border-radius:50%;color:white"><i class="fas fa-times"></i></button>
+  </div>
+  <style>.camera-alert.show{opacity:1 !important;transform:translateX(-50%) translateY(0) !important;pointer-events:auto !important} .camera-alert.speed-warn{background:linear-gradient(135deg,#F59E0B,#D97706) !important}</style>
   <div id="toastContainer" class="toast-container"></div>
 </div>
 
@@ -844,7 +635,7 @@ const state = {
   userMarker: null, bearing: 0, pitch: 0,
   tripStartTime: null, tempPin: null, tempPoi: null, tempPoiTag: null,
   allReports: {}, allSavedPlaces: {}, allHistory: [], allSavedRoutes: {},
-  allCommunityPois: {}, allAvoidZones: {},
+  allCommunityPois: {}, allAvoidZones: {}, allCameras: {}, lastCameraAlert:0, lastSpeedWarn:0,
   poiMarkers: {}, reportMarkers: {}, savedPlaceMarkers: {}, avoidZoneMarkers: {},
   liveEnabled: false, liveRoomCode: null, liveMembers: {}, liveMemberMarkers: {},
   livePushInterval: null, liveUnsub: null,
@@ -1002,6 +793,8 @@ function initMap() {
     subscribeSavedPlaces();
     subscribeCommunityPois();
     subscribeAvoidZones();
+    subscribeCameras();
+    loadOSMCameras();
     loadHistoryRTDB();
     loadSavedRoutesRTDB();
     loadSharedLinks();
@@ -1035,15 +828,13 @@ function initMap() {
 
   // Tự động đóng popup khi di chuyển bản đồ
   state.map.on('movestart', () => {
-    if (state.activePopup) { try{state.activePopup.remove();}catch{} state.activePopup = null; }
-    // Không tự đóng mapActionSheet khi kéo nhẹ, chỉ đóng popup cũ
+    if (state.activePopup) { state.activePopup.remove(); state.activePopup = null; }
   });
 
-state.map.on('click', async (e) => {
+  state.map.on('click', async (e) => {
     if (state.isNavigating) return;
     const { lng, lat } = e.lngLat;
     haptic();
-
     if (state.isPickingPoiLocation) {
       state.isPickingPoiLocation = false;
       showToast('Đang lấy địa chỉ...', 'info');
@@ -1051,113 +842,57 @@ state.map.on('click', async (e) => {
       window.openPoiSheet(lat, lng, name);
       return;
     }
-
-    // Xoá ripple cũ và đóng popup nếu còn
     if (state.activeRipple) { state.activeRipple.remove(); state.activeRipple = null; }
     if (state.activePopup) { try{ state.activePopup.remove(); }catch{} state.activePopup = null; }
-    // Đóng sheet cũ nếu đang mở
-    const oldSheet = document.getElementById('mapActionSheet');
-    if(oldSheet) oldSheet.classList.remove('open');
-
-    // Hiệu ứng ripple đẹp
     const rippleEl = document.createElement('div');
     rippleEl.className = 'map-ripple';
-    state.activeRipple = new maplibregl.Marker({ element: rippleEl, anchor: 'center' })
-      .setLngLat([lng, lat])
-      .addTo(state.map);
-    setTimeout(() => { 
-      if (state.activeRipple) { state.activeRipple.remove(); state.activeRipple = null; } 
-    }, 700);
-
-    // Mở sheet ngay với loading, không chờ reverse
+    state.activeRipple = new maplibregl.Marker({ element: rippleEl, anchor: 'center' }).setLngLat([lng, lat]).addTo(state.map);
+    setTimeout(() => { if (state.activeRipple) { state.activeRipple.remove(); state.activeRipple = null; } }, 700);
     window._mapActionData = { lat, lng, name: `${lat.toFixed(5)}, ${lng.toFixed(5)}` };
-    $('mapActionCoords').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-    $('mapActionAddress').innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:8px;color:var(--muted)"></i>Đang lấy địa chỉ...';
-    $('mapActionSheet').classList.add('open');
-
-    // Lấy địa chỉ thật sau
+    const coordsEl=$('mapActionCoords'); if(coordsEl) coordsEl.textContent=`${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    const addrEl=$('mapActionAddress'); if(addrEl) addrEl.innerHTML='<i class="fas fa-spinner fa-spin"></i> Đang lấy địa chỉ...';
+    const sheetEl=$('mapActionSheet'); if(sheetEl) sheetEl.classList.add('open');
     try {
       const name = await reverseGeocode(lat, lng);
       window._mapActionData.name = name || window._mapActionData.name;
-      $('mapActionAddress').innerHTML = `<i class="fas fa-location-dot" style="color:var(--primary);margin-right:8px"></i>${escapeHtml(window._mapActionData.name)}`;
-    } catch {
-      $('mapActionAddress').textContent = window._mapActionData.name;
-    }
+      if(addrEl) addrEl.innerHTML=`${escapeHtml(window._mapActionData.name)}`;
+    } catch {}
   });
-}
+
 
 window.handlePopupClick
 
-window.handlePopupClick = (action) => {
-  // Giữ lại để tương thích cũ - giờ dùng mapAction
-  if (!window._popupData && !window._mapActionData) return;
-  const d = window._popupData || window._mapActionData;
-  const { lat, lng, name } = d;
-  if (state.activePopup) { try{state.activePopup.remove();}catch{} state.activePopup = null; }
-  if (action === 'save') window.showSavePlace(lat, lng, name);
-  else if (action === 'go') window.goToLocation(lat, lng, name);
-};
 
-window.closeMapActionSheet = () => {
-  haptic();
-  $('mapActionSheet').classList.remove('open');
-};
-
+window.closeMapActionSheet = () => { haptic(); const s=$('mapActionSheet'); if(s) s.classList.remove('open'); };
 window.handleMapAction = (action) => {
   haptic();
   if (!window._mapActionData) return;
-  const { lat, lng, name } = window._mapActionData;
-  const data = {...window._mapActionData};
+  const d = {...window._mapActionData};
   window.closeMapActionSheet();
-  if (action === 'save') {
-    setTimeout(()=> window.showSavePlace(data.lat, data.lng, data.name), 260);
-  } else if (action === 'go') {
-    // Chuyển thẳng sang bảng tìm tuyến đường (đen)
+  if (action === 'save') setTimeout(()=> window.showSavePlace(d.lat, d.lng, d.name), 200);
+  else if (action === 'go') {
     setTimeout(()=> {
-      state.endPoint = { lat: data.lat, lng: data.lng, name: data.name };
-      $('dirInputEnd').value = data.name;
-      $('topSearchInput').value = data.name;
-      $('clearDestBtn').classList.remove('hidden');
-      // Mở bảng chỉ đường ngay
+      state.endPoint = { lat: d.lat, lng: d.lng, name: d.name };
+      $('dirInputEnd').value=d.name; $('topSearchInput').value=d.name; $('clearDestBtn').classList.remove('hidden');
       window.openDirections();
-      // Nếu đã có điểm đi thì tự động tìm tuyến sau 400ms
-      if(state.startPoint){
-        setTimeout(()=> { window.fetchAndShowRoute(); }, 500);
-      }
-    }, 180);
-  } else if (action === 'poi') {
-    setTimeout(()=> window.openPoiSheet(data.lat, data.lng, data.name), 260);
-  }
+      if(state.startPoint) setTimeout(()=> window.fetchAndShowRoute(), 500);
+    }, 150);
+  } else if (action === 'poi') setTimeout(()=> window.openPoiSheet(d.lat, d.lng, d.name), 200);
+  else if (action === 'camera') setTimeout(()=> { if(window.reportCameraAt) window.reportCameraAt(d.lat, d.lng); }, 200);
 };
 
-window.copyMapActionCoords = () => {
-  haptic();
-  if (!window._mapActionData) return;
-  const { lat, lng } = window._mapActionData;
-  const text = `${lat}, ${lng}`;
-  navigator.clipboard.writeText(text).then(()=> showToast('Đã copy tọa độ: '+text, 'success'));
-};
-
-window.shareMapAction = async () => {
-  haptic();
-  if (!window._mapActionData) return;
-  const { lat, lng, name } = window._mapActionData;
-  const url = `https://www.google.com/maps?q=${lat},${lng}`;
-  const text = `${name} - ${lat}, ${lng}`;
-  if (navigator.share) {
-    try { await navigator.share({ title: name, text, url }); } catch {}
-  } else {
-    navigator.clipboard.writeText(`${text} ${url}`).then(()=> showToast('Đã copy link địa điểm', 'success'));
+window.handlePopupClick = (action) => {
+  if (!window._popupData) return;
+  const { lat, lng, name } = window._popupData;
+  
+  if (state.activePopup) { state.activePopup.remove(); state.activePopup = null; }
+  
+  if (action === 'save') {
+    window.showSavePlace(lat, lng, name);
+  } else if (action === 'go') {
+    window.goToLocation(lat, lng, name);
   }
 };
-
-// Đóng mapActionSheet khi click backdrop
-document.addEventListener('click', (e)=>{
-  if(e.target.classList.contains('backdrop')){
-    document.querySelectorAll('.sheet.open').forEach(s=> s.classList.remove('open'));
-  }
-});
-
 
 window.goToLocation = (lat, lng, name) => {
   haptic();
@@ -1166,16 +901,8 @@ window.goToLocation = (lat, lng, name) => {
   $('topSearchInput').value = state.endPoint.name;
   $('clearDestBtn').classList.remove('hidden');
   
-  if (state.map) try{ state.map.closePopup(); }catch{}
-  // Đảm bảo đóng sheet bản đồ cũ trước khi mở chỉ đường
-  const maSheet = document.getElementById('mapActionSheet');
-  if(maSheet) maSheet.classList.remove('open');
-  
+  if (state.map) state.map.closePopup();
   openDirections();
-  // Auto tìm tuyến nếu đã có điểm đi
-  if(state.startPoint){
-    setTimeout(()=> { window.fetchAndShowRoute(); }, 400);
-  }
 };
 
 // ═══════════════ GPS ═══════════════
@@ -1201,6 +928,8 @@ function startGPSWatch() {
     state.lastUserPos = { lat, lng, speed: speed || 0 };
     if (heading != null) state.lastHeading = heading;
     updateUserMarker(lat, lng, state.lastHeading);
+    checkCameraProximity(lat, lng);
+    const kmh=(state.lastUserPos?.speed||0)*3.6; if(kmh>5) checkSpeeding(lat,lng,kmh);
     if (state.isNavigating) updateNavigation();
   }, err => console.warn('GPS watch:', err), { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
 }
@@ -1905,6 +1634,8 @@ window.openReportMenu = () => { haptic(); $('reportModal').classList.add('open')
 window.closeReportMenu = () => { haptic(); $('reportModal').classList.remove('open'); };
 
 window.submitReport = async (type) => {
+  if(type==='speed_camera'){ if(!state.lastUserPos) return showToast('Chưa có vị trí', 'warning'); return window.reportCameraAt(state.lastUserPos.lat, state.lastUserPos.lng); }
+
   haptic();
   if (!state.user || !state.lastUserPos) return showToast('Chưa có GPS', 'warning');
   const ttl = { pothole: 86400000, flood: 10800000, traffic: 1800000, bridge_collapse: 604800000, road_collapse: 604800000 }[type] || 3600000;
@@ -2477,6 +2208,52 @@ async function leaveLiveRoomSilent() {
   $('liveToggleSwitch').checked = false;
 }
 
+
+// CAMERA ẨN - LƯU NGẦM
+function subscribeCameras(){ if(!state.user) return; onValue(ref(db, 'cameras'), snap => { state.allCameras = snap.val() || {}; }); }
+async function loadOSMCameras(){
+  try{
+    if(!state.lastUserPos){ setTimeout(loadOSMCameras, 5000); return; }
+    const lat=state.lastUserPos.lat, lng=state.lastUserPos.lng;
+    const q=`[out:json][timeout:10];node(around:20000,${lat},${lng})[highway=speed_camera];out 50;`;
+    const res=await fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(q));
+    const data=await res.json();
+    if(data.elements){ data.elements.forEach(el=>{ const id='osm_'+el.id; if(!state.allCameras[id]) state.allCameras[id]={ lat: el.lat, lng: el.lon, speed: el.tags?.maxspeed||'', name:'Camera OSM' }; }); }
+  }catch(e){}
+}
+window.reportCameraAt = async (lat,lng)=>{
+  if(!state.user) return showToast('Đăng nhập để báo', 'warning');
+  haptic();
+  const newRef=push(ref(db, 'cameras'));
+  await set(newRef, { lat, lng, reporter: state.user.uid, timestamp: Date.now(), source:'community' });
+  showToast('Đã báo camera ẩn', 'success');
+};
+function checkCameraProximity(lat,lng){
+  if(!state.allCameras) return;
+  const now=Date.now(); if(now-(state.lastCameraAlert||0)<10000) return;
+  let nearest=null, minD=Infinity;
+  Object.values(state.allCameras).forEach(cam=>{ const d=haversine(lat,lng,cam.lat,cam.lng); if(d<600 && d<minD){ minD=d; nearest=cam; } });
+  if(nearest){
+    state.lastCameraAlert=now;
+    const el=document.getElementById('cameraAlert'); if(!el) return;
+    el.classList.remove('speed-warn');
+    document.getElementById('cameraAlertDist').textContent=(minD<1000?Math.round(minD)+'m':' '+(minD/1000).toFixed(1)+'km')+' phía trước';
+    el.classList.add('show'); haptic(); if(navigator.vibrate) navigator.vibrate([120,60,120]); setTimeout(()=>el.classList.remove('show'),6500);
+  }
+}
+function checkSpeeding(lat,lng,kmh){
+  const now=Date.now(); if(now-(state.lastSpeedWarn||0)<20000) return; if(!kmh || kmh<50) return;
+  let limit=60; if(kmh>80) limit=80;
+  if(kmh>limit){
+    state.lastSpeedWarn=now;
+    const el=document.getElementById('cameraAlert'); if(!el) return;
+    el.classList.add('speed-warn');
+    el.querySelector('div div').textContent=`Bạn đang chạy ${Math.round(kmh)} km/h`;
+    document.getElementById('cameraAlertDist').textContent=`Chú ý tốc độ! Cẩn thận có camera phạt nguội • Giới hạn ${limit} km/h`;
+    el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),5000);
+  }
+}
+
 // ═══════════════ MENU / TABS ═══════════════
 window.openMenu = () => { haptic(); $('profileModal').classList.add('open'); };
 window.closeMenu = () => { haptic(); $('profileModal').classList.remove('open'); };
@@ -2520,5 +2297,4 @@ console.log('[DriveKit] Ready — Fixed Marker Rotation & Auto Arrival');
 
 </script>
 <script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
-
 </html>
