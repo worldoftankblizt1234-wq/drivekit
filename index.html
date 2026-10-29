@@ -143,40 +143,17 @@ body:has(.sheet.open) .backdrop { opacity: 1; pointer-events: auto; }
 .report-btn{padding:16px 8px;border-radius:14px;border:1px solid var(--border);background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;gap:8px;font-size:.75rem;font-weight:700}
 .report-btn i{font-size:1.4rem;color:var(--primary)}
 
-/* GIAO DIỆN HUD THU GỌN */
-.hud{position:fixed;top:calc(12px + var(--safe-top));left:12px;right:12px;background:var(--surface-glass);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.4);padding:12px 14px;z-index:200;animation: slideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);}
-.hud-main{display:flex;align-items:center;gap:12px;margin-bottom:8px}
-.hud-arrow{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#2563eb);color:#fff;font-size:1.2rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(59,130,246,.3)}
-.hud-info{flex:1;min-width:0}
-.hud-dist{font-size:1rem;font-weight:800;color:var(--primary);margin-bottom:2px}
-.hud-instr{font-size:.85rem;line-height:1.2}
-.hud-stats{display:flex;gap:12px;padding-top:8px;border-top:1px solid var(--border);font-size:.8rem}
-.hud-stats i{color:var(--muted);margin-right:4px}
-.hud-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
-.hud-actions .ctrl-btn{width:36px;height:36px;font-size:.9rem;border-radius:10px}
-
-.live-header{display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg);border-radius:14px;margin-bottom:16px;font-weight:700;border:1px solid var(--border)}
-.badge-off{font-size:.7rem;padding:2px 8px;border-radius:6px;background:var(--surface-2);color:var(--muted)}
-.badge-on{font-size:.7rem;padding:2px 8px;border-radius:6px;background:var(--success);color:#fff;animation: pulse 1.5s infinite}
-.live-code{font-family:monospace;font-size:1.8rem;font-weight:900;letter-spacing:6px;color:var(--success);text-align:center;padding:16px;background:var(--bg);border-radius:14px;margin-bottom:12px;border:1px dashed var(--success)}
-.join-row{display:flex;gap:10px}
-.join-row input{flex:1;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:12px;color:var(--text);outline:none;text-transform:uppercase}
-
-.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.stat{background:var(--bg);padding:16px;border-radius:14px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;font-weight:700;border:1px solid var(--border)}
-.stat i{font-size:1.4rem;color:var(--primary)}
-.row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-
-.toast-container{position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:10px;align-items:center;pointer-events:none}
-.toast{background:var(--surface-glass);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:14px;padding:14px 20px;font-size:.85rem;font-weight:600;box-shadow:0 20px 60px rgba(0,0,0,.5);display:flex;align-items:center;gap:12px;animation: slideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);max-width:320px}
-.toast.success{border-color:var(--success)}.toast.success i{color:var(--success)}
-.toast.error{border-color:var(--danger)}.toast.error i{color:var(--danger)}
-.toast.warning{border-color:var(--warning)}.toast.warning i{color:var(--warning)}
-
-@keyframes slide{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-@keyframes slideDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
-@keyframes popIn{0%{transform:scale(0.5);opacity:0}80%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
-@keyframes ripple{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4);}100%{box-shadow:0 0 0 20px rgba(16,185,129,0);}}
+/* GIAO DIỆN HUD SIÊU GỌN (FLAT BANNER) */
+.hud{position:fixed;top:calc(12px + var(--safe-top));left:12px;right:12px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.15);padding:12px 14px;z-index:200;animation: slideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);}
+.hud-row-1{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+.hud-icon{width:36px;height:36px;border-radius:10px;background:var(--primary);color:#fff;font-size:1.1rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.hud-main-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.hud-dist{font-size:1.05rem;font-weight:800;color:var(--primary);line-height:1.1;}
+.hud-instr{font-size:.85rem;color:var(--text);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hud-close{width:32px;height:32px;border-radius:50%;background:var(--bg);color:var(--muted);border:none;display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;flex-shrink:0;}
+.hud-row-2{display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--border);font-size:.75rem;color:var(--muted);font-weight:600;}
+.hud-row-2 span{display:flex;align-items:center;gap:4px;}
+.hud-row-2 i{color:var(--surface-3);}
 
 body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrls{display:none}
 
@@ -462,21 +439,20 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
     </div>
   </div>
 
+  <!-- THIẾT KẾ LẠI HUD FLAT BANNER -->
   <div id="hud" class="hud hidden">
-    <div class="hud-main">
-      <div id="hudNextArrow" class="hud-arrow"><i class="fas fa-arrow-up"></i></div>
-      <div class="hud-info">
-        <div id="hudNextDist" class="hud-dist">--</div>
-        <div id="hudNextInstr" class="hud-instr">--</div>
+    <div class="hud-row-1">
+      <div id="hudNextArrow" class="hud-icon"><i class="fas fa-arrow-up"></i></div>
+      <div class="hud-main-text">
+        <span id="hudNextDist" class="hud-dist">--</span>
+        <span id="hudNextInstr" class="hud-instr">--</span>
       </div>
+      <button class="hud-close" onclick="window.openEndTripModal()"><i class="fas fa-times"></i></button>
     </div>
-    <div class="hud-stats">
-      <div><i class="fas fa-road"></i><span id="hudRemainDist">--</span></div>
-      <div><i class="fas fa-clock"></i><span id="hudRemainTime">--</span></div>
-      <div><i class="fas fa-tachometer-alt"></i><span id="hudSpeed">0 km/h</span></div>
-    </div>
-    <div class="hud-actions">
-      <button class="ctrl-btn" onclick="window.openEndTripModal()"><i class="fas fa-flag-checkered"></i></button>
+    <div class="hud-row-2">
+      <span><i class="fas fa-route"></i> <span id="hudRemainDist">--</span></span>
+      <span><i class="fas fa-clock"></i> <span id="hudRemainTime">--</span></span>
+      <span><i class="fas fa-tachometer-alt"></i> <span id="hudSpeed">0 km/h</span></span>
     </div>
   </div>
 
@@ -835,10 +811,9 @@ function startGPSWatch() {
 function updateUserMarker(lat, lng, heading) {
   if (!state.map) return;
   
-  // Khi đang navigating, bản đồ đã xoay theo đường, nên ta xoay cái mũi tên ngược lại để nó luôn chỉ lên trên (giống Google Maps)
   let arrowRotate = heading || 0;
   if (state.isNavigating) {
-    arrowRotate = 0; // Luôn hướng lên trên màn hình
+    arrowRotate = 0; // Hướng lên trên khi dẫn đường
   }
 
   const html = `<div class="user-loc" style="position:relative;width:40px;height:40px;">
@@ -1055,6 +1030,7 @@ window.setMapLayer = (name, item) => {
   document.querySelectorAll('.layer-item').forEach(i => i.classList.remove('active'));
   item.classList.add('active');
   state.currentLayer = name;
+  
   let style;
   if (name === 'trackasia') style = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
   else if (name === 'mapbox') style = `https://api.mapbox.com/styles/v1/mapbox/streets-v12?access_token=${MAPBOX_TOKEN}`;
@@ -1064,7 +1040,19 @@ window.setMapLayer = (name, item) => {
     sources: { sat: { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256 } },
     layers: [{ id: 'sat', type: 'raster', source: 'sat' }]
   };
+
+  // FIX LỖI MAPBOX: Kiểm tra xem style có load được không, nếu 401/403 thì fallback
   state.map.setStyle(style);
+  
+  state.map.once('error', (e) => {
+    if (e.error && (e.error.status === 401 || e.error.status === 403)) {
+      showToast('Lỗi tải Mapbox (Token hết hạn hoặc sai). Đã quay lại TrackAsia.', 'error');
+      document.querySelectorAll('.layer-item').forEach(i => i.classList.remove('active'));
+      document.querySelector('.layer-item[data-layer="trackasia"]').classList.add('active');
+      state.map.setStyle(`https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`);
+    }
+  });
+
   setTimeout(() => { if (state.trafficOn) addTrafficLayer(); }, 800);
   closeLayerSheet();
 };
@@ -1245,7 +1233,6 @@ window.startNavigation = () => {
 function updateNavigation() {
   if (!state.isNavigating || !state.lastUserPos) return;
   
-  // FIX: Tính toán góc nhìn dựa theo hướng của ĐOẠN ĐƯỜNG, không phải hướng điện thoại
   let targetBearing = state.lastHeading;
   let nearestIdx = 0;
   let minD = Infinity;
@@ -1996,7 +1983,7 @@ function showToast(msg, type = 'info') {
   setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-10px)'; el.style.transition = 'all .3s'; setTimeout(() => el.remove(), 300); }, 2500);
 }
 
-console.log('[DriveKit] Ready — Full Fixed Navigation View');
+console.log('[DriveKit] Ready — Flat Navigation Banner & Mapbox Error Handler');
 
 </script>
 </body>
