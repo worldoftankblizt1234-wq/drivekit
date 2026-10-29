@@ -756,6 +756,8 @@ window.goToLocation = (lat, lng, name) => {
   haptic();
   state.endPoint = { lat, lng, name };
   $('dirInputEnd').value = name;
+  $('topSearchInput').value = name;
+  $('clearDestBtn').classList.remove('hidden');
   if (state.map) state.map.closePopup();
   openDirections();
 };
@@ -1222,7 +1224,7 @@ function updateNavigation() {
   const userLat = state.lastUserPos.lat;
   const userLng = state.lastUserPos.lng;
 
-  // FIX 3: Tự động kết thúc khi cách đích 15m
+  // Tự động kết thúc khi cách đích 15m
   if (state.endPoint && !state.hasArrived) {
     const distToEnd = haversine(userLat, userLng, state.endPoint.lat, state.endPoint.lng);
     if (distToEnd < 15) {
@@ -1575,6 +1577,15 @@ function subscribeSavedPlaces() {
   });
 }
 
+window.deleteSavedPlaceFromMap = async (id) => {
+  haptic();
+  if (!confirm('Xoá ghim địa điểm này?')) return;
+  try {
+    await remove(ref(db, `users/${state.user.uid}/savedPlaces/${id}`));
+    showToast('Đã xoá địa điểm', 'success');
+  } catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
+};
+
 function renderSavedPlaces() {
   Object.values(state.savedPlaceMarkers).forEach(m => m.remove());
   state.savedPlaceMarkers = {};
@@ -1591,10 +1602,14 @@ function renderSavedPlaces() {
     let shortName = p.address || 'Địa điểm';
     if (shortName.length > 22) shortName = shortName.substring(0, 22) + '...';
     
+    // Thêm nút X xoá
     const html = `
-      <div style="display:flex; flex-direction:column; align-items:center;">
+      <div style="display:flex; flex-direction:column; align-items:center; position:relative;">
         <div style="width:32px;height:32px;background:${iconBg};border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;">
           <i class="fas ${iconCls}"></i>
+        </div>
+        <div onclick="event.stopPropagation(); window.deleteSavedPlaceFromMap('${id}')" style="position:absolute; top:-6px; right:-6px; width:18px; height:18px; background:var(--danger); border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; font-size:10px; border:1px solid white; z-index:3; cursor:pointer;">
+          <i class="fas fa-times"></i>
         </div>
         <div style="margin-top:4px;white-space:nowrap;background:var(--surface-glass);backdrop-filter:blur(4px);color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:1px solid var(--border);z-index:1;">
           ${escapeHtml(shortName)}
