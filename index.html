@@ -18,22 +18,27 @@ button:active, .chip:active, .layer-item:active, .report-btn:active, .nav-item:a
 input, select { transition: border-color 0.2s, box-shadow 0.2s; }
 input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
 
-/* FIX POPUP MAPLIBRE XẤU & XÁM */
+/* LÀM MƯỢT POPUP MAPLIBRE */
 .maplibregl-popup { z-index: 1000 !important; }
 .maplibregl-popup-content {
   background: var(--surface) !important;
   color: var(--text) !important;
   padding: 16px !important;
   border-radius: 16px !important;
-  box-shadow: 0 8px 30px rgba(0,0,0,.2) !important;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3) !important;
   border: 1px solid var(--border) !important;
   pointer-events: auto !important;
+  animation: popupFadeIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
 .maplibregl-popup-tip {
   border-top-color: var(--surface) !important;
   border-bottom-color: var(--surface) !important;
   border-left-color: var(--surface) !important;
   border-right-color: var(--surface) !important;
+}
+@keyframes popupFadeIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* Backdrop overlay for sheets */
@@ -179,19 +184,18 @@ body.navigating .top-bar,body.navigating .bottom-nav,body.navigating .right-ctrl
 .skeleton-text.short { width: 60%; }
 @keyframes skeleton-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-/* Hiệu ứng gợn sóng khi click bản đồ */
+/* FIX HIỆU ỨNG GỢN SÓNG (RIPPLE) */
 @keyframes mapClickRipple {
-  0% { transform: scale(0.2); opacity: 1; }
-  100% { transform: scale(2.5); opacity: 0; }
+  0% { transform: scale(0.2); opacity: 1; background-color: rgba(59, 130, 246, 0.5); }
+  100% { transform: scale(3); opacity: 0; background-color: rgba(59, 130, 246, 0); }
 }
 .map-ripple {
   width: 40px; height: 40px;
   border-radius: 50%;
-  border: 3px solid var(--primary);
-  background: rgba(59, 130, 246, 0.2);
-  animation: mapClickRipple 0.6s ease-out forwards;
+  border: 2px solid var(--primary);
+  animation: mapClickRipple 0.6s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
   pointer-events: none;
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
 }
 </style>
 </head>
@@ -720,9 +724,11 @@ function initMap() {
       return;
     }
 
+    // Xoá popup và ripple cũ
     if (state.activePopup) { state.activePopup.remove(); state.activePopup = null; }
     if (state.activeRipple) { state.activeRipple.remove(); state.activeRipple = null; }
 
+    // FIX: Hiệu ứng gợn sóng to và rõ hơn
     const rippleEl = document.createElement('div');
     rippleEl.className = 'map-ripple';
     state.activeRipple = new maplibregl.Marker({ element: rippleEl, anchor: 'center' })
@@ -735,8 +741,9 @@ function initMap() {
     showToast('Đang lấy địa chỉ...', 'info');
     const name = await reverseGeocode(lat, lng);
     
-    window._popupData = { lat, lng, name };
-    const safeName = escapeHtml(name);
+    // Lưu dữ liệu vào biến toàn cục
+    window._popupData = { lat, lng, name: name || 'Địa điểm đã chọn' };
+    const safeName = escapeHtml(window._popupData.name);
 
     const html = `
       <div style="min-width:220px;font-family:inherit">
@@ -772,10 +779,11 @@ window.handlePopupClick = (action) => {
 
 window.goToLocation = (lat, lng, name) => {
   haptic();
-  state.endPoint = { lat, lng, name };
-  $('dirInputEnd').value = name;
-  $('topSearchInput').value = name;
+  state.endPoint = { lat, lng, name: name || 'Điểm đã chọn' };
+  $('dirInputEnd').value = state.endPoint.name;
+  $('topSearchInput').value = state.endPoint.name;
   $('clearDestBtn').classList.remove('hidden');
+  
   if (state.map) state.map.closePopup();
   openDirections();
 };
