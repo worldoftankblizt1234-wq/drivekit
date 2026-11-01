@@ -1,380 +1,135 @@
 <!DOCTYPE html>
 <html lang="vi">
-<head>
+<head><style>
+@font-face {
+  font-family: "Optimistic";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Optimistic Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
+}
+:where(html) {
+  font-family: "Optimistic", system-ui, sans-serif;
+}
+:where(code, pre, kbd, samp) {
+  font-family: "Optimistic Mono", ui-monospace, monospace;
+}
+</style>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#0f172a">
-<title>DriveKit</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-<link href="https://unpkg.com/maplibre-gl@^4.7.1/dist/maplibre-gl.css" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo 270 Biển Báo - drivekit</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui}
+body{display:flex;height:100vh}
+#sidebar{width:380px;background:#f8f9fa;border-right:1px solid #ddd;overflow-y:auto;padding:12px}
+#map{flex:1}
+.header{font-weight:700;font-size:18px;margin-bottom:8px}
+.sub{font-size:12px;color:#666;margin-bottom:12px}
+.search{width:100%;padding:8px;border:1px solid #ccc;border-radius:8px;margin-bottom:8px}
+.filters{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.filter{padding:4px 10px;border-radius:20px;border:1px solid #ccc;background:white;font-size:12px;cursor:pointer}
+.filter.active{background:#0d6efd;color:white;border-color:#0d6efd}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.card{background:white;border:1px solid #e5e5e5;border-radius:10px;padding:8px;text-align:center;cursor:pointer;transition:.15s}
+.card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.1);border-color:#0d6efd}
+.card img{width:64px;height:64px;object-fit:contain}
+.card .ma{font-weight:700;font-size:12px;margin-top:4px}
+.card .ten{font-size:10px;color:#666;line-height:1.2;height:24px;overflow:hidden}
+.offline{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#dc3545;color:white;padding:8px 16px;border-radius:20px;font-size:13px;z-index:9999;display:none}
+</style>
 </head>
 <body>
-
-<!-- ═══════════════════════════════════════════════ -->
-<!-- LOADING SCREEN                                  -->
-<!-- ═══════════════════════════════════════════════ -->
-<div id="loadingScreen" class="fullscreen">
-  <div class="logo-pulse"><i class="fas fa-route"></i></div>
-  <h1 class="brand">DriveKit</h1>
-  <div class="progress-track"><div id="loadingPercent" class="progress-fill" style="width:0%"></div></div>
-  <p id="loadingText" class="loading-text">Đang khởi tạo...</p>
+<div class="offline" id="offline">Mất mạng - không load được ảnh từ GitHub</div>
+<div id="sidebar">
+  <div class="header">🚦 270 Biển Báo drivekit</div>
+  <div class="sub">GitHub: worldoftankblizt1234-wq/drivekit<br>Có mạng thì gọi ảnh, mất mạng thì thôi</div>
+  <input class="search" id="search" placeholder="Tìm W.225, trẻ em, P.101...">
+  <div class="filters">
+    <div class="filter active" data-f="all">Tất cả</div>
+    <div class="filter" data-f="canh_bao">Cảnh báo (54)</div>
+    <div class="filter" data-f="cam">Cấm (36)</div>
+    <div class="filter" data-f="hieu_lenh">Hiệu lệnh (36)</div>
+    <div class="filter" data-f="chi_dan">Chỉ dẫn (144)</div>
+  </div>
+  <div class="grid" id="grid"></div>
 </div>
+<div id="map"></div>
 
-<!-- ═══════════════════════════════════════════════ -->
-<!-- AUTH SCREEN                                     -->
-<!-- ═══════════════════════════════════════════════ -->
-<div id="authScreen" class="fullscreen hidden">
-  <div class="auth-card">
-    <h1 id="authTitle">DriveKit 🚌</h1>
-    <p id="authSubtitle">Mọi hành trình, một giải pháp</p>
-    <input id="authEmail" type="email" placeholder="Email" autocomplete="email">
-    <input id="authPassword" type="password" placeholder="Mật khẩu" autocomplete="current-password">
-    <div id="authError" class="auth-error"></div>
-    <button id="btnSubmitAuth" class="btn btn-primary">Đăng nhập</button>
-    <button id="btnGoogleAuth" class="btn btn-google"><i class="fab fa-google"></i> Đăng nhập Google</button>
-    <div class="auth-toggle">
-      <span id="authToggleText">Chưa có tài khoản?</span>
-      <a href="#" id="authToggleBtn">Đăng ký ngay</a>
-    </div>
-  </div>
-</div>
+<script>
+const CDN = "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent";
+const JSON_URL = "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_array.json";
 
-<!-- ═══════════════════════════════════════════════ -->
-<!-- MAIN APP                                        -->
-<!-- ═══════════════════════════════════════════════ -->
-<div id="appUI" class="hidden">
+let allData = [];
+let map = L.map('map').setView([21.028511, 105.804817], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
-  <!-- Map -->
-  <div id="map"></div>
+function checkOnline(){
+  const el=document.getElementById('offline');
+  el.style.display = navigator.onLine ? 'none':'block';
+}
+window.addEventListener('online', checkOnline);
+window.addEventListener('offline', checkOnline);
+checkOnline();
 
-  <!-- ─── Top Search Bar ─── -->
-  <div id="searchBar" class="search-bar">
-    <div class="search-field" onclick="activateSearch('view')">
-      <i class="fas fa-search"></i>
-      <input id="topSearchInput" readonly placeholder="Tìm địa điểm hoặc dán link Google Maps...">
-      <button id="searchClearBtn" class="clear-btn hidden" onclick="event.stopPropagation();clearTopSearch()"><i class="fas fa-times"></i></button>
-    </div>
-    <button id="mainMenuBtn" class="fab-btn" onclick="openMenu()"><i class="fas fa-user"></i></button>
-  </div>
+async function load(){
+  try{
+    const r = await fetch(JSON_URL);
+    allData = await r.json();
+  }catch(e){
+    // fallback nếu chưa có json trên github, tự tạo 270 item
+    allData = Array.from({length:270},(_,i)=>{
+      const id=i+1;
+      return {id, ma:`Biển ${id}`, ten:`Biển ${id}`, file:`bien_${String(id).padStart(3,'0')}_transparent.png`, url:`${CDN}/bien_${String(id).padStart(3,'0')}_transparent.png`, nhom: id<=54?'canh_bao': id<=90?'cam': id<=126?'hieu_lenh':'chi_dan'}
+    });
+  }
+  render();
+}
 
-  <!-- ─── Suggestions Dropdown ─── -->
-  <div id="suggestionsBox" class="suggestions"></div>
+function render(){
+  const q = document.getElementById('search').value.toLowerCase();
+  const f = document.querySelector('.filter.active').dataset.f;
+  const grid = document.getElementById('grid');
+  grid.innerHTML='';
+  const filtered = allData.filter(b=>{
+    const matchGroup = f==='all' || b.nhom===f;
+    const matchQ = !q || b.ma.toLowerCase().includes(q) || b.ten.toLowerCase().includes(q) || String(b.id).includes(q);
+    return matchGroup && matchQ;
+  });
+  filtered.slice(0,150).forEach(b=>{
+    const div=document.createElement('div');
+    div.className='card';
+    div.innerHTML=`<img src="${b.url}" loading="lazy" onerror="this.src='https://via.placeholder.com/64?text=?'"><div class="ma">${b.ma}</div><div class="ten">${b.ten}</div>`;
+    div.onclick=()=>{
+      if(!navigator.onLine){ alert('Mất mạng rồi, không load được biển'); return; }
+      const center = map.getCenter();
+      L.marker([center.lat + (Math.random()-0.5)*0.01, center.lng + (Math.random()-0.5)*0.01], {
+        icon: L.icon({iconUrl:b.url, iconSize:[48,48], iconAnchor:[24,24]})
+      }).addTo(map).bindPopup(`<b>${b.ma}</b><br>${b.ten}<br><img src="${b.url}" width="80">`).openPopup();
+      map.panTo(center);
+    };
+    grid.appendChild(div);
+  });
+}
 
-  <!-- ─── Right FAB Stack ─── -->
-  <div id="fabStack" class="fab-stack">
-    <button id="btnLayerMenu" class="fab-btn" onclick="toggleLayerMenu()" title="Lớp bản đồ"><i class="fas fa-layer-group"></i></button>
-    <button id="btnTraffic"  class="fab-btn" onclick="toggleTraffic()"   title="Traffic TomTom"><i class="fas fa-traffic-light"></i></button>
-    <button id="btn3D"       class="fab-btn" onclick="toggle3D()"        title="3D/2D"><i class="fas fa-cube"></i></button>
-    <button id="btnReport"   class="fab-btn" onclick="openReportMenu()"  title="Báo cáo"><i class="fas fa-exclamation-triangle"></i></button>
-    <button id="mainLocateBtn" class="fab-btn" onclick="centerToLocation()" title="Vị trí của tôi"><i class="fas fa-crosshairs"></i></button>
-    <button id="mainDirBtn"    class="fab-btn primary" onclick="openDirections()" title="Chỉ đường"><i class="fas fa-directions"></i></button>
-  </div>
+document.getElementById('search').addEventListener('input', render);
+document.querySelectorAll('.filter').forEach(el=>{
+  el.onclick=()=>{
+    document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));
+    el.classList.add('active');
+    render();
+  };
+});
 
-  <!-- ─── Layer Menu ─── -->
-  <div id="layerMenu" class="popup-menu">
-    <div class="popup-item active" data-layer="trackasia" onclick="setMapLayer('trackasia',this)">
-      <i class="fas fa-map"></i> TrackAsia 2D
-    </div>
-    <div class="popup-item" data-layer="mapbox" onclick="setMapLayer('mapbox',this)">
-      <i class="fas fa-map-marked-alt"></i> Mapbox
-    </div>
-    <div class="popup-item" data-layer="satellite" onclick="setMapLayer('satellite',this)">
-      <i class="fas fa-satellite"></i> Vệ tinh
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- BOTTOM SHEETS                              -->
-  <!-- ═══════════════════════════════════════════ -->
-
-  <!-- ▸ Directions Sheet -->
-  <div id="dirSheet" class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <h2>Chỉ đường</h2>
-      <button class="close-btn" onclick="closeDirections()"><i class="fas fa-times"></i></button>
-    </div>
-    <div class="sheet-body">
-      <div class="dir-inputs">
-        <div class="dir-row">
-          <i class="fas fa-circle dot-start"></i>
-          <input id="dirInputStart" readonly placeholder="Điểm đi" onclick="activateSearch('start')">
-          <button class="clear-btn" onclick="clearPoint('start')"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="dir-row">
-          <i class="fas fa-map-marker-alt dot-end"></i>
-          <input id="dirInputEnd" readonly placeholder="Điểm đến" onclick="activateSearch('end')">
-          <button class="clear-btn" onclick="clearPoint('end')"><i class="fas fa-times"></i></button>
-        </div>
-      </div>
-
-      <!-- Vehicle Modes -->
-      <div class="section-label">Phương tiện</div>
-      <div class="chip-row" id="vehicleModes">
-        <button class="chip active" data-mode="motorcycle" onclick="setVehicleMode('motorcycle',this)"><i class="fas fa-motorcycle"></i> Xe máy</button>
-        <button class="chip" data-mode="car"        onclick="setVehicleMode('car',this)"><i class="fas fa-car"></i> Xe hơi</button>
-        <button class="chip" data-mode="truck"      onclick="setVehicleMode('truck',this)"><i class="fas fa-truck"></i> Xe tải</button>
-        <button class="chip" data-mode="bicycle"    onclick="setVehicleMode('bicycle',this)"><i class="fas fa-bicycle"></i> Xe đạp</button>
-        <button class="chip" data-mode="walking"    onclick="setVehicleMode('walking',this)"><i class="fas fa-walking"></i> Đi bộ</button>
-      </div>
-
-      <!-- Truck params (hidden by default, shown for truck mode) -->
-      <div id="truckParams" class="truck-params hidden">
-        <div class="section-label">Thông số xe tải</div>
-        <div class="param-grid">
-          <label>Cao (m)<input id="truckHeight" type="number" step="0.1" value="3.5"></label>
-          <label>Nặng (tấn)<input id="truckWeight" type="number" step="0.5" value="10"></label>
-          <label>Rộng (m)<input id="truckWidth" type="number" step="0.1" value="2.5"></label>
-          <label>Dài (m)<input id="truckLength" type="number" step="0.5" value="8"></label>
-        </div>
-      </div>
-
-      <!-- Routing Provider -->
-      <div class="section-label">Nguồn dữ liệu tuyến</div>
-      <select id="routingProvider" class="select">
-        <option value="mapbox">Mapbox</option>
-        <option value="freeroute">FreeRoute</option>
-        <option value="geoapify">Geoapify</option>
-        <option value="goong">Goong</option>
-      </select>
-
-      <button class="btn btn-primary full" onclick="fetchAndShowRoute()">
-        <i class="fas fa-search"></i> Tìm tuyến đường
-      </button>
-    </div>
-  </div>
-
-  <!-- ▸ Route Options Sheet -->
-  <div id="routeOptionsModal" class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <h2>Chọn tuyến đường</h2>
-      <button class="close-btn" onclick="closeRouteOptions()"><i class="fas fa-times"></i></button>
-    </div>
-    <div id="routeOptionsBody" class="sheet-body"></div>
-  </div>
-
-  <!-- ▸ Profile Menu -->
-  <div id="profileModal" class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <h2>Tài khoản</h2>
-      <button class="close-btn" onclick="closeMenu()"><i class="fas fa-times"></i></button>
-    </div>
-    <div class="sheet-body">
-      <div class="profile-head">
-        <div id="profileAvatar" class="avatar"><i class="fas fa-user"></i></div>
-        <div class="profile-info">
-          <div id="profileName">--</div>
-          <div id="profileEmail" class="muted">--</div>
-        </div>
-      </div>
-
-      <div class="toggle-row">
-        <span><i class="fas fa-moon"></i> Chế độ sáng</span>
-        <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
-      </div>
-
-      <div class="tabs">
-        <button class="tab active" data-tab="history" onclick="switchTab('history',this)">Lịch sử</button>
-        <button class="tab" data-tab="saved"   onclick="switchTab('saved',this)">Tuyến lưu</button>
-        <button class="tab" data-tab="live"    onclick="switchTab('live',this)">Live</button>
-        <button class="tab" data-tab="links"   onclick="switchTab('links',this)">Link</button>
-      </div>
-
-      <!-- Tab: History -->
-      <div id="tabHistory" class="tab-panel active">
-        <div id="historyList" class="list"></div>
-        <button class="btn btn-danger full mt" onclick="clearAllHistory()">Xoá tất cả</button>
-      </div>
-
-      <!-- Tab: Saved Routes -->
-      <div id="tabSaved" class="tab-panel">
-        <div id="savedRoutesList" class="list"></div>
-        <button class="btn btn-danger full mt" onclick="clearAllSavedRoutes()">Xoá tất cả</button>
-      </div>
-
-      <!-- Tab: Live -->
-      <div id="tabLive" class="tab-panel">
-        <div class="live-header">
-          <span><i class="fas fa-satellite-dish"></i> Chia sẻ trực tiếp</span>
-          <span id="liveStatusBadge" class="badge-off">OFF</span>
-        </div>
-        <div class="toggle-row">
-          <span>Bật Live</span>
-          <input type="checkbox" id="liveToggleSwitch" onchange="toggleLiveSession()">
-        </div>
-        <div id="liveRoomCodeBox" class="live-code-box hidden">
-          <div class="live-code-label">Mã phòng</div>
-          <div class="live-code" id="liveRoomCodeText">------</div>
-          <button class="btn btn-primary full" onclick="copyLiveRoomCode()"><i class="fas fa-copy"></i> Copy mã</button>
-        </div>
-        <div id="liveRoomActions" class="live-actions">
-          <button class="btn btn-primary full" onclick="createLiveRoom()">Tạo phòng</button>
-          <div class="join-row">
-            <input id="liveJoinCodeInput" placeholder="Mã phòng" maxlength="6">
-            <button class="btn btn-secondary" onclick="joinLiveRoom()">Vào</button>
-          </div>
-        </div>
-        <div id="liveMembersBox" class="hidden">
-          <div class="section-label">Thành viên (<span id="liveMemberCount">0</span>)</div>
-          <div id="liveMemberList" class="list"></div>
-        </div>
-        <button id="liveLeaveBtn" class="btn btn-danger full mt hidden" onclick="leaveLiveRoom()">Rời phòng</button>
-      </div>
-
-      <!-- Tab: Shared Links -->
-      <div id="tabLinks" class="tab-panel">
-        <div id="sharedLinksList" class="list"></div>
-        <button class="btn btn-danger full mt" onclick="clearAllSharedLinks()">Xoá tất cả</button>
-      </div>
-
-      <button class="btn btn-danger full mt" onclick="logout()">
-        <i class="fas fa-sign-out-alt"></i> Đăng xuất
-      </button>
-    </div>
-  </div>
-
-  <!-- ▸ Report Sheet -->
-  <div id="reportModal" class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <h2>Báo cáo sự cố</h2>
-      <button class="close-btn" onclick="closeReportMenu()"><i class="fas fa-times"></i></button>
-    </div>
-    <div class="sheet-body">
-      <div class="report-grid">
-        <button class="report-btn" onclick="submitReport('police')"><i class="fas fa-shield-alt"></i> CSGT</button>
-        <button class="report-btn" onclick="submitReport('accident')"><i class="fas fa-car-crash"></i> Tai nạn</button>
-        <button class="report-btn" onclick="submitReport('traffic')"><i class="fas fa-traffic-light"></i> Kẹt xe</button>
-        <button class="report-btn" onclick="submitReport('pothole')"><i class="fas fa-exclamation-circle"></i> Ổ gà</button>
-        <button class="report-btn" onclick="submitReport('flood')"><i class="fas fa-water"></i> Ngập</button>
-        <button class="report-btn" onclick="submitReport('bridge_collapse')"><i class="fas fa-road-circle-xmark"></i> Sập cầu</button>
-        <button class="report-btn" onclick="submitReport('road_collapse')"><i class="fas fa-triangle-exclamation"></i> Sập đường</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ▸ Save Place Sheet -->
-  <div id="savePlaceModal" class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <h2>Ghim địa điểm</h2>
-      <button class="close-btn" onclick="closeSavePlaceModal()"><i class="fas fa-times"></i></button>
-    </div>
-    <div class="sheet-body">
-      <div id="savePlaceAddress" class="muted mb">--</div>
-      <div class="grid-3">
-        <button class="report-btn" onclick="submitSavePlace('home')"><i class="fas fa-home"></i> Nhà</button>
-        <button class="report-btn" onclick="submitSavePlace('company')"><i class="fas fa-building"></i> Công ty</button>
-        <button class="report-btn" onclick="submitSavePlace('school')"><i class="fas fa-school"></i> Trường</button>
-        <button class="report-btn" onclick="submitSavePlace('cafe')"><i class="fas fa-coffee"></i> Cafe</button>
-        <button class="report-btn" onclick="submitSavePlace('restaurant')"><i class="fas fa-utensils"></i> Quán ăn</button>
-        <button class="report-btn" onclick="submitSavePlace('other')"><i class="fas fa-map-marker-alt"></i> Khác</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ▸ POI Sheet -->
-  <div id="poiSheet" class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <h2>Thêm địa điểm cộng đồng</h2>
-      <button class="close-btn" onclick="closePoiSheet()"><i class="fas fa-times"></i></button>
-    </div>
-    <div class="sheet-body">
-      <div id="poiCoords" class="muted mb">--</div>
-      <input id="poiNameInput" class="input-full" placeholder="Tên địa điểm (≥2 ký tự)">
-      <div class="chip-row wrap" id="poiTags">
-        <button class="chip poi-tag" data-tag="supermarket" onclick="selectPoiTag('supermarket',this)"><i class="fas fa-shopping-cart"></i> Siêu thị</button>
-        <button class="chip poi-tag" data-tag="rest_stop" onclick="selectPoiTag('rest_stop',this)"><i class="fas fa-bed"></i> Trạm nghỉ</button>
-        <button class="chip poi-tag" data-tag="gas_station" onclick="selectPoiTag('gas_station',this)"><i class="fas fa-gas-pump"></i> Xăng</button>
-        <button class="chip poi-tag" data-tag="cafe" onclick="selectPoiTag('cafe',this)"><i class="fas fa-coffee"></i> Cafe</button>
-        <button class="chip poi-tag" data-tag="restaurant" onclick="selectPoiTag('restaurant',this)"><i class="fas fa-utensils"></i> Quán ăn</button>
-        <button class="chip poi-tag" data-tag="pharmacy" onclick="selectPoiTag('pharmacy',this)"><i class="fas fa-prescription-bottle-medical"></i> Thuốc</button>
-        <button class="chip poi-tag" data-tag="atm" onclick="selectPoiTag('atm',this)"><i class="fas fa-money-bill-wave"></i> ATM</button>
-        <button class="chip poi-tag" data-tag="repair" onclick="selectPoiTag('repair',this)"><i class="fas fa-wrench"></i> Sửa xe</button>
-        <button class="chip poi-tag" data-tag="hotel" onclick="selectPoiTag('hotel',this)"><i class="fas fa-hotel"></i> Khách sạn</button>
-      </div>
-      <button id="poiSaveBtn" class="btn btn-primary full mt" onclick="submitCommunityPoi()" disabled>
-        <i class="fas fa-check"></i> Lưu địa điểm
-      </button>
-    </div>
-  </div>
-
-  <!-- ▸ POI Detail Sheet -->
-  <div id="poiDetailSheet" class="sheet">
-    <div class="sheet-handle"></div>
-    <div id="poiDetailContent" class="sheet-body"></div>
-  </div>
-
-  <!-- ▸ End Trip Sheet -->
-  <div id="endTripModal" class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <h2>Kết thúc chuyến đi</h2>
-    </div>
-    <div class="sheet-body">
-      <div class="stats-grid">
-        <div class="stat"><i class="fas fa-road"></i><span id="endTripDist">--</span></div>
-        <div class="stat"><i class="fas fa-clock"></i><span id="endTripTime">--</span></div>
-        <div class="stat"><i class="fas fa-tachometer-alt"></i><span id="endTripAvgSpeed">--</span></div>
-        <div class="stat"><i class="fas fa-flag-checkered"></i><span id="endTripDest">--</span></div>
-      </div>
-      <div class="row-2 mt">
-        <button class="btn btn-secondary" onclick="endTrip(false)">Không lưu</button>
-        <button class="btn btn-primary" onclick="endTrip(true)"><i class="fas fa-save"></i> Lưu tuyến</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- HUD NAVIGATION                             -->
-  <!-- ═══════════════════════════════════════════ -->
-  <div id="hud" class="hud hidden">
-    <div class="hud-main">
-      <div id="hudNextArrow" class="hud-arrow"><i class="fas fa-arrow-up"></i></div>
-      <div class="hud-info">
-        <div id="hudNextDist" class="hud-dist">--</div>
-        <div id="hudNextInstr" class="hud-instr">--</div>
-      </div>
-    </div>
-    <div class="hud-stats">
-      <div><i class="fas fa-road"></i> <span id="hudRemainDist">--</span></div>
-      <div><i class="fas fa-clock"></i> <span id="hudRemainTime">--</span></div>
-      <div><i class="fas fa-tachometer-alt"></i> <span id="hudSpeed">0 km/h</span></div>
-    </div>
-    <div class="hud-actions">
-      <button id="hudBtnVoice" class="fab-btn" onclick="toggleVoice()"><i class="fas fa-volume-up"></i></button>
-      <button class="fab-btn" onclick="openAlternativeRoutes()"><i class="fas fa-route"></i></button>
-      <button class="fab-btn" onclick="openEndTripModal()"><i class="fas fa-flag-checkered"></i></button>
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- LIVE VIEWER CONTROLS                       -->
-  <!-- ═══════════════════════════════════════════ -->
-  <div id="liveViewerControls" class="live-viewer hidden">
-    <button class="live-arrow" onclick="switchLiveUser(-1)"><i class="fas fa-chevron-left"></i></div>
-    <div class="live-center" id="liveCenterText">Chuyển user</div>
-    <button class="live-arrow" onclick="switchLiveUser(1)"><i class="fas fa-chevron-right"></i></button>
-  </div>
-
-  <!-- Map rotate controls (MapLibre) -->
-  <div id="mapRotateControls" class="rotate-controls hidden">
-    <button id="compassBtn" class="compass" onclick="resetNorth()"><div class="compass-arrow"></div></button>
-    <button class="rotate-btn" onclick="rotateMap(-15)"><i class="fas fa-undo"></i></button>
-    <button class="rotate-btn" onclick="rotateMap(15)"><i class="fas fa-redo"></i></button>
-    <button id="tiltBtn" class="rotate-btn" onclick="toggleTilt()"><i class="fas fa-mountain"></i></button>
-  </div>
-
-</div>
-
-<!-- Toast container -->
-<div id="toastContainer" class="toast-container"></div>
-
-<script src="https://unpkg.com/maplibre-gl@^4.7.1/dist/maplibre-gl.js"></script>
-<script type="module" src="app.js"></script>
-</body>
+load();
+</script>
+<script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
 </html>
