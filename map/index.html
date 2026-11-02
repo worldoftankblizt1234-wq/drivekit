@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Mapillary Signs - Fixed API Error</title>
+<title>Mapillary Signs - Fixed Icons & Dynamic Speed</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-serif}
@@ -59,7 +59,7 @@
 const TOKEN = 'MLY|30124595887140717|6f7fa14af38d34316e4f6ba9388e1be4'.trim();
 
 /* ============================================================
-   2. HELPERS & DICTIONARY
+   2. HELPERS & ICONS
    ============================================================ */
 function setStatus(id, status, text) {
   const el = document.getElementById('status-' + id);
@@ -73,37 +73,11 @@ function svgToBase64(svgString) {
   return 'data:image/svg+xml;base64,' + base64;
 }
 
-// Từ điển dịch tên biển báo thô của Mapillary sang tiếng Việt
-function getSignName(rawValue) {
-  if (!rawValue) return 'Biển báo không xác định';
-  const v = rawValue.toLowerCase();
-  
-  if (v.includes('stop')) return 'Dừng lại (STOP)';
-  if (v.includes('yield')) return 'Nhường đường';
-  if (v.includes('no-entry')) return 'Cấm đi vào';
-  if (v.includes('maximum-speed-limit')) {
-    const match = v.match(/\d+/);
-    return match ? `Tốc độ tối đa ${match[0]}` : 'Giới hạn tốc độ';
-  }
-  if (v.includes('no-parking')) return 'Cấm đỗ xe';
-  if (v.includes('no-stopping')) return 'Cấm dừng xe';
-  if (v.includes('pedestrian')) return 'Đường dành cho người đi bộ';
-  if (v.includes('one-way')) return 'Đường một chiều';
-  if (v.includes('warning')) return 'Biển cảnh báo nguy hiểm';
-  if (v.includes('complementary--texts')) return 'Biển phụ (chữ)';
-  if (v.includes('complementary')) return 'Biển phụ';
-  if (v.includes('regulatory')) return 'Biển hiệu lệnh';
-  if (v.includes('information')) return 'Biển chỉ dẫn thông tin';
-  
-  // Trả về tên đã format nếu không có trong từ điển
-  return rawValue.replace(/--/g, ' ').replace(/-/g, ' ').toUpperCase();
-}
-
+// Icon tĩnh cho các loại biển báo phổ biến
 const ICONS = {
   stop: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#dc2626" stroke="#fff" stroke-width="2"/><text x="16" y="21" text-anchor="middle" font-size="9" font-weight="900" font-family="Arial,sans-serif" fill="#fff">STOP</text></svg>`),
   yield: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#fff" stroke="#dc2626" stroke-width="3" stroke-linejoin="round"/><text x="16" y="26" text-anchor="middle" font-size="6" font-weight="900" font-family="Arial,sans-serif" fill="#111">YIELD</text></svg>`),
   warning: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><text x="16" y="26" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial,sans-serif" fill="#fff">!</text></svg>`),
-  speed: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#fff" stroke="#dc2626" stroke-width="3"/><text x="16" y="21" text-anchor="middle" font-size="11" font-weight="900" font-family="Arial,sans-serif" fill="#111">50</text></svg>`),
   noEntry: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#dc2626" stroke="#fff" stroke-width="2"/><rect x="6" y="13" width="20" height="6" fill="#fff"/></svg>`),
   info: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#0d6efd" stroke="#fff" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="18" font-weight="900" font-family="Arial,sans-serif" fill="#fff">i</text></svg>`),
   other: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#6b7280" stroke="#fff" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial,sans-serif" fill="#fff">?</text></svg>`)
@@ -146,6 +120,7 @@ map.on('load', () => {
   });
   setStatus('source', 'pending', 'loading...');
 
+  // Lớp dự phòng (Fallback)
   map.addLayer({
     id: 'sign-circle',
     type: 'circle',
@@ -162,6 +137,7 @@ map.on('load', () => {
   loadAllIcons().then(allOk => {
     if (allOk) {
       addSymbolLayer();
+      addSpeedLayer(); // Thêm lớp hiển thị số tốc độ động
       setStatus('icons', 'ok', 'OK ✓');
     } else {
       setStatus('icons', 'fail', 'see console');
@@ -175,9 +151,10 @@ map.on('load', () => {
     }
   });
 
-  map.on('click', 'sign-icon', onSignClick);
-  map.on('mouseenter', 'sign-icon', () => map.getCanvas().style.cursor = 'pointer');
-  map.on('mouseleave', 'sign-icon', () => map.getCanvas().style.cursor = '');
+  // Đăng ký sự kiện click cho cả hai lớp
+  map.on('click', ['sign-icon', 'speed-text'], onSignClick);
+  map.on('mouseenter', ['sign-icon', 'speed-text'], () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', ['sign-icon', 'speed-text'], () => map.getCanvas().style.cursor = '');
   map.on('moveend', updateCount);
   map.on('idle', updateCount);
 });
@@ -205,7 +182,7 @@ function loadAllIcons() {
 }
 
 /* ============================================================
-   6. SYMBOL LAYER
+   6. SYMBOL LAYER (Phân loại icon chính xác hơn)
    ============================================================ */
 function addSymbolLayer() {
   if (map.getLayer('sign-icon')) return;
@@ -218,15 +195,23 @@ function addSymbolLayer() {
     layout: {
       'icon-image': [
         'case',
-        ['in', 'stop',                ['downcase', ['get', 'value']]], 'sign-stop',
-        ['in', 'yield',               ['downcase', ['get', 'value']]], 'sign-yield',
-        ['in', 'no-entry',            ['downcase', ['get', 'value']]], 'sign-noEntry',
-        ['in', 'maximum-speed-limit', ['downcase', ['get', 'value']]], 'sign-speed',
-        ['in', 'speed',               ['downcase', ['get', 'value']]], 'sign-speed',
-        ['in', 'no-',                 ['downcase', ['get', 'value']]], 'sign-noEntry',
-        ['in', 'warning',             ['downcase', ['get', 'value']]], 'sign-warning',
-        ['in', 'regulatory',          ['downcase', ['get', 'value']]], 'sign-warning',
-        ['in', 'information',         ['downcase', ['get', 'value']]], 'sign-info',
+        // 1. Biển STOP
+        ['in', 'stop', ['get', 'value']], 'sign-stop',
+        // 2. Biển nhường đường
+        ['in', 'yield', ['get', 'value']], 'sign-yield',
+        // 3. Biển cấm đi vào
+        ['in', 'no-entry', ['get', 'value']], 'sign-noEntry',
+        // 4. Các loại biển cấm khác (no-parking, no-turn, v.v.)
+        ['in', 'no-', ['get', 'value']], 'sign-noEntry',
+        // 5. Biển cảnh báo nguy hiểm (warning)
+        ['in', 'warning', ['get', 'value']], 'sign-warning',
+        // 6. Biển thông tin (information)
+        ['in', 'information', ['get', 'value']], 'sign-info',
+        // 7. Biển phụ (complementary) -> dùng icon info
+        ['in', 'complementary', ['get', 'value']], 'sign-info',
+        // 8. Các loại biển quy định khác (regulatory) -> cảnh báo
+        ['in', 'regulatory', ['get', 'value']], 'sign-warning',
+        // 9. Mặc định
         'sign-other'
       ],
       'icon-size': [
@@ -239,18 +224,64 @@ function addSymbolLayer() {
     }
   });
   
+  // Ẩn lớp chấm tròn dự phòng
   map.setLayoutProperty('sign-circle', 'visibility', 'none');
 }
 
 /* ============================================================
-   7. CLICK HANDLER (ĐÃ SỬA LỖI TRƯỜNG 'value' -> 'object_value')
+   7. SPEED LAYER (Hiển thị số tốc độ động)
+   ============================================================ */
+function addSpeedLayer() {
+  if (map.getLayer('speed-text')) return;
+
+  map.addLayer({
+    id: 'speed-text',
+    type: 'symbol',
+    source: 'mly-signs',
+    'source-layer': 'traffic_sign',
+    filter: ['in', 'maximum-speed-limit', ['get', 'value']],
+    layout: {
+      // Trích xuất số từ chuỗi value (ví dụ: "regulatory--maximum-speed-limit-55--g2")
+      'text-field': [
+        'slice',
+        ['get', 'value'],
+        ['+', ['index-of', ['get', 'value'], 'limit-'], 6],
+        ['index-of', ['get', 'value'], '--g']
+      ],
+      'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+      'text-size': [
+        'interpolate', ['linear'], ['zoom'],
+        14, 10,
+        18, 18
+      ],
+      'text-allow-overlap': true,
+      'text-ignore-placement': true,
+      'text-anchor': 'center'
+    },
+    paint: {
+      'text-color': '#111111'
+    }
+  });
+}
+
+/* ============================================================
+   8. CLICK HANDLER (Đã sửa lỗi API)
    ============================================================ */
 async function onSignClick(e) {
   const f = e.features[0];
   const featureId = f.properties.id || f.id;
   const rawValue = f.properties.value || '';
   
-  const displayName = getSignName(rawValue);
+  // Hiển thị tên thân thiện
+  let displayName = rawValue;
+  if (rawValue.includes('maximum-speed-limit')) {
+    const match = rawValue.match(/\d+/);
+    if (match) displayName = `Tốc độ tối đa ${match[0]}`;
+  } else if (rawValue.includes('stop')) {
+    displayName = 'Dừng lại (STOP)';
+  } else if (rawValue.includes('yield')) {
+    displayName = 'Nhường đường';
+  }
 
   const popup = new maplibregl.Popup({ offset: 16, maxWidth: '300px' })
     .setLngLat(e.lngLat)
@@ -267,7 +298,7 @@ async function onSignClick(e) {
   if (!featureId) return;
 
   try {
-    // ✅ SỬA LỖI TẠI ĐÂY: Đổi 'value' thành 'object_value'
+    // Sử dụng object_value (đúng chuẩn API)
     const r1 = await fetch(`https://graph.mapillary.com/${featureId}?access_token=${TOKEN}&fields=id,object_value,images`);
     const d1 = await r1.json();
     
@@ -282,7 +313,6 @@ async function onSignClick(e) {
       return;
     }
 
-    // Lấy ảnh thumb
     const r2 = await fetch(`https://graph.mapillary.com/${imgId}?access_token=${TOKEN}&fields=thumb_512_url`);
     const d2 = await r2.json();
     
@@ -294,13 +324,13 @@ async function onSignClick(e) {
     }
   } catch (err) {
     const el = document.getElementById('popup-img');
-    if (el) el.textContent = 'Lỗi mạng khi tải ảnh!';
-    console.error(err);
+    if (el) el.textContent = 'Lỗi mạng khi tải ảnh! (Thử lại sau)';
+    console.error('Fetch error:', err);
   }
 }
 
 /* ============================================================
-   8. CONTROLS
+   9. CONTROLS
    ============================================================ */
 function updateCount() {
   try {
@@ -319,6 +349,9 @@ document.getElementById('btn-toggle-icons').addEventListener('click', () => {
   const cur = map.getLayoutProperty('sign-icon', 'visibility');
   const next = cur === 'none' ? 'visible' : 'none';
   map.setLayoutProperty('sign-icon', 'visibility', next);
+  if (map.getLayer('speed-text')) {
+    map.setLayoutProperty('speed-text', 'visibility', next);
+  }
   if (map.getLayer('sign-circle')) {
     map.setLayoutProperty('sign-circle', 'visibility', next === 'visible' ? 'none' : 'visible');
   }
