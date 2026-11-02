@@ -3,73 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hệ thống Biển báo - Đối chiếu ảnh lỗi</title>
+    <title>Hệ thống Biển báo Giao thông - Full Fix</title>
     
+    <!-- Thư viện MapLibre GL JS -->
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+    <!-- vConsole để debug trên điện thoại (có thể xóa nếu không cần) -->
+    <script src="https://unpkg.com/vconsole@3.15.1/dist/vconsole.min.js"></script>
+    <script>
+        window.vConsole = new window.VConsole({ theme: 'dark' });
+    </script>
 
     <style>
         body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        #filter-panel { position: absolute; top: 15px; left: 15px; background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15); z-index: 10; font-size: 14px; backdrop-filter: blur(5px); max-width: 250px; }
+        
+        /* Bảng điều khiển Bộ lọc */
+        #filter-panel {
+            position: absolute; top: 15px; left: 15px; background: rgba(255, 255, 255, 0.95);
+            padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            z-index: 10; font-size: 14px; backdrop-filter: blur(5px); max-width: 250px;
+        }
+        #filter-panel h3 { margin: 0 0 12px 0; font-size: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;}
         .filter-group { display: flex; align-items: center; margin-bottom: 10px; cursor: pointer; }
         .filter-group input { margin-right: 10px; width: 16px; height: 16px; accent-color: #0d6efd; }
+        .filter-group label { cursor: pointer; color: #374151; font-weight: 500; }
         
-        .maplibregl-popup-content { padding: 0; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2); font-size: 13px; max-width: 340px; }
-        .popup-header { background: #0d6efd; color: #fff; padding: 10px 15px; font-weight: bold; }
+        /* CSS cho Popup MapLibre */
+        .maplibregl-popup-content { padding: 0; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2); font-size: 13px; max-width: 360px; }
+        .popup-header { background: #0d6efd; color: #fff; padding: 10px 15px; font-weight: bold; font-size: 14px; }
         .popup-body { padding: 12px 15px; background: #fff; }
         .popup-row { margin-bottom: 6px; font-size: 12px; border-bottom: 1px dashed #e5e7eb; padding-bottom: 4px;}
         .popup-label { color: #6b7280; font-weight: 600; display: block; margin-bottom: 2px;}
         .popup-value { color: #111827; font-family: monospace; word-break: break-all; background: #f3f4f6; padding: 2px 4px; border-radius: 4px;}
         
-        /* CSS cho 2 ảnh đối chiếu */
+        /* CSS cho phần đối chiếu 2 ảnh */
         .compare-container { display: flex; gap: 8px; margin-top: 10px; }
         .compare-box { flex: 1; text-align: center; background: #f3f4f6; border-radius: 8px; padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 120px;}
         .compare-title { font-size: 10px; font-weight: bold; color: #4b5563; margin-bottom: 4px; }
         .compare-box img { width: 100%; border-radius: 6px; background: #fff; object-fit: contain; max-height: 100px;}
+        .error-text { color: #ef4444; font-size: 11px; padding: 10px; text-align: center;}
     </style>
 </head>
 <body>
 
+    <!-- Bộ lọc -->
     <div id="filter-panel">
         <h3>🚦 Bộ lọc biển báo</h3>
         <div class="filter-group"><input type="checkbox" id="filter-warning" checked><label for="filter-warning">⚠️ Cảnh báo</label></div>
         <div class="filter-group"><input type="checkbox" id="filter-regulatory" checked><label for="filter-regulatory">🛑 Cấm / Hiệu lệnh</label></div>
         <div class="filter-group"><input type="checkbox" id="filter-mandatory" checked><label for="filter-mandatory">🔵 Bắt buộc</label></div>
         <div class="filter-group"><input type="checkbox" id="filter-information" checked><label for="filter-information">ℹ️ Chỉ dẫn</label></div>
+        <div class="filter-group"><input type="checkbox" id="filter-other" checked><label for="filter-other">🔹 Loại khác</label></div>
     </div>
 
     <div id="map"></div>
 
     <script>
+        // ==========================================
+        // 1. CẤU HÌNH (TOKEN VÀ ĐƯỜNG DẪN)
+        // ==========================================
         const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
         const MAPILLARY_TOKEN = 'MLY|30124595887140717|6f7fa14af38d34316e4f6ba9388e1be4';
-        const MAPPING_JSON_URL = 'https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/mapillary_mapping_270.json';
+        
+        // Sử dụng Date.now() để chống lưu cache CDN của Github (jsDelivr)
+        // Mỗi lần tải lại trang, nó sẽ tự động lấy file JSON mới nhất
+        const MAPPING_JSON_URL = `https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/mapillary_mapping_270.json?v=${Date.now()}`;
 
-        let MAPPING_DATA = {};
+        let MAPPING_DATA = {}; // Biến lưu trữ dữ liệu JSON
 
+        // ==========================================
+        // 2. KHỞI TẠO BẢN ĐỒ
+        // ==========================================
         const map = new maplibregl.Map({
             container: 'map',
             style: `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`,
-            center: [105.8542, 21.0285], 
+            center: [105.8542, 21.0285], // Hà Nội
             zoom: 16,
             minZoom: 3
         });
 
         map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
+        // ==========================================
+        // 3. CÁC HÀM XỬ LÝ DỮ LIỆU
+        // ==========================================
+        
+        // Tải file JSON Mapping
         async function fetchMappingData() {
             try {
+                console.log('Đang tải file JSON...');
                 const response = await fetch(MAPPING_JSON_URL);
+                if (!response.ok) throw new Error('Không thể tải file JSON');
                 MAPPING_DATA = await response.json();
-                console.log('✅ Đã tải xong JSON:', Object.keys(MAPPING_DATA).length, 'biển báo');
+                console.log('✅ Đã tải xong file Mapping:', Object.keys(MAPPING_DATA).length, 'biển báo');
             } catch (error) {
-                console.error('❌ Lỗi tải JSON:', error);
+                console.error('❌ Lỗi tải file JSON:', error);
+                alert('Lỗi tải file JSON. Hãy kiểm tra lại đường dẫn hoặc kết nối mạng!');
             }
         }
 
+        // Tải ảnh PNG từ Github CDN vào MapLibre
         async function loadImagesFromCDN() {
             const uniqueFiles = {};
+            // Lọc ra các file ảnh duy nhất để tránh tải trùng
             Object.values(MAPPING_DATA).forEach(item => {
                 uniqueFiles[item.file] = item.url;
             });
@@ -79,15 +117,20 @@
 
             return new Promise((resolve) => {
                 if (fileEntries.length === 0) resolve();
+                
                 fileEntries.forEach(([fileName, url]) => {
                     const img = new Image();
                     img.crossOrigin = 'anonymous'; 
+                    
                     img.onload = () => {
+                        // pixelRatio: 4 giúp ảnh 512x512 hiển thị nhỏ và sắc nét
                         if (!map.hasImage(fileName)) map.addImage(fileName, img, { pixelRatio: 4 }); 
                         loadedCount++;
                         if (loadedCount === fileEntries.length) resolve();
                     };
+                    
                     img.onerror = () => {
+                        console.warn(`Lỗi tải ảnh: ${fileName}`);
                         loadedCount++;
                         if (loadedCount === fileEntries.length) resolve();
                     };
@@ -96,26 +139,39 @@
             });
         }
 
+        // Tạo biểu thức MapLibre Expression tự động từ JSON
         function buildIconExpression() {
             let expression = ['case'];
+            // Sắp xếp mã dài lên trước để tránh nhận diện nhầm (VD: limit-100 trước limit-10)
             const sortedKeys = Object.keys(MAPPING_DATA).sort((a, b) => b.length - a.length);
+            
             for (const mapillaryCode of sortedKeys) {
-                expression.push(['in', mapillaryCode, ['get', 'value']], MAPPING_DATA[mapillaryCode].file);
+                const data = MAPPING_DATA[mapillaryCode];
+                expression.push(
+                    ['in', mapillaryCode, ['get', 'value']], 
+                    data.file
+                );
             }
-            expression.push(''); 
+            expression.push(''); // Nếu không khớp thì ẩn đi
             return expression;
         }
 
+        // ==========================================
+        // 4. KHỞI TẠO BẢN ĐỒ KHI LOAD
+        // ==========================================
         map.on('load', async () => {
+            // Tải JSON và ảnh
             await fetchMappingData();
             await loadImagesFromCDN();
 
+            // Thêm Source Vector Tile của Mapillary
             map.addSource('mapillary-signs', {
                 type: 'vector',
                 tiles: [`https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`],
                 minzoom: 14, maxzoom: 14
             });
 
+            // Thêm Layer hiển thị Icon
             map.addLayer({
                 id: 'traffic-signs-layer',
                 type: 'symbol',
@@ -124,19 +180,33 @@
                 minzoom: 14,
                 layout: {
                     'icon-image': buildIconExpression(),
+                    // Kích thước nhỏ gọn, giãn dần khi zoom
                     'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.15, 18, 0.3],
                     'icon-allow-overlap': false,
                     'icon-ignore-placement': false,
-                    'icon-padding': 2
+                    'icon-padding': 2,
+                    // Ưu tiên hiển thị biển STOP và Tốc độ
+                    'symbol-sort-key': [
+                        'case',
+                        ['in', 'stop', ['get', 'value']], 1,
+                        ['in', 'maximum-speed-limit', ['get', 'value']], 2,
+                        3
+                    ]
                 }
             });
 
-            // POPUP ĐỐI CHIẾU 2 ẢNH
+            // ==========================================
+            // 5. TƯƠNG TÁC (HOVER & CLICK)
+            // ==========================================
+            map.on('mouseenter', 'traffic-signs-layer', () => map.getCanvas().style.cursor = 'pointer');
+            map.on('mouseleave', 'traffic-signs-layer', () => map.getCanvas().style.cursor = '');
+
             map.on('click', 'traffic-signs-layer', async (e) => {
                 const feature = e.features[0];
                 const props = feature.properties;
                 const rawValue = props.value || '';
                 
+                // Tìm thông tin trong MAPPING_DATA
                 let displayData = null;
                 for (const [key, data] of Object.entries(MAPPING_DATA)) {
                     if (rawValue.includes(key)) {
@@ -149,7 +219,7 @@
                 if (displayData) {
                     htmlContent = `
                         <div class="popup-row">
-                            <span class="popup-label">Mã QCVN trong JSON:</span>
+                            <span class="popup-label">Mã QCVN (trong JSON):</span>
                             <span style="font-weight:bold; color:#0d6efd">${displayData.ma} - ${displayData.ten}</span>
                         </div>
                         <div class="popup-row">
@@ -168,7 +238,7 @@
                         </div>
                     `;
                 } else {
-                    htmlContent = `<div style="color:red; font-weight:bold; padding:10px 0;">⚠️ Mã này chưa có trong JSON!</div>`;
+                    htmlContent = `<div class="error-text">⚠️ Mã này chưa có trong file JSON!</div>`;
                 }
 
                 const popupHTML = `
@@ -182,9 +252,9 @@
                     </div>
                 `;
 
-                new maplibregl.Popup({ offset: 15, maxWidth: '340px' }).setLngLat(e.lngLat).setHTML(popupHTML).addTo(map);
+                new maplibregl.Popup({ offset: 15, maxWidth: '360px' }).setLngLat(e.lngLat).setHTML(popupHTML).addTo(map);
 
-                // Tải ảnh Mapillary thực tế
+                // Tải ảnh thực tế từ Mapillary Graph API để đối chiếu
                 if (displayData) {
                     try {
                         const featureId = props.id;
@@ -199,30 +269,44 @@
                             if (data2.thumb_512_url && box) {
                                 box.innerHTML = `<div class="compare-title">Ảnh Mapillary</div><img src="${data2.thumb_512_url}" />`;
                             } else if (box) {
-                                box.innerHTML = `<div class="compare-title">Ảnh Mapillary</div><span style="font-size:10px;color:red;margin-top:20px;">Không có ảnh</span>`;
+                                box.innerHTML = `<div class="compare-title">Ảnh Mapillary</div><span class="error-text">Không có ảnh</span>`;
                             }
                         }
                     } catch (err) {
                         const box = document.getElementById('mly-img-container');
-                        if (box) box.innerHTML = `<div class="compare-title">Ảnh Mapillary</div><span style="font-size:10px;color:red;margin-top:20px;">Lỗi tải</span>`;
+                        if (box) box.innerHTML = `<div class="compare-title">Ảnh Mapillary</div><span class="error-text">Lỗi tải ảnh</span>`;
                     }
                 }
             });
 
+            // ==========================================
+            // 6. CHỨC NĂNG BỘ LỌC
+            // ==========================================
             function applyFilter() {
                 const isWarning = document.getElementById('filter-warning').checked;
                 const isRegulatory = document.getElementById('filter-regulatory').checked;
                 const isMandatory = document.getElementById('filter-mandatory').checked;
                 const isInfo = document.getElementById('filter-information').checked;
+                const isOther = document.getElementById('filter-other').checked;
 
                 let conditions = ['any'];
                 if (isWarning) conditions.push(['in', 'warning--', ['get', 'value']]);
                 if (isRegulatory) conditions.push(['in', 'regulatory--', ['get', 'value']]);
                 if (isMandatory) conditions.push(['in', 'mandatory--', ['get', 'value']]);
                 if (isInfo) conditions.push(['in', 'information--', ['get', 'value']]);
+                if (isOther) {
+                    conditions.push(['all', 
+                        ['!', ['in', 'warning--', ['get', 'value']]], 
+                        ['!', ['in', 'regulatory--', ['get', 'value']]],
+                        ['!', ['in', 'mandatory--', ['get', 'value']]],
+                        ['!', ['in', 'information--', ['get', 'value']]]
+                    ]);
+                }
 
                 map.setFilter('traffic-signs-layer', conditions);
             }
+
+            // Gắn sự kiện cho các Checkbox
             document.querySelectorAll('#filter-panel input').forEach(el => el.addEventListener('change', applyFilter));
         });
     </script>
