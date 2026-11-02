@@ -11,7 +11,7 @@
 <style>
   * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
   body { font-family: 'Inter', sans-serif; margin: 0; overflow: hidden; background: #0a0a0a; }
-  #map { position: absolute; inset: 0; }
+  #map { position: absolute; inset: 0; background: #111827; }
   .glass { background: rgba(17,24,39,0.75); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); }
   .bottom-sheet { transition: transform 0.4s cubic-bezier(0.32,0.72,0,1); }
   .bottom-sheet.collapsed { transform: translateY(calc(100% - 100px)); }
@@ -38,8 +38,39 @@
 </head>
 <body>
 
-<!-- ============ AUTH SCREEN ============ -->
-<div id="authScreen" class="fixed inset-0 z-[100] hidden items-center justify-center p-4" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0c4a6e 100%);">
+<!-- Global error handler -->
+<script>
+  window.addEventListener("error", e => {
+    const m = e.message || "";
+    if (/Failed to fetch|Cannot find|import|module|SyntaxError/i.test(m)) {
+      console.error("[FATAL]", m);
+      if (document.getElementById("fatalOverlay")) return;
+      document.body.insertAdjacentHTML("beforeend", `
+        <div id="fatalOverlay" style="position:fixed;inset:0;background:#0a0a0a;color:#fff;display:flex;align-items:center;justify-content:center;padding:20px;font-family:Inter,system-ui,sans-serif;text-align:center;z-index:99999;">
+          <div>
+            <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
+            <div style="font-size:16px;font-weight:600;margin-bottom:10px;">Không tải được ứng dụng</div>
+            <div style="font-size:12px;color:#9ca3af;max-width:340px;margin:0 auto 16px;line-height:1.5;word-break:break-word;">${String(m).slice(0,300)}</div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:16px;">Mở F12 → Console. Có thể do mạng chặn CDN, domain chưa whitelist Firebase, hoặc chưa bật Anonymous/Email Auth.</div>
+            <button onclick="location.reload()" style="padding:10px 24px;border:none;border-radius:10px;background:#22d3ee;color:#000;font-weight:700;cursor:pointer;font-size:14px;">Tải lại</button>
+          </div>
+        </div>`);
+    }
+  });
+  window.addEventListener("unhandledrejection", e => console.error("[UNHANDLED]", e.reason));
+  // Fallback: nếu 8s sau vẫn không có gì hiện → tự show auth screen
+  setTimeout(() => {
+    const app = document.getElementById("app");
+    const auth = document.getElementById("authScreen");
+    if (app && auth && app.classList.contains("hidden") && auth.classList.contains("hidden")) {
+      auth.classList.remove("hidden");
+      auth.classList.add("flex");
+    }
+  }, 8000);
+</script>
+
+<!-- ============ AUTH SCREEN (đã fix: flex, không hidden) ============ -->
+<div id="authScreen" class="fixed inset-0 z-[100] flex items-center justify-center p-4" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0c4a6e 100%);">
   <div class="glass rounded-3xl p-6 w-full max-w-sm slide-up">
     <div class="text-center mb-5">
       <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-3xl mx-auto mb-3">🚗</div>
@@ -100,7 +131,6 @@
 <div id="app" class="hidden">
   <div id="map"></div>
 
-  <!-- TOP SEARCH BAR -->
   <div class="absolute top-0 left-0 right-0 p-4 z-20">
     <div class="flex gap-2">
       <button class="glass rounded-2xl w-12 h-12 flex items-center justify-center text-white shrink-0" onclick="cycleSheet()">
@@ -118,7 +148,6 @@
     </div>
   </div>
 
-  <!-- RIGHT FABs -->
   <div class="absolute right-4 top-28 z-20 flex flex-col gap-3">
     <button class="fab glass rounded-2xl w-12 h-12 flex items-center justify-center text-white" onclick="toggleLayers()">
       <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6l8-4 8 4M4 6v12l8 4M4 6l8 4m8-4v12l-8 4m8-4l-8-4"/></svg>
@@ -134,7 +163,6 @@
     </button>
   </div>
 
-  <!-- LAYER PANEL -->
   <div id="layerPanel" class="absolute right-4 top-28 z-30 hidden slide-up">
     <div class="glass rounded-2xl p-2 w-60">
       <div class="text-[10px] text-gray-400 px-2 py-1 font-bold tracking-wider">LỚP BẢN ĐỒ</div>
@@ -163,7 +191,6 @@
     </div>
   </div>
 
-  <!-- REPORT SHEET -->
   <div id="reportSheet" class="fixed inset-0 z-40 hidden bg-black/60" onclick="if(event.target===this)closeReport()">
     <div class="absolute bottom-0 left-0 right-0 bg-gray-900 rounded-t-3xl p-6 slide-up border-t border-white/10">
       <div class="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-4"></div>
@@ -181,7 +208,6 @@
     </div>
   </div>
 
-  <!-- POI MODAL -->
   <div id="poiModal" class="fixed inset-0 z-40 hidden bg-black/60" onclick="if(event.target===this)closePoiModal()">
     <div class="absolute bottom-0 left-0 right-0 bg-gray-900 rounded-t-3xl p-6 slide-up border-t border-white/10">
       <div class="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-4"></div>
@@ -214,7 +240,6 @@
     </div>
   </div>
 
-  <!-- CALL MODAL -->
   <div id="callModal" class="fixed inset-0 z-50 hidden bg-black/70 items-center justify-center p-4">
     <div class="glass rounded-3xl p-6 w-full max-w-sm slide-up text-center">
       <div class="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-4xl mx-auto mb-4">📞</div>
@@ -227,7 +252,6 @@
     </div>
   </div>
 
-  <!-- CALL BAR -->
   <div id="callBar" class="hidden fixed bottom-28 left-4 right-4 z-50 max-w-sm mx-auto">
     <div class="glass rounded-2xl p-3 flex items-center gap-3">
       <div class="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-xl animate-pulse">📞</div>
@@ -241,7 +265,6 @@
 
   <audio id="remoteAudio" autoplay></audio>
 
-  <!-- BOTTOM SHEET -->
   <div id="bottomSheet" class="bottom-sheet collapsed absolute bottom-0 left-0 right-0 z-30 h-[85vh] bg-gray-900 rounded-t-3xl shadow-2xl">
     <div class="drag-handle pt-3 pb-2 cursor-pointer" onclick="cycleSheet()">
       <div class="w-12 h-1 bg-gray-700 rounded-full mx-auto"></div>
@@ -257,7 +280,6 @@
 
     <div class="overflow-y-auto h-full pb-24 no-scrollbar">
 
-      <!-- EXPLORE -->
       <div id="tab-explore" class="p-4">
         <div class="flex gap-2 mb-4 overflow-x-auto no-scrollbar pb-1" id="exploreChips">
           <button class="chip shrink-0 px-4 py-2 rounded-full bg-cyan-500 text-white text-xs font-semibold" data-type="all">Tất cả</button>
@@ -268,14 +290,13 @@
         </div>
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-white font-bold">Địa điểm cộng đồng</h3>
-          <span class="text-xs text-cyan-400" onclick="startAddPoiMode()">+ Thêm</span>
+          <span class="text-xs text-cyan-400 cursor-pointer" onclick="startAddPoiMode()">+ Thêm</span>
         </div>
         <div id="poiList" class="space-y-2">
           <div class="text-center text-gray-500 text-sm py-8">Đang tải...</div>
         </div>
       </div>
 
-      <!-- COMMUNITY -->
       <div id="tab-community" class="p-4 hidden">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-white font-bold">Cảnh báo gần đây</h3>
@@ -286,7 +307,6 @@
         </div>
       </div>
 
-      <!-- ROUTE -->
       <div id="tab-route" class="p-4 hidden">
         <div class="bg-gray-800 rounded-2xl p-3 flex items-center gap-3 mb-2">
           <div class="w-3 h-3 rounded-full bg-green-400 shrink-0"></div>
@@ -314,7 +334,6 @@
         </div>
       </div>
 
-      <!-- LIVE -->
       <div id="tab-live" class="p-4 hidden">
         <div id="liveNoRoom">
           <div class="bg-gradient-to-br from-purple-500/20 to-cyan-500/20 rounded-2xl p-4 mb-4 border border-purple-500/30">
@@ -342,7 +361,6 @@
         </div>
       </div>
 
-      <!-- ACCOUNT -->
       <div id="tab-account" class="p-4 hidden">
         <div class="bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl p-4 mb-4 text-white">
           <div class="flex items-center gap-3">
@@ -364,7 +382,6 @@
     </div>
   </div>
 
-  <!-- TOAST -->
   <div id="toast" class="fixed bottom-32 left-1/2 -translate-x-1/2 z-[60] bg-gray-900 text-white text-sm px-4 py-3 rounded-2xl shadow-2xl border border-white/10 transition-all duration-200 opacity-0 pointer-events-none max-w-xs text-center"></div>
 </div>
 
@@ -425,7 +442,7 @@ const cfg = {
 };
 
 /* ============================================================
-   FIREBASE
+   FIREBASE IMPORTS
    ============================================================ */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
@@ -459,7 +476,7 @@ const AUTH_ERRORS = {
   "auth/weak-password": "Mật khẩu quá yếu (≥6 ký tự)",
   "auth/too-many-requests": "Quá nhiều lần thử, đợi vài phút",
   "auth/popup-closed-by-user": "Đã đóng cửa sổ Google",
-  "auth/popup-blocked": "Trình duyệt chặn popup — cho phép popup",
+  "auth/popup-blocked": "Trình duyệt chặn popup",
   "auth/operation-not-allowed": "Chưa bật phương thức này trong Firebase Console",
   "auth/unauthorized-domain": "Domain chưa được whitelist trong Firebase Console",
   "auth/network-request-failed": "Lỗi mạng"
@@ -487,7 +504,7 @@ const state = {
 };
 
 /* ============================================================
-   AUTH
+   AUTH UI
    ============================================================ */
 const $ = id => document.getElementById(id);
 
@@ -507,7 +524,7 @@ function showAuthError(err) {
   el.classList.remove("hidden");
 }
 function setAuthBusy(busy) {
-  ["loginBtn", "registerBtn", "googleBtn"].forEach(id => $(id).disabled = busy);
+  ["loginBtn", "registerBtn", "googleBtn"].forEach(id => { const el = $(id); if (el) el.disabled = busy; });
 }
 
 function setupAuthUI() {
@@ -531,12 +548,8 @@ function setupAuthUI() {
     $("authError").classList.add("hidden");
     setAuthBusy(true);
     try {
-      await signInWithEmailAndPassword(auth,
-        $("loginEmail").value.trim(),
-        $("loginPassword").value);
-    } catch (err) {
-      showAuthError(err); setAuthBusy(false);
-    }
+      await signInWithEmailAndPassword(auth, $("loginEmail").value.trim(), $("loginPassword").value);
+    } catch (err) { showAuthError(err); setAuthBusy(false); }
   };
 
   $("registerForm").onsubmit = async e => {
@@ -546,13 +559,9 @@ function setupAuthUI() {
     try {
       const name = $("registerName").value.trim();
       if (name.length < 2) throw { message: "Họ tên quá ngắn" };
-      const cred = await createUserWithEmailAndPassword(auth,
-        $("registerEmail").value.trim(),
-        $("registerPassword").value);
+      const cred = await createUserWithEmailAndPassword(auth, $("registerEmail").value.trim(), $("registerPassword").value);
       await updateProfile(cred.user, { displayName: name });
-    } catch (err) {
-      showAuthError(err); setAuthBusy(false);
-    }
+    } catch (err) { showAuthError(err); setAuthBusy(false); }
   };
 
   $("googleBtn").onclick = async () => {
@@ -560,9 +569,7 @@ function setupAuthUI() {
     setAuthBusy(true);
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (err) {
-      showAuthError(err); setAuthBusy(false);
-    }
+    } catch (err) { showAuthError(err); setAuthBusy(false); }
   };
 }
 
@@ -580,7 +587,7 @@ async function logoutUser() {
 }
 
 /* ============================================================
-   PRESENCE & GEO
+   PRESENCE & GEO QUERY
    ============================================================ */
 function startPresence(uid, getPos) {
   onDisconnect(ref(db, `users/${uid}`)).remove();
@@ -615,7 +622,7 @@ async function queryGeo(node, center, radiusM) {
 }
 
 /* ============================================================
-   POI / ALERTS / ROOMS / CALLS
+   POI / ALERT / ROOM / CALL
    ============================================================ */
 async function addPoi(data) {
   const id = push(ref(db, "pois")).key;
@@ -689,7 +696,7 @@ async function notifyCall(calleeUid, callId, fromName) {
 const clearNotify = (u, c) => remove(ref(db, `inbox/${u}/${c}`)).catch(() => {});
 
 /* ============================================================
-   WEBRTC
+   WEBRTC CALL MANAGER
    ============================================================ */
 class CallManager {
   constructor(handlers = {}) {
@@ -877,8 +884,6 @@ async function switchBaseStyle(useSatellite) {
     });
   }
   state.styleSwapping = false;
-  // Restore marker visibilities
-  document.querySelectorAll(".maplibregl-marker").forEach(el => { el.style.display = ""; });
 }
 
 /* ============================================================
@@ -903,7 +908,6 @@ function setupMapClick() {
       openReport(lng, lat);
       return;
     }
-    // Default: set destination
     setDestination(lng, lat);
   });
 }
@@ -915,18 +919,13 @@ function setDestination(lng, lat) {
   el.innerHTML = `<div style="width:24px;height:24px;border-radius:50%;background:#ef4444;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5)"></div>`;
   state.destinationMarker = new maplibregl.Marker({ element: el.firstChild })
     .setLngLat([lng, lat]).addTo(state.map);
-
   $("routeDest").value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-
-  // Reverse geocode (optional - can be slow, skip)
-  // Could show "Vị trí đã chọn" instead of coords
-
   toast("Đã chọn điểm đến — chuyển sang tab Chỉ đường", "success");
   switchToTab("route");
 }
 
 /* ============================================================
-   SEARCH — Mapbox Geocoding
+   SEARCH
    ============================================================ */
 let searchTimer = null;
 const searchInput = $("searchInput");
@@ -974,9 +973,7 @@ async function runGeocode(q) {
         setTimeout(() => setDestination(lng, lat), 400);
       };
     });
-  } catch (e) {
-    console.error("[geocode]", e);
-  }
+  } catch (e) { console.error("[geocode]", e); }
 }
 
 document.addEventListener("click", e => {
@@ -995,11 +992,9 @@ function toggleLayers() {
 }
 function setBaseLayer(layer) {
   if (layer === "satellite") {
-    state.satelliteOn = true;
-    switchBaseStyle(true);
+    state.satelliteOn = true; switchBaseStyle(true);
   } else {
-    state.satelliteOn = false;
-    switchBaseStyle(false);
+    state.satelliteOn = false; switchBaseStyle(false);
   }
   document.querySelectorAll(".layer-btn").forEach(btn => {
     btn.querySelector(".check").classList.toggle("hidden", btn.dataset.layer !== layer);
@@ -1045,7 +1040,7 @@ function locateMe() {
 }
 
 /* ============================================================
-   REPORT (ALERT)
+   REPORT
    ============================================================ */
 function startReportMode() {
   if (!state.map) return;
@@ -1139,7 +1134,7 @@ function setupVehiclePicker() {
 }
 
 async function calculateRoute() {
-  if (!state.destination) return toast("Chưa chọn điểm đến — chạm bản đồ hoặc dùng tìm kiếm", "error");
+  if (!state.destination) return toast("Chưa chọn điểm đến", "error");
   const origin = state.userLocation || { lng: 106.7009, lat: 10.7769 };
   toast("Đang tính tuyến…");
   try {
@@ -1181,11 +1176,9 @@ function drawRoute(route, origin, dest) {
   if (!src) return;
   state.route = { from: origin, to: dest, profile: state.profile, geometry: route.geometry, distance: route.distance, duration: route.duration };
   src.setData({ type: "Feature", geometry: route.geometry, properties: {} });
-
   const coords = route.geometry.coordinates;
   const bounds = coords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]));
   state.map.fitBounds(bounds, { padding: { top: 120, bottom: 300, left: 60, right: 60 }, duration: 800 });
-
   $("routeResult").classList.remove("hidden");
   $("routeDuration").textContent = Math.round(route.duration / 60) + " phút";
   $("routeDistance").textContent = (route.distance / 1000).toFixed(2) + " km";
@@ -1208,7 +1201,7 @@ function shareRoute() {
 }
 
 /* ============================================================
-   COMMUNITY — POIs & ALERTS
+   COMMUNITY
    ============================================================ */
 function startLoops() {
   refreshCommunity();   setInterval(refreshCommunity, 20000);
@@ -1241,7 +1234,6 @@ function renderPois() {
   const filtered = state.poiFilter === "all"
     ? state.allPois
     : state.allPois.filter(p => p.type === state.poiFilter);
-
   list.innerHTML = filtered.map(p => {
     seen.add(p.id);
     const t = cfg.poiTypes[p.type] || cfg.poiTypes.other;
@@ -1264,7 +1256,6 @@ function renderPois() {
     `;
   }).join("") || `<div class="text-center text-gray-500 text-sm py-8">Chưa có địa điểm nào trong 10km</div>`;
 
-  // Update map markers
   const existingIds = new Set(state.poiMarkers.keys());
   filtered.forEach(p => {
     existingIds.delete(p.id);
@@ -1282,10 +1273,7 @@ function renderPois() {
       state.poiMarkers.set(p.id, mk);
     }
   });
-  existingIds.forEach(id => {
-    state.poiMarkers.get(id).remove();
-    state.poiMarkers.delete(id);
-  });
+  existingIds.forEach(id => { state.poiMarkers.get(id).remove(); state.poiMarkers.delete(id); });
 }
 
 function renderAlerts() {
@@ -1324,10 +1312,7 @@ function renderAlerts() {
       state.alertMarkers.set(a.id, mk);
     }
   });
-  existingIds.forEach(id => {
-    state.alertMarkers.get(id).remove();
-    state.alertMarkers.delete(id);
-  });
+  existingIds.forEach(id => { state.alertMarkers.get(id).remove(); state.alertMarkers.delete(id); });
 }
 
 window.flyToPoi = (lng, lat) => {
@@ -1335,7 +1320,6 @@ window.flyToPoi = (lng, lat) => {
   cycleSheetCollapse();
 };
 
-/* Chips filter */
 document.querySelectorAll("#exploreChips .chip").forEach(c => {
   c.onclick = () => {
     document.querySelectorAll("#exploreChips .chip").forEach(x => {
@@ -1358,7 +1342,6 @@ async function refreshNearbyUsers() {
     const users = await queryGeo("users", c, 5000);
     const others = users.filter(u => u.id !== state.uid);
     const list = $("nearbyUsers");
-
     list.innerHTML = others.map(u => {
       const name = u.displayName || u.id.slice(0, 6);
       const initial = name.slice(0, 2).toUpperCase();
@@ -1378,7 +1361,6 @@ async function refreshNearbyUsers() {
       `;
     }).join("") || `<div class="text-center text-gray-500 text-sm py-4">Không có tài xế nào trong 5km</div>`;
 
-    // Update map markers
     const seen = new Set();
     others.forEach(u => {
       seen.add(u.id);
@@ -1484,7 +1466,6 @@ function renderRoomMembers(room) {
     `;
   }).join("");
 
-  // Map markers
   const seen = new Set();
   entries.forEach(([uid, m]) => {
     if (uid === state.uid || !m.lat) return;
@@ -1504,7 +1485,7 @@ function renderRoomMembers(room) {
     if (!seen.has(id)) { m.remove(); state.memberMarkers.delete(id); }
   }
 }
-async function leaveRoom() {
+async function leaveRoomFn() {
   if (!state.myRoom) return;
   await leaveRoom(state.myRoom, state.uid).catch(() => {});
   leaveRoomUI();
@@ -1550,9 +1531,6 @@ async function callUser(peerUid, peerName, roomId) {
     toast("Lỗi gọi: " + e.message, "error");
   }
 }
-window.callUser = callUser;
-window.doJoinRoom = doJoinRoom;
-window.flyToPoi = flyToPoi;
 
 function endActiveCall() {
   state.callManager?.end();
@@ -1597,32 +1575,14 @@ async function rejectIncomingCall() {
     state.pendingIncoming = null;
   }
 }
-window.acceptIncomingCall = acceptIncomingCall;
-window.rejectIncomingCall = rejectIncomingCall;
-window.endActiveCall = endActiveCall;
-window.leaveRoom = leaveRoom;
-window.refreshRooms = refreshRooms;
-window.promptCreateRoom = promptCreateRoom;
-window.promptJoinRoom = promptJoinRoom;
-window.calculateRoute = calculateRoute;
-window.shareRoute = shareRoute;
-window.clearRoute = clearRoute;
-window.startPickDestMode = startPickDestMode;
-window.startAddPoiMode = startAddPoiMode;
-window.startReportMode = startReportMode;
-window.submitReport = submitReport;
-window.submitPoi = submitPoi;
-window.closeReport = closeReport;
-window.closePoiModal = closePoiModal;
-window.toggleLayers = toggleLayers;
-window.setBaseLayer = setBaseLayer;
-window.toggleMapillary = toggleMapillary;
-window.toggleTraffic = toggleTraffic;
-window.locateMe = locateMe;
-window.clearSearch = clearSearch;
-window.logoutUser = logoutUser;
-window.cycleSheet = cycleSheet;
-window.switchTab = switchTab;
+
+/* ============================================================
+   SHARE POI / ROUTE / DEEP LINK
+   ============================================================ */
+window.__sharePoi = id => {
+  const url = `${location.origin}${location.pathname}#poi=${id}`;
+  navigator.clipboard.writeText(url).then(() => toast("Đã copy link địa điểm", "success"));
+};
 
 /* ============================================================
    BOTTOM SHEET
@@ -1652,10 +1612,8 @@ function switchTab(tab, btn) {
   });
   btn.classList.remove("text-gray-500");
   btn.classList.add("tab-active", "text-cyan-400");
-
   document.querySelectorAll('[id^="tab-"]').forEach(el => el.classList.add("hidden"));
   $("tab-" + tab).classList.remove("hidden");
-
   if (sheetState === "collapsed") {
     const s = $("bottomSheet");
     s.classList.remove("collapsed");
@@ -1701,6 +1659,38 @@ function escapeAttr(s) {
 }
 
 /* ============================================================
+   GLOBAL EXPORTS (cho onclick=)
+   ============================================================ */
+window.callUser = callUser;
+window.doJoinRoom = doJoinRoom;
+window.leaveRoom = leaveRoomFn;
+window.refreshRooms = refreshRooms;
+window.promptCreateRoom = promptCreateRoom;
+window.promptJoinRoom = promptJoinRoom;
+window.calculateRoute = calculateRoute;
+window.shareRoute = shareRoute;
+window.clearRoute = clearRoute;
+window.startPickDestMode = startPickDestMode;
+window.startAddPoiMode = startAddPoiMode;
+window.startReportMode = startReportMode;
+window.submitReport = submitReport;
+window.submitPoi = submitPoi;
+window.closeReport = closeReport;
+window.closePoiModal = closePoiModal;
+window.toggleLayers = toggleLayers;
+window.setBaseLayer = setBaseLayer;
+window.toggleMapillary = toggleMapillary;
+window.toggleTraffic = toggleTraffic;
+window.locateMe = locateMe;
+window.clearSearch = clearSearch;
+window.logoutUser = logoutUser;
+window.cycleSheet = cycleSheet;
+window.switchTab = switchTab;
+window.acceptIncomingCall = acceptIncomingCall;
+window.rejectIncomingCall = rejectIncomingCall;
+window.endActiveCall = endActiveCall;
+
+/* ============================================================
    BOOTSTRAP
    ============================================================ */
 function onUserSignedIn(user) {
@@ -1735,6 +1725,11 @@ function onUserSignedIn(user) {
 
   if (!state.appStarted) {
     initMap();
+  } else {
+    // Map đã init → chỉ cần refresh
+    refreshCommunity();
+    refreshNearbyUsers();
+    refreshRooms();
   }
 }
 
@@ -1751,7 +1746,6 @@ function bootstrap() {
   setupAuthUI();
   setupVehiclePicker();
 
-  // Parse hash route
   setTimeout(() => {
     const h = location.hash.slice(1);
     if (h.startsWith("route=")) {
@@ -1767,6 +1761,17 @@ function bootstrap() {
           }
         }, 1500);
       }
+    } else if (h.startsWith("poi=")) {
+      const id = h.slice(4);
+      setTimeout(() => {
+        get(ref(db, `pois/${id}`)).then(snap => {
+          const p = snap.val();
+          if (p) {
+            state.map?.flyTo({ center: [p.lng, p.lat], zoom: 16 });
+            setTimeout(() => setDestination(p.lng, p.lat), 500);
+          }
+        });
+      }, 1500);
     }
   }, 1000);
 
