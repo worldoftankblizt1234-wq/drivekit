@@ -2,10 +2,9 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<!-- Thẻ referrer giúp tránh bị chặn CORS trên một số WebView/Zalo -->
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Mapillary Full Test - Header Auth & Fixed Icons</title>
+<title>Mapillary Signs - Full Version</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-serif}
@@ -26,6 +25,9 @@
   #tools button.warn{background:#ef4444}
   #tools button.ok{background:#10b981}
   #tools button:active{transform:scale(.97)}
+  .sign-popup { font-size:13px; line-height:1.5; min-width:220px; }
+  .sign-popup b { font-size: 15px; color: #111; }
+  .sign-popup .raw-val { font-size: 11px; color: #6b7280; font-family: monospace; margin-top: 2px;}
 </style>
 </head>
 <body>
@@ -34,16 +36,14 @@
 
 <div id="info">
   <b>🔍 Mapillary Debug</b><br>
-  Token (Header): <span id="status-token" class="status pending">checking...</span><br>
-  Source (Tiles): <span id="status-source" class="status pending">pending</span><br>
+  Source: <span id="status-source" class="status pending">pending</span><br>
   Icons: <span id="status-icons" class="status pending">pending</span><br>
   Features: <b id="feature-count">0</b> • Zoom: <b id="zoom-level">-</b>
 </div>
 
 <div id="tools">
-  <button class="ok" id="btn-test-token">1. Test Token (Header)</button>
-  <button class="warn" id="btn-toggle-icons">2. Toggle Icon / Circle</button>
-  <button class="ok" id="btn-goto-nyc" style="background:#0d6efd;">3. Tới New York</button>
+  <button class="warn" id="btn-toggle-icons">Toggle Icon / Circle</button>
+  <button class="ok" id="btn-goto-nyc" style="background:#0d6efd;">Tới New York</button>
 </div>
 
 <script src="https://unpkg.com/vconsole@3.15.1/dist/vconsole.min.js"></script>
@@ -54,12 +54,12 @@
 
 <script>
 /* ============================================================
-   1. TOKEN CỦA BẠN
+   1. TOKEN
    ============================================================ */
 const TOKEN = 'MLY|30124595887140717|6f7fa14af38d34316e4f6ba9388e1be4'.trim();
 
 /* ============================================================
-   2. HELPERS & ICONS (SVG Base64)
+   2. HELPERS & DICTIONARY
    ============================================================ */
 function setStatus(id, status, text) {
   const el = document.getElementById('status-' + id);
@@ -71,6 +71,32 @@ function setStatus(id, status, text) {
 function svgToBase64(svgString) {
   const base64 = btoa(unescape(encodeURIComponent(svgString)));
   return 'data:image/svg+xml;base64,' + base64;
+}
+
+// Từ điển dịch tên biển báo thô của Mapillary sang tiếng Việt
+function getSignName(rawValue) {
+  if (!rawValue) return 'Biển báo không xác định';
+  const v = rawValue.toLowerCase();
+  
+  if (v.includes('stop')) return 'Dừng lại (STOP)';
+  if (v.includes('yield')) return 'Nhường đường';
+  if (v.includes('no-entry')) return 'Cấm đi vào';
+  if (v.includes('maximum-speed-limit')) {
+    const match = v.match(/\d+/);
+    return match ? `Tốc độ tối đa ${match[0]}` : 'Giới hạn tốc độ';
+  }
+  if (v.includes('no-parking')) return 'Cấm đỗ xe';
+  if (v.includes('no-stopping')) return 'Cấm dừng xe';
+  if (v.includes('pedestrian')) return 'Đường dành cho người đi bộ';
+  if (v.includes('one-way')) return 'Đường một chiều';
+  if (v.includes('warning')) return 'Biển cảnh báo nguy hiểm';
+  if (v.includes('complementary--texts')) return 'Biển phụ (chữ)';
+  if (v.includes('complementary')) return 'Biển phụ';
+  if (v.includes('regulatory')) return 'Biển hiệu lệnh';
+  if (v.includes('information')) return 'Biển chỉ dẫn thông tin';
+  
+  // Trả về tên đã format nếu không có trong từ điển
+  return rawValue.replace(/--/g, ' ').replace(/-/g, ' ').toUpperCase();
 }
 
 const ICONS = {
@@ -107,44 +133,9 @@ const map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
 /* ============================================================
-   4. TEST TOKEN BẰNG HEADER (TRÁNH LỖI 500)
-   ============================================================ */
-async function testTokenHeader() {
-  setStatus('token', 'pending', 'testing...');
-  console.log('%c [TEST] Đang test token bằng Header...', 'color:#f59e0b;font-weight:bold');
-  
-  try {
-    // Gọi API /me bằng Header thay vì query param
-    const res = await fetch('https://graph.mapillary.com/me', {
-      method: 'GET',
-      headers: {
-        'Authorization': `OAuth ${TOKEN}`
-      }
-    });
-    
-    console.log('HTTP Status:', res.status);
-    const data = await res.json();
-    console.log('Data:', data);
-
-    if (res.ok && !data.error) {
-      setStatus('token', 'ok', 'OK ✓');
-      console.log('%c ✅ TOKEN HỢP LỆ (Header Auth thành công)!', 'color:#0f0;font-weight:bold;font-size:14px');
-    } else {
-      setStatus('token', 'fail', 'FAIL ' + res.status);
-      console.error('❌ Token lỗi hoặc API từ chối:', data);
-    }
-  } catch (e) {
-    setStatus('token', 'fail', 'FETCH ERR');
-    console.error('❌ Lỗi mạng (Có thể do CORS trên di động):', e);
-  }
-}
-testTokenHeader(); // Tự động chạy khi mở
-
-/* ============================================================
-   5. MAP LOAD (SOURCE & ICONS)
+   4. MAP LOAD
    ============================================================ */
 map.on('load', () => {
-  // Dùng query param cho Vector Tiles (MapLibre yêu cầu)
   const tileUrl = `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${encodeURIComponent(TOKEN)}`;
   
   map.addSource('mly-signs', {
@@ -155,7 +146,6 @@ map.on('load', () => {
   });
   setStatus('source', 'pending', 'loading...');
 
-  // Lớp dự phòng (Fallback) - Chấm tròn xanh
   map.addLayer({
     id: 'sign-circle',
     type: 'circle',
@@ -169,7 +159,6 @@ map.on('load', () => {
     }
   });
 
-  // Load Icons bằng HTMLImageElement (Tránh lỗi fetch data:image trên mobile)
   loadAllIcons().then(allOk => {
     if (allOk) {
       addSymbolLayer();
@@ -186,7 +175,6 @@ map.on('load', () => {
     }
   });
 
-  // Bắt sự kiện click vào icon
   map.on('click', 'sign-icon', onSignClick);
   map.on('mouseenter', 'sign-icon', () => map.getCanvas().style.cursor = 'pointer');
   map.on('mouseleave', 'sign-icon', () => map.getCanvas().style.cursor = '');
@@ -195,7 +183,7 @@ map.on('load', () => {
 });
 
 /* ============================================================
-   6. LOAD ICONS (DÙNG new Image())
+   5. LOAD ICONS
    ============================================================ */
 function loadAllIcons() {
   const promises = Object.entries(ICONS).map(([name, dataUri]) => {
@@ -207,26 +195,17 @@ function loadAllIcons() {
             map.addImage('sign-' + name, img, { pixelRatio: 2 });
           }
           resolve({ name, ok: true });
-        } catch (e) {
-          console.error(`[ADD IMAGE FAIL] ${name}`, e);
-          resolve({ name, ok: false });
-        }
+        } catch (e) { resolve({ name, ok: false }); }
       };
-      img.onerror = (err) => {
-        console.error(`[IMG LOAD FAIL] ${name}`, err);
-        resolve({ name, ok: false });
-      };
-      img.src = dataUri; // Gán data URI trực tiếp
+      img.onerror = () => resolve({ name, ok: false });
+      img.src = dataUri;
     });
   });
-
-  return Promise.all(promises).then(results => {
-    return results.every(r => r.ok); // Trả về true nếu tất cả load thành công
-  });
+  return Promise.all(promises).then(results => results.every(r => r.ok));
 }
 
 /* ============================================================
-   7. ADD SYMBOL LAYER
+   6. SYMBOL LAYER
    ============================================================ */
 function addSymbolLayer() {
   if (map.getLayer('sign-icon')) return;
@@ -260,24 +239,27 @@ function addSymbolLayer() {
     }
   });
   
-  // Ẩn lớp chấm tròn dự phòng khi đã có icon
   map.setLayoutProperty('sign-circle', 'visibility', 'none');
 }
 
 /* ============================================================
-   8. CLICK HANDLER (Lấy ảnh thật bằng Header Auth)
+   7. CLICK HANDLER (Đã sửa lỗi API)
    ============================================================ */
 async function onSignClick(e) {
   const f = e.features[0];
   const featureId = f.properties.id || f.id;
-  const value = f.properties.value || '(unknown)';
+  const rawValue = f.properties.value || '';
+  
+  // Dịch tên biển báo sang tiếng Việt
+  const displayName = getSignName(rawValue);
 
   const popup = new maplibregl.Popup({ offset: 16, maxWidth: '300px' })
     .setLngLat(e.lngLat)
     .setHTML(`
-      <div style="font-size:13px;line-height:1.5;min-width:220px">
-        <b>🛑 ${value}</b><br>
-        <span style="color:#6b7280;font-size:11px">ID: ${featureId || 'n/a'}</span>
+      <div class="sign-popup">
+        <b>🛑 ${displayName}</b>
+        <div class="raw-val">${rawValue}</div>
+        <div style="color:#6b7280;font-size:11px;margin-top:4px">ID: ${featureId || 'n/a'}</div>
         <div id="popup-img" style="margin-top:8px;font-size:11px;color:#9ca3af">Đang tải ảnh...</div>
       </div>
     `)
@@ -286,38 +268,39 @@ async function onSignClick(e) {
   if (!featureId) return;
 
   try {
-    // Dùng Header để lấy thông tin ảnh
-    const r1 = await fetch(`https://graph.mapillary.com/${featureId}?fields=id,value,images`, {
-      headers: { 'Authorization': `OAuth ${TOKEN}` }
-    });
+    // Gửi token qua Query Param (Đã sửa từ Header sang Param vì Header bị lỗi 400)
+    const r1 = await fetch(`https://graph.mapillary.com/${featureId}?access_token=${TOKEN}&fields=id,value,images`);
     const d1 = await r1.json();
-    const imgId = d1.images?.[0];
     
+    if (d1.error) {
+      document.getElementById('popup-img').textContent = `Lỗi API: ${d1.error.message}`;
+      return;
+    }
+
+    const imgId = d1.images?.[0];
     if (!imgId) {
       document.getElementById('popup-img').textContent = 'Không có ảnh liên kết';
       return;
     }
 
-    const r2 = await fetch(`https://graph.mapillary.com/${imgId}?fields=thumb_512_url`, {
-      headers: { 'Authorization': `OAuth ${TOKEN}` }
-    });
+    const r2 = await fetch(`https://graph.mapillary.com/${imgId}?access_token=${TOKEN}&fields=thumb_512_url`);
     const d2 = await r2.json();
     
     const el = document.getElementById('popup-img');
     if (el && d2.thumb_512_url) {
-      el.innerHTML = `<img src="${d2.thumb_512_url}" style="width:100%;border-radius:8px;display:block" loading="lazy"/>`;
+      el.innerHTML = `<img src="${d2.thumb_512_url}" style="width:100%;border-radius:8px;display:block;margin-top:5px;" loading="lazy"/>`;
     } else if (el) {
       el.textContent = 'Không tải được ảnh';
     }
   } catch (err) {
     const el = document.getElementById('popup-img');
-    if (el) el.textContent = 'Lỗi tải ảnh! (Xem vConsole)';
-    console.error('Lỗi click:', err);
+    if (el) el.textContent = 'Lỗi mạng khi tải ảnh!';
+    console.error(err);
   }
 }
 
 /* ============================================================
-   9. CONTROLS & BUTTONS
+   8. CONTROLS
    ============================================================ */
 function updateCount() {
   try {
@@ -326,8 +309,6 @@ function updateCount() {
   } catch (_) {}
   document.getElementById('zoom-level').textContent = map.getZoom().toFixed(1);
 }
-
-document.getElementById('btn-test-token').addEventListener('click', testTokenHeader);
 
 document.getElementById('btn-goto-nyc').addEventListener('click', () => {
   map.flyTo({ center: [-73.9855, 40.7580], zoom: 17 });
