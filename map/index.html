@@ -56,53 +56,29 @@
         const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
         const MAPILLARY_TOKEN = 'MLY|30124595887140717|6f7fa14af38d34316e4f6ba9388e1be4';
 
-        // =====================================================================
-        // 1. KHO SVG BIỂN BÁO VIỆT NAM (TỰ VẼ THEO CHUẨN 41:2024)
-        // =====================================================================
+        // Kho SVG (Giữ nguyên, không thay đổi)
         const vnSignSVG = {
-            // --- NHÓM BIỂN CẤM (P) ---
             'no_entry': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#E60000" stroke="#fff" stroke-width="4"/><rect x="20" y="42" width="60" height="16" fill="#fff"/></svg>`,
-            
             'no_left_turn': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#fff" stroke="#E60000" stroke-width="10"/><path d="M65 70V40H35M35 40L50 25M35 40L50 55" fill="none" stroke="#111" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><line x1="18" y1="82" x2="82" y2="18" stroke="#E60000" stroke-width="10"/></svg>`,
-            
             'no_right_turn': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#fff" stroke="#E60000" stroke-width="10"/><path d="M35 70V40H65M65 40L50 25M65 40L50 55" fill="none" stroke="#111" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><line x1="18" y1="82" x2="82" y2="18" stroke="#E60000" stroke-width="10"/></svg>`,
-            
             'no_u_turn': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#fff" stroke="#E60000" stroke-width="10"/><path d="M35 70V40A15 15 0 0 1 65 40V65M65 65L55 55M65 65L75 55" fill="none" stroke="#111" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><line x1="18" y1="82" x2="82" y2="18" stroke="#E60000" stroke-width="10"/></svg>`,
-
             'no_parking': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#0055CC" stroke="#E60000" stroke-width="10"/><line x1="18" y1="82" x2="82" y2="18" stroke="#E60000" stroke-width="10"/></svg>`,
-            
             'no_stopping': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#0055CC" stroke="#E60000" stroke-width="10"/><line x1="18" y1="82" x2="82" y2="18" stroke="#E60000" stroke-width="10"/><line x1="18" y1="18" x2="82" y2="82" stroke="#E60000" stroke-width="10"/></svg>`,
-
             'no_overtaking': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#fff" stroke="#E60000" stroke-width="10"/><path d="M30 65H60V45H45L55 35H70V65" fill="none" stroke="#111" stroke-width="8"/><line x1="18" y1="82" x2="82" y2="18" stroke="#E60000" stroke-width="10"/></svg>`,
-            
-            'speed_limit': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#fff" stroke="#E60000" stroke-width="12"/><text x="50" y="65" font-family="Arial, sans-serif" font-size="42" font-weight="bold" text-anchor="middle" fill="#111">50</text></svg>`, // Số sẽ được đè tự động bằng JS
-
+            'speed_limit': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#fff" stroke="#E60000" stroke-width="12"/></svg>`,
             'no_horn': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#fff" stroke="#E60000" stroke-width="10"/><path d="M30 40V60H40L55 70V30L40 40H30Z" fill="#111"/><line x1="18" y1="82" x2="82" y2="18" stroke="#E60000" stroke-width="10"/></svg>`,
-
-            // --- NHÓM BIỂN HIỆU LỆNH (R) ---
             'go_straight': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#0055CC"/><path d="M50 75V35M50 35L35 50M50 35L65 50" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-            
             'turn_left': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#0055CC"/><path d="M65 75V45H35M35 45L50 30M35 45L50 60" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-            
             'turn_right': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#0055CC"/><path d="M35 75V45H65M65 45L50 30M65 45L50 60" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-
             'roundabout': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#0055CC"/><path d="M50 25A25 25 0 0 1 75 50M75 50L65 40M75 50L85 40" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/><path d="M50 75A25 25 0 0 1 25 50M25 50L15 60M25 50L35 60" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/></svg>`,
-
             'pedestrian_only': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#0055CC"/><circle cx="50" cy="30" r="8" fill="#fff"/><path d="M50 40L40 60H55L50 75M50 50L65 55" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-
             'car_only': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#0055CC"/><path d="M25 55L30 40H70L75 55V65H25V55Z" fill="#fff"/><circle cx="35" cy="65" r="5" fill="#111"/><circle cx="65" cy="65" r="5" fill="#111"/></svg>`,
-
-            // --- FALLBACK (BIỂN KHÔNG XÁC ĐỊNH) ---
             'fallback': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#6b7280" stroke="#fff" stroke-width="4"/><text x="50" y="68" font-family="Arial, sans-serif" font-size="45" font-weight="bold" text-anchor="middle" fill="#fff">?</text></svg>`
         };
 
-        // =====================================================================
-        // 2. HÀM ÁNH XẠ TỪ MÃ MAPILLARY -> SVG VIỆT NAM
-        // =====================================================================
         function getVNSignKey(mapillaryValue) {
             if (!mapillaryValue) return 'fallback';
             const val = mapillaryValue.toLowerCase();
-
             if (val.includes('no-entry') || val.includes('one-way')) return 'no_entry';
             if (val.includes('no-left-turn')) return 'no_left_turn';
             if (val.includes('no-right-turn')) return 'no_right_turn';
@@ -112,119 +88,98 @@
             if (val.includes('no-overtaking')) return 'no_overtaking';
             if (val.includes('maximum-speed-limit')) return 'speed_limit';
             if (val.includes('no-horn') || val.includes('no-sound')) return 'no_horn';
-            
             if (val.includes('go-straight') || val.includes('straight-ahead')) return 'go_straight';
             if (val.includes('turn-left')) return 'turn_left';
             if (val.includes('turn-right')) return 'turn_right';
             if (val.includes('roundabout')) return 'roundabout';
             if (val.includes('pedestrian')) return 'pedestrian_only';
             if (val.includes('motor-vehicles') || val.includes('car')) return 'car_only';
-
             return 'fallback';
         }
 
-        // Dịch tên biển báo sang tiếng Việt
         function translateVNSign(key) {
             const dict = {
-                'no_entry': 'Cấm đi vào (P.101)',
-                'no_left_turn': 'Cấm rẽ trái (P.123a)',
-                'no_right_turn': 'Cấm rẽ phải (P.123b)',
-                'no_u_turn': 'Cấm quay đầu xe (P.124a)',
-                'no_parking': 'Cấm đỗ xe (P.131a)',
-                'no_stopping': 'Cấm dừng và đỗ xe (P.130)',
-                'no_overtaking': 'Cấm vượt (P.125)',
-                'speed_limit': 'Giới hạn tốc độ (P.127)',
-                'no_horn': 'Cấm sử dụng còi (P.128)',
-                'go_straight': 'Hướng đi phải theo (R.301a)',
-                'turn_left': 'Hướng đi phải theo (R.301b)',
-                'turn_right': 'Hướng đi phải theo (R.301c)',
-                'roundabout': 'Vòng xuyến (R.303)',
-                'pedestrian_only': 'Đường dành cho người đi bộ (R.305)',
-                'car_only': 'Đường dành cho xe ô tô (R.403a)',
-                'fallback': 'Biển báo chưa xác định'
+                'no_entry': 'Cấm đi vào (P.101)', 'no_left_turn': 'Cấm rẽ trái (P.123a)',
+                'no_right_turn': 'Cấm rẽ phải (P.123b)', 'no_u_turn': 'Cấm quay đầu xe (P.124a)',
+                'no_parking': 'Cấm đỗ xe (P.131a)', 'no_stopping': 'Cấm dừng và đỗ xe (P.130)',
+                'no_overtaking': 'Cấm vượt (P.125)', 'speed_limit': 'Giới hạn tốc độ (P.127)',
+                'no_horn': 'Cấm sử dụng còi (P.128)', 'go_straight': 'Hướng đi phải theo (R.301a)',
+                'turn_left': 'Hướng đi phải theo (R.301b)', 'turn_right': 'Hướng đi phải theo (R.301c)',
+                'roundabout': 'Vòng xuyến (R.303)', 'pedestrian_only': 'Đường dành cho người đi bộ (R.305)',
+                'car_only': 'Đường dành cho xe ô tô (R.403a)', 'fallback': 'Biển báo chưa xác định'
             };
             return dict[key] || 'Biển báo giao thông';
         }
 
-        // =====================================================================
-        // 3. KHỞI TẠO BẢN ĐỒ & TẢI ICON VÀO WEBGL
-        // =====================================================================
         const map = new maplibregl.Map({
             container: 'map',
             style: `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`,
-            center: [105.8542, 21.0285], 
-            zoom: 16,
+            center: [-73.9855, 40.7580], // Đổi sang New York để test (Hà Nội ít biển báo Mapillary)
+            zoom: 17,
             minzoom: 3
         });
 
         map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-        // Hàm chuyển đổi SVG text thành HTMLImageElement và nạp vào MapLibre
+        // HÀM LOAD SVG ĐÃ ĐƯỢC FIX LỖI TRÊN MOBILE
         function loadSVGsToMap() {
             return new Promise((resolve) => {
                 let loaded = 0;
                 const keys = Object.keys(vnSignSVG);
                 
                 keys.forEach(key => {
-                    const svgText = vnSignSVG[key];
-                    // Tạo Blob URL từ chuỗi SVG
-                    const blob = new Blob([svgText], {type: 'image/svg+xml;charset=utf-8'});
-                    const url = URL.createObjectURL(blob);
+                    // BƯỚC SỬA: Chèn width="100" height="100" vào thẻ svg để trình duyệt điện thoại render được
+                    const svgText = vnSignSVG[key].replace('<svg ', '<svg width="100" height="100" ');
+                    // Dùng Data URI thay vì Blob để tránh lỗi bảo mật trên iOS/Safari
+                    const dataUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
                     
                     const img = new Image();
                     img.onload = () => {
                         if (!map.hasImage('vn-' + key)) {
-                            // Vẽ lên canvas 64x64 để chuẩn hóa kích thước
                             const canvas = document.createElement('canvas');
-                            canvas.width = 64; canvas.height = 64;
+                            canvas.width = 100; // Tăng lên 100x100
+                            canvas.height = 100;
                             const ctx = canvas.getContext('2d');
-                            ctx.drawImage(img, 0, 0, 64, 64);
-                            map.addImage('vn-' + key, canvas, { pixelRatio: 1 });
+                            ctx.drawImage(img, 0, 0, 100, 100);
+                            // Dùng pixelRatio 2 để ảnh hiển thị cực nét
+                            map.addImage('vn-' + key, canvas, { pixelRatio: 2 });
                         }
-                        URL.revokeObjectURL(url);
                         loaded++;
                         if (loaded === keys.length) resolve();
                     };
                     img.onerror = () => {
-                        console.error('Lỗi load SVG:', key);
+                        console.error('Lỗi render SVG:', key);
                         loaded++;
                         if (loaded === keys.length) resolve();
                     };
-                    img.src = url;
+                    img.src = dataUri;
                 });
             });
         }
 
         map.on('load', async () => {
-            // Nạp toàn bộ SVG Việt Nam vào MapLibre
+            // Chờ load xong toàn bộ icon rồi mới thêm Layer
             await loadSVGsToMap();
+            console.log('✅ Đã nạp thành công các icon SVG');
 
-            // Thêm Source dữ liệu Mapillary
             map.addSource('mapillary-signs', {
                 type: 'vector',
                 tiles: [`https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`],
-                minzoom: 14,
-                maxzoom: 14
+                minzoom: 14, maxzoom: 14
             });
 
-            // XÂY DỰNG BIỂU THỨC ÁNH XẠ ICON CHO MAPLIBRE
-            // Bước này rất quan trọng: Nó tự động map mã thô của Mapillary ra tên icon 'vn-...'
             let iconExpression = ['case'];
             Object.keys(vnSignSVG).forEach(key => {
                 if (key === 'fallback') return;
-                let keyword = key.replace(/_/g, '-'); // vd: no_left_turn -> no-left-turn
-                
-                // Xử lý các trường hợp đặc biệt
+                let keyword = key.replace(/_/g, '-');
                 if (key === 'no_entry') keyword = 'no-entry';
                 if (key === 'speed_limit') keyword = 'maximum-speed-limit';
                 if (key === 'go_straight') keyword = 'straight';
                 if (key === 'car_only') keyword = 'motor-vehicles';
-
                 iconExpression.push(['in', keyword, ['downcase', ['get', 'value']]], 'vn-' + key);
             });
-            iconExpression.push('vn-fallback'); // Mặc định nếu không khớp
+            iconExpression.push('vn-fallback');
 
-            // LỚP 1: ICON BIỂN BÁO
             map.addLayer({
                 id: 'traffic-signs-layer',
                 type: 'symbol',
@@ -233,13 +188,12 @@
                 minzoom: 14,
                 layout: {
                     'icon-image': iconExpression,
-                    'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.4, 18, 0.7],
+                    'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.3, 18, 0.6],
                     'icon-allow-overlap': true,
                     'icon-ignore-placement': true
                 }
             });
 
-            // LỚP 2: TEXT TỐC ĐỘ (Chèn số đè lên trên icon P.127)
             map.addLayer({
                 id: 'speed-text-layer',
                 type: 'symbol',
@@ -250,18 +204,14 @@
                 layout: {
                     'text-field': ['slice', ['get', 'value'], ['+', ['index-of', ['get', 'value'], 'limit-'], 6], ['index-of', ['get', 'value'], '--']],
                     'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                    'text-size': ['interpolate', ['linear'], ['zoom'], 14, 11, 18, 20],
+                    'text-size': ['interpolate', ['linear'], ['zoom'], 14, 8, 18, 16],
                     'text-allow-overlap': true,
                     'text-ignore-placement': true,
-                    'text-anchor': 'middle',
-                    'text-offset': [0, 0.1] // Căn giữa số
+                    'text-anchor': 'middle'
                 },
                 paint: { 'text-color': '#111111' }
             });
 
-            // =====================================================================
-            // 4. TƯƠNG TÁC & POPUP
-            // =====================================================================
             const interactiveLayers = ['traffic-signs-layer', 'speed-text-layer'];
             map.on('mouseenter', interactiveLayers, () => map.getCanvas().style.cursor = 'pointer');
             map.on('mouseleave', interactiveLayers, () => map.getCanvas().style.cursor = '');
@@ -271,7 +221,6 @@
                 const props = feature.properties;
                 const rawValue = props.value || '';
                 
-                // Lấy key SVG tương ứng
                 const svgKey = getVNSignKey(rawValue);
                 const displayName = translateVNSign(svgKey);
                 
@@ -283,44 +232,34 @@
                 const popupHTML = `
                     <div class="popup-header">${displayName}</div>
                     <div class="popup-body">
-                        <div class="popup-row"><span class="popup-label">Mã Mapillary:</span> <span class="popup-value">${rawValue}</span></div>
+                        <div class="popup-row"><span class="popup-label">Mã gốc:</span> <span class="popup-value">${rawValue}</span></div>
                         <div class="popup-row"><span class="popup-label">Nhóm:</span> <span>${category}</span></div>
                         <div class="popup-img-container" id="popup-img-box">
-                            <span class="loading-text">📷 Đang tải ảnh thực tế...</span>
+                            <span class="loading-text">📷 Đang tải ảnh...</span>
                         </div>
                     </div>
                 `;
 
                 new maplibregl.Popup({ offset: 15, maxWidth: '280px' }).setLngLat(e.lngLat).setHTML(popupHTML).addTo(map);
 
-                // Tải ảnh thực tế
                 try {
                     const featureId = props.id;
                     if (!featureId) throw new Error('No ID');
-
                     const res1 = await fetch(`https://graph.mapillary.com/${featureId}?access_token=${MAPILLARY_TOKEN}&fields=images`);
                     const data1 = await res1.json();
                     const imageId = data1.images?.[0];
-
                     if (imageId) {
                         const res2 = await fetch(`https://graph.mapillary.com/${imageId}?access_token=${MAPILLARY_TOKEN}&fields=thumb_512_url`);
                         const data2 = await res2.json();
-                        const imgUrl = data2.thumb_512_url;
-
-                        if (imgUrl) {
-                            const imgBox = document.getElementById('popup-img-box');
-                            if (imgBox) imgBox.innerHTML = `<img src="${imgUrl}" alt="Ảnh biển báo" />`;
+                        if (data2.thumb_512_url) {
+                            document.getElementById('popup-img-box').innerHTML = `<img src="${data2.thumb_512_url}" />`;
                         } else throw new Error('No img');
                     } else throw new Error('No image linked');
                 } catch (err) {
-                    const imgBox = document.getElementById('popup-img-box');
-                    if (imgBox) imgBox.innerHTML = `<span class="loading-text" style="color:#ef4444">Không có ảnh.</span>`;
+                    document.getElementById('popup-img-box').innerHTML = `<span class="loading-text" style="color:#ef4444">Không có ảnh.</span>`;
                 }
             });
 
-            // =====================================================================
-            // 5. BỘ LỌC
-            // =====================================================================
             function applyFilter() {
                 const isWarning = document.getElementById('filter-warning').checked;
                 const isRegulatory = document.getElementById('filter-regulatory').checked;
@@ -330,9 +269,7 @@
                 if (isWarning) conditions.push(['in', 'warning--', ['get', 'value']]);
                 if (isRegulatory) conditions.push(['in', 'regulatory--', ['get', 'value']]);
                 if (isInfo) conditions.push(['in', 'information--', ['get', 'value']]);
-
-                // Đảm bảo lọc bớt các trường hợp undefined
-                if(conditions.length === 1) conditions.push(['==', '1', '2']); // Ẩn hết nếu không chọn gì
+                if(conditions.length === 1) conditions.push(['==', '1', '2']);
 
                 map.setFilter('traffic-signs-layer', conditions);
                 map.setFilter('speed-text-layer', ['all', ['in', 'maximum-speed-limit', ['get', 'value']], conditions]);
