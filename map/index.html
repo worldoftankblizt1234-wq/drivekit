@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hệ thống Biển báo Giao thông Thông minh</title>
+    <title>Hệ thống Biển báo Giao thông Thông minh - Chuẩn QCVN 41:2024</title>
     
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -68,59 +68,80 @@
         map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
         // ==========================================
-        // TỪ ĐIỂN DỊCH MÃ MAPILLARY SANG TIẾNG VIỆT
+        // 1. TỪ ĐIỂN DỊCH MÃ MAPILLARY SANG TIẾNG VIỆT (CHUẨN QCVN 41:2024)
         // ==========================================
         function translateMapillaryCode(code) {
             if (!code) return 'Biển báo không xác định';
             const c = code.toLowerCase();
 
-            // 1. Các biển Cảnh báo (Warning)
-            if (c.includes('junction-with-a-side-road-perpendicular-right')) return 'Giao lộ với đường nhánh vuông góc bên phải';
-            if (c.includes('junction-with-a-side-road-perpendicular-left')) return 'Giao lộ với đường nhánh vuông góc bên trái';
-            if (c.includes('pedestrian-crossing')) return 'Đường dành cho người đi bộ cắt ngang';
-            if (c.includes('children')) return 'Cảnh báo trẻ em qua đường';
-            if (c.includes('curve-to-right')) return 'Đường cong sang phải';
-            if (c.includes('curve-to-left')) return 'Đường cong sang trái';
-            if (c.includes('slippery')) return 'Đường trơn trượt';
-            if (c.includes('steep-hill')) return 'Dốc nguy hiểm';
-            if (c.includes('road-narrows')) return 'Đường bị thu hẹp';
-            if (c.includes('warning')) return 'Cảnh báo nguy hiểm khác';
-
-            // 2. Các biển Cấm / Hiệu lệnh (Regulatory)
-            if (c.includes('stop')) return 'Dừng lại (STOP)';
-            if (c.includes('yield') || c.includes('give-way')) return 'Nhường đường';
-            if (c.includes('no-entry')) return 'Cấm đi vào (Đường một chiều)';
-            if (c.includes('no-parking')) return 'Cấm đỗ xe';
-            if (c.includes('no-stopping')) return 'Cấm dừng xe';
-            if (c.includes('no-left-turn')) return 'Cấm rẽ trái';
-            if (c.includes('no-right-turn')) return 'Cấm rẽ phải';
-            if (c.includes('no-u-turn')) return 'Cấm quay đầu';
+            // --- NHÓM BIỂN CẤM (P) ---
+            if (c.includes('no-entry')) return 'P.102: Cấm đi ngược chiều';
+            if (c.includes('no-left-turn')) return 'P.123a: Cấm rẽ trái';
+            if (c.includes('no-right-turn')) return 'P.123b: Cấm rẽ phải';
+            if (c.includes('no-parking')) return 'P.131: Cấm đỗ xe';
+            if (c.includes('no-stopping')) return 'P.130: Cấm dừng xe';
             if (c.includes('maximum-speed-limit')) {
                 const match = c.match(/\d+/);
-                return match ? `Tốc độ tối đa ${match[0]} km/h` : 'Giới hạn tốc độ';
+                return match ? `P.127: Tốc độ tối đa ${match[0]} km/h` : 'P.127: Giới hạn tốc độ';
             }
-            if (c.includes('regulatory')) return 'Biển hiệu lệnh khác';
 
-            // 3. Biển Thông tin (Information)
-            if (c.includes('information')) return 'Biển chỉ dẫn thông tin';
+            // --- NHÓM BIỂN NGUY HIỂM (W) ---
+            if (c.includes('junction-with-a-side-road-perpendicular-right')) return 'W.207b: Giao nhau với đường nhánh bên phải';
+            if (c.includes('junction-with-a-side-road-perpendicular-left')) return 'W.207a: Giao nhau với đường nhánh bên trái';
+            if (c.includes('pedestrian-crossing')) return 'W.224: Đường dành cho người đi bộ cắt ngang';
+            if (c.includes('children')) return 'W.225: Cảnh báo trẻ em qua đường';
+            if (c.includes('curve-to-right')) return 'W.201b: Chỗ ngoặt nguy hiểm vòng bên phải';
+            if (c.includes('curve-to-left')) return 'W.201a: Chỗ ngoặt nguy hiểm vòng bên trái';
+            if (c.includes('slippery')) return 'W.217: Đường trơn trượt';
+            if (c.includes('road-narrows')) return 'W.203: Đường bị thu hẹp';
+            if (c.includes('warning')) return 'W: Cảnh báo nguy hiểm khác';
+
+            // --- NHÓM BIỂN HIỆU LỆNH (R) ---
+            if (c.includes('stop')) return 'STOP: Dừng lại';
+            if (c.includes('yield') || c.includes('give-way')) return 'Nhường đường';
+            if (c.includes('roundabout')) return 'R.303: Nơi giao nhau chạy theo vòng xuyến';
+            if (c.includes('keep-right')) return 'R.301b: Hướng đi phải theo (Rẽ phải)';
+            if (c.includes('keep-left')) return 'R.301a: Hướng đi phải theo (Rẽ trái)';
+            if (c.includes('regulatory')) return 'R: Biển hiệu lệnh khác';
+
+            // --- NHÓM BIỂN CHỈ DẪN (I) ---
+            if (c.includes('information')) return 'I: Biển chỉ dẫn thông tin';
 
             return code.replace(/--/g, ' ').replace(/-/g, ' ').toUpperCase();
         }
 
         // ==========================================
-        // BỘ ICON SVG (Vẽ thêm icon đường nhánh)
+        // 2. BỘ ICON SVG CHUẨN QCVN 41:2024
         // ==========================================
         const svgToDataUrl = (svg) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
         const ICONS = {
+            // --- BIỂN CẤM (P) ---
+            'P101': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#dc2626" stroke="#fff" stroke-width="1.5"/><rect x="7" y="13" width="18" height="6" fill="#fff"/></svg>`), // P.102 Cấm đi ngược chiều
+            'P123a': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc2626" stroke-width="3"/><path d="M20 22V14a4 4 0 0 0-4-4h-4m0 0l3-3m-3 3l3 3" fill="none" stroke="#111" stroke-width="3" stroke-linejoin="round"/><line x1="6" y1="6" x2="26" y2="26" stroke="#dc2626" stroke-width="3"/></svg>`), // P.123a Cấm rẽ trái
+            'P123b': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc2626" stroke-width="3"/><path d="M12 22V14a4 4 0 0 1 4-4h4m0 0l-3-3m3 3l-3 3" fill="none" stroke="#111" stroke-width="3" stroke-linejoin="round"/><line x1="6" y1="6" x2="26" y2="26" stroke="#dc2626" stroke-width="3"/></svg>`), // P.123b Cấm rẽ phải
+            'P131': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#dc2626" stroke-width="3"/><path d="M12 22V10h4a4 4 0 0 1 0 8h-4" fill="none" stroke="#fff" stroke-width="2.5"/><line x1="7" y1="7" x2="25" y2="25" stroke="#dc2626" stroke-width="3"/></svg>`), // P.131 Cấm đỗ xe
+            'P130': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#dc2626" stroke-width="3"/><line x1="10" y1="10" x2="22" y2="22" stroke="#dc2626" stroke-width="3"/><line x1="22" y1="10" x2="10" y2="22" stroke="#dc2626" stroke-width="3"/></svg>`), // P.130 Cấm dừng xe
+            'P127': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc2626" stroke-width="4"/></svg>`), // P.127 Giới hạn tốc độ (nền cho text)
+
+            // --- BIỂN NGUY HIỂM (W) ---
+            'W207b': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M16 26V14h8" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/><path d="M16 26V10" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/></svg>`), // W.207b Giao nhau với đường nhánh bên phải
+            'W207a': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M16 26V14H8" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/><path d="M16 26V10" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/></svg>`), // W.207a Giao nhau với đường nhánh bên trái
+            'W224': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="16" cy="11" r="2" fill="#111"/><path d="M15 14v5l-2 4m3-9l2 4 2 2m-4-6l-2 2" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round"/></svg>`), // W.224 Người đi bộ cắt ngang
+            'W225': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="16" r="2" fill="#111"/><path d="M12 19v5m0-5l-2-2m2 2l2-2" fill="none" stroke="#111" stroke-width="1.5"/><circle cx="20" cy="14" r="2" fill="#111"/><path d="M20 17v5m0-5l-2-2m2 2l2-2" fill="none" stroke="#111" stroke-width="1.5"/></svg>`), // W.225 Trẻ em qua đường
+            'W201a': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M22 26c0-8-4-12-12-12" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/></svg>`), // W.201a Ngoặt trái
+            'W201b': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M10 26c0-8 4-12 12-12" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/></svg>`), // W.201b Ngoặt phải
+            'W217': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M12 20c2-2 6-2 8 0s6 2 8 0" fill="none" stroke="#111" stroke-width="2"/><path d="M12 24c2-2 6-2 8 0s6 2 8 0" fill="none" stroke="#111" stroke-width="2"/><path d="M12 16c2-2 6-2 8 0s6 2 8 0" fill="none" stroke="#111" stroke-width="2"/></svg>`), // W.217 Đường trơn trượt
+            'W203': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M8 26l4-12h8l4 12" fill="none" stroke="#111" stroke-width="3" stroke-linejoin="round"/></svg>`), // W.203 Đường bị thu hẹp
+            'W_generic': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><text x="16" y="26" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial" fill="#111">!</text></svg>`), // Biển cảnh báo chung
+
+            // --- BIỂN HIỆU LỆNH (R) ---
+            'R303': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#fff" stroke-width="2"/><path d="M16 8a6 6 0 1 1-6 6" fill="none" stroke="#fff" stroke-width="2"/><polygon points="16,5 16,11 20,8" fill="#fff"/></svg>`), // R.303 Vòng xuyến
+            'R301b': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#fff" stroke-width="2"/><path d="M16 26V12h-6m0 0l4-4m-4 4l4 4" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>`), // R.301b Hướng đi phải theo (rẽ phải)
+            'R301a': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#fff" stroke-width="2"/><path d="M16 26V12h6m0 0l-4-4m4 4l-4 4" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>`), // R.301a Hướng đi phải theo (rẽ trái)
             'stop': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#dc2626" stroke="#fff" stroke-width="1.5"/><text x="16" y="21" text-anchor="middle" font-size="9" font-weight="900" font-family="Arial" fill="#fff">STOP</text></svg>`),
-            'no-entry': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#dc2626" stroke="#fff" stroke-width="1.5"/><rect x="7" y="13" width="18" height="6" fill="#fff"/></svg>`),
-            'speed-empty': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc2626" stroke-width="4"/></svg>`),
-            'no-left': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc2626" stroke-width="3"/><path d="M20 22V14a4 4 0 0 0-4-4h-4m0 0l3-3m-3 3l3 3" fill="none" stroke="#111" stroke-width="3" stroke-linejoin="round"/><line x1="6" y1="6" x2="26" y2="26" stroke="#dc2626" stroke-width="3"/></svg>`),
-            'no-right': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc2626" stroke-width="3"/><path d="M12 22V14a4 4 0 0 1 4-4h4m0 0l-3-3m3 3l-3 3" fill="none" stroke="#111" stroke-width="3" stroke-linejoin="round"/><line x1="6" y1="6" x2="26" y2="26" stroke="#dc2626" stroke-width="3"/></svg>`),
-            // ICON ĐƯỜNG NHÁNH (Dành riêng cho mã bạn hỏi)
-            'junction-right': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M16 26V14h8" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/><path d="M16 26V10" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/></svg>`),
-            'warning': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><text x="16" y="26" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial" fill="#111">!</text></svg>`),
-            'info': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#0d6efd" stroke="#fff" stroke-width="2"/><text x="16" y="24" text-anchor="middle" font-size="20" font-weight="900" font-family="Arial" fill="#fff">i</text></svg>`),
+            
+            // --- BIỂN CHỈ DẪN (I) & KHÁC ---
+            'I_generic': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><rect x="2" y="8" width="28" height="16" fill="#0d6efd" stroke="#fff" stroke-width="2"/><text x="16" y="22" text-anchor="middle" font-size="18" font-weight="900" font-family="Arial" fill="#fff">i</text></svg>`), // Biển chỉ dẫn chung
             'fallback': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#6b7280" stroke="#fff" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial" fill="#fff">?</text></svg>`)
         };
 
@@ -150,7 +171,7 @@
                 maxzoom: 14
             });
 
-            // LỚP 1: HIỂN THỊ ICON
+            // LỚP HIỂN THỊ ICON
             map.addLayer({
                 id: 'traffic-signs-layer',
                 type: 'symbol',
@@ -160,15 +181,30 @@
                 layout: {
                     'icon-image': [
                         'case',
-                        // Cập nhật icon cho đường nhánh
-                        ['in', 'junction-with-a-side-road-perpendicular-right', ['get', 'value']], 'icon-junction-right',
-                        ['in', 'no-left-turn', ['get', 'value']], 'icon-no-left',
-                        ['in', 'no-right-turn', ['get', 'value']], 'icon-no-right',
-                        ['in', 'no-entry', ['get', 'value']], 'icon-no-entry',
-                        ['in', 'maximum-speed-limit', ['get', 'value']], 'icon-speed-empty',
+                        // Cấm
+                        ['in', 'no-entry', ['get', 'value']], 'icon-P101',
+                        ['in', 'no-left-turn', ['get', 'value']], 'icon-P123a',
+                        ['in', 'no-right-turn', ['get', 'value']], 'icon-P123b',
+                        ['in', 'no-parking', ['get', 'value']], 'icon-P131',
+                        ['in', 'no-stopping', ['get', 'value']], 'icon-P130',
+                        ['in', 'maximum-speed-limit', ['get', 'value']], 'icon-P127',
+                        // Nguy hiểm
+                        ['in', 'junction-with-a-side-road-perpendicular-right', ['get', 'value']], 'icon-W207b',
+                        ['in', 'junction-with-a-side-road-perpendicular-left', ['get', 'value']], 'icon-W207a',
+                        ['in', 'pedestrian-crossing', ['get', 'value']], 'icon-W224',
+                        ['in', 'children', ['get', 'value']], 'icon-W225',
+                        ['in', 'curve-to-left', ['get', 'value']], 'icon-W201a',
+                        ['in', 'curve-to-right', ['get', 'value']], 'icon-W201b',
+                        ['in', 'slippery', ['get', 'value']], 'icon-W217',
+                        ['in', 'road-narrows', ['get', 'value']], 'icon-W203',
+                        ['in', 'warning', ['get', 'value']], 'icon-W_generic',
+                        // Hiệu lệnh
                         ['in', 'stop', ['get', 'value']], 'icon-stop',
-                        ['in', 'warning', ['get', 'value']], 'icon-warning',
-                        ['in', 'information', ['get', 'value']], 'icon-info',
+                        ['in', 'roundabout', ['get', 'value']], 'icon-R303',
+                        ['in', 'keep-right', ['get', 'value']], 'icon-R301b',
+                        ['in', 'keep-left', ['get', 'value']], 'icon-R301a',
+                        // Chỉ dẫn
+                        ['in', 'information', ['get', 'value']], 'icon-I_generic',
                         'icon-fallback'
                     ],
                     'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.5, 18, 0.9],
@@ -177,7 +213,7 @@
                 }
             });
 
-            // LỚP 2: CHÈN TEXT SỐ TỐC ĐỘ
+            // LỚP HIỂN THỊ SỐ TỐC ĐỘ
             map.addLayer({
                 id: 'speed-text-layer',
                 type: 'symbol',
@@ -206,7 +242,6 @@
                 const props = feature.properties;
                 const rawValue = props.value || 'Không xác định';
                 
-                // SỬ DỤNG HÀM DỊCH ĐỂ HIỂN THỊ TÊN TIẾNG VIỆT
                 const displayName = translateMapillaryCode(rawValue);
                 
                 let category = 'Khác';
@@ -234,7 +269,6 @@
 
                 new maplibregl.Popup({ offset: 15, maxWidth: '300px' }).setLngLat(e.lngLat).setHTML(popupHTML).addTo(map);
 
-                // TẢI ẢNH THẬT
                 try {
                     const featureId = props.id;
                     if (!featureId) throw new Error('Không có ID');
