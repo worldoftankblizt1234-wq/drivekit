@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapillary Traffic Signs Demo - Ho Chi Minh City</title>
+    <title>Mapillary Traffic Signs Demo - OSM + MapLibre</title>
     <!-- Thư viện CSS của MapLibre GL JS -->
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
@@ -102,9 +102,9 @@
 <body>
 
 <div class="info-panel">
-    <h3>Biển báo Mapillary HCMC</h3>
-    <p>Hiển thị lớp biển báo giao thông (Traffic Signs) dạng Vector Tiles của Mapillary tại TP.HCM.</p>
-    <p>💡 <strong>Cách dùng:</strong> Nhập Mapillary Access Token của bạn, nhấn "Áp dụng" rồi click vào các điểm tròn đỏ trên bản đồ để xem ảnh thực tế.</p>
+    <h3>Biển báo Mapillary - Nền OSM</h3>
+    <p>Bản đồ nền sử dụng nguồn ảnh Raster Tiles chuẩn từ OpenStreetMap (OSM Mirror) kết hợp với lớp dữ liệu Vector Tiles của Mapillary.</p>
+    <p>💡 <strong>Cách dùng:</strong> Nhập Mapillary Access Token của bạn, nhấn "Áp dụng" rồi click vào các điểm tròn đỏ trên bản đồ để xem ảnh thực tế tại TP.HCM.</p>
     <div class="token-container">
         <input type="text" id="tokenField" placeholder="Nhập Client Access Token..." />
         <button id="applyTokenBtn">Áp dụng</button>
@@ -120,24 +120,48 @@
     // 1. Tọa độ trung tâm tại TP. Hồ Chí Minh (Khu vực Quận 1)
     const HCMC_LNG_LAT = [106.6948, 10.7766];
     
-    // 2. Khởi tạo bản đồ MapLibre nền cơ bản (Dùng CartoDB miễn phí)
+    // 2. Tạo một MapLibre Style tùy biến bằng cách ép liên kết ảnh tile dạng Raster từ máy chủ OpenStreetMap Mirror
+    const osmStyle = {
+        "version": 8,
+        "sources": {
+            "osm-raster-tiles": {
+                "type": "raster",
+                "tiles": [
+                    "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                ],
+                "tileSize": 256,
+                "attribution": "&copy; <a href='https://www.openstreetmap.org/copyright' target='_blank'>OpenStreetMap</a> contributors"
+            }
+        },
+        "layers": [
+            {
+                "id": "osm-tiles-layer",
+                "type": "raster",
+                "source": "osm-raster-tiles",
+                "minzoom": 0,
+                "maxzoom": 19
+            }
+        ]
+    };
+
+    // Khởi tạo bản đồ MapLibre dùng nền OSM style vừa dựng
     const map = new maplibregl.Map({
         container: 'map',
-        style: 'https://basemaps.cartocdn.com/gl/raster-tiles-style/style.json', 
+        style: osmStyle, 
         center: HCMC_LNG_LAT,
         zoom: 15,
-        minZoom: 14 // Vector tile của Mapillary tối ưu nhất từ zoom 14 trở lên
+        minZoom: 14 // Khóa mức zoom nhỏ vì Mapillary khuyến nghị hiển thị biển báo tối ưu nhất từ zoom 14 trở lên
     });
 
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-    // 3. Hàm xử lý nạp dữ liệu Mapillary sau khi có Token
+    // 3. Hàm nạp dữ liệu Mapillary sau khi kiểm tra Token thành công
     function loadMapillaryLayers(token) {
-        // Dọn dẹp layer cũ nếu người dùng thay token mới
+        // Clear layer và source cũ nếu người dùng đổi token mới
         if (map.getLayer('mapillary-signs-layer')) map.removeLayer('mapillary-signs-layer');
         if (map.getSource('mapillary-signs-source')) map.removeSource('mapillary-signs-source');
 
-        // Khai báo nguồn Vector Tiles chứa dữ liệu Map Feature từ Mapillary
+        // Khai báo nguồn Vector Tiles chứa dữ liệu các loại biển báo
         map.addSource('mapillary-signs-source', {
             type: 'vector',
             tiles: [
@@ -147,36 +171,36 @@
             maxzoom: 14
         });
 
-        // Vẽ các biển báo lên bản đồ dưới dạng hình tròn màu đỏ
+        // Đè một lớp hình tròn màu đỏ tươi bắt mắt đại diện cho biển báo lên trên nền bản đồ OSM
         map.addLayer({
             id: 'mapillary-signs-layer',
             type: 'circle',
             source: 'mapillary-signs-source',
-            'source-layer': 'traffic_sign', // Tên layer gốc bắt buộc từ API Mapillary
+            'source-layer': 'traffic_sign', // Định danh mặc định trong bộ Vector Tile Mapillary
             paint: {
                 'circle-radius': [
                     'interpolate', ['linear'], ['zoom'],
                     14, 4,
-                    18, 9
+                    18, 10
                 ],
-                'circle-color': '#ff3b30', 
-                'circle-stroke-width': 1.5,
+                'circle-color': '#ff1744', 
+                'circle-stroke-width': 2,
                 'circle-stroke-color': '#ffffff'
             }
         });
 
-        // Hiệu ứng đổi con trỏ chuột khi hover qua biển báo
+        // Thay đổi con trỏ chuột khi di qua điểm biển báo
         map.on('mouseenter', 'mapillary-signs-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', 'mapillary-signs-layer', () => { map.getCanvas().style.cursor = ''; });
 
-        // 4. Xử lý sự kiện click vào biển báo để hiển thị ảnh Street View tương ứng
+        // 4. Bắt sự kiện click để lấy ảnh thực tế từ API Mapillary v4
         map.on('click', 'mapillary-signs-layer', async (e) => {
             const feature = e.features[0];
             if (!feature) return;
 
             const properties = feature.properties;
-            const signType = properties.value || 'N/A'; // Loại mã biển báo (vd: regulatory--stop--e1)
-            const imageId = properties.image_id;         // ID ảnh chứa biển báo đó
+            const signType = properties.value || 'N/A'; // Tên mã phân loại biển báo
+            const imageId = properties.image_id;         // ID bức ảnh chụp street view chứa biển báo
             const coordinates = e.lngLat;
 
             if (!imageId) {
@@ -184,19 +208,19 @@
                 return;
             }
 
-            // Hiển thị trạng thái đang tải dữ liệu ảnh
+            // Tạo popup thông báo trạng thái đang tải dữ liệu ảnh
             const popup = new maplibregl.Popup({ className: 'mapillary-popup' })
                 .setLngLat(coordinates)
-                .setHTML(`<strong>Loại biển:</strong> <span class="tag-badge">${signType}</span><p>🔄 Đang tải dữ liệu ảnh...</p>`)
+                .setHTML(`<strong>Loại biển:</strong> <span class="tag-badge">${signType}</span><p>🔄 Đang tải ảnh street view...</p>`)
                 .addTo(map);
 
             try {
-                // Gọi API v4 của Mapillary để phân giải image_id ra URL ảnh thực tế công khai
+                // Gọi API lấy metadata ảnh để lấy URL ảnh thu nhỏ chất lượng cao (thumb_1024_url)
                 const response = await fetch(`https://graph.mapillary.com/${imageId}?access_token=${token}&fields=id,thumb_1024_url`);
                 const imgData = await response.json();
 
                 if (imgData && imgData.thumb_1024_url) {
-                    // Cập nhật Popup chèn trực tiếp thẻ ảnh <img> vào
+                    // Chèn ảnh street-view vào Popup
                     popup.setHTML(`
                         <div>
                             <strong>Biển báo:</strong> <span class="tag-badge">${signType}</span>
@@ -218,7 +242,7 @@
         });
     }
 
-    // Gắn sự kiện click cho nút áp dụng mã Token
+    // Gắn sự kiện click cho nút áp dụng mã Token để kích hoạt dữ liệu Mapillary
     document.getElementById('applyTokenBtn').addEventListener('click', () => {
         const token = document.getElementById('tokenField').value.trim();
         if (!token) {
@@ -226,7 +250,7 @@
             return;
         }
         loadMapillaryLayers(token);
-        alert('Đã áp dụng mã cấu hình thành công! Hãy kiểm tra xung quanh khu vực Quận 1, Quận 3 khi zoom sát.');
+        alert('Đã áp dụng và nạp dữ liệu Mapillary lên nền OSM thành công!');
     });
 </script>
 
