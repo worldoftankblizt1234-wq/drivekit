@@ -1,295 +1,234 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8">
-<meta name="referrer" content="no-referrer">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Mapillary - Real Photos Markers</title>
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
-<style>
-  html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-serif}
-  #map{position:absolute;inset:0}
-  
-  /* CSS cho Marker chứa ảnh thật */
-  .photo-marker {
-    width: 44px; height: 44px;
-    border-radius: 50%;
-    border: 3px solid #fff;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
-    background-color: #e5e7eb;
-    cursor: pointer;
-    overflow: hidden;
-    transition: transform 0.2s;
-  }
-  .photo-marker:hover { transform: scale(1.15); z-index: 99; }
-  .photo-marker img {
-    width: 100%; height: 100%;
-    object-fit: cover;
-  }
-
-  #info{position:absolute;top:12px;left:12px;z-index:5;background:#fff;padding:12px 14px;border-radius:12px;
-        font-size:12px;line-height:1.6;box-shadow:0 4px 20px rgba(0,0,0,.15);max-width:300px; border: 1px solid #ddd;}
-  #info b{color:#0d6efd}
-  
-  #tools{position:absolute;bottom:90px;left:12px;z-index:5;display:flex;flex-direction:column;
-         gap:8px;width:220px}
-  #tools button{padding:11px 14px;border:0;border-radius:10px;background:#0d6efd;color:#fff;
-                font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);
-                text-align:left}
-  #tools button.warn{background:#ef4444}
-  #tools button.ok{background:#10b981}
-  
-  .sign-popup { font-size:13px; line-height:1.5; min-width:220px; }
-  .sign-popup b { font-size: 15px; color: #111; }
-  .sign-popup .raw-val { font-size: 11px; color: #6b7280; font-family: monospace; margin-top: 2px;}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapillary Traffic Signs Demo - Ho Chi Minh City</title>
+    <!-- Thư viện CSS của MapLibre GL JS -->
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+        /* Bảng điều khiển góc màn hình */
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            max-width: 320px;
+            z-index: 1;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .info-panel h3 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .token-container {
+            margin-top: 10px;
+            display: flex;
+            gap: 5px;
+        }
+        .token-container input {
+            flex: 1;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .token-container button {
+            padding: 6px 12px;
+            background: #0078ff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .token-container button:hover {
+            background: #0056b3;
+        }
+        /* Giao diện khung chứa ảnh trong Popup */
+        .mapillary-popup {
+            max-width: 320px !important;
+        }
+        .popup-image-container {
+            position: relative;
+            width: 100%;
+            margin-top: 8px;
+            background: #000;
+            min-height: 160px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .popup-image-container img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .popup-meta {
+            font-size: 11px;
+            color: #666;
+            margin-top: 6px;
+            word-break: break-all;
+        }
+        .tag-badge {
+            display: inline-block;
+            background: #e1f5fe;
+            color: #0288d1;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
 
+<div class="info-panel">
+    <h3>Biển báo Mapillary HCMC</h3>
+    <p>Hiển thị lớp biển báo giao thông (Traffic Signs) dạng Vector Tiles của Mapillary tại TP.HCM.</p>
+    <p>💡 <strong>Cách dùng:</strong> Nhập Mapillary Access Token của bạn, nhấn "Áp dụng" rồi click vào các điểm tròn đỏ trên bản đồ để xem ảnh thực tế.</p>
+    <div class="token-container">
+        <input type="text" id="tokenField" placeholder="Nhập Client Access Token..." />
+        <button id="applyTokenBtn">Áp dụng</button>
+    </div>
+</div>
+
 <div id="map"></div>
 
-<div id="info">
-  <b>🔍 Mapillary Real Photos</b><br>
-  Trạng thái: <b id="load-status">Sẵn sàng</b><br>
-  Số biển báo: <b id="feature-count">0</b> • Zoom: <b id="zoom-level">-</b>
-</div>
-
-<div id="tools">
-  <button class="warn" id="btn-toggle-markers">Tắt / Bật Ảnh Thật</button>
-  <button class="ok" id="btn-goto-nyc" style="background:#0d6efd;">Tới New York</button>
-</div>
-
-<script src="https://unpkg.com/vconsole@3.15.1/dist/vconsole.min.js"></script>
-<script>
-  window.vConsole = new window.VConsole({ theme: 'dark' });
-</script>
+<!-- Thư viện JS của MapLibre GL JS -->
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 
 <script>
-/* ============================================================
-   1. CONFIG
-   ============================================================ */
-const TOKEN = 'MLY|30124595887140717|6f7fa14af38d34316e4f6ba9388e1be4'.trim();
-
-// Biến quản lý trạng thái
-let markersOnMap = [];       // Mảng chứa các Marker đang hiển thị
-let isMarkersEnabled = true; // Công tắc bật/tắt
-let moveEndTimeout = null;   // Debounce timer
-const imageCache = new Map();// Cache ảnh để không gọi API trùng lặp
-
-/* ============================================================
-   2. MAP INIT
-   ============================================================ */
-const map = new maplibregl.Map({
-  container: 'map',
-  style: {
-    version: 8,
-    sources: {
-      osm: {
-        type: 'raster',
-        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-        tileSize: 256,
-        attribution: '© OpenStreetMap'
-      }
-    },
-    layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
-  },
-  center: [-73.9855, 40.7580], // Times Square
-  zoom: 17
-});
-
-map.addControl(new maplibregl.NavigationControl(), 'top-right');
-
-/* ============================================================
-   3. FETCH REAL PHOTOS FROM GRAPH API
-   ============================================================ */
-async function loadRealPhotoMarkers() {
-  if (!isMarkersEnabled) return;
-
-  const zoom = map.getZoom();
-  document.getElementById('zoom-level').textContent = zoom.toFixed(1);
-
-  // Chỉ tải khi zoom đủ gần để tránh quá tải
-  if (zoom < 15) {
-    clearMarkers();
-    document.getElementById('load-status').textContent = 'Zoom gần hơn (>=15) để tải ảnh';
-    return;
-  }
-
-  document.getElementById('load-status').textContent = 'Đang tải ảnh...';
-  
-  // 1. Lấy khung hình hiện tại (Bounding Box)
-  const bounds = map.getBounds();
-  const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
-
-  // 2. Gọi Map Features API
-  const url = `https://graph.mapillary.com/map_features?access_token=${TOKEN}&bbox=${bbox}&object_values=regulatory--*,warning--*&fields=id,value,geometry,images&limit=30`;
-
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
+    // 1. Tọa độ trung tâm tại TP. Hồ Chí Minh (Khu vực Quận 1)
+    const HCMC_LNG_LAT = [106.6948, 10.7766];
     
-    if (data.error) {
-      document.getElementById('load-status').textContent = 'Lỗi API: ' + data.error.message;
-      return;
+    // 2. Khởi tạo bản đồ MapLibre nền cơ bản (Dùng CartoDB miễn phí)
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://basemaps.cartocdn.com/gl/raster-tiles-style/style.json', 
+        center: HCMC_LNG_LAT,
+        zoom: 15,
+        minZoom: 14 // Vector tile của Mapillary tối ưu nhất từ zoom 14 trở lên
+    });
+
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    // 3. Hàm xử lý nạp dữ liệu Mapillary sau khi có Token
+    function loadMapillaryLayers(token) {
+        // Dọn dẹp layer cũ nếu người dùng thay token mới
+        if (map.getLayer('mapillary-signs-layer')) map.removeLayer('mapillary-signs-layer');
+        if (map.getSource('mapillary-signs-source')) map.removeSource('mapillary-signs-source');
+
+        // Khai báo nguồn Vector Tiles chứa dữ liệu Map Feature từ Mapillary
+        map.addSource('mapillary-signs-source', {
+            type: 'vector',
+            tiles: [
+                `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${token}`
+            ],
+            minzoom: 14,
+            maxzoom: 14
+        });
+
+        // Vẽ các biển báo lên bản đồ dưới dạng hình tròn màu đỏ
+        map.addLayer({
+            id: 'mapillary-signs-layer',
+            type: 'circle',
+            source: 'mapillary-signs-source',
+            'source-layer': 'traffic_sign', // Tên layer gốc bắt buộc từ API Mapillary
+            paint: {
+                'circle-radius': [
+                    'interpolate', ['linear'], ['zoom'],
+                    14, 4,
+                    18, 9
+                ],
+                'circle-color': '#ff3b30', 
+                'circle-stroke-width': 1.5,
+                'circle-stroke-color': '#ffffff'
+            }
+        });
+
+        // Hiệu ứng đổi con trỏ chuột khi hover qua biển báo
+        map.on('mouseenter', 'mapillary-signs-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
+        map.on('mouseleave', 'mapillary-signs-layer', () => { map.getCanvas().style.cursor = ''; });
+
+        // 4. Xử lý sự kiện click vào biển báo để hiển thị ảnh Street View tương ứng
+        map.on('click', 'mapillary-signs-layer', async (e) => {
+            const feature = e.features[0];
+            if (!feature) return;
+
+            const properties = feature.properties;
+            const signType = properties.value || 'N/A'; // Loại mã biển báo (vd: regulatory--stop--e1)
+            const imageId = properties.image_id;         // ID ảnh chứa biển báo đó
+            const coordinates = e.lngLat;
+
+            if (!imageId) {
+                alert('Không tìm thấy ID ảnh thực tế cho biển báo này.');
+                return;
+            }
+
+            // Hiển thị trạng thái đang tải dữ liệu ảnh
+            const popup = new maplibregl.Popup({ className: 'mapillary-popup' })
+                .setLngLat(coordinates)
+                .setHTML(`<strong>Loại biển:</strong> <span class="tag-badge">${signType}</span><p>🔄 Đang tải dữ liệu ảnh...</p>`)
+                .addTo(map);
+
+            try {
+                // Gọi API v4 của Mapillary để phân giải image_id ra URL ảnh thực tế công khai
+                const response = await fetch(`https://graph.mapillary.com/${imageId}?access_token=${token}&fields=id,thumb_1024_url`);
+                const imgData = await response.json();
+
+                if (imgData && imgData.thumb_1024_url) {
+                    // Cập nhật Popup chèn trực tiếp thẻ ảnh <img> vào
+                    popup.setHTML(`
+                        <div>
+                            <strong>Biển báo:</strong> <span class="tag-badge">${signType}</span>
+                            <div class="popup-image-container">
+                                <img src="${imgData.thumb_1024_url}" alt="Mapillary Street View" />
+                            </div>
+                            <div class="popup-meta">
+                                <strong>Mã ảnh:</strong> ${imageId}
+                            </div>
+                        </div>
+                    `);
+                } else {
+                    popup.setHTML(`<strong>Biển báo:</strong> <span class="tag-badge">${signType}</span><p>❌ Không lấy được URL ảnh thực tế.</p>`);
+                }
+            } catch (err) {
+                console.error(err);
+                popup.setHTML(`<strong>Biển báo:</strong> <span class="tag-badge">${signType}</span><p>⚠️ Lỗi kết nối dữ liệu ảnh.</p>`);
+            }
+        });
     }
 
-    const features = data.data || [];
-    document.getElementById('feature-count').textContent = features.length;
-
-    // Xóa các marker cũ trước khi vẽ mới
-    clearMarkers();
-
-    if (features.length === 0) {
-      document.getElementById('load-status').textContent = 'Không có biển báo nào';
-      return;
-    }
-
-    // 3. Tải ảnh song song cho từng biển báo
-    await Promise.all(features.map(feature => createMarkerForFeature(feature)));
-
-    document.getElementById('load-status').textContent = 'Tải xong!';
-
-  } catch (err) {
-    console.error('Lỗi fetch API:', err);
-    document.getElementById('load-status').textContent = 'Lỗi mạng!';
-  }
-}
-
-// Hàm phụ: Tạo Marker cho 1 biển báo
-async function createMarkerForFeature(feature) {
-  const imgId = feature.images?.[0];
-  const coords = feature.geometry?.coordinates;
-  if (!coords) return;
-
-  let imgUrl = null;
-
-  // Kiểm tra cache
-  if (imageCache.has(imgId)) {
-    imgUrl = imageCache.get(imgId);
-  } else if (imgId) {
-    // Nếu chưa có trong cache, gọi API lấy URL ảnh
-    try {
-      const res = await fetch(`https://graph.mapillary.com/${imgId}?access_token=${TOKEN}&fields=thumb_256_url`);
-      const data = await res.json();
-      imgUrl = data.thumb_256_url;
-      if (imgUrl) imageCache.set(imgId, imgUrl); // Lưu cache
-    } catch (e) {
-      console.warn('Không lấy được ảnh cho', imgId);
-    }
-  }
-
-  // Tạo DOM element cho Marker
-  const el = document.createElement('div');
-  el.className = 'photo-marker';
-
-  if (imgUrl) {
-    el.innerHTML = `<img src="${imgUrl}" loading="lazy"/>`;
-  } else {
-    // Nếu không có ảnh, hiển thị icon mặc định
-    el.style.background = '#6b7280';
-    el.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:18px">?</div>`;
-  }
-
-  // Tạo Marker và thêm vào Map
-  const marker = new maplibregl.Marker({ element: el })
-    .setLngLat(coords)
-    .addTo(map);
-
-  // Xử lý sự kiện Click vào marker -> Hiện popup ảnh lớn
-  el.addEventListener('click', (e) => {
-    e.stopPropagation(); // Ngăn map click
-    showPopup(feature, imgUrl, coords);
-  });
-
-  // Lưu marker vào mảng để sau này xóa
-  markersOnMap.push(marker);
-}
-
-/* ============================================================
-   4. HIỂN THỊ POPUP KHI CLICK
-   ============================================================ */
-function showPopup(feature, imgUrl, coords) {
-  const rawValue = feature.value || 'Không xác định';
-  let displayName = rawValue.replace(/--/g, ' ').toUpperCase();
-  
-  // Dịch một số tên cơ bản
-  if (rawValue.includes('speed-limit')) {
-    const match = rawValue.match(/\d+/);
-    if (match) displayName = `Tốc độ tối đa ${match[0]}`;
-  } else if (rawValue.includes('stop')) {
-    displayName = 'Dừng lại (STOP)';
-  } else if (rawValue.includes('warning')) {
-    displayName = 'Cảnh báo nguy hiểm';
-  }
-
-  const imgHtml = imgUrl 
-    ? `<img src="${imgUrl.replace('thumb_256', 'thumb_1024')}" style="width:100%;border-radius:8px;display:block;margin-top:8px;" loading="lazy"/>` 
-    : '<div style="margin-top:8px;font-size:11px;color:#9ca3af">Không có ảnh</div>';
-
-  new maplibregl.Popup({ offset: 25, maxWidth: '300px' })
-    .setLngLat(coords)
-    .setHTML(`
-      <div class="sign-popup">
-        <b>📸 ${displayName}</b>
-        <div class="raw-val">${rawValue}</div>
-        <div style="color:#6b7280;font-size:11px;margin-top:4px">Mapillary ID: ${feature.id}</div>
-        ${imgHtml}
-        <a href="https://www.mapillary.com/map/im/${feature.images?.[0]}" target="_blank" 
-           style="display:block;text-align:center;margin-top:10px;padding:8px;background:#0d6efd;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:12px;">
-           Mở trên Mapillary
-        </a>
-      </div>
-    `)
-    .addTo(map);
-}
-
-/* ============================================================
-   5. XÓA MARKERS
-   ============================================================ */
-function clearMarkers() {
-  markersOnMap.forEach(m => m.remove());
-  markersOnMap = [];
-}
-
-/* ============================================================
-   6. SỰ KIỆN BẢN ĐỒ (DEBOUNCE)
-   ============================================================ */
-// Khi di chuyển bản đồ xong, đợi 500ms rồi mới tải lại ảnh
-map.on('moveend', () => {
-  clearTimeout(moveEndTimeout);
-  moveEndTimeout = setTimeout(() => {
-    loadRealPhotoMarkers();
-  }, 500);
-});
-
-// Tải lần đầu khi map mở lên
-map.on('load', () => {
-  loadRealPhotoMarkers();
-});
-
-/* ============================================================
-   7. CÁC NÚT ĐIỀU KHIỂN
-   ============================================================ */
-document.getElementById('btn-goto-nyc').addEventListener('click', () => {
-  map.flyTo({ center: [-73.9855, 40.7580], zoom: 17 });
-});
-
-document.getElementById('btn-toggle-markers').addEventListener('click', () => {
-  isMarkersEnabled = !isMarkersEnabled;
-  const btn = document.getElementById('btn-toggle-markers');
-  
-  if (isMarkersEnabled) {
-    btn.textContent = 'Tắt Ảnh Thật';
-    btn.className = 'warn';
-    loadRealPhotoMarkers();
-  } else {
-    btn.textContent = 'Bật Ảnh Thật';
-    btn.className = 'ok';
-    clearMarkers();
-    document.getElementById('load-status').textContent = 'Đã tắt';
-  }
-});
+    // Gắn sự kiện click cho nút áp dụng mã Token
+    document.getElementById('applyTokenBtn').addEventListener('click', () => {
+        const token = document.getElementById('tokenField').value.trim();
+        if (!token) {
+            alert('Vui lòng nhập Token Mapillary trước.');
+            return;
+        }
+        loadMapillaryLayers(token);
+        alert('Đã áp dụng mã cấu hình thành công! Hãy kiểm tra xung quanh khu vực Quận 1, Quận 3 khi zoom sát.');
+    });
 </script>
+
 </body>
 </html>
