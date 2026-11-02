@@ -4,19 +4,33 @@
 <meta charset="UTF-8">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Mapillary Signs - Fixed Icons & Dynamic Speed</title>
+<title>Mapillary - Real Photos Markers</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-serif}
   #map{position:absolute;inset:0}
+  
+  /* CSS cho Marker chứa ảnh thật */
+  .photo-marker {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    background-color: #e5e7eb;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 0.2s;
+  }
+  .photo-marker:hover { transform: scale(1.15); z-index: 99; }
+  .photo-marker img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+
   #info{position:absolute;top:12px;left:12px;z-index:5;background:#fff;padding:12px 14px;border-radius:12px;
         font-size:12px;line-height:1.6;box-shadow:0 4px 20px rgba(0,0,0,.15);max-width:300px; border: 1px solid #ddd;}
   #info b{color:#0d6efd}
-  #info .status{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;
-                font-weight:700;margin-left:4px}
-  #info .status.ok{background:#d1fae5;color:#065f46}
-  #info .status.fail{background:#fee2e2;color:#991b1b}
-  #info .status.pending{background:#fef3c7;color:#92400e}
+  
   #tools{position:absolute;bottom:90px;left:12px;z-index:5;display:flex;flex-direction:column;
          gap:8px;width:220px}
   #tools button{padding:11px 14px;border:0;border-radius:10px;background:#0d6efd;color:#fff;
@@ -24,7 +38,7 @@
                 text-align:left}
   #tools button.warn{background:#ef4444}
   #tools button.ok{background:#10b981}
-  #tools button:active{transform:scale(.97)}
+  
   .sign-popup { font-size:13px; line-height:1.5; min-width:220px; }
   .sign-popup b { font-size: 15px; color: #111; }
   .sign-popup .raw-val { font-size: 11px; color: #6b7280; font-family: monospace; margin-top: 2px;}
@@ -35,14 +49,13 @@
 <div id="map"></div>
 
 <div id="info">
-  <b>🔍 Mapillary Debug</b><br>
-  Source: <span id="status-source" class="status pending">pending</span><br>
-  Icons: <span id="status-icons" class="status pending">pending</span><br>
-  Features: <b id="feature-count">0</b> • Zoom: <b id="zoom-level">-</b>
+  <b>🔍 Mapillary Real Photos</b><br>
+  Trạng thái: <b id="load-status">Sẵn sàng</b><br>
+  Số biển báo: <b id="feature-count">0</b> • Zoom: <b id="zoom-level">-</b>
 </div>
 
 <div id="tools">
-  <button class="warn" id="btn-toggle-icons">Toggle Icon / Circle</button>
+  <button class="warn" id="btn-toggle-markers">Tắt / Bật Ảnh Thật</button>
   <button class="ok" id="btn-goto-nyc" style="background:#0d6efd;">Tới New York</button>
 </div>
 
@@ -54,37 +67,18 @@
 
 <script>
 /* ============================================================
-   1. TOKEN
+   1. CONFIG
    ============================================================ */
 const TOKEN = 'MLY|30124595887140717|6f7fa14af38d34316e4f6ba9388e1be4'.trim();
 
-/* ============================================================
-   2. HELPERS & ICONS
-   ============================================================ */
-function setStatus(id, status, text) {
-  const el = document.getElementById('status-' + id);
-  if (!el) return;
-  el.className = 'status ' + status;
-  el.textContent = text;
-}
-
-function svgToBase64(svgString) {
-  const base64 = btoa(unescape(encodeURIComponent(svgString)));
-  return 'data:image/svg+xml;base64,' + base64;
-}
-
-// Icon tĩnh cho các loại biển báo phổ biến
-const ICONS = {
-  stop: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#dc2626" stroke="#fff" stroke-width="2"/><text x="16" y="21" text-anchor="middle" font-size="9" font-weight="900" font-family="Arial,sans-serif" fill="#fff">STOP</text></svg>`),
-  yield: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#fff" stroke="#dc2626" stroke-width="3" stroke-linejoin="round"/><text x="16" y="26" text-anchor="middle" font-size="6" font-weight="900" font-family="Arial,sans-serif" fill="#111">YIELD</text></svg>`),
-  warning: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><text x="16" y="26" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial,sans-serif" fill="#fff">!</text></svg>`),
-  noEntry: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#dc2626" stroke="#fff" stroke-width="2"/><rect x="6" y="13" width="20" height="6" fill="#fff"/></svg>`),
-  info: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#0d6efd" stroke="#fff" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="18" font-weight="900" font-family="Arial,sans-serif" fill="#fff">i</text></svg>`),
-  other: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#6b7280" stroke="#fff" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial,sans-serif" fill="#fff">?</text></svg>`)
-};
+// Biến quản lý trạng thái
+let markersOnMap = [];       // Mảng chứa các Marker đang hiển thị
+let isMarkersEnabled = true; // Công tắc bật/tắt
+let moveEndTimeout = null;   // Debounce timer
+const imageCache = new Map();// Cache ảnh để không gọi API trùng lặp
 
 /* ============================================================
-   3. MAP INIT
+   2. MAP INIT
    ============================================================ */
 const map = new maplibregl.Map({
   container: 'map',
@@ -107,253 +101,193 @@ const map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
 /* ============================================================
-   4. MAP LOAD
+   3. FETCH REAL PHOTOS FROM GRAPH API
    ============================================================ */
-map.on('load', () => {
-  const tileUrl = `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${encodeURIComponent(TOKEN)}`;
+async function loadRealPhotoMarkers() {
+  if (!isMarkersEnabled) return;
+
+  const zoom = map.getZoom();
+  document.getElementById('zoom-level').textContent = zoom.toFixed(1);
+
+  // Chỉ tải khi zoom đủ gần để tránh quá tải
+  if (zoom < 15) {
+    clearMarkers();
+    document.getElementById('load-status').textContent = 'Zoom gần hơn (>=15) để tải ảnh';
+    return;
+  }
+
+  document.getElementById('load-status').textContent = 'Đang tải ảnh...';
   
-  map.addSource('mly-signs', {
-    type: 'vector',
-    tiles: [tileUrl],
-    minzoom: 14,
-    maxzoom: 14
-  });
-  setStatus('source', 'pending', 'loading...');
+  // 1. Lấy khung hình hiện tại (Bounding Box)
+  const bounds = map.getBounds();
+  const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
 
-  // Lớp dự phòng (Fallback)
-  map.addLayer({
-    id: 'sign-circle',
-    type: 'circle',
-    source: 'mly-signs',
-    'source-layer': 'traffic_sign',
-    paint: {
-      'circle-radius': 8,
-      'circle-color': '#0d6efd',
-      'circle-stroke-width': 2,
-      'circle-stroke-color': '#fff'
+  // 2. Gọi Map Features API
+  const url = `https://graph.mapillary.com/map_features?access_token=${TOKEN}&bbox=${bbox}&object_values=regulatory--*,warning--*&fields=id,value,geometry,images&limit=30`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    
+    if (data.error) {
+      document.getElementById('load-status').textContent = 'Lỗi API: ' + data.error.message;
+      return;
     }
-  });
 
-  loadAllIcons().then(allOk => {
-    if (allOk) {
-      addSymbolLayer();
-      addSpeedLayer(); // Thêm lớp hiển thị số tốc độ động
-      setStatus('icons', 'ok', 'OK ✓');
-    } else {
-      setStatus('icons', 'fail', 'see console');
+    const features = data.data || [];
+    document.getElementById('feature-count').textContent = features.length;
+
+    // Xóa các marker cũ trước khi vẽ mới
+    clearMarkers();
+
+    if (features.length === 0) {
+      document.getElementById('load-status').textContent = 'Không có biển báo nào';
+      return;
     }
-  });
 
-  map.on('sourcedata', (e) => {
-    if (e.sourceId === 'mly-signs' && e.isSourceLoaded) {
-      setStatus('source', 'ok', 'loaded ✓');
-      updateCount();
+    // 3. Tải ảnh song song cho từng biển báo
+    await Promise.all(features.map(feature => createMarkerForFeature(feature)));
+
+    document.getElementById('load-status').textContent = 'Tải xong!';
+
+  } catch (err) {
+    console.error('Lỗi fetch API:', err);
+    document.getElementById('load-status').textContent = 'Lỗi mạng!';
+  }
+}
+
+// Hàm phụ: Tạo Marker cho 1 biển báo
+async function createMarkerForFeature(feature) {
+  const imgId = feature.images?.[0];
+  const coords = feature.geometry?.coordinates;
+  if (!coords) return;
+
+  let imgUrl = null;
+
+  // Kiểm tra cache
+  if (imageCache.has(imgId)) {
+    imgUrl = imageCache.get(imgId);
+  } else if (imgId) {
+    // Nếu chưa có trong cache, gọi API lấy URL ảnh
+    try {
+      const res = await fetch(`https://graph.mapillary.com/${imgId}?access_token=${TOKEN}&fields=thumb_256_url`);
+      const data = await res.json();
+      imgUrl = data.thumb_256_url;
+      if (imgUrl) imageCache.set(imgId, imgUrl); // Lưu cache
+    } catch (e) {
+      console.warn('Không lấy được ảnh cho', imgId);
     }
+  }
+
+  // Tạo DOM element cho Marker
+  const el = document.createElement('div');
+  el.className = 'photo-marker';
+
+  if (imgUrl) {
+    el.innerHTML = `<img src="${imgUrl}" loading="lazy"/>`;
+  } else {
+    // Nếu không có ảnh, hiển thị icon mặc định
+    el.style.background = '#6b7280';
+    el.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:18px">?</div>`;
+  }
+
+  // Tạo Marker và thêm vào Map
+  const marker = new maplibregl.Marker({ element: el })
+    .setLngLat(coords)
+    .addTo(map);
+
+  // Xử lý sự kiện Click vào marker -> Hiện popup ảnh lớn
+  el.addEventListener('click', (e) => {
+    e.stopPropagation(); // Ngăn map click
+    showPopup(feature, imgUrl, coords);
   });
 
-  // Đăng ký sự kiện click cho cả hai lớp
-  map.on('click', ['sign-icon', 'speed-text'], onSignClick);
-  map.on('mouseenter', ['sign-icon', 'speed-text'], () => map.getCanvas().style.cursor = 'pointer');
-  map.on('mouseleave', ['sign-icon', 'speed-text'], () => map.getCanvas().style.cursor = '');
-  map.on('moveend', updateCount);
-  map.on('idle', updateCount);
-});
-
-/* ============================================================
-   5. LOAD ICONS
-   ============================================================ */
-function loadAllIcons() {
-  const promises = Object.entries(ICONS).map(([name, dataUri]) => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        try {
-          if (!map.hasImage('sign-' + name)) {
-            map.addImage('sign-' + name, img, { pixelRatio: 2 });
-          }
-          resolve({ name, ok: true });
-        } catch (e) { resolve({ name, ok: false }); }
-      };
-      img.onerror = () => resolve({ name, ok: false });
-      img.src = dataUri;
-    });
-  });
-  return Promise.all(promises).then(results => results.every(r => r.ok));
+  // Lưu marker vào mảng để sau này xóa
+  markersOnMap.push(marker);
 }
 
 /* ============================================================
-   6. SYMBOL LAYER (Phân loại icon chính xác hơn)
+   4. HIỂN THỊ POPUP KHI CLICK
    ============================================================ */
-function addSymbolLayer() {
-  if (map.getLayer('sign-icon')) return;
-
-  map.addLayer({
-    id: 'sign-icon',
-    type: 'symbol',
-    source: 'mly-signs',
-    'source-layer': 'traffic_sign',
-    layout: {
-      'icon-image': [
-        'case',
-        // 1. Biển STOP
-        ['in', 'stop', ['get', 'value']], 'sign-stop',
-        // 2. Biển nhường đường
-        ['in', 'yield', ['get', 'value']], 'sign-yield',
-        // 3. Biển cấm đi vào
-        ['in', 'no-entry', ['get', 'value']], 'sign-noEntry',
-        // 4. Các loại biển cấm khác (no-parking, no-turn, v.v.)
-        ['in', 'no-', ['get', 'value']], 'sign-noEntry',
-        // 5. Biển cảnh báo nguy hiểm (warning)
-        ['in', 'warning', ['get', 'value']], 'sign-warning',
-        // 6. Biển thông tin (information)
-        ['in', 'information', ['get', 'value']], 'sign-info',
-        // 7. Biển phụ (complementary) -> dùng icon info
-        ['in', 'complementary', ['get', 'value']], 'sign-info',
-        // 8. Các loại biển quy định khác (regulatory) -> cảnh báo
-        ['in', 'regulatory', ['get', 'value']], 'sign-warning',
-        // 9. Mặc định
-        'sign-other'
-      ],
-      'icon-size': [
-        'interpolate', ['linear'], ['zoom'],
-        14, 0.5,
-        18, 1.0
-      ],
-      'icon-allow-overlap': true,
-      'icon-ignore-placement': true
-    }
-  });
+function showPopup(feature, imgUrl, coords) {
+  const rawValue = feature.value || 'Không xác định';
+  let displayName = rawValue.replace(/--/g, ' ').toUpperCase();
   
-  // Ẩn lớp chấm tròn dự phòng
-  map.setLayoutProperty('sign-circle', 'visibility', 'none');
-}
-
-/* ============================================================
-   7. SPEED LAYER (Hiển thị số tốc độ động)
-   ============================================================ */
-function addSpeedLayer() {
-  if (map.getLayer('speed-text')) return;
-
-  map.addLayer({
-    id: 'speed-text',
-    type: 'symbol',
-    source: 'mly-signs',
-    'source-layer': 'traffic_sign',
-    filter: ['in', 'maximum-speed-limit', ['get', 'value']],
-    layout: {
-      // Trích xuất số từ chuỗi value (ví dụ: "regulatory--maximum-speed-limit-55--g2")
-      'text-field': [
-        'slice',
-        ['get', 'value'],
-        ['+', ['index-of', ['get', 'value'], 'limit-'], 6],
-        ['index-of', ['get', 'value'], '--g']
-      ],
-      'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-      'text-size': [
-        'interpolate', ['linear'], ['zoom'],
-        14, 10,
-        18, 18
-      ],
-      'text-allow-overlap': true,
-      'text-ignore-placement': true,
-      'text-anchor': 'center'
-    },
-    paint: {
-      'text-color': '#111111'
-    }
-  });
-}
-
-/* ============================================================
-   8. CLICK HANDLER (Đã sửa lỗi API)
-   ============================================================ */
-async function onSignClick(e) {
-  const f = e.features[0];
-  const featureId = f.properties.id || f.id;
-  const rawValue = f.properties.value || '';
-  
-  // Hiển thị tên thân thiện
-  let displayName = rawValue;
-  if (rawValue.includes('maximum-speed-limit')) {
+  // Dịch một số tên cơ bản
+  if (rawValue.includes('speed-limit')) {
     const match = rawValue.match(/\d+/);
     if (match) displayName = `Tốc độ tối đa ${match[0]}`;
   } else if (rawValue.includes('stop')) {
     displayName = 'Dừng lại (STOP)';
-  } else if (rawValue.includes('yield')) {
-    displayName = 'Nhường đường';
+  } else if (rawValue.includes('warning')) {
+    displayName = 'Cảnh báo nguy hiểm';
   }
 
-  const popup = new maplibregl.Popup({ offset: 16, maxWidth: '300px' })
-    .setLngLat(e.lngLat)
+  const imgHtml = imgUrl 
+    ? `<img src="${imgUrl.replace('thumb_256', 'thumb_1024')}" style="width:100%;border-radius:8px;display:block;margin-top:8px;" loading="lazy"/>` 
+    : '<div style="margin-top:8px;font-size:11px;color:#9ca3af">Không có ảnh</div>';
+
+  new maplibregl.Popup({ offset: 25, maxWidth: '300px' })
+    .setLngLat(coords)
     .setHTML(`
       <div class="sign-popup">
-        <b>🛑 ${displayName}</b>
+        <b>📸 ${displayName}</b>
         <div class="raw-val">${rawValue}</div>
-        <div style="color:#6b7280;font-size:11px;margin-top:4px">ID: ${featureId || 'n/a'}</div>
-        <div id="popup-img" style="margin-top:8px;font-size:11px;color:#9ca3af">Đang tải ảnh...</div>
+        <div style="color:#6b7280;font-size:11px;margin-top:4px">Mapillary ID: ${feature.id}</div>
+        ${imgHtml}
+        <a href="https://www.mapillary.com/map/im/${feature.images?.[0]}" target="_blank" 
+           style="display:block;text-align:center;margin-top:10px;padding:8px;background:#0d6efd;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:12px;">
+           Mở trên Mapillary
+        </a>
       </div>
     `)
     .addTo(map);
-
-  if (!featureId) return;
-
-  try {
-    // Sử dụng object_value (đúng chuẩn API)
-    const r1 = await fetch(`https://graph.mapillary.com/${featureId}?access_token=${TOKEN}&fields=id,object_value,images`);
-    const d1 = await r1.json();
-    
-    if (d1.error) {
-      document.getElementById('popup-img').textContent = `Lỗi API: ${d1.error.message}`;
-      return;
-    }
-
-    const imgId = d1.images?.[0];
-    if (!imgId) {
-      document.getElementById('popup-img').textContent = 'Không có ảnh liên kết';
-      return;
-    }
-
-    const r2 = await fetch(`https://graph.mapillary.com/${imgId}?access_token=${TOKEN}&fields=thumb_512_url`);
-    const d2 = await r2.json();
-    
-    const el = document.getElementById('popup-img');
-    if (el && d2.thumb_512_url) {
-      el.innerHTML = `<img src="${d2.thumb_512_url}" style="width:100%;border-radius:8px;display:block;margin-top:5px;" loading="lazy"/>`;
-    } else if (el) {
-      el.textContent = 'Không tải được ảnh';
-    }
-  } catch (err) {
-    const el = document.getElementById('popup-img');
-    if (el) el.textContent = 'Lỗi mạng khi tải ảnh! (Thử lại sau)';
-    console.error('Fetch error:', err);
-  }
 }
 
 /* ============================================================
-   9. CONTROLS
+   5. XÓA MARKERS
    ============================================================ */
-function updateCount() {
-  try {
-    const feats = map.querySourceFeatures('mly-signs', { sourceLayer: 'traffic_sign' });
-    document.getElementById('feature-count').textContent = feats.length;
-  } catch (_) {}
-  document.getElementById('zoom-level').textContent = map.getZoom().toFixed(1);
+function clearMarkers() {
+  markersOnMap.forEach(m => m.remove());
+  markersOnMap = [];
 }
 
+/* ============================================================
+   6. SỰ KIỆN BẢN ĐỒ (DEBOUNCE)
+   ============================================================ */
+// Khi di chuyển bản đồ xong, đợi 500ms rồi mới tải lại ảnh
+map.on('moveend', () => {
+  clearTimeout(moveEndTimeout);
+  moveEndTimeout = setTimeout(() => {
+    loadRealPhotoMarkers();
+  }, 500);
+});
+
+// Tải lần đầu khi map mở lên
+map.on('load', () => {
+  loadRealPhotoMarkers();
+});
+
+/* ============================================================
+   7. CÁC NÚT ĐIỀU KHIỂN
+   ============================================================ */
 document.getElementById('btn-goto-nyc').addEventListener('click', () => {
   map.flyTo({ center: [-73.9855, 40.7580], zoom: 17 });
 });
 
-document.getElementById('btn-toggle-icons').addEventListener('click', () => {
-  if (!map.getLayer('sign-icon')) return;
-  const cur = map.getLayoutProperty('sign-icon', 'visibility');
-  const next = cur === 'none' ? 'visible' : 'none';
-  map.setLayoutProperty('sign-icon', 'visibility', next);
-  if (map.getLayer('speed-text')) {
-    map.setLayoutProperty('speed-text', 'visibility', next);
-  }
-  if (map.getLayer('sign-circle')) {
-    map.setLayoutProperty('sign-circle', 'visibility', next === 'visible' ? 'none' : 'visible');
+document.getElementById('btn-toggle-markers').addEventListener('click', () => {
+  isMarkersEnabled = !isMarkersEnabled;
+  const btn = document.getElementById('btn-toggle-markers');
+  
+  if (isMarkersEnabled) {
+    btn.textContent = 'Tắt Ảnh Thật';
+    btn.className = 'warn';
+    loadRealPhotoMarkers();
+  } else {
+    btn.textContent = 'Bật Ảnh Thật';
+    btn.className = 'ok';
+    clearMarkers();
+    document.getElementById('load-status').textContent = 'Đã tắt';
   }
 });
 </script>
