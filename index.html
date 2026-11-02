@@ -1,5 +1,3 @@
-
-Vietdriver Fixed Login
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -284,7 +282,7 @@ body.dark .suggestion-item:hover{background:#334155}
 <!-- LOGIN -->
 <div class="login-screen" id="loginScreen">
   <div class="login-card">
-    <div class="logo">🚗</div>
+    <div class="logo" id="logoForce" title="Double click để vào thẳng nếu kẹt">🚗</div>
     <h1>VietDriver Pro</h1>
     <div class="subtitle">Chỉ đường thông minh cho tài xế VN</div>
     <div class="error" id="authError"></div>
@@ -776,32 +774,54 @@ $('loginForm').addEventListener('submit', async e => {
   btn.disabled = true;
   btn.textContent = 'Đang đăng nhập...';
   $('authError').classList.remove('show');
-  console.log('Attempt login:', email, authMode);
-  // timeout an toàn 10s
+  console.log('Attempt login:', email, authMode, 'protocol:', location.protocol);
+  
   const timeout = setTimeout(()=>{
     btn.disabled = false;
     btn.textContent = authMode==='login'?'Đăng nhập':'Đăng ký';
-    if(!state.user) {
-      $('authError').textContent = 'Mạng chậm, thử lại... (Firebase có thể chặn file:// - hãy host lên Vercel hoặc dùng Live Server)';
-      $('authError').classList.add('show');
-    }
-  }, 10000);
+    $('authError').innerHTML = `⏳ Firebase phản hồi chậm (có thể do mở file://).<br><small>Đang thử vào chế độ offline...</small>`;
+    $('authError').classList.add('show');
+    // auto fallback sau 10s
+    const localUser = {uid:'local_'+Date.now(), displayName: email.split('@')[0], email: email, photoURL:null, isLocal:true};
+    enterApp(localUser);
+    showToast('⚠️ Firebase chậm - đã vào chế độ offline', 4000);
+  }, 8000);
+  
   try {
     let userCred;
     if (authMode === 'login'){
       userCred = await signInWithEmailAndPassword(auth, email, password);
+      clearTimeout(timeout);
       console.log('Login success', userCred.user.email);
       enterApp(userCred.user);
+      return;
     } else {
       userCred = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(userCred.user, { displayName: email.split('@')[0] });
+      clearTimeout(timeout);
       console.log('Signup success', userCred.user.email);
       enterApp(userCred.user);
+      return;
     }
-    clearTimeout(timeout);
   } catch (err) {
     clearTimeout(timeout);
     console.error('Auth error', err);
+    const isFileProtocol = location.protocol === 'file:';
+    const isDomainError = err.code==='auth/unauthorized-domain' || err.code==='auth/operation-not-allowed' || err.code==='auth/network-request-failed' || err.code==='auth/web-storage-unsupported';
+    
+    // Nếu mở file:// hoặc lỗi domain -> cho vào offline luôn
+    if(isFileProtocol || isDomainError){
+      console.warn('Fallback to offline mode due to', err.code);
+      $('authError').innerHTML = `⚠️ Firebase chặn <b>file://</b> (${err.code})<br><small>Đang vào chế độ offline với <b>${email}</b>...</small>`;
+      $('authError').classList.add('show');
+      const localUser = {uid:'local_'+Date.now(), displayName: email.split('@')[0], email: email, photoURL:null, isLocal:true};
+      setTimeout(()=>{
+        enterApp(localUser);
+        showToast(`✅ Đã vào offline với ${email}`, 3000);
+      }, 800);
+      return;
+    }
+    
     $('authError').innerHTML = translateAuthError(err.code) + `<br><small style="font-size:11px;color:#6b7280">${err.message||''}<br>Code: ${err.code}</small>`;
     $('authError').classList.add('show');
   } finally {
@@ -819,10 +839,16 @@ $('googleBtn').addEventListener('click', async () => {
   }
   catch (err) {
     console.error('Google auth error', err);
-    let msg = translateAuthError(err.code);
-    if(err.code==='auth/unauthorized-domain'){
-      msg = 'Domain chưa được cho phép. Hãy chạy bằng Live Server (VS Code) hoặc host lên Vercel/Netlify. Firebase chặn file://';
+    const isFileProtocol = location.protocol === 'file:';
+    if(isFileProtocol || err.code==='auth/unauthorized-domain' || err.code==='auth/popup-closed-by-user' || err.code==='auth/popup-blocked'){
+      // fallback offline cho Google luôn
+      $('authError').innerHTML = `⚠️ Google login bị chặn do file://<br><small>Đang vào offline...</small>`;
+      $('authError').classList.add('show');
+      const localUser = {uid:'local_'+Date.now(), displayName:'Tài xế', email:'driver@vietdriver.pro', photoURL:null, isLocal:true};
+      setTimeout(()=>{ enterApp(localUser); showToast('✅ Vào offline (Google bị chặn file://)', 3000); }, 600);
+      return;
     }
+    let msg = translateAuthError(err.code);
     $('authError').innerHTML = msg + `<br><small>${err.message}</small>`;
     $('authError').classList.add('show');
   } finally {
@@ -2623,6 +2649,16 @@ if(map){
   // will attach after map init via map.on, but also add global
 }
 if ('speechSynthesis' in window) window.speechSynthesis.getVoices();
+// DEBUG: double click logo to force enter
+const logoForce = document.getElementById('logoForce');
+if(logoForce){
+  logoForce.addEventListener('dblclick', ()=>{
+    const email = document.getElementById('emailInput').value || 'test@vietdriver.pro';
+    const localUser = {uid:'debug_'+Date.now(), displayName: email.split('@')[0], email: email, photoURL:null, isLocal:true};
+    enterApp(localUser);
+    showToast('🔧 Force enter - double click logo');
+  });
+}
 </script>
 </body>
 </html>
