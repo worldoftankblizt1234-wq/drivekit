@@ -3,166 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sửa lỗi Mapillary - Không lo trang trắng</title>
+    <title>Bản đồ Biển báo Mapillary - Sử dụng MapTiler v4</title>
+    
+    <!-- Nhúng thư viện đồ họa bản đồ MapLibre GL JS -->
+    <script src="https://unpkg.com"></script>
     <link href="https://unpkg.com" rel="stylesheet" />
+    
     <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { margin: 0; padding: 0; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        .info-panel {
-            position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.95);
-            padding: 15px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            max-width: 320px; z-index: 1; font-size: 14px;
+        /* Tùy biến ô thông tin Popup khi click vào biển báo */
+        .maplibregl-popup-content {
+            font-family: Arial, sans-serif;
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
         }
-        .token-container { margin-top: 10px; display: flex; gap: 5px; }
-        .token-container input { flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
-        .token-container button { padding: 6px 12px; background: #0078ff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .tag-badge { display: inline-block; background: #e1f5fe; color: #0288d1; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; }
-        .popup-image-container { width: 100%; margin-top: 8px; background: #000; min-height: 140px; display: flex; align-items: center; justify-content: center; }
-        .popup-image-container img { width: 100%; height: auto; display: block; }
     </style>
 </head>
 <body>
 
-<div class="info-panel">
-    <h3>Bản đồ Biển Báo Thừa Kế</h3>
-    <p>Sử dụng cơ chế an toàn: Tự động tải nền OSM trước, nạp dữ liệu Mapillary sau để tránh lỗi trang trắng.</p>
-    <div class="token-container">
-        <input type="text" id="tokenField" placeholder="Nhập Client Access Token..." />
-        <button id="applyTokenBtn">Áp dụng</button>
-    </div>
-</div>
-
+<!-- Khung chứa bản đồ toàn màn hình -->
 <div id="map"></div>
 
-<script src="https://unpkg.com"></script>
-
 <script>
-    const HCMC_LNG_LAT = [106.6948, 10.7766];
+    // 1. CẤU HÌNH CÁC MÃ KHÓA API (TOKEN)
+    const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW'; // API Key MapTiler của bạn
     
-    // Tách biệt hoàn toàn bản đồ nền (Không nhúng thuộc tính "sprite" lỗi để tránh sập trang)
-    const safeStyle = {
-        "version": 8,
-        "sources": {
-            "osm-raster-tiles": {
-                "type": "raster",
-                "tiles": ["https://openstreetmap.org{z}/{x}/{y}.png"],
-                "tileSize": 256,
-                "attribution": "&copy; OpenStreetMap contributors"
-            }
-        },
-        "layers": [
-            { "id": "osm-tiles-layer", "type": "raster", "source": "osm-raster-tiles" }
-        ]
-    };
+    // !!! BẠN CẦN ĐIỀN TOKEN MAPILLARY CỦA BẠN VÀO GIỮA HAI DẤU NHÁY ĐƠN DƯỚI ĐÂY !!!
+    const MAPILLARY_TOKEN = 'MLY|30124595887140717|6f7fa14af38d34316e4f6ba9388e1be4'; 
 
+    // 2. KHỞI TẠO BẢN ĐỒ NỀN MAPTILER STREETS V4
     const map = new maplibregl.Map({
         container: 'map',
-        style: safeStyle, 
-        center: HCMC_LNG_LAT,
-        zoom: 16,
-        minZoom: 14
+        style: `https://maptiler.com{MAPTILER_KEY}`,
+        center: [106.660172, 10.762622], // Tọa độ trung tâm mặc định (Ví dụ: TP.HCM)
+        zoom: 15, // Độ thu phóng ban đầu
+        pitch: 45, // Độ nghiêng góc nhìn giúp hiển thị tòa nhà 3D rõ hơn
+        bearing: 0
     });
 
+    // Thêm các nút chức năng Thu phóng / Xoay bản đồ ở góc phải
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-    // Nạp thủ công một vài icon biển báo mẫu từ Wikipedia/Wikimedia chống cháy 
-    // Ông có thể tự cấu hình thêm các link ảnh icon khác vào đây!
+    // 3. ĐỢI BẢN ĐỒ NỀN TẢI XONG -> TIẾN HÀNH CHÈN DỮ LIỆU BIỂN BÁO MAPILLARY
     map.on('load', () => {
-        // Biển cấm đi ngược chiều mẫu (P.102)
-        map.loadImage('https://wikimedia.org', (error, image) => {
-            if (!error) map.addImage('regulatory--no-entry--g1', image); 
-        });
-        // Biển dừng lại mẫu (P.122)
-        map.loadImage('https://wikimedia.org', (error, image) => {
-            if (!error) map.addImage('regulatory--stop--g1', image);
-        });
-    });
-
-    function loadMapillaryLayers(token) {
-        // Dọn dẹp layer cũ nếu có
-        if (map.getLayer('mapillary-signs-icon-layer')) map.removeLayer('mapillary-signs-icon-layer');
-        if (map.getLayer('mapillary-signs-fallback-layer')) map.removeLayer('mapillary-signs-fallback-layer');
-        if (map.getSource('mapillary-signs-source')) map.removeSource('mapillary-signs-source');
-
+        
+        // Khai báo nguồn cấp dữ liệu Vector Tile từ Mapillary
         map.addSource('mapillary-signs-source', {
-            type: 'vector',
-            tiles: [`https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${token}`],
-            minzoom: 14,
-            maxzoom: 14
+            'type': 'vector',
+            'tiles': [
+                `https://mapillary.com{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`
+            ],
+            'minzoom': 14, // Dữ liệu biển báo chỉ hiển thị khi zoom từ cấp 14 trở lên để tránh lag
+            'maxzoom': 20
         });
 
-        // LAYER 1: Hiển thị ICON (Chỉ hiện nếu trùng với mã ảnh ta đã nạp ở hàm loadImage phía trên)
+        // Tạo một lớp đồ họa (Layer) vẽ các chấm tròn đại diện cho vị trí biển báo
         map.addLayer({
-            id: 'mapillary-signs-icon-layer',
-            type: 'symbol',
-            source: 'mapillary-signs-source',
-            'source-layer': 'traffic_sign',
-            layout: {
-                'icon-image': ['get', 'value'], // Lấy mã của Mapillary đối chiếu với tên ảnh đã addImage
-                'icon-size': 1.0,
-                'icon-allow-overlap': true
+            'id': 'traffic-signs-layer',
+            'type': 'circle',
+            'source': 'mapillary-signs-source',
+            'source-layer': 'traffic_sign', // Tên định danh layer biển báo bắt buộc của Mapillary
+            'paint': {
+                'circle-radius': [
+                    'interpolate', ['linear'], ['zoom'],
+                    14, 4,  // Khi zoom nhỏ (cấp 14), chấm tròn rộng 4px
+                    18, 9   // Khi zoom lớn (cấp 18), chấm tròn tự động to lên 9px
+                ],
+                'circle-color': '#e74c3c', // Màu đỏ nổi bật cho biển báo
+                'circle-stroke-width': 2,
+                'circle-stroke-color': '#ffffff' // Viền trắng bao quanh chấm đỏ
             }
         });
 
-        // LAYER 2: Dự phòng (Fallback) - Nếu biển báo nào chưa có file ảnh icon, nó sẽ tự hiện chấm tròn đỏ để web không lỗi
-        map.addLayer({
-            id: 'mapillary-signs-fallback-layer',
-            type: 'circle',
-            source: 'mapillary-signs-source',
-            'source-layer': 'traffic_sign',
-            paint: {
-                'circle-radius': 5,
-                'circle-color': '#ff1744',
-                'circle-stroke-width': 1,
-                'circle-stroke-color': '#ffffff'
-            },
-            // Logic lọc: Chỉ hiện chấm tròn đỏ đối với các điểm biển báo chưa có ảnh icon symbol đè lên
-            filter: ['has', 'value'] 
-        });
+        // 4. XỬ LÝ SỰ KIỆN CLICK VÀO BIỂN BÁO ĐỂ XEM THÔNG TIN
+        map.on('click', 'traffic-signs-layer', (e) => {
+            // Lấy toàn bộ thuộc tính của điểm biển báo vừa click
+            const properties = e.features[0].properties;
+            
+            // Mapillary trả về mã ký hiệu biển báo qua thuộc tính 'value'
+            const signCode = properties.value || 'Không rõ mã ký hiệu';
+            
+            // Lấy thời gian ghi nhận (định dạng Unix timestamp)
+            const detectionTime = properties.updated_at 
+                ? new Date(properties.updated_at).toLocaleDateString('vi-VN') 
+                : 'N/A';
 
-        // Click hiển thị ảnh như cũ
-        map.on('click', 'mapillary-signs-fallback-layer', (e) => { handleMapClick(e, token); });
-        map.on('click', 'mapillary-signs-icon-layer', (e) => { handleMapClick(e, token); });
-    }
-
-    async function handleMapClick(e, token) {
-        const features = e.features;
-        if (!features || features.length === 0) return;
-
-        const properties = features[0].properties;
-        const signType = properties.value || 'N/A';
-        const imageId = properties.image_id || properties.image_key || properties.id;
-        const coordinates = e.lngLat;
-
-        if (!imageId) {
-            new maplibregl.Popup().setLngLat(coordinates).setHTML(`<strong>Biển báo:</strong> <span class="tag-badge">${signType}</span><p>⚠️ Dữ liệu AI, không có ảnh gốc.</p>`).addTo(map);
-            return;
-        }
-
-        const popup = new maplibregl.Popup().setLngLat(coordinates).setHTML(`<p>🔄 Đang tải ảnh...</p>`).addTo(map);
-
-        try {
-            const response = await fetch(`https://mapillary.com{imageId}?access_token=${token}&fields=id,thumb_1024_url`);
-            const imgData = await response.json();
-            if (imgData && imgData.thumb_1024_url) {
-                popup.setHTML(`
-                    <div>
-                        <strong>Loại:</strong> <span class="tag-badge">${signType}</span>
-                        <div class="popup-image-container"><img src="${imgData.thumb_1024_url}" /></div>
+            // Tạo khung hiển thị thông tin bong bóng (Popup)
+            new maplibregl.Popup()
+                .setLngLat(e.lngLat)
+                .setHTML(`
+                    <div style="font-size:13px; line-height:1.5;">
+                        <h4 style="margin:0 0 8px 0; color:#e74c3c;">Thông tin biển báo</h4>
+                        <b>Mã hệ thống:</b> <code style="background:#f4f4f4; padding:2px 4px; border-radius:3px;">${signCode}</code><br>
+                        <b>Ngày cập nhật:</b> ${detectionTime}
                     </div>
-                `);
-            }
-        } catch (err) {
-            popup.setHTML(`<p>⚠️ Lỗi tải ảnh.</p>`);
-        }
-    }
+                `)
+                .addTo(map);
+        });
 
-    document.getElementById('applyTokenBtn').addEventListener('click', () => {
-        const token = document.getElementById('tokenField').value.trim();
-        if (!token) { alert('Vui lòng nhập Token Mapillary.'); return; }
-        loadMapillaryLayers(token);
-        alert('Đã đồng bộ an toàn dữ liệu!');
+        // 5. HIỆU ỨNG THAY ĐỔI CON TRỎ CHUỘT KHI DI CHUYỂN QUA BIỂN BÁO
+        map.on('mouseenter', 'traffic-signs-layer', () => { 
+            map.getCanvas().style.cursor = 'pointer'; 
+        });
+        map.on('mouseleave', 'traffic-signs-layer', () => { 
+            map.getCanvas().style.cursor = ''; 
+        });
     });
 </script>
+
 </body>
 </html>
