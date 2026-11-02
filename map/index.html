@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Mapillary Signs - Full Version</title>
+<title>Mapillary Signs - Fixed API Error</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-serif}
@@ -243,14 +243,13 @@ function addSymbolLayer() {
 }
 
 /* ============================================================
-   7. CLICK HANDLER (Đã sửa lỗi API)
+   7. CLICK HANDLER (ĐÃ SỬA LỖI TRƯỜNG 'value' -> 'object_value')
    ============================================================ */
 async function onSignClick(e) {
   const f = e.features[0];
   const featureId = f.properties.id || f.id;
   const rawValue = f.properties.value || '';
   
-  // Dịch tên biển báo sang tiếng Việt
   const displayName = getSignName(rawValue);
 
   const popup = new maplibregl.Popup({ offset: 16, maxWidth: '300px' })
@@ -268,8 +267,8 @@ async function onSignClick(e) {
   if (!featureId) return;
 
   try {
-    // Gửi token qua Query Param (Đã sửa từ Header sang Param vì Header bị lỗi 400)
-    const r1 = await fetch(`https://graph.mapillary.com/${featureId}?access_token=${TOKEN}&fields=id,value,images`);
+    // ✅ SỬA LỖI TẠI ĐÂY: Đổi 'value' thành 'object_value'
+    const r1 = await fetch(`https://graph.mapillary.com/${featureId}?access_token=${TOKEN}&fields=id,object_value,images`);
     const d1 = await r1.json();
     
     if (d1.error) {
@@ -283,6 +282,7 @@ async function onSignClick(e) {
       return;
     }
 
+    // Lấy ảnh thumb
     const r2 = await fetch(`https://graph.mapillary.com/${imgId}?access_token=${TOKEN}&fields=thumb_512_url`);
     const d2 = await r2.json();
     
