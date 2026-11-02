@@ -21,7 +21,7 @@
   #auth-screen {
     position: fixed; inset:0; z-index:300;
     background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
-    display:flex; align-items:center; justify-content:center; padding:20px;
+    display:none; align-items:center; justify-content:center; padding:20px;
   }
   .auth-card {
     background:#fff; border-radius:16px; padding:28px;
@@ -94,7 +94,7 @@
     backdrop-filter: blur(10px);
     border-radius:12px; box-shadow: var(--shadow);
     font-size:13px; width:300px; max-height: calc(100vh - 24px);
-    display:flex; flex-direction:column; overflow:hidden;
+    display:none; flex-direction:column; overflow:hidden;
   }
   .panel-left  { top:12px; left:12px; }
   .panel-right { top:12px; right:12px; }
@@ -201,10 +201,11 @@
 
   /* ============ MODAL ============ */
   .modal-bg {
-    position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex;
+    position:fixed; inset:0; background:rgba(0,0,0,.55); display:none;
     align-items:center; justify-content:center; z-index:100; padding:16px;
     backdrop-filter: blur(4px);
   }
+  .modal-bg.show { display:flex; }
   .modal {
     background:#fff; border-radius:12px; padding:20px;
     min-width:320px; max-width:92vw; max-height:90vh; overflow-y:auto;
@@ -224,17 +225,19 @@
   #call-bar {
     position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
     background: var(--primary); color:#fff; padding:12px 20px;
-    border-radius:28px; display:flex; gap:12px; align-items:center;
+    border-radius:28px; display:none; gap:12px; align-items:center;
     font-size:13px; z-index:50; box-shadow: 0 6px 24px rgba(26,115,232,.5);
   }
+  #call-bar.show { display:flex; }
   #call-bar .icon-btn { color:#fff; background: rgba(255,255,255,.2); }
 
-  /* ============ LOADER ============ */
+  /* ============ LOADER (FIXED) ============ */
   #loader {
     position:fixed; inset:0; background:rgba(255,255,255,.9);
-    display:flex; align-items:center; justify-content:center;
+    display:none; align-items:center; justify-content:center;
     z-index:200; flex-direction:column; gap:12px;
   }
+  #loader.show { display:flex; }
   .spinner {
     width:40px; height:40px; border:3px solid #e8eaed; border-top-color: var(--primary);
     border-radius:50%; animation: spin .8s linear infinite;
@@ -252,10 +255,49 @@
 </head>
 <body>
 
+<!-- ============ GLOBAL ERROR HANDLER ============ -->
+<script>
+  window.__dk_showFatal = (msg) => {
+    const loader = document.getElementById("loader");
+    if (!loader) return;
+    loader.innerHTML = `
+      <div style="color:#e53935;text-align:center;padding:20px;max-width:460px;font-family:sans-serif;">
+        <div style="font-size:36px;margin-bottom:8px;">⚠️</div>
+        <div style="font-weight:600;font-size:15px;margin-bottom:8px;">Không tải được ứng dụng</div>
+        <div style="font-size:12px;color:#5f6368;margin-bottom:14px;line-height:1.5;word-break:break-word;">
+          ${String(msg).slice(0, 400)}
+        </div>
+        <div style="font-size:12px;color:#5f6368;margin-bottom:14px;">
+          Kiểm tra Console (F12) để xem chi tiết. Có thể do mạng chặn CDN hoặc Firebase chưa cấu hình.
+        </div>
+        <button onclick="location.reload()"
+          style="padding:10px 20px;border:none;border-radius:8px;background:#1a73e8;color:#fff;cursor:pointer;font-size:14px;font-weight:500;">
+          Thử lại
+        </button>
+      </div>`;
+    loader.classList.add("show");
+  };
+
+  window.addEventListener("error", (e) => {
+    console.error("[global error]", e);
+    const msg = e.message || e.error?.message || "Lỗi không xác định";
+    if (/Failed to fetch|Cannot find|import|module/i.test(msg)) {
+      window.__dk_showFatal(msg);
+    }
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    console.error("[unhandled rejection]", e.reason);
+    const msg = e.reason?.message || String(e.reason || "");
+    if (/Failed to fetch|Cannot find|import|module/i.test(msg)) {
+      window.__dk_showFatal(msg);
+    }
+  });
+</script>
+
 <div id="map"></div>
 
 <!-- ============ AUTH SCREEN ============ -->
-<div id="auth-screen" style="display:none;">
+<div id="auth-screen">
   <div class="auth-card">
     <div class="auth-logo">🚗</div>
     <h1>DriveKit Map</h1>
@@ -305,8 +347,8 @@
   </div>
 </div>
 
-<!-- ============ LOADER ============ -->
-<div id="loader" class="show">
+<!-- ============ LOADER (FIXED — ẩn mặc định) ============ -->
+<div id="loader">
   <div class="spinner"></div>
   <div style="font-size:13px; color:#5f6368;">Đang tải…</div>
 </div>
@@ -407,7 +449,7 @@
 </div>
 
 <!-- ============ MODALS ============ -->
-<div class="modal-bg" id="add-modal" style="display:none">
+<div class="modal-bg" id="add-modal">
   <div class="modal">
     <h3 id="add-modal-title">Thêm</h3>
     <div id="add-modal-body"></div>
@@ -418,7 +460,7 @@
   </div>
 </div>
 
-<div class="modal-bg" id="call-modal" style="display:none">
+<div class="modal-bg" id="call-modal">
   <div class="modal">
     <h3 id="call-title">📞 Cuộc gọi đến</h3>
     <p id="call-desc" style="color:#5f6368;">—</p>
@@ -429,7 +471,7 @@
   </div>
 </div>
 
-<div id="call-bar" style="display:none">
+<div id="call-bar">
   <span id="call-bar-text">Đang kết nối…</span>
   <button class="icon-btn" id="call-end">✖</button>
 </div>
@@ -499,7 +541,7 @@ import {
   onValue, onDisconnect, serverTimestamp, query, orderByChild, startAt, endAt
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import {
-  getAuth, onAuthStateChanged, signInAnonymously,
+  getAuth, onAuthStateChanged,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   signInWithPopup, GoogleAuthProvider, updateProfile, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -516,10 +558,8 @@ const myUid = () => auth.currentUser?.uid || null;
 const myName = () => auth.currentUser?.displayName || (auth.currentUser?.email?.split("@")[0]) || "Tài xế";
 const myPhoto = () => auth.currentUser?.photoURL || null;
 
-/* ---------- AUTH APIs ---------- */
-async function doLogin(email, password) {
-  return signInWithEmailAndPassword(auth, email, password);
-}
+/* ---------- AUTH ---------- */
+const doLogin = (email, password) => signInWithEmailAndPassword(auth, email, password);
 async function doRegister(email, password, name) {
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(cred.user, { displayName: name });
@@ -529,11 +569,8 @@ async function doGoogleLogin() {
   const cred = await signInWithPopup(auth, googleProvider);
   return cred.user;
 }
-async function doLogout() {
-  await signOut(auth);
-}
+const doLogout = () => signOut(auth);
 
-/* Map error codes → tiếng Việt */
 const AUTH_ERRORS = {
   "auth/invalid-email": "Email không hợp lệ",
   "auth/user-disabled": "Tài khoản đã bị vô hiệu hóa",
@@ -547,11 +584,10 @@ const AUTH_ERRORS = {
   "auth/popup-blocked": "Trình duyệt đã chặn popup — hãy cho phép popup cho trang này",
   "auth/operation-not-allowed": "Phương thức đăng nhập này chưa được bật trong Firebase Console",
   "auth/unauthorized-domain": "Tên miền này chưa được cho phép trong Firebase Console → Authentication → Settings → Authorized domains",
-  "auth/network-request-failed": "Lỗi mạng, vui lòng kiểm tra kết nối"
+  "auth/network-request-failed": "Lỗi mạng, vui lòng kiểm tra kết nối",
+  "auth/cancelled-popup-request": "Đã có popup đăng nhập đang mở"
 };
-function authErrorMsg(err) {
-  return AUTH_ERRORS[err?.code] || err?.message || "Đã xảy ra lỗi không xác định";
-}
+const authErrorMsg = err => AUTH_ERRORS[err?.code] || err?.message || "Đã xảy ra lỗi không xác định";
 
 /* ---------- presence ---------- */
 function startPresence(uid, getPos) {
@@ -561,15 +597,13 @@ function startPresence(uid, getPos) {
     if (!pos) return;
     set(ref(db, `users/${uid}`), {
       lat: pos.lat, lng: pos.lng,
-      displayName: myName(),
-      photoURL: myPhoto(),
+      displayName: myName(), photoURL: myPhoto(),
       geohash: geohashForLocation([pos.lat, pos.lng]),
       updatedAt: serverTimestamp()
     }).catch(() => {});
   };
   push();
-  const timer = setInterval(push, 15000);
-  return () => clearInterval(timer);
+  return setInterval(push, 15000);
 }
 
 /* ---------- geo query ---------- */
@@ -593,8 +627,7 @@ async function queryGeo(node, center, radiusM) {
 async function addPoi(data) {
   const id = push(ref(db, "pois")).key;
   await set(ref(db, `pois/${id}`), {
-    ...data,
-    geohash: geohashForLocation([data.lat, data.lng]),
+    ...data, geohash: geohashForLocation([data.lat, data.lng]),
     createdBy: myUid(), createdByName: myName(), createdAt: Date.now()
   });
   return id;
@@ -602,8 +635,7 @@ async function addPoi(data) {
 async function addAlert(data) {
   const id = push(ref(db, "alerts")).key;
   await set(ref(db, `alerts/${id}`), {
-    ...data,
-    geohash: geohashForLocation([data.lat, data.lng]),
+    ...data, geohash: geohashForLocation([data.lat, data.lng]),
     createdBy: myUid(), createdByName: myName(), createdAt: Date.now(),
     expiresAt: Date.now() + (data.ttlHours || 2) * 3600_000
   });
@@ -620,10 +652,8 @@ async function createRoom(uid, { name, isPublic, lat, lng }) {
   const id = newRoomCode();
   await set(ref(db, `rooms/${id}`), {
     hostId: uid, hostName: myName(), hostOnline: true,
-    name: name || "Phòng mới",
-    isPublic: !!isPublic, lat, lng,
-    geohash: geohashForLocation([lat, lng]),
-    createdAt: Date.now()
+    name: name || "Phòng mới", isPublic: !!isPublic, lat, lng,
+    geohash: geohashForLocation([lat, lng]), createdAt: Date.now()
   });
   await joinRoom(id, uid, lat, lng);
   return id;
@@ -639,9 +669,8 @@ async function leaveRoom(roomId, uid) {
   await remove(ref(db, `rooms/${roomId}/members/${uid}`)).catch(() => {});
   await remove(ref(db, `users/${uid}/room`)).catch(() => {});
   const snap = await get(ref(db, `rooms/${roomId}/hostId`));
-  if (snap.val() === uid) {
+  if (snap.val() === uid)
     await update(ref(db, `rooms/${roomId}`), { hostOnline: false }).catch(() => {});
-  }
 }
 async function updateRoomLocation(roomId, uid, lat, lng) {
   await Promise.all([
@@ -766,40 +795,27 @@ class CallManager {
    STATE
    ============================================================ */
 const state = {
-  map: null,
-  uid: null,
-  userLocation: null,
-  userMarker: null,
-  selectedPoint: null,
-  selectedMarker: null,
-  profile: "car",
-  route: null,
-  satelliteOn: false,
-  mapillaryOn: true,
-  trafficOn: false,
+  map: null, uid: null,
+  userLocation: null, userMarker: null,
+  selectedPoint: null, selectedMarker: null,
+  profile: "car", route: null,
+  satelliteOn: false, mapillaryOn: true, trafficOn: false,
   styleSwapping: false,
-  poiMarkers: new Map(),
-  alertMarkers: new Map(),
-  memberMarkers: new Map(),
-  userMarkers: new Map(),
-  addMode: null,
-  myRoom: null,
-  roomUnsub: null,
-  callManager: null,
-  pendingIncoming: null,
-  inboxUnsub: null,
-  appStarted: false,
-  presenceStop: null
+  poiMarkers: new Map(), alertMarkers: new Map(),
+  memberMarkers: new Map(), userMarkers: new Map(),
+  addMode: null, myRoom: null, roomUnsub: null,
+  callManager: null, pendingIncoming: null, inboxUnsub: null,
+  appStarted: false, presenceTimer: null
 };
 
 /* ============================================================
    AUTH UI
    ============================================================ */
 function showAuthScreen() {
-  document.getElementById("loader").classList.remove("show");
   document.getElementById("auth-screen").style.display = "flex";
   document.getElementById("panel-left").style.display = "none";
   document.getElementById("panel-right").style.display = "none";
+  document.getElementById("loader").classList.remove("show");
 }
 function hideAuthScreen() {
   document.getElementById("auth-screen").style.display = "none";
@@ -821,7 +837,6 @@ function setAuthBusy(busy) {
 }
 
 function setupAuthUI() {
-  // Tab login/register
   document.querySelectorAll("[data-auth-tab]").forEach(t => {
     t.onclick = () => {
       document.querySelectorAll("[data-auth-tab]").forEach(x => x.classList.remove("active"));
@@ -833,7 +848,6 @@ function setupAuthUI() {
     };
   });
 
-  // Login form
   document.getElementById("login-form").onsubmit = async e => {
     e.preventDefault();
     clearAuthError();
@@ -842,7 +856,6 @@ function setupAuthUI() {
       const email = document.getElementById("login-email").value.trim();
       const pw = document.getElementById("login-password").value;
       await doLogin(email, pw);
-      // onAuthStateChanged sẽ lo phần còn lại
     } catch (err) {
       console.error("[login]", err);
       showAuthError(err);
@@ -850,7 +863,6 @@ function setupAuthUI() {
     }
   };
 
-  // Register form
   document.getElementById("register-form").onsubmit = async e => {
     e.preventDefault();
     clearAuthError();
@@ -868,7 +880,6 @@ function setupAuthUI() {
     }
   };
 
-  // Google
   document.getElementById("google-btn").onclick = async () => {
     clearAuthError();
     setAuthBusy(true);
@@ -881,16 +892,14 @@ function setupAuthUI() {
     }
   };
 
-  // Logout
   document.getElementById("logout-btn").onclick = async () => {
     if (!confirm("Đăng xuất khỏi DriveKit?")) return;
     try {
-      // Cleanup trước khi logout
       if (state.uid) {
         await remove(ref(db, `users/${state.uid}`)).catch(() => {});
         if (state.myRoom) await leaveRoom(state.myRoom, state.uid).catch(() => {});
       }
-      state.presenceStop?.();
+      if (state.presenceTimer) clearInterval(state.presenceTimer);
       await doLogout();
       location.reload();
     } catch (e) {
@@ -899,9 +908,6 @@ function setupAuthUI() {
   };
 }
 
-/* ============================================================
-   USER BADGE
-   ============================================================ */
 function renderUserBadge(user) {
   const badge = document.getElementById("user-badge");
   badge.style.display = "flex";
@@ -909,7 +915,6 @@ function renderUserBadge(user) {
   const email = user.email || "(Google)";
   document.getElementById("user-name").textContent = name;
   document.getElementById("user-email").textContent = email;
-
   const av = document.getElementById("user-avatar");
   if (user.photoURL) {
     av.style.backgroundImage = `url("${user.photoURL}")`;
@@ -933,9 +938,7 @@ function initMap() {
   state.map = new maplibregl.Map({
     container: "map",
     style: trackasiaStyle(cfg.trackasia.styles.streets),
-    center: [105.8342, 21.0278],
-    zoom: 13,
-    attributionControl: false
+    center: [105.8342, 21.0278], zoom: 13, attributionControl: false
   });
 
   state.map.addControl(new maplibregl.AttributionControl({
@@ -1083,7 +1086,6 @@ async function routeToSelected() {
   }
 }
 async function fetchRoute(origin, dest, profile) {
-  // OSRM yêu cầu {lng},{lat}
   const coords = `${origin.lng},${origin.lat};${dest.lng},${dest.lat}`;
   const osrmProfile = cfg.routing.profiles[profile] || "driving";
   const url = `${cfg.routing.baseUrl}/route/v1/${osrmProfile}/${coords}?overview=full&geometries=geojson&alternatives=false&steps=false`;
@@ -1102,9 +1104,8 @@ async function fetchRoute(origin, dest, profile) {
   const straight = haversineKm(origin, dest);
   if (distKm > 500 && distKm > straight * 20) {
     console.warn(`[routing] ⚠ Bất thường: route=${distKm.toFixed(1)}km, thẳng=${straight.toFixed(1)}km`);
-    if (!confirm(`Tuyến dài ${distKm.toFixed(0)} km — có vẻ sai.\n(Tuyến thẳng chỉ ${straight.toFixed(1)} km)\n\nVẫn tiếp tục?`)) {
+    if (!confirm(`Tuyến dài ${distKm.toFixed(0)} km — có vẻ sai.\n(Tuyến thẳng chỉ ${straight.toFixed(1)} km)\n\nVẫn tiếp tục?`))
       throw new Error("Đã hủy");
-    }
   }
   return r;
 }
@@ -1159,7 +1160,6 @@ function setupUI() {
   document.getElementById("clear-route").onclick = clearRoute;
   document.getElementById("share-route").onclick = shareRoute;
   document.getElementById("locate-me").onclick = locateMe;
-
   document.getElementById("toggle-left").onclick = () => togglePanel("panel-left");
   document.getElementById("toggle-right").onclick = () => togglePanel("panel-right");
 
@@ -1178,12 +1178,10 @@ function setupUI() {
   });
   document.getElementById("add-cancel").onclick = closeAddModal;
   document.getElementById("add-confirm").onclick = confirmAdd;
-
   document.getElementById("refresh-rooms").onclick = refreshRooms;
   document.getElementById("create-room").onclick = createRoomUI;
   document.getElementById("join-room").onclick = joinRoomByCode;
   document.getElementById("leave-room").onclick = leaveMyRoom;
-
   document.getElementById("call-accept").onclick = acceptIncomingCall;
   document.getElementById("call-reject").onclick = rejectIncomingCall;
   document.getElementById("call-end").onclick = endActiveCall;
@@ -1352,12 +1350,12 @@ function openAddModal(kind, lng, lat) {
       <div class="coords" style="font-family:monospace;font-size:11px;color:#5f6368;">
         📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}</div>`;
   }
-  modal.style.display = "flex";
+  modal.classList.add("show");
   modal.dataset.kind = kind;
   modal.dataset.lng = lng;
   modal.dataset.lat = lat;
 }
-function closeAddModal() { document.getElementById("add-modal").style.display = "none"; }
+function closeAddModal() { document.getElementById("add-modal").classList.remove("show"); }
 async function confirmAdd() {
   const modal = document.getElementById("add-modal");
   const kind = modal.dataset.kind;
@@ -1419,11 +1417,8 @@ async function refreshNearbyUsers() {
         const el = document.createElement("div");
         el.className = "member-marker";
         const name = u.displayName || u.id.slice(0, 2);
-        if (u.photoURL) {
-          el.style.backgroundImage = `url("${u.photoURL}")`;
-        } else {
-          el.textContent = name.slice(0, 2).toUpperCase();
-        }
+        if (u.photoURL) el.style.backgroundImage = `url("${u.photoURL}")`;
+        else el.textContent = name.slice(0, 2).toUpperCase();
         el.title = name;
         const mk = new maplibregl.Marker({ element: el })
           .setLngLat([u.lng, u.lat]).addTo(state.map);
@@ -1561,11 +1556,11 @@ function getCallManager() {
   if (state.callManager) return state.callManager;
   state.callManager = new CallManager({
     onState: text => {
-      document.getElementById("call-bar").style.display = "flex";
+      document.getElementById("call-bar").classList.add("show");
       document.getElementById("call-bar-text").textContent = text;
     },
     onEnd: () => {
-      document.getElementById("call-bar").style.display = "none";
+      document.getElementById("call-bar").classList.remove("show");
       state.callManager = null;
     }
   });
@@ -1583,7 +1578,7 @@ async function startOutgoingCall(peerUid, peerName) {
 function endActiveCall() {
   state.callManager?.end();
   state.callManager = null;
-  document.getElementById("call-bar").style.display = "none";
+  document.getElementById("call-bar").classList.remove("show");
 }
 function watchInbox() {
   state.inboxUnsub?.();
@@ -1597,10 +1592,10 @@ function watchInbox() {
 function showIncomingCall(data) {
   document.getElementById("call-title").textContent = "📞 Cuộc gọi đến";
   document.getElementById("call-desc").textContent = `${data.fromName || "Tài xế"} đang gọi bạn`;
-  document.getElementById("call-modal").style.display = "flex";
+  document.getElementById("call-modal").classList.add("show");
 }
 async function acceptIncomingCall() {
-  document.getElementById("call-modal").style.display = "none";
+  document.getElementById("call-modal").classList.remove("show");
   if (!state.pendingIncoming) return;
   try {
     const snap = await get(ref(db, `calls/${state.pendingIncoming.callId}`));
@@ -1608,7 +1603,7 @@ async function acceptIncomingCall() {
     if (!callData) { toast("Cuộc gọi đã kết thúc"); state.pendingIncoming = null; return; }
     await getCallManager().acceptCall(callData);
     state.pendingIncoming = null;
-    document.getElementById("call-bar").style.display = "flex";
+    document.getElementById("call-bar").classList.add("show");
     document.getElementById("call-bar-text").textContent = "Đang trong cuộc gọi";
   } catch (e) {
     console.error(e);
@@ -1617,7 +1612,7 @@ async function acceptIncomingCall() {
   }
 }
 async function rejectIncomingCall() {
-  document.getElementById("call-modal").style.display = "none";
+  document.getElementById("call-modal").classList.remove("show");
   if (state.pendingIncoming) {
     await endCall(state.pendingIncoming.callId).catch(() => {});
     await clearNotify(state.uid, state.pendingIncoming.callId).catch(() => {});
@@ -1694,6 +1689,9 @@ function onUserSignedIn(user) {
   renderUserBadge(user);
   hideAuthScreen();
 
+  // Hiện loader trong lúc load map
+  document.getElementById("loader").classList.add("show");
+
   // Geolocation sớm
   navigator.geolocation?.getCurrentPosition(
     pos => applyGeo(pos.coords.longitude, pos.coords.latitude, false),
@@ -1701,8 +1699,8 @@ function onUserSignedIn(user) {
     { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
   );
 
-  state.presenceStop?.();
-  state.presenceStop = startPresence(user.uid, () => state.userLocation);
+  if (state.presenceTimer) clearInterval(state.presenceTimer);
+  state.presenceTimer = startPresence(user.uid, () => state.userLocation);
 
   watchInbox();
   initMap();
@@ -1710,8 +1708,7 @@ function onUserSignedIn(user) {
 
 function onUserSignedOut() {
   state.uid = null;
-  state.presenceStop?.();
-  state.presenceStop = null;
+  if (state.presenceTimer) { clearInterval(state.presenceTimer); state.presenceTimer = null; }
   state.inboxUnsub?.();
   state.inboxUnsub = null;
   state.callManager?.end();
@@ -1723,7 +1720,7 @@ function onUserSignedOut() {
 function bootstrap() {
   setupAuthUI();
 
-  // Ẩn loader, hiện auth screen ngay lập tức trong lúc chờ Firebase
+  // Ngay khi load: hiện auth screen, ẩn loader
   document.getElementById("loader").classList.remove("show");
   document.getElementById("auth-screen").style.display = "flex";
   document.getElementById("panel-left").style.display = "none";
