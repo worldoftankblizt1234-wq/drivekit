@@ -1,135 +1,484 @@
 <!DOCTYPE html>
 <html lang="vi">
-<head><style>
-@font-face {
-  font-family: "Optimistic";
-  font-style: normal;
-  font-weight: 400 600;
-  font-display: swap;
-  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Optimistic Mono";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
-}
-:where(html) {
-  font-family: "Optimistic", system-ui, sans-serif;
-}
-:where(code, pre, kbd, samp) {
-  font-family: "Optimistic Mono", ui-monospace, monospace;
-}
-</style>
+<head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Demo 270 Biển Báo - drivekit</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Mapillary Signs — Debug + vConsole</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui}
-body{display:flex;height:100vh}
-#sidebar{width:380px;background:#f8f9fa;border-right:1px solid #ddd;overflow-y:auto;padding:12px}
-#map{flex:1}
-.header{font-weight:700;font-size:18px;margin-bottom:8px}
-.sub{font-size:12px;color:#666;margin-bottom:12px}
-.search{width:100%;padding:8px;border:1px solid #ccc;border-radius:8px;margin-bottom:8px}
-.filters{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
-.filter{padding:4px 10px;border-radius:20px;border:1px solid #ccc;background:white;font-size:12px;cursor:pointer}
-.filter.active{background:#0d6efd;color:white;border-color:#0d6efd}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.card{background:white;border:1px solid #e5e5e5;border-radius:10px;padding:8px;text-align:center;cursor:pointer;transition:.15s}
-.card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.1);border-color:#0d6efd}
-.card img{width:64px;height:64px;object-fit:contain}
-.card .ma{font-weight:700;font-size:12px;margin-top:4px}
-.card .ten{font-size:10px;color:#666;line-height:1.2;height:24px;overflow:hidden}
-.offline{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#dc3545;color:white;padding:8px 16px;border-radius:20px;font-size:13px;z-index:9999;display:none}
+  html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-serif}
+  #map{position:absolute;inset:0}
+  #info{position:absolute;top:12px;left:12px;z-index:5;background:#fff;padding:12px 14px;border-radius:12px;
+        font-size:12px;line-height:1.6;box-shadow:0 4px 20px rgba(0,0,0,.15);max-width:300px}
+  #info b{color:#0d6efd}
+  #info .status{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;
+                font-weight:700;margin-left:4px}
+  #info .status.ok{background:#d1fae5;color:#065f46}
+  #info .status.fail{background:#fee2e2;color:#991b1b}
+  #info .status.pending{background:#fef3c7;color:#92400e}
+  #tools{position:absolute;bottom:90px;left:12px;z-index:5;display:flex;flex-direction:column;
+         gap:8px;width:200px}
+  #tools button{padding:11px 14px;border:0;border-radius:10px;background:#0d6efd;color:#fff;
+                font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);
+                text-align:left}
+  #tools button.warn{background:#ef4444}
+  #tools button.ok{background:#10b981}
+  #tools button.gray{background:#6b7280}
+  #tools button:active{transform:scale(.97)}
 </style>
 </head>
 <body>
-<div class="offline" id="offline">Mất mạng - không load được ảnh từ GitHub</div>
-<div id="sidebar">
-  <div class="header">🚦 270 Biển Báo drivekit</div>
-  <div class="sub">GitHub: worldoftankblizt1234-wq/drivekit<br>Có mạng thì gọi ảnh, mất mạng thì thôi</div>
-  <input class="search" id="search" placeholder="Tìm W.225, trẻ em, P.101...">
-  <div class="filters">
-    <div class="filter active" data-f="all">Tất cả</div>
-    <div class="filter" data-f="canh_bao">Cảnh báo (54)</div>
-    <div class="filter" data-f="cam">Cấm (36)</div>
-    <div class="filter" data-f="hieu_lenh">Hiệu lệnh (36)</div>
-    <div class="filter" data-f="chi_dan">Chỉ dẫn (144)</div>
-  </div>
-  <div class="grid" id="grid"></div>
-</div>
+
 <div id="map"></div>
 
+<div id="info">
+  <b>🔍 Mapillary Debug</b><br>
+  Token: <span id="status-token" class="status pending">checking...</span><br>
+  Source: <span id="status-source" class="status pending">pending</span><br>
+  Icons: <span id="status-icons" class="status pending">pending</span><br>
+  Features: <b id="feature-count">0</b> • Zoom: <b id="zoom-level">-</b>
+</div>
+
+<div id="tools">
+  <button class="ok" id="btn-test-token">1. Test Token</button>
+  <button id="btn-goto-nyc">2. Go NYC (zoom 17)</button>
+  <button class="gray" id="btn-dump">3. Dump Features</button>
+  <button class="warn" id="btn-toggle-icons">4. Toggle Icon Layer</button>
+</div>
+
+<!-- vConsole PHẢI load trước mọi script để bắt được log sớm -->
+<script src="https://unpkg.com/vconsole@3.15.1/dist/vconsole.min.js"></script>
 <script>
-const CDN = "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent";
-const JSON_URL = "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_array.json";
+  window.vConsole = new window.VConsole({ theme: 'dark' });
+  console.log('%c vConsole ready ✓', 'color:#0f0;font-weight:bold;font-size:14px');
+</script>
 
-let allData = [];
-let map = L.map('map').setView([21.028511, 105.804817], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 
-function checkOnline(){
-  const el=document.getElementById('offline');
-  el.style.display = navigator.onLine ? 'none':'block';
-}
-window.addEventListener('online', checkOnline);
-window.addEventListener('offline', checkOnline);
-checkOnline();
+<script>
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const TOKEN = 'MLY|26842262835470842|df552a54c4d4735f048c7cccb365d6bb';
 
-async function load(){
-  try{
-    const r = await fetch(JSON_URL);
-    allData = await r.json();
-  }catch(e){
-    // fallback nếu chưa có json trên github, tự tạo 270 item
-    allData = Array.from({length:270},(_,i)=>{
-      const id=i+1;
-      return {id, ma:`Biển ${id}`, ten:`Biển ${id}`, file:`bien_${String(id).padStart(3,'0')}_transparent.png`, url:`${CDN}/bien_${String(id).padStart(3,'0')}_transparent.png`, nhom: id<=54?'canh_bao': id<=90?'cam': id<=126?'hieu_lenh':'chi_dan'}
-    });
-  }
-  render();
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function setStatus(id, status, text) {
+  const el = document.getElementById('status-' + id);
+  if (!el) return;
+  el.className = 'status ' + status;
+  el.textContent = text;
 }
 
-function render(){
-  const q = document.getElementById('search').value.toLowerCase();
-  const f = document.querySelector('.filter.active').dataset.f;
-  const grid = document.getElementById('grid');
-  grid.innerHTML='';
-  const filtered = allData.filter(b=>{
-    const matchGroup = f==='all' || b.nhom===f;
-    const matchQ = !q || b.ma.toLowerCase().includes(q) || b.ten.toLowerCase().includes(q) || String(b.id).includes(q);
-    return matchGroup && matchQ;
-  });
-  filtered.slice(0,150).forEach(b=>{
-    const div=document.createElement('div');
-    div.className='card';
-    div.innerHTML=`<img src="${b.url}" loading="lazy" onerror="this.src='https://via.placeholder.com/64?text=?'"><div class="ma">${b.ma}</div><div class="ten">${b.ten}</div>`;
-    div.onclick=()=>{
-      if(!navigator.onLine){ alert('Mất mạng rồi, không load được biển'); return; }
-      const center = map.getCenter();
-      L.marker([center.lat + (Math.random()-0.5)*0.01, center.lng + (Math.random()-0.5)*0.01], {
-        icon: L.icon({iconUrl:b.url, iconSize:[48,48], iconAnchor:[24,24]})
-      }).addTo(map).bindPopup(`<b>${b.ma}</b><br>${b.ten}<br><img src="${b.url}" width="80">`).openPopup();
-      map.panTo(center);
-    };
-    grid.appendChild(div);
-  });
+/* SVG data URI — thêm width/height để loadImage có intrinsic size */
+function svgURI(inner) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32">${inner}</svg>`;
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 }
 
-document.getElementById('search').addEventListener('input', render);
-document.querySelectorAll('.filter').forEach(el=>{
-  el.onclick=()=>{
-    document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));
-    el.classList.add('active');
-    render();
-  };
+const ICONS = {
+  stop: svgURI('<circle cx="16" cy="16" r="14" fill="#dc2626" stroke="#fff" stroke-width="2"/><text x="16" y="21" text-anchor="middle" font-size="9" font-weight="900" font-family="Arial,sans-serif" fill="#fff">STOP</text>'),
+  yield: svgURI('<polygon points="16,3 30,29 2,29" fill="#fff" stroke="#dc2626" stroke-width="3" stroke-linejoin="round"/><text x="16" y="26" text-anchor="middle" font-size="6" font-weight="900" font-family="Arial,sans-serif" fill="#111">YIELD</text>'),
+  warning: svgURI('<polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><text x="16" y="26" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial,sans-serif" fill="#fff">!</text>'),
+  speed: svgURI('<circle cx="16" cy="16" r="14" fill="#fff" stroke="#dc2626" stroke-width="3"/><text x="16" y="21" text-anchor="middle" font-size="11" font-weight="900" font-family="Arial,sans-serif" fill="#111">50</text>'),
+  noEntry: svgURI('<circle cx="16" cy="16" r="14" fill="#dc2626" stroke="#fff" stroke-width="2"/><rect x="6" y="13" width="20" height="6" fill="#fff"/>'),
+  info: svgURI('<circle cx="16" cy="16" r="14" fill="#0d6efd" stroke="#fff" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="18" font-weight="900" font-family="Arial,sans-serif" fill="#fff">i</text>'),
+  other: svgURI('<circle cx="16" cy="16" r="14" fill="#6b7280" stroke="#fff" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial,sans-serif" fill="#fff">?</text>')
+};
+
+/* ============================================================
+   MAP INIT — OSM raster
+   ============================================================ */
+const map = new maplibregl.Map({
+  container: 'map',
+  style: {
+    version: 8,
+    sources: {
+      osm: {
+        type: 'raster',
+        tiles: [
+          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png'
+        ],
+        tileSize: 256,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }
+    },
+    layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
+  },
+  center: [105.8542, 21.0285],
+  zoom: 16
 });
 
-load();
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+/* ============================================================
+   TEST 1: TOKEN — kiểm tra token bằng Graph API
+   ============================================================ */
+async function testToken() {
+  setStatus('token', 'pending', 'testing...');
+  console.log('%c [TEST 1] Checking token... ', 'color:#f59e0b;font-weight:bold');
+
+  try {
+    const url = `https://graph.mapillary.com/images?access_token=${TOKEN}&bbox=105.84,21.02,105.86,21.03&limit=1`;
+    console.log('[TEST1] URL:', url);
+
+    const res = await fetch(url);
+    const data = await res.json();
+    console.log('[TEST1] status:', res.status, 'data:', data);
+
+    if (res.ok && !data.error) {
+      setStatus('token', 'ok', 'OK ✓');
+      console.log('%c [TEST1] TOKEN VALID ✓ ', 'color:#0f0;font-weight:bold');
+    } else {
+      setStatus('token', 'fail', 'FAIL ' + res.status);
+      console.error('[TEST1] Token error:', data);
+    }
+  } catch (e) {
+    setStatus('token', 'fail', 'ERR');
+    console.error('[TEST1] Fatal:', e);
+  }
+}
+testToken();
+
+/* ============================================================
+   MAP LOAD — add source + layers
+   ============================================================ */
+map.on('load', () => {
+  console.log('%c [MAP] loaded ', 'color:#0f0;font-weight:bold;font-size:13px');
+
+  /* --- SOURCE --- */
+  const tileUrl =
+    `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}` +
+    `?access_token=${encodeURIComponent(TOKEN)}`;
+  console.log('[SOURCE URL]', tileUrl);
+
+  map.addSource('mly-signs', {
+    type: 'vector',
+    tiles: [tileUrl],
+    minzoom: 14,
+    maxzoom: 14   // MapLibre tự "overzoom" khi zoom > 14
+  });
+  setStatus('source', 'pending', 'loading...');
+
+  /* --- FALLBACK CIRCLE LAYER ---
+     Chứng minh source có dữ liệu, tách biệt vấn đề icon */
+  map.addLayer({
+    id: 'sign-circle',
+    type: 'circle',
+    source: 'mly-signs',
+    'source-layer': 'traffic_sign',
+    paint: {
+      'circle-radius': 12,
+      'circle-color': [
+        'case',
+        ['in', 'regulatory', ['downcase', ['get', 'value']]], '#dc2626',
+        ['in', 'warning',    ['downcase', ['get', 'value']]], '#f59e0b',
+        ['in', 'information',['downcase', ['get', 'value']]], '#0d6efd',
+        '#6b7280'
+      ],
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fff'
+    }
+  });
+  console.log('[LAYER] sign-circle added (fallback — nếu thấy chấm tròn = source OK)');
+
+  /* --- LOAD ICONS → SYMBOL LAYER --- */
+  loadAllIcons().then(allOk => {
+    if (allOk) {
+      addSymbolLayer();
+      setStatus('icons', 'ok', 'OK ✓');
+    } else {
+      setStatus('icons', 'fail', 'see console');
+    }
+  });
+
+  /* --- SOURCE DATA EVENTS --- */
+  map.on('sourcedata', (e) => {
+    if (e.sourceId === 'mly-signs' && e.isSourceLoaded) {
+      console.log('%c [SOURCE LOADED ✓] ', 'color:#0f0;font-weight:bold');
+      setStatus('source', 'ok', 'loaded ✓');
+      updateCount();
+    }
+  });
+
+  map.on('error', (e) => {
+    if (e.sourceId === 'mly-signs') {
+      console.error('[SOURCE ERROR]', e.error);
+      setStatus('source', 'fail', 'ERR');
+    }
+  });
+
+  /* --- CLICK --- */
+  map.on('click', 'sign-circle', onSignClick);
+  map.on('click', 'sign-icon', onSignClick);
+  map.on('mouseenter', ['sign-circle', 'sign-icon'], () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', ['sign-circle', 'sign-icon'], () => map.getCanvas().style.cursor = '');
+
+  map.on('moveend', updateCount);
+  map.on('idle', updateCount);
+
+  /* --- TEST PNG loadImage --- */
+  map.loadImage('https://docs.maptiler.com/openmaptiles/maptiler-logo.png', (err, img) => {
+    if (err) console.warn('[TEST PNG] loadImage FAIL — vấn đề ở MapLibre/browser:', err);
+    else console.log('[TEST PNG] loadImage OK ✓', img?.width + 'x' + img?.height);
+  });
+});
+
+/* ============================================================
+   ICON LOADER (SVG → addImage)
+   ============================================================ */
+function loadAllIcons() {
+  console.log('%c [ICONS] Loading SVGs... ', 'color:#f59e0b;font-weight:bold');
+
+  const promises = Object.entries(ICONS).map(([name, url]) => {
+    return new Promise((resolve) => {
+      map.loadImage(url, (err, img) => {
+        if (err) {
+          console.error(`[ICON FAIL] ${name}:`, err);
+          return resolve({ name, ok: false, error: err.message });
+        }
+        if (!img) {
+          console.error(`[ICON EMPTY] ${name} — img is null`);
+          return resolve({ name, ok: false });
+        }
+        console.log(`[ICON OK] ${name}: ${img.width}x${img.height}`);
+        try {
+          if (!map.hasImage('sign-' + name)) {
+            map.addImage('sign-' + name, img, { pixelRatio: 2 });
+          }
+          resolve({ name, ok: true });
+        } catch (e) {
+          console.error(`[ADD IMAGE FAIL] ${name}:`, e);
+          resolve({ name, ok: false, error: e.message });
+        }
+      });
+    });
+  });
+
+  return Promise.all(promises).then(results => {
+    const failed = results.filter(r => !r.ok);
+    const ok = results.filter(r => r.ok);
+    console.log(`%c [ICONS] ${ok.length}/${results.length} loaded`, 
+                'color:' + (failed.length ? '#f59e0b' : '#0f0') + ';font-weight:bold');
+    if (failed.length) console.warn('[ICONS] failed:', failed.map(f => f.name));
+    return failed.length === 0;
+  });
+}
+
+/* ============================================================
+   SYMBOL LAYER
+   ============================================================ */
+function addSymbolLayer() {
+  if (map.getLayer('sign-icon')) {
+    console.log('[SYMBOL] already exists');
+    return;
+  }
+
+  try {
+    map.addLayer({
+      id: 'sign-icon',
+      type: 'symbol',
+      source: 'mly-signs',
+      'source-layer': 'traffic_sign',
+      layout: {
+        'icon-image': [
+          'case',
+          ['in', 'stop',                ['downcase', ['get', 'value']]], 'sign-stop',
+          ['in', 'yield',               ['downcase', ['get', 'value']]], 'sign-yield',
+          ['in', 'no-entry',            ['downcase', ['get', 'value']]], 'sign-noEntry',
+          ['in', 'maximum-speed-limit', ['downcase', ['get', 'value']]], 'sign-speed',
+          ['in', 'speed',               ['downcase', ['get', 'value']]], 'sign-speed',
+          ['in', 'no-',                 ['downcase', ['get', 'value']]], 'sign-noEntry',
+          ['in', 'warning',             ['downcase', ['get', 'value']]], 'sign-warning',
+          ['in', 'regulatory',          ['downcase', ['get', 'value']]], 'sign-warning',
+          ['in', 'information',         ['downcase', ['get', 'value']]], 'sign-info',
+          'sign-other'
+        ],
+        'icon-size': [
+          'interpolate', ['linear'], ['zoom'],
+          14, 0.5,
+          18, 1.0
+        ],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true
+      }
+    });
+    console.log('%c [SYMBOL LAYER ADDED ✓] sign-icon ', 
+                'color:#0f0;font-weight:bold;background:#000;padding:2px 6px');
+
+    // Ẩn circle layer khi icon đã hiện
+    map.setLayoutProperty('sign-circle', 'visibility', 'none');
+    console.log('[LAYER] sign-circle hidden (symbol visible)');
+  } catch (e) {
+    console.error('[ADD SYMBOL LAYER FAIL]', e);
+  }
+}
+
+/* ============================================================
+   CLICK HANDLER — popup + tải ảnh thật
+   ============================================================ */
+async function onSignClick(e) {
+  const f = e.features[0];
+  const props = f.properties || {};
+  console.log('[CLICK] feature:', props);
+
+  const featureId = props.id || f.id;
+  const value = props.value || '(unknown)';
+
+  const popup = new maplibregl.Popup({ offset: 16, maxWidth: '300px' })
+    .setLngLat(e.lngLat)
+    .setHTML(`
+      <div style="font-size:13px;line-height:1.5;min-width:220px">
+        <b>🛑 ${value}</b><br>
+        <span style="color:#6b7280;font-size:11px">ID: ${featureId || 'n/a'}</span>
+        <div id="popup-img" style="margin-top:8px;font-size:11px;color:#9ca3af">
+          Đang tải ảnh...
+        </div>
+      </div>
+    `)
+    .addTo(map);
+
+  if (!featureId) return;
+
+  try {
+    const r1 = await fetch(
+      `https://graph.mapillary.com/${featureId}?access_token=${TOKEN}&fields=id,value,images`
+    );
+    const d1 = await r1.json();
+    console.log('[GRAPH FEATURE]', d1);
+
+    const imgId = d1.images?.[0];
+    if (!imgId) {
+      document.getElementById('popup-img').textContent = 'Không có ảnh liên kết';
+      return;
+    }
+
+    const r2 = await fetch(
+      `https://graph.mapillary.com/${imgId}?access_token=${TOKEN}&fields=thumb_512_url,captured_at`
+    );
+    const d2 = await r2.json();
+    console.log('[GRAPH IMAGE]', d2);
+
+    const el = document.getElementById('popup-img');
+    if (el && d2.thumb_512_url) {
+      el.innerHTML = `<img src="${d2.thumb_512_url}" 
+                         style="width:100%;border-radius:8px;display:block" loading="lazy"/>`;
+    } else if (el) {
+      el.textContent = 'Không có ảnh';
+    }
+  } catch (err) {
+    console.error('[IMAGE FETCH ERR]', err);
+    const el = document.getElementById('popup-img');
+    if (el) el.textContent = 'Lỗi: ' + err.message;
+  }
+}
+
+/* ============================================================
+   COUNT + DIAGNOSTICS
+   ============================================================ */
+function updateCount() {
+  try {
+    const feats = map.querySourceFeatures('mly-signs', { sourceLayer: 'traffic_sign' });
+    document.getElementById('feature-count').textContent = feats.length;
+  } catch (_) {}
+  document.getElementById('zoom-level').textContent = map.getZoom().toFixed(1);
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+document.getElementById('btn-test-token').addEventListener('click', testToken);
+
+document.getElementById('btn-goto-nyc').addEventListener('click', () => {
+  console.log('[NAV] → Times Square NYC');
+  map.flyTo({ center: [-73.9855, 40.7580], zoom: 17, duration: 1500 });
+});
+
+document.getElementById('btn-dump').addEventListener('click', () => {
+  console.log('%c ===== DUMP FEATURES ===== ', 'color:#0d6efd;font-weight:bold;font-size:13px');
+
+  // Thử với sourceLayer chỉ định
+  let feats = [];
+  try {
+    feats = map.querySourceFeatures('mly-signs', { sourceLayer: 'traffic_sign' });
+    console.log(`[DUMP] with 'traffic_sign':`, feats.length, 'features');
+  } catch (e) {
+    console.error('[DUMP] traffic_sign query fail:', e);
+  }
+
+  // Thử KHÔNG sourceLayer để xem có layer nào khác
+  try {
+    const all = map.querySourceFeatures('mly-signs');
+    console.log(`[DUMP] all source layers:`, all.length, 'features');
+    const layers = [...new Set(all.map(f => f.sourceLayer))];
+    console.log('%c [DUMP] source-layer names present: ' + JSON.stringify(layers), 
+                'color:#0d6efd;font-weight:bold');
+    if (layers.length > 0) {
+      layers.forEach(l => {
+        const cnt = all.filter(f => f.sourceLayer === l).length;
+        console.log(`  • "${l}": ${cnt} features`);
+      });
+    }
+  } catch (e) {
+    console.error('[DUMP] bare query fail:', e);
+  }
+
+  if (feats.length === 0) {
+    console.warn('%c [DUMP] 0 features. Nguyên nhân có thể:\n' +
+      '  1. Zoom < 14 (hiện tại: ' + map.getZoom().toFixed(1) + ')\n' +
+      '  2. Token hết hạn (chạy test 1)\n' +
+      '  3. source-layer sai tên (xem log "source-layer names present" ở trên)\n' +
+      '  4. Khu vực không có biển báo Mapillary (thử NYC)',
+      'color:#f59e0b;font-weight:bold');
+  } else {
+    console.log('%c [DUMP] 20 features đầu tiên:', 'color:#0f0;font-weight:bold');
+    feats.slice(0, 20).forEach((f, i) => {
+      console.log(`${i}.`, {
+        sourceLayer: f.sourceLayer,
+        id: f.properties.id,
+        value: f.properties.value,
+        geometry: f.geometry
+      });
+    });
+  }
+});
+
+document.getElementById('btn-toggle-icons').addEventListener('click', () => {
+  if (!map.getLayer('sign-icon')) {
+    console.warn('[TOGGLE] chưa có sign-icon layer');
+    return;
+  }
+  const cur = map.getLayoutProperty('sign-icon', 'visibility');
+  const next = cur === 'none' ? 'visible' : 'none';
+  map.setLayoutProperty('sign-icon', 'visibility', next);
+  console.log('[TOGGLE]', cur, '→', next);
+
+  // Đồng thời bật/tắt circle layer ngược lại
+  if (map.getLayer('sign-circle')) {
+    map.setLayoutProperty('sign-circle', 'visibility', next === 'visible' ? 'none' : 'visible');
+  }
+});
+
+/* ============================================================
+   INITIAL LOG
+   ============================================================ */
+console.log('%c ═══════════════════════════════════════════', 'color:#0d6efd');
+console.log('%c  Mapillary Signs Debug Panel', 'color:#0d6efd;font-weight:bold;font-size:15px');
+console.log('%c ═══════════════════════════════════════════', 'color:#0d6efd');
+console.log(`
+HƯỚNG DẪN:
+1. Xem "Token" ở panel trái — nếu FAIL thì token hết hạn, đổi token mới.
+2. Bấm "Go NYC (zoom 17)" — khu vực rất nhiều biển báo.
+3. Bấm "Dump Features" để xem source có trả feature không.
+
+PHÂN TÍCH KẾT QUẢ:
+• Thấy chấm tròn đỏ/vàng/xanh → source OK, lỗi nằm ở ICON.
+• Không thấy gì cả + feature-count = 0 → source/token/zoom.
+• Không thấy gì + feature-count > 0 → icon layer bị ẩn hoặc lỗi addImage.
+• Circle hiện nhưng icon không hiện → xem console tìm "[ICON FAIL]".
+`);
 </script>
-<script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
+</body>
 </html>
