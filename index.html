@@ -1,16 +1,39 @@
 <!DOCTYPE html>
 <html lang="vi">
-<head>
+<head><style>
+@font-face {
+  font-family: "Optimistic";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Optimistic Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
+}
+:where(html) {
+  font-family: "Optimistic", system-ui, sans-serif;
+}
+:where(code, pre, kbd, samp) {
+  font-family: "Optimistic Mono", ui-monospace, monospace;
+}
+</style>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>VietDriver Pro - Chỉ đường thông minh</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
+<link rel="stylesheet" href="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.css"/>
 <style>
 :root{--primary:#0d6efd;--primary-dark:#0a58ca;--accent:#00C853;--success:#10b981;--danger:#ef4444;--warning:#f59e0b;--text:#1f2937;--text-light:#6b7280;--border:#e5e7eb;--shadow:0 10px 15px -3px rgba(0,0,0,.1),0 4px 6px -2px rgba(0,0,0,.05)}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--text)}
 #map{position:absolute;inset:0}
-/* Login */
+
+/* Login - keep */
 .login-screen{position:fixed;inset:0;z-index:9000;background:linear-gradient(135deg,#0d6efd,#0a58ca,#062d6e);display:flex;align-items:center;justify-content:center;padding:20px}
 .login-card{background:#fff;border-radius:20px;padding:32px 28px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .login-card .logo{width:64px;height:64px;background:linear-gradient(135deg,#0d6efd,#00C853);border-radius:16px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:32px;color:#fff}
@@ -28,261 +51,139 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .login-card .switch-auth a{color:var(--primary);font-weight:600;cursor:pointer}
 .login-card .error{background:#fee2e2;color:#991b1b;padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:12px;display:none}
 .login-card .error.show{display:block}
+
 #app{display:none}
-.login-screen{display:flex}
 #app.show{display:block}
-/* Top bar */
-.top-bar{position:absolute;top:0;left:0;right:0;z-index:1000;padding:12px;display:flex;gap:8px;pointer-events:none}
-.search-box{pointer-events:auto;flex:1;display:flex;align-items:center;gap:8px;background:#fff;border-radius:12px;padding:6px 6px 6px 14px;box-shadow:var(--shadow)}
+
+/* Top bar - CLEAN */
+.top-bar{position:absolute;top:0;left:0;right:0;z-index:1000;padding:10px 12px;display:flex;gap:8px;pointer-events:none}
+.search-box{pointer-events:auto;flex:1;display:flex;align-items:center;gap:8px;background:#fff;border-radius:16px;padding:6px 6px 6px 14px;box-shadow:0 4px 20px rgba(0,0,0,.12);border:1px solid rgba(0,0,0,.06)}
 .search-box svg{color:var(--text-light);flex-shrink:0}
-.search-box input{flex:1;border:0;outline:0;font-size:14px;padding:8px 4px;background:transparent;min-width:0}
-.search-box button{border:0;background:var(--primary);color:#fff;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
-.icon-btn{pointer-events:auto;width:48px;height:48px;border-radius:12px;background:#fff;border:0;box-shadow:var(--shadow);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text)}
-.icon-btn:active{transform:scale(.95)}
-/* Route inputs */
-.route-inputs{position:absolute;top:76px;left:12px;right:12px;z-index:999;background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:12px;display:none}
-.route-inputs.show{display:block}
-.vehicle-bottom-sheet{position:absolute;left:0;right:0;bottom:0;z-index:1050;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.18);padding:14px 16px 24px;transform:translateY(110%);transition:transform .35s cubic-bezier(.32,1.2,.64,1);max-height:82vh;overflow-y:auto}
-.vehicle-bottom-sheet.show{transform:translateY(0)}
-.vehicle-bottom-sheet .drag-handle{width:44px;height:5px;background:#e5e7eb;border-radius:3px;margin:0 auto 14px}
-.vehicle-bottom-sheet .sheet-title{font-size:16px;font-weight:800;text-align:center;margin-bottom:4px}
-.vehicle-bottom-sheet .sheet-sub{font-size:12px;color:var(--text-light);text-align:center;margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.vehicle-bottom-sheet .point-info{display:flex;gap:8px;background:#f9fafb;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:12px;align-items:center}
-.vehicle-bottom-sheet .point-info .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.vehicle-bottom-sheet .point-info .txt{flex:1;font-size:13px;min-width:0}
-.vehicle-bottom-sheet .vehicle-selector{margin-top:0}
-.vehicle-bottom-sheet .vehicle-btn{padding:12px 6px}
-.vehicle-bottom-sheet .vehicle-btn .emoji{font-size:26px}
-.sheet-actions{display:flex;gap:10px;margin-top:14px}
-.sheet-actions .btn{flex:1;padding:14px;border:0;border-radius:12px;font-weight:800;font-size:14px;cursor:pointer}
-.sheet-actions .btn.secondary{background:#f3f4f6;color:var(--text)}
-.sheet-actions .btn.primary{background:var(--primary);color:#fff;box-shadow:0 6px 16px rgba(13,110,253,.35)}
-.sheet-actions .btn.primary:active{transform:scale(.98)}
-.input-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.search-box input{flex:1;border:0;outline:0;font-size:15px;padding:10px 4px;background:transparent;min-width:0}
+.search-box button{border:0;background:var(--primary);color:#fff;border-radius:12px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
+.icon-btn{pointer-events:auto;width:46px;height:46px;border-radius:14px;background:#fff;border:0;box-shadow:0 4px 20px rgba(0,0,0,.12);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text);flex-shrink:0}
+
+/* Route inputs - Bottom sheet CLEAN */
+.route-inputs{position:fixed;left:0;right:0;bottom:0;z-index:1060;background:#fff;border-radius:24px 24px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.2);padding:12px 16px 24px;max-height:75vh;overflow:auto;display:none;max-width:500px;margin:0 auto}
+.route-inputs.show{display:block;animation:slideUp .35s cubic-bezier(.34,1.26,.64,1)}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.input-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .point-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
 .point-dot.a{background:var(--success)}
 .point-dot.b{background:var(--danger)}
-.input-row input{flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:0;min-width:0}
-.input-row input:focus{border-color:var(--primary)}
-.mini-btn{background:#f3f4f6;border:0;border-radius:8px;padding:8px 10px;cursor:pointer;font-size:14px;flex-shrink:0}
+.input-row input{flex:1;padding:12px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:14px;outline:0;min-width:0;background:#f9fafb}
+.input-row input:focus{border-color:var(--primary);background:#fff}
+.mini-btn{background:#f3f4f6;border:0;border-radius:10px;padding:10px 12px;cursor:pointer;font-size:14px;flex-shrink:0}
 .mini-btn.gps{background:#eff6ff;color:var(--primary)}
-.vehicle-selector{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
-.vehicle-btn{flex:1;min-width:60px;padding:8px 6px;background:#f9fafb;border:2px solid var(--border);border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--text-light);transition:all .15s}
+.vehicle-selector{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px}
+.vehicle-btn{padding:10px 4px;background:#f9fafb;border:2px solid var(--border);border-radius:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:700;color:var(--text-light);transition:all .15s}
 .vehicle-btn.selected{background:#eff6ff;border-color:var(--primary);color:var(--primary)}
 .vehicle-btn .emoji{font-size:20px}
-.find-route-btn{width:100%;margin-top:10px;padding:12px;background:var(--accent);color:#fff;border:0;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer}
-.find-route-btn:active{background:#00a344}
-/* Truck options */
-.truck-options{display:none;margin-top:10px;padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px}
+.find-route-btn{width:100%;margin-top:14px;padding:14px;background:var(--primary);color:#fff;border:0;border-radius:14px;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(13,110,253,.3)}
+.truck-options{display:none;margin-top:12px;padding:12px;background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px}
 .truck-options.show{display:block}
 .truck-options .title{font-size:12px;font-weight:700;color:#92400e;margin-bottom:8px}
 .truck-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .truck-grid label{font-size:11px;color:#92400e;display:block}
-.truck-grid input{width:100%;padding:6px 8px;border:1px solid #fde68a;border-radius:6px;font-size:13px;margin-top:3px;background:#fff}
-/* Click hint */
-.click-hint{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);z-index:998;background:rgba(13,110,253,.95);color:#fff;padding:10px 18px;border-radius:24px;font-size:13px;font-weight:600;box-shadow:var(--shadow);display:none;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis}
+.truck-grid input{width:100%;padding:8px 10px;border:1px solid #fde68a;border-radius:8px;font-size:13px;margin-top:4px;background:#fff}
+
+/* Click hint - small pill */
+.click-hint{position:absolute;bottom:100px;left:50%;transform:translateX(-50%);z-index:998;background:rgba(31,41,55,.9);color:#fff;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.15);display:none;white-space:nowrap;backdrop-filter:blur(8px)}
 .click-hint.show{display:block}
-/* FAB */
-.fab-stack{position:absolute;right:12px;bottom:80px;z-index:1000;display:flex;flex-direction:column;gap:10px}
-.fab{width:48px;height:48px;border-radius:50%;background:#fff;border:0;box-shadow:var(--shadow);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text)}
-.fab:active{transform:scale(.92)}
-.fab.primary{background:var(--primary);color:#fff}
-.fab.success{background:var(--success);color:#fff}
-.fab.danger{background:var(--danger);color:#fff}
-.fab.warning{background:var(--warning);color:#fff}
-.fab.active{background:var(--primary);color:#fff}
-/* Rotate */
-.rotate-controls{position:absolute;bottom:80px;left:12px;z-index:1000;display:flex;flex-direction:column;gap:6px}
-.rotate-btn{width:42px;height:42px;border-radius:50%;background:#fff;border:0;box-shadow:var(--shadow);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text)}
+
+/* FAB - CLEAN MOBILE: only 3 buttons */
+.fab-stack{position:fixed;right:12px;bottom:90px;z-index:1000;display:flex;flex-direction:column;gap:10px;pointer-events:none}
+.fab-stack .fab{pointer-events:auto;width:48px;height:48px;border-radius:16px;background:#fff;border:0;box-shadow:0 4px 16px rgba(0,0,0,.15);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text);font-size:20px;transition:all .15s}
+.fab-stack .fab:active{transform:scale(.92)}
+.fab-stack .fab.primary{width:56px;height:56px;background:var(--primary);color:#fff;box-shadow:0 6px 20px rgba(13,110,253,.4);border-radius:18px}
+.fab-stack .fab.active{background:var(--primary);color:#fff}
+
+/* Hide old messy fabs */
+#reportPoiBtn, #streetViewBtn, #trafficBtn, #voiceBtn, #clearBtn{display:none !important}
+
+/* Layer controls - CLEAN left bottom */
+.layer-controls{position:fixed;left:12px;bottom:90px;z-index:1000;display:flex;flex-direction:column;gap:8px}
+.layer-btn{width:44px;height:44px;border-radius:14px;background:#fff;border:0;box-shadow:0 4px 16px rgba(0,0,0,.12);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text)}
+.layer-btn.active{background:var(--primary);color:#fff}
+.rotate-controls{display:none}
+
+/* Zoom controls */
+.zoom-controls{position:fixed;left:12px;bottom:200px;z-index:999;display:flex;flex-direction:column;gap:6px}
+.zoom-btn{width:40px;height:40px;border-radius:12px;background:#fff;border:0;box-shadow:0 2px 10px rgba(0,0,0,.12);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--text)}
+
 /* Route panel */
-.route-panel{position:absolute;bottom:0;left:0;right:0;z-index:1000;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -4px 12px rgba(0,0,0,.1);transform:translateY(100%);transition:transform .3s;max-height:60vh;display:flex;flex-direction:column}
+.route-panel{position:fixed;bottom:0;left:0;right:0;z-index:1000;background:#fff;border-radius:24px 24px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,.15);transform:translateY(100%);transition:transform .35s cubic-bezier(.34,1.26,.64,1);max-height:55vh;display:flex;flex-direction:column;max-width:500px;margin:0 auto}
 .route-panel.show{transform:translateY(0)}
-.route-header{padding:12px 16px 8px;border-bottom:1px solid var(--border)}
-.drag-handle{width:40px;height:4px;background:#d1d5db;border-radius:2px;margin:0 auto 12px}
-.summary-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-.summary-main{flex:1}
-.summary-title{font-size:20px;font-weight:700;color:var(--accent)}
-.summary-sub{font-size:13px;color:var(--text-light);margin-top:3px}
-.engine-badge{font-size:10px;background:#eff6ff;color:var(--primary);padding:2px 6px;border-radius:4px;font-weight:600;margin-left:6px}
-.close-btn{border:0;background:#f3f4f6;width:36px;height:36px;border-radius:50%;cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center}
+.route-header{padding:12px 16px 8px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.drag-handle{width:40px;height:5px;background:#e5e7eb;border-radius:3px;margin:0 auto 12px}
+.summary-title{font-size:20px;font-weight:800;color:var(--primary)}
+.summary-sub{font-size:12px;color:var(--text-light);margin-top:2px}
+.engine-badge{font-size:10px;background:#eff6ff;color:var(--primary);padding:2px 6px;border-radius:6px;font-weight:700;margin-left:6px}
+.close-btn{border:0;background:#f3f4f6;width:36px;height:36px;border-radius:12px;cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center}
 .steps-list{overflow-y:auto;padding:8px 0 16px;-webkit-overflow-scrolling:touch}
-.step-item{padding:12px 16px;display:flex;gap:12px;border-bottom:1px solid var(--border);cursor:pointer}
-.step-item:last-child{border-bottom:0}
-.step-icon{width:36px;height:36px;border-radius:50%;background:#f0fdf4;display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0}
+.step-item{display:flex;gap:12px;padding:10px 16px;cursor:pointer}
+.step-item:hover{background:#f9fafb}
+.step-icon{width:32px;height:32px;border-radius:10px;background:#eff6ff;color:var(--primary);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .step-body{flex:1;min-width:0}
-.step-text{font-size:14px;line-height:1.4}
-.step-meta{font-size:12px;color:var(--text-light);margin-top:3px}
-/* Modal */
-.modal{position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;padding:16px}
-.modal.show{display:flex}
-.modal-content{background:#fff;border-radius:16px;padding:20px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto}
-.modal-title{font-size:18px;font-weight:700;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
-.modal-close{border:0;background:transparent;font-size:24px;cursor:pointer;color:var(--text-light);line-height:1}
-.setting-group{margin-bottom:18px}
-.setting-label{font-size:13px;font-weight:600;color:var(--text-light);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
-.toggle-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
-.toggle-row:last-child{border-bottom:0}
-.toggle-switch{position:relative;width:48px;height:26px;background:#d1d5db;border-radius:13px;cursor:pointer;transition:background .2s;flex-shrink:0}
-.toggle-switch.on{background:var(--primary)}
-.toggle-switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform .2s}
-.toggle-switch.on::after{transform:translateX(22px)}
-/* User chip */
-.user-chip{position:absolute;top:76px;right:12px;z-index:999;background:#fff;padding:6px 12px 6px 6px;border-radius:24px;box-shadow:var(--shadow);display:none;align-items:center;gap:8px;cursor:pointer;pointer-events:auto}
-.user-chip.show{display:flex}
-.user-chip img{width:28px;height:28px;border-radius:50%;object-fit:cover}
-.user-chip .name{font-size:12px;font-weight:600;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.step-text{font-size:13px;line-height:1.4}
+.step-meta{font-size:11px;color:var(--text-light);margin-top:2px}
+
+/* Backdrop */
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:1050;display:none;backdrop-filter:blur(2px)}
+.backdrop.show{display:block}
+
+/* Map action popup - CLEAN */
+.map-action-popup{position:fixed;left:0;right:0;bottom:0;z-index:1100;background:#fff;border-radius:24px 24px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.25);padding:16px 16px 28px;transform:translateY(110%);transition:transform .35s cubic-bezier(.34,1.26,.64,1);max-width:500px;margin:0 auto}
+.map-action-popup.show{transform:translateY(0)}
+.map-action-popup .drag-handle{width:40px;height:5px;background:#e5e7eb;border-radius:3px;margin:0 auto 12px}
+.action-btn{width:100%;padding:14px 16px;border:0;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:10px;justify-content:center;transition:all .15s}
+.action-btn.primary{background:var(--primary);color:#fff;box-shadow:0 4px 12px rgba(13,110,253,.25)}
+.action-btn.secondary{background:#f3f4f6;color:var(--text)}
+.action-btn:active{transform:scale(.97)}
+
 /* Suggestions */
-.suggestions{position:absolute;top:76px;left:12px;right:12px;z-index:999;background:#fff;border-radius:12px;box-shadow:var(--shadow);max-height:55vh;overflow-y:auto;display:none}
+.suggestions{position:absolute;top:64px;left:12px;right:12px;z-index:1001;background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.15);max-height:50vh;overflow:auto;display:none;max-width:500px;margin:0 auto}
 .suggestions.show{display:block}
-.suggestion-item{padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:10px}
+.suggestion-item{padding:12px 14px;display:flex;gap:10px;cursor:pointer;border-bottom:1px solid #f3f4f6}
 .suggestion-item:last-child{border-bottom:0}
-.suggestion-item .text{font-size:14px;line-height:1.4}
-/* Street view */
-.streetview-modal{z-index:6000}
-.streetview-modal .modal-content{max-width:100%;padding:0;background:#000;position:relative}
-.streetview-modal img{width:100%;height:auto;display:block;max-height:70vh;object-fit:contain}
-.sv-close{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.6);border:0;color:#fff;cursor:pointer;font-size:20px}
-/* Utils */
-.loading{position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center}
+.suggestion-item:hover{background:#f9fafb}
+.suggestion-item .text{flex:1;font-size:13px;line-height:1.4}
+
+/* Traffic sign marker - CLEAN with real icon */
+.traffic-sign-marker{width:44px;height:44px;border-radius:50%;background:#fff;border:3px solid #ef4444;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 12px rgba(0,0,0,.3);cursor:pointer;user-select:none;overflow:hidden;position:relative}
+.traffic-sign-marker.warning{border-color:#f59e0b;background:#fffbeb}
+.traffic-sign-marker.regulatory{border-color:#ef4444;background:#fff}
+.traffic-sign-marker.information{border-color:#0d6efd;background:#eff6ff}
+.traffic-sign-marker .speed-text{font-weight:900;font-size:14px;color:#ef4444;line-height:1}
+.mly-img{width:100%;height:180px;object-fit:cover;border-radius:10px;margin-top:8px}
+.mly-viewer{width:100%;height:300px;border-radius:12px;overflow:hidden;background:#000;margin-top:10px}
+
+/* Hide messy old elements */
+.voice-banner{position:fixed;bottom:160px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;padding:10px 16px;border-radius:20px;font-size:13px;display:none;z-index:1002}
+.voice-banner.show{display:flex;align-items:center;gap:8px}
+.loading{position:fixed;inset:0;background:rgba(255,255,255,.9);z-index:9999;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px}
 .loading.show{display:flex}
-.spinner{width:48px;height:48px;border:4px solid #fff;border-top-color:var(--primary);border-radius:50%;animation:spin 1s linear infinite}
+.spinner{width:36px;height:36px;border:3px solid #e5e7eb;border-top-color:var(--primary);border-radius:50%;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.toast{position:fixed;top:80px;left:50%;transform:translateX(-50%) translateY(-20px);background:#1f2937;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;z-index:7000;opacity:0;transition:all .3s;max-width:90%;text-align:center}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.voice-banner{position:fixed;top:80px;left:12px;right:12px;z-index:998;background:rgba(0,200,83,.95);color:#fff;padding:12px 16px;border-radius:12px;box-shadow:var(--shadow);font-size:14px;display:none;align-items:center;gap:10px}
-.voice-banner.show{display:flex}
-/* ====== COMMUNITY POI ====== */
-.fab.report{background:#f97316;color:#fff;animation:pulse-report 2s infinite}
-@keyframes pulse-report{0%{box-shadow:0 0 0 0 rgba(249,115,22,.7)}70%{box-shadow:0 0 0 10px rgba(249,115,22,0)}100%{box-shadow:0 0 0 0 rgba(249,115,22,0)}}
-.poi-marker{width:36px;height:36px;border-radius:50%;background:#fff;border:3px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 10px rgba(0,0,0,.25);cursor:pointer;transition:transform .15s}
-.poi-marker:hover{transform:scale(1.15)}
-.poi-marker.police{border-color:#1d4ed8;background:#eff6ff}
-.poi-marker.accident{border-color:#dc2626;background:#fee2e2}
-.poi-marker.traffic_jam{border-color:#f97316;background:#fff7ed}
-.poi-marker.road_closed{border-color:#ea580c;background:#fff7ed}
-.poi-marker.speed_camera{border-color:#6b7280;background:#f3f4f6}
-.poi-marker.pothole{border-color:#eab308;background:#fefce8}
-.poi-marker.flood{border-color:#0ea5e9;background:#e0f2fe}
-.poi-marker.hazard{border-color:#ef4444;background:#fee2e2}
-.poi-popup{min-width:180px}
-.poi-popup .poi-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.poi-popup .poi-head .ic{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px}
-.poi-popup .poi-title{font-weight:700;font-size:14px}
-.poi-popup .poi-time{font-size:11px;color:var(--text-light)}
-.poi-popup .poi-desc{font-size:13px;margin:6px 0;color:var(--text)}
-.poi-popup .poi-actions{display:flex;gap:6px;margin-top:8px}
-.poi-popup .vote-btn{flex:1;padding:6px;border:1px solid var(--border);border-radius:6px;background:#f9fafb;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px}
-.poi-popup .vote-btn.up{color:var(--success)} .vote-btn.down{color:var(--danger)}
-.poi-popup .vote-btn:active{transform:scale(.96)}
-.poi-picker{position:absolute;left:0;right:0;bottom:0;z-index:1200;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.2);padding:16px 16px 28px;transform:translateY(110%);transition:transform .32s cubic-bezier(.34,1.26,.64,1);max-height:75vh;overflow:auto}
-.poi-picker.show{transform:translateY(0)}
-.poi-picker .drag-handle{width:40px;height:5px;background:#e5e7eb;border-radius:3px;margin:0 auto 12px}
-.poi-picker h3{font-size:17px;margin-bottom:2px;text-align:center}
-.poi-picker .sub{font-size:12px;color:var(--text-light);text-align:center;margin-bottom:14px}
-.poi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.poi-type-btn{padding:14px 10px;background:#f9fafb;border:2px solid var(--border);border-radius:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .15s}
-.poi-type-btn:active{transform:scale(.97)}
-.poi-type-btn.selected{border-color:var(--primary);background:#eff6ff}
-.poi-type-btn .emoji{font-size:28px}
-.poi-type-btn .label{font-size:12px;font-weight:700;text-align:center;line-height:1.2}
-.poi-type-btn .expire{font-size:10px;color:var(--text-light)}
-.poi-confirm{position:absolute;left:12px;right:12px;bottom:86px;z-index:1100;background:#fff;border-radius:14px;box-shadow:var(--shadow);padding:14px;display:none}
-.poi-confirm.show{display:block}
-.poi-confirm h4{font-size:14px;margin-bottom:8px}
-.poi-confirm input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:0;margin-bottom:10px}
-.poi-confirm .row{display:flex;gap:8px}
-.poi-confirm .btn{flex:1;padding:11px;border:0;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer}
-.poi-confirm .btn.cancel{background:#f3f4f6;color:var(--text)}
-.poi-confirm .btn.submit{background:#f97316;color:#fff}
-.reporting-hint{position:absolute;top:76px;left:50%;transform:translateX(-50%);z-index:1099;background:#f97316;color:#fff;padding:10px 18px;border-radius:24px;font-size:13px;font-weight:700;box-shadow:var(--shadow);display:none;align-items:center;gap:8px}
-.reporting-hint.show{display:flex}
-.community-toggle .count{font-size:11px;background:#f97316;color:#fff;padding:2px 7px;border-radius:10px;margin-left:6px}
-/* ===== NAVIGATION MODE - GÓC NHÌN THẲNG MŨI TÊN ===== */
-.route-panel .steps-list{display:none !important}
-.route-panel{max-height:auto;padding-bottom:env(safe-area-inset-bottom)}
-.route-panel .summary-row{margin-bottom:12px}
-.nav-start-btn{width:100%;padding:14px;background:var(--primary);color:#fff;border:0;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 12px rgba(13,110,253,.3)}
-.nav-start-btn:active{transform:scale(.98)}
-.nav-banner{position:absolute;top:76px;left:12px;right:12px;z-index:997;background:#fff;border-radius:14px;box-shadow:var(--shadow);padding:12px 14px;display:none;align-items:center;gap:12px}
-.nav-banner.show{display:flex}
-.nav-next-icon{width:48px;height:48px;border-radius:12px;background:#eff6ff;color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:bold;flex-shrink:0}
-.nav-next-body{flex:1;min-width:0}
-.nav-next-text{font-size:15px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nav-next-dist{font-size:13px;color:var(--text-light);margin-top:2px}
-.nav-next-dist b{color:var(--text);font-weight:700}
-.nav-exit-btn{position:absolute;left:12px;bottom:100px;z-index:1001;background:#1f2937;color:#fff;border:0;border-radius:24px;padding:10px 18px;font-size:13px;font-weight:700;box-shadow:var(--shadow);cursor:pointer;display:none;align-items:center;gap:6px}
-.nav-exit-btn.show{display:flex}
-.nav-arrow-el{width:0;height:0;position:relative}
-.nav-arrow-inner{width:48px;height:48px;background:#0d6efd;border:3px solid #fff;border-radius:50% 50% 50% 50% / 60% 60% 40% 40%;box-shadow:0 4px 12px rgba(0,0,0,.3),0 0 0 4px rgba(13,110,253,.15);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;transform:translate(-50%,-50%) rotate(0deg);transition:transform .25s ease-out}
-.nav-arrow-inner::after{content:'';position:absolute;top:-8px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:12px solid #0d6efd;filter:drop-shadow(0 -2px 2px rgba(0,0,0,.1))}
-.fab-stack.nav-mode .fab:not(#reportPoiBtn):not(#locateBtn){opacity:.4}
-.voice-banner.nav{top:150px}
-/* ===== DARK MODE ===== */
-:root.dark{--bg:#0f172a;--card:#1e293b;--text:#f1f5f9;--text-light:#94a3b8;--border:#334155;--shadow:0 10px 15px -3px rgba(0,0,0,.4)}
-body.dark{background:var(--bg)}
-body.dark #map{filter:brightness(.9) contrast(1.05)}
-body.dark .search-box, body.dark .route-inputs, body.dark .vehicle-bottom-sheet, body.dark .route-panel, body.dark .poi-picker, body.dark .poi-confirm, body.dark .nav-banner, body.dark .modal-content{background:var(--card);color:var(--text);border-color:var(--border)}
-body.dark .modal{background:rgba(0,0,0,.6)}
-body.dark input, body.dark select{background:var(--bg);color:var(--text);border-color:var(--border)}
-body.dark .vehicle-btn, body.dark .poi-type-btn, body.dark .vote-btn, body.dark .mini-btn{background:var(--bg);border-color:var(--border);color:var(--text-light)}
-body.dark .vehicle-btn.selected{background:#1e3a8a;border-color:#3b82f6;color:#93c5fd}
-body.dark .suggestion-item{background:var(--card);border-color:var(--border)}
-body.dark .suggestion-item:hover{background:#334155}
-/* ===== USER INFO MODAL ===== */
-.modal-content.user-modal{max-width:420px;padding:0;overflow:hidden;border-radius:20px;max-height:85vh;display:flex;flex-direction:column}
-.user-modal-header{padding:20px 20px 16px;background:linear-gradient(135deg,#0d6efd,#00C853);color:#fff;position:relative}
-.user-modal-header .close{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.2);border:0;color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.user-profile-row{display:flex;gap:14px;align-items:center}
-.user-profile-row img{width:56px;height:56px;border-radius:50%;border:3px solid rgba(255,255,255,.4);background:#fff}
-.user-profile-row .name{font-size:18px;font-weight:800;line-height:1.2}
-.user-profile-row .email{font-size:12px;opacity:.9;margin-top:2px}
-.realtime-card{margin-top:14px;background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border-radius:12px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
-.realtime-card .clock{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:1px}
-.realtime-card .date{font-size:11px;opacity:.9;text-align:right}
-.user-modal-body{padding:16px;overflow-y:auto;flex:1}
-.user-section{margin-bottom:18px}
-.user-section-title{font-size:11px;font-weight:800;letter-spacing:.8px;color:var(--text-light);text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.theme-row{display:flex;gap:8px}
-.theme-opt{flex:1;padding:12px;border:2px solid var(--border);border-radius:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;background:#f9fafb;transition:all .15s}
-.theme-opt.selected{border-color:var(--primary);background:#eff6ff;color:var(--primary)}
-.theme-opt .ic{font-size:24px}
-.theme-opt .lb{font-size:12px;font-weight:700}
-.map-layer-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.map-layer-card{border:2px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:all .15s;position:relative;background:#f9fafb}
-.map-layer-card.selected{border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,110,253,.15)}
-.map-layer-card .preview{height:72px;background-size:cover;background-position:center}
-.map-layer-card .preview.streets{background:linear-gradient(135deg,#dbeafe,#93c5fd);display:flex;align-items:center;justify-content:center;font-size:28px}
-.map-layer-card .preview.satellite{background:linear-gradient(135deg,#1e293b,#334155);display:flex;align-items:center;justify-content:center;font-size:28px}
-.map-layer-card .info{padding:8px 10px}
-.map-layer-card .info .t{font-size:12px;font-weight:700}
-.map-layer-card .info .d{font-size:10px;color:var(--text-light)}
-.map-layer-card .check{position:absolute;top:6px;right:6px;width:20px;height:20px;background:var(--primary);color:#fff;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:12px}
-.map-layer-card.selected .check{display:flex}
-.toggle-row{padding:10px 0}
-/* ===== FILTER CHIPS ===== */
-.filter-group{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.filter-chip{padding:6px 12px;border:1px solid var(--border);border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;background:#f9fafb;color:var(--text);transition:all .15s;display:flex;align-items:center;gap:4px}
-.filter-chip.active{background:var(--primary);color:#fff;border-color:var(--primary)}
-.filter-chip .count{font-size:9px;background:rgba(0,0,0,.15);padding:1px 5px;border-radius:8px}
-.filter-chip.active .count{background:rgba(255,255,255,.25)}
-.filter-chip:active{transform:scale(.96)}
-/* ===== LOCATED ME ENHANCED ===== */
-.fab.locating{animation:pulse-locate 1s infinite}
-@keyframes pulse-locate{0%{box-shadow:0 0 0 0 rgba(13,110,253,.7)}70%{box-shadow:0 0 0 12px rgba(13,110,253,0)}100%{box-shadow:0 0 0 0 rgba(13,110,253,0)}}
-.fab.tracking{background:#0d6efd;color:#fff;box-shadow:0 0 0 4px rgba(13,110,253,.25)}
-.fab.compass{background:#10b981;color:#fff}
-.accuracy-circle{position:absolute;pointer-events:none}
-.locate-status{position:absolute;left:12px;bottom:140px;z-index:999;background:#fff;border-radius:10px;padding:8px 12px;box-shadow:var(--shadow);font-size:11px;display:none;align-items:center;gap:6px;max-width:220px}
-.locate-status.show{display:flex}
-.locate-status .dot{width:8px;height:8px;border-radius:50%;background:#10b981;animation:blink 1s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* Modals */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1200;display:none;align-items:flex-end;justify-content:center;padding:0}
+.modal.show{display:flex}
+.modal-content{background:#fff;border-radius:24px 24px 0 0;padding:16px;width:100%;max-width:500px;max-height:85vh;overflow:auto;animation:slideUp .3s}
+.modal-title{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:16px;margin-bottom:12px}
+.modal-close{border:0;background:#f3f4f6;width:36px;height:36px;border-radius:12px;cursor:pointer;font-size:20px}
+.poi-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.poi-type-btn{padding:14px 10px;background:#f9fafb;border:2px solid var(--border);border-radius:14px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:600}
+.poi-type-btn.selected{background:#eff6ff;border-color:var(--primary);color:var(--primary)}
+.poi-type-btn .emoji{font-size:24px}
 </style>
 </head>
 <body>
+
 <!-- LOGIN -->
 <div class="login-screen" id="loginScreen">
   <div class="login-card">
-    <div class="logo" id="logoForce" title="Double click để vào thẳng nếu kẹt">🚗</div>
+    <div class="logo">🚗</div>
     <h1>VietDriver Pro</h1>
     <div class="subtitle">Chỉ đường thông minh cho tài xế VN</div>
     <div class="error" id="authError"></div>
@@ -299,9 +200,11 @@ body.dark .suggestion-item:hover{background:#334155}
     <div class="switch-auth"><span id="switchText">Chưa có tài khoản?</span> <a id="switchAuth">Đăng ký ngay</a></div>
   </div>
 </div>
+
 <!-- APP -->
 <div id="app">
   <div id="map"></div>
+
   <div class="top-bar">
     <div class="search-box">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -315,10 +218,12 @@ body.dark .suggestion-item:hover{background:#334155}
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
   </div>
+
   <div class="user-chip" id="userChip" title="Đăng xuất">
     <img id="userAvatar" src="" alt=""/>
     <span class="name" id="userName">User</span>
   </div>
+
   <!-- Route inputs -->
   <div class="route-inputs" id="routeInputs">
     <div class="input-row">
@@ -338,6 +243,7 @@ body.dark .suggestion-item:hover{background:#334155}
       <button class="vehicle-btn" data-costing="bicycle"><span class="emoji">🚲</span>XE ĐẠP</button>
       <button class="vehicle-btn" data-costing="pedestrian"><span class="emoji">🚶</span>ĐI BỘ</button>
     </div>
+
     <!-- Truck options -->
     <div class="truck-options" id="truckOptions">
       <div class="title">🚚 Thông số xe tải (Valhalla)</div>
@@ -355,80 +261,43 @@ body.dark .suggestion-item:hover{background:#334155}
         </label>
       </div>
     </div>
+
     <button class="find-route-btn" id="findRouteBtn">🧭 TÌM ĐƯỜNG</button>
   </div>
-  <!-- NEW: Bottom sheet chọn xe khi click map -->
-  <div class="vehicle-bottom-sheet" id="vehicleSheet">
-    <div class="drag-handle"></div>
-    <div class="sheet-title" id="sheetTitle">📍 Chọn phương tiện & dẫn đường</div>
-    <div class="sheet-sub" id="sheetSub">Chạm để đổi điểm đến • Chọn xe bên dưới</div>
-    <div class="point-info">
-      <div class="dot" style="background:var(--danger)"></div>
-      <div class="txt" id="sheetPointInfo">Đang lấy địa chỉ...</div>
-      <button class="mini-btn" id="sheetSwapBtn" title="Đổi A-B">⇄</button>
-    </div>
-    <div class="vehicle-selector" id="sheetVehicleSelector">
-      <button class="vehicle-btn selected" data-costing="motor_scooter"><span class="emoji">🛵</span>XE MÁY</button>
-      <button class="vehicle-btn" data-costing="auto"><span class="emoji">🚗</span>XE HƠI</button>
-      <button class="vehicle-btn" data-costing="truck"><span class="emoji">🚚</span>XE TẢI</button>
-      <button class="vehicle-btn" data-costing="bicycle"><span class="emoji">🚲</span>XE ĐẠP</button>
-      <button class="vehicle-btn" data-costing="pedestrian"><span class="emoji">🚶</span>ĐI BỘ</button>
-    </div>
-    <div class="truck-options" id="sheetTruckOptions">
-      <div class="title">🚚 Thông số xe tải</div>
-      <div class="truck-grid">
-        <label>Cao (m)<input type="number" id="sheetTruckHeight" value="3.5" step="0.1"></label>
-        <label>Rộng (m)<input type="number" id="sheetTruckWidth" value="2.5" step="0.1"></label>
-        <label>Tải (tấn)<input type="number" id="sheetTruckWeight" value="10" step="0.5"></label>
-        <label>Dài (m)<input type="number" id="sheetTruckLength" value="10" step="0.5"></label>
-        <label>Trục (tấn)<input type="number" id="sheetTruckAxle" value="8" step="0.5"></label>
-        <label>Hazmat
-          <select id="sheetTruckHazmat" style="width:100%;padding:6px 8px;border:1px solid #fde68a;border-radius:6px;font-size:13px;margin-top:3px;background:#fff">
-            <option value="false">Không</option><option value="true">Có</option>
-          </select>
-        </label>
-      </div>
-    </div>
-    <div class="sheet-actions">
-      <button class="btn secondary" id="sheetCloseBtn">Đóng</button>
-      <button class="btn primary" id="sheetStartBtn">🚀 DẪN ĐƯỜNG NGAY</button>
-    </div>
-    <div style="text-align:center;margin-top:8px;font-size:11px;color:var(--text-light)">Mũi tên sẽ tự snap vào đường xanh & xoay đúng hướng</div>
-  </div>
+
   <div class="suggestions" id="suggestions"></div>
-  <div class="nav-banner" id="navBanner">
-    <div class="nav-next-icon" id="navNextIcon">↑</div>
-    <div class="nav-next-body">
-      <div class="nav-next-text" id="navNextText">Bắt đầu di chuyển</div>
-      <div class="nav-next-dist" id="navNextDist">GPS đang định vị...</div>
-    </div>
-  </div>
-  <button class="nav-exit-btn" id="exitNavBtn">✕ Thoát dẫn đường</button>
-  <div class="locate-status" id="locateStatus"><div class="dot"></div><span id="locateStatusText">Đang theo dõi vị trí...</span></div>
+
   <div class="click-hint" id="clickHint">👆 Click bản đồ để chọn điểm A</div>
+
   <div class="voice-banner" id="voiceBanner">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
     <span id="voiceText"></span>
   </div>
-  <div class="rotate-controls">
-    <button class="rotate-btn" id="rotateLeftBtn" title="Xoay trái">
+
+  <div class="zoom-controls"><button class="zoom-btn" id="zoomInBtn">+</button><button class="zoom-btn" id="zoomOutBtn">−</button></div><div class="layer-controls">
+    <button class="layer-btn" id="layerBtn" title="Đổi lớp bản đồ (Streets/Satellite)">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+    </button>
+    <button class="layer-btn" id="tiltBtn" title="Nghiêng 3D">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20"/><path d="M12 2a15 15 0 0 0 0 20"/></svg>
+    </button>
+    <button class="layer-btn" id="rotateLeftBtn" title="Xoay trái">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg>
     </button>
-    <button class="rotate-btn" id="tiltBtn" title="Nghiêng 3D">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-    </button>
-    <button class="rotate-btn" id="rotateRightBtn" title="Xoay phải">
+    <button class="layer-btn" id="rotateRightBtn" title="Xoay phải">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/></svg>
     </button>
   </div>
-  <div class="fab-stack" id="fabStack">
+
+  <div class="fab-stack">
     <button class="fab report" id="reportPoiBtn" title="Báo cáo cảnh báo">🚨</button>
-    <button class="fab" id="streetViewBtn" title="Street View">
+    <button class="fab" id="streetViewBtn" title="Street View Mapillary">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
     </button>
-    <button class="fab" id="trafficBtn" title="Giao thông">
+    <button class="fab" id="trafficBtn" title="Giao thông TomTom">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><circle cx="12" cy="7" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="17" r="1.5" fill="currentColor"/></svg>
     </button>
+    <button class="fab" id="trafficSignBtn" title="Biển báo giao thông">🛑</button>
     <button class="fab success" id="voiceBtn" title="Giọng nói">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
     </button>
@@ -439,22 +308,24 @@ body.dark .suggestion-item:hover{background:#334155}
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
     </button>
   </div>
+
   <div class="route-panel" id="routePanel">
     <div class="route-header">
       <div class="drag-handle"></div>
       <div class="summary-row">
         <div class="summary-main">
           <div class="summary-title" id="routeTitle">0 km</div>
-          <div class="summary-sub" id="routeSubtitle">0 phút • Sẵn sàng dẫn đường 3D</div>
+          <div class="summary-sub" id="routeSubtitle">0 phút</div>
         </div>
         <button class="close-btn" id="closeRouteBtn">×</button>
       </div>
-      <button class="nav-start-btn" id="startNavBtn">🚀 BẮT ĐẦU DẪN ĐƯỜNG 3D</button>
-      <div style="text-align:center;font-size:11px;color:var(--text-light);margin-top:8px">Góc nhìn xoay theo hướng chạy, mũi tên chỉ đường</div>
     </div>
+    <div class="steps-list" id="stepsList"></div>
   </div>
+
   
   <div class="reporting-hint" id="reportingHint">📍 Chạm bản đồ để đặt cảnh báo • <span id="reportingTypeLabel"></span></div>
+
   <div class="poi-confirm" id="poiConfirm">
     <h4 id="poiConfirmTitle">Xác nhận cảnh báo</h4>
     <input type="text" id="poiDescInput" placeholder="Mô tả thêm (không bắt buộc) VD: chốt to, tắc 2km..."/>
@@ -463,6 +334,7 @@ body.dark .suggestion-item:hover{background:#334155}
       <button class="btn submit" id="submitPoiBtn">🚀 Gửi cảnh báo</button>
     </div>
   </div>
+
   <div class="poi-picker" id="poiPicker">
     <div class="drag-handle"></div>
     <h3>🚨 Báo cáo cộng đồng</h3>
@@ -475,153 +347,109 @@ body.dark .suggestion-item:hover{background:#334155}
       <button id="togglePoiLayerBtn" style="flex:1;padding:12px;background:#fff7ed;border:1px solid #fdba74;border-radius:10px;font-weight:600;cursor:pointer;color:#ea580c">👁️ Ẩn/hiện POI</button>
     </div>
   </div>
-  <div class="modal" id="settingsModal">
-    <div class="modal-content user-modal">
-      <div class="user-modal-header">
-        <button class="close" id="closeSettingsBtn">×</button>
-        <div class="user-profile-row">
-          <img id="userModalAvatar" src="" alt=""/>
-          <div>
-            <div class="name" id="userModalName">Nguyễn Minh</div>
-            <div class="email" id="userModalEmail">user@vietdriver.pro</div>
-            <div style="margin-top:6px;display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.2);padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700">⭐ PRO MEMBER</div>
-          </div>
-        </div>
-        <div class="realtime-card">
-          <div>
-            <div class="clock" id="realClock">00:00:00</div>
-            <div style="font-size:10px;opacity:.8;margin-top:2px">Giờ realtime • GMT+7</div>
-          </div>
-          <div class="date" id="realDate">Thứ 2<br/>02/11/2026</div>
-        </div>
+
+  
+  <div class="backdrop" id="mapActionBackdrop"></div>
+  <div class="backdrop" id="routeBackdrop" style="z-index:1055;background:rgba(0,0,0,.25)"></div>
+
+  <div class="map-action-popup" id="mapActionPopup">
+    <div class="drag-handle"></div>
+    <div id="mapActionAddress" style="font-size:13px;color:var(--text-light);margin-bottom:12px;text-align:center;line-height:1.4">📍 Đang lấy địa chỉ...</div>
+    <div style="display:grid;gap:10px">
+      <button class="action-btn primary" id="actionDirections">🧭 Chỉ đường tới đây</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <button class="action-btn secondary" id="actionReport">🚨 Cảnh báo</button>
+        <button class="action-btn secondary" id="actionCommunity">👥 Cộng đồng</button>
       </div>
-      <div class="user-modal-body">
-        <div class="user-section">
-          <div class="user-section-title">🎨 Giao diện</div>
-          <div class="theme-row">
-            <div class="theme-opt selected" data-theme="light" id="themeLight">
-              <div class="ic">☀️</div><div class="lb">Sáng</div>
-            </div>
-            <div class="theme-opt" data-theme="dark" id="themeDark">
-              <div class="ic">🌙</div><div class="lb">Tối</div>
-            </div>
-            <div class="theme-opt" data-theme="auto" id="themeAuto">
-              <div class="ic">🔄</div><div class="lb">Tự động</div>
-            </div>
-          </div>
-        </div>
-        <div class="user-section">
-          <div class="user-section-title">🗺️ Lớp bản đồ</div>
-          <div class="map-layer-grid">
-            <div class="map-layer-card selected" data-layer="streets" id="layerStreets">
-              <div class="preview streets">🗺️</div>
-              <div class="info"><div class="t">TrackAsia</div><div class="d">Bản đồ đường phố VN</div></div>
-              <div class="check">✓</div>
-            </div>
-            <div class="map-layer-card" data-layer="satellite" id="layerSatellite">
-              <div class="preview satellite">🛰️</div>
-              <div class="info"><div class="t">Vệ tinh</div><div class="d">Ảnh vệ tinh Esri</div></div>
-              <div class="check">✓</div>
-            </div>
-          </div>
-        </div>
-        <div class="user-section">
-          <div class="user-section-title">🚦 Lớp cảnh báo Mapillary</div>
-          <div class="toggle-row">
-            <div><div style="font-size:13px;font-weight:600">Biển báo giao thông</div><div style="font-size:11px;color:var(--text-light)">Hiện biển báo, vạch kẻ, biển cảnh báo do Mapillary phát hiện • Mặc định BẬT</div></div>
-            <div class="toggle-switch on" id="mapillarySignsToggle"></div>
-          </div>
-          <div class="toggle-row">
-            <div><div style="font-size:13px;font-weight:500">Đường phủ ảnh Mapillary</div><div style="font-size:11px;color:var(--text-light)">Đường màu xanh có ảnh 360°</div></div>
-            <div class="toggle-switch" id="mapillaryToggle"></div>
-          </div>
-          <div style="margin-top:10px">
-            <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:6px">🔍 LỌC THEO LOẠI BIỂN</div>
-            <div class="filter-group" id="signTypeFilters">
-              <div class="filter-chip active" data-filter="all">✨ Tất cả</div>
-              <div class="filter-chip active" data-filter="regulatory">🚫 Cấm</div>
-              <div class="filter-chip active" data-filter="warning">⚠️ Cảnh báo</div>
-              <div class="filter-chip active" data-filter="information">ℹ️ Chỉ dẫn</div>
-              <div class="filter-chip" data-filter="complementary">🔹 Bổ sung</div>
-            </div>
-          </div>
-          <div style="margin-top:10px">
-            <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:6px">🎯 LỌC NHANH BIỂN QUAN TRỌNG</div>
-            <div class="filter-group" id="signQuickFilters">
-              <div class="filter-chip" data-quick="maximum-speed-limit">🚫 Tốc độ</div>
-              <div class="filter-chip" data-quick="stop">⛔ STOP</div>
-              <div class="filter-chip" data-quick="yield">⚠️ Nhường</div>
-              <div class="filter-chip" data-quick="no-entry">🚫 Cấm vào</div>
-              <div class="filter-chip" data-quick="traffic-light">🚦 Đèn</div>
-              <div class="filter-chip" data-quick="pedestrians">🚶 Người đi bộ</div>
-            </div>
-            <div style="font-size:10px;color:var(--text-light);margin-top:6px">Bấm để chỉ hiện biển đó • Bấm lại để bỏ lọc</div>
-          </div>
-          <div style="margin-top:10px">
-            <label style="font-size:11px;color:var(--text-light)">Độ mờ biển báo</label>
-            <input type="range" id="signsOpacity" min="20" max="100" value="90" style="width:100%;accent-color:#0d6efd">
-          </div>
-        </div>
-        <div class="user-section">
-          <div class="user-section-title">📍 Định vị của tôi</div>
-          <div style="background:#f9fafb;border:1px solid var(--border);border-radius:12px;padding:12px">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-              <div>
-                <div style="font-size:13px;font-weight:700" id="locateInfoTitle">Chưa định vị</div>
-                <div style="font-size:11px;color:var(--text-light)" id="locateInfoSub">Bấm nút GPS để định vị</div>
-              </div>
-              <div style="font-size:20px" id="locateAccuracyIcon">📡</div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">
-              <div>🎯 Độ chính xác: <b id="locateAccuracy">--</b></div>
-              <div>🧭 Hướng: <b id="locateHeading">--</b></div>
-              <div>📍 Vĩ độ: <b id="locateLat">--</b></div>
-              <div>📍 Kinh độ: <b id="locateLng">--</b></div>
-            </div>
-            <div style="display:flex;gap:6px;margin-top:10px">
-              <button id="locateMeBtn" style="flex:1;padding:9px;background:var(--primary);color:#fff;border:0;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">📍 Định vị ngay</button>
-              <button id="locateFollowBtn" style="flex:1;padding:9px;background:#f3f4f6;border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">👣 Theo dõi</button>
-              <button id="locateCompassBtn" style="flex:1;padding:9px;background:#f3f4f6;border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🧭 La bàn</button>
-            </div>
-          </div>
-        </div>
-        <div class="user-section">
-          <div class="user-section-title">⚙️ Dẫn đường & Cộng đồng</div>
-          <div class="toggle-row">
-            <div><div style="font-size:13px;font-weight:600">Valhalla Engine</div><div style="font-size:11px;color:var(--text-light)">Fallback TrackAsia khi 502</div></div>
-            <div class="toggle-switch on" id="valhallaToggle"></div>
-          </div>
-          <div class="toggle-row">
-            <div><div style="font-size:13px;font-weight:500">Giao thông TomTom</div></div>
-            <div class="toggle-switch" id="trafficToggle"></div>
-          </div>
-          <div class="toggle-row">
-            <div><div style="font-size:13px;font-weight:500">Giọng nói dẫn đường</div></div>
-            <div class="toggle-switch on" id="voiceToggle"></div>
-          </div>
-          <div class="toggle-row">
-            <div><div style="font-size:13px;font-weight:500">Cảnh báo cộng đồng <span class="count" id="poiCountBadge" style="background:#f97316;color:#fff;padding:2px 6px;border-radius:8px;font-size:10px">0</span></div></div>
-            <div class="toggle-switch on" id="communityToggle"></div>
-          </div>
-          <div style="display:flex;gap:6px;margin-top:8px">
-            <button id="clearOldPoiBtn" style="flex:1;padding:8px;background:#f3f4f6;border:0;border-radius:8px;font-size:12px;cursor:pointer">🧹 Xóa POI hết hạn</button>
-            <button id="myReportsBtn" style="flex:1;padding:8px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;font-size:12px;cursor:pointer;color:#ea580c">📋 Của tôi</button>
-          </div>
-        </div>
-        <button id="logoutBtn" style="width:100%;margin-top:6px;padding:12px;background:#fee2e2;color:#991b1b;border:0;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">Đăng xuất</button>
-        <div style="text-align:center;font-size:10px;color:var(--text-light);margin-top:10px">VietDriver Pro v2.5 • Mapillary Signs ON by default</div>
+    </div>
+    <div style="margin-top:12px;font-size:11px;color:#9ca3af;text-align:center">📍 <span id="mapActionCoords"></span></div>
+  </div>
+
+  <div class="modal" id="mlyViewerModal" style="z-index:2000">
+    <div class="modal-content" style="max-width:800px;width:95vw;padding:0;overflow:hidden;background:#000">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#111;color:#fff">
+        <span style="font-weight:700">🎥 Mapillary Viewer - Ảnh biển báo</span>
+        <button onclick="closeMapillaryViewer()" style="background:#222;color:#fff;border:0;width:32px;height:32px;border-radius:50%;cursor:pointer">×</button>
+      </div>
+      <div id="mlyViewerContainer" class="mly-viewer" style="height:60vh;min-height:400px"></div>
+      <div style="padding:10px 16px;background:#111;color:#9ca3af;font-size:11px">Ảnh từ Mapillary - Dùng MapillaryJS 4 để xem 360°. Kéo để xoay, scroll để zoom.</div>
+    </div>
+  </div>
+
+  <div class="modal" id="layerPickerModal">
+    <div class="modal-content" style="max-width:360px">
+      <div class="modal-title"><span>🗺️ Chọn lớp bản đồ</span><button class="modal-close" id="closeLayerPickerBtn">×</button></div>
+      <div style="display:grid;gap:10px;padding:4px 0">
+        <button class="layer-option" data-style="streets" style="display:flex;align-items:center;gap:12px;padding:14px;background:#eff6ff;border:2px solid #0d6efd;border-radius:12px;cursor:pointer;text-align:left">
+          <span style="font-size:24px">🗺️</span><div><div style="font-weight:700;font-size:14px">Đường phố</div><div style="font-size:12px;color:#6b7280">TrackAsia Streets - chi tiết VN</div></div>
+        </button>
+        <button class="layer-option" data-style="satellite" style="display:flex;align-items:center;gap:12px;padding:14px;background:#f9fafb;border:2px solid #e5e7eb;border-radius:12px;cursor:pointer;text-align:left">
+          <span style="font-size:24px">🛰️</span><div><div style="font-weight:700;font-size:14px">Vệ tinh</div><div style="font-size:12px;color:#6b7280">Ảnh vệ tinh + đường</div></div>
+        </button>
+        <button class="layer-option" data-style="dark" style="display:flex;align-items:center;gap:12px;padding:14px;background:#f9fafb;border:2px solid #e5e7eb;border-radius:12px;cursor:pointer;text-align:left">
+          <span style="font-size:24px">🌙</span><div><div style="font-weight:700;font-size:14px">Tối (Dark)</div><div style="font-size:12px;color:#6b7280">Đi đêm đỡ chói</div></div>
+        </button>
+        <button class="layer-option" data-style="light" style="display:flex;align-items:center;gap:12px;padding:14px;background:#f9fafb;border:2px solid #e5e7eb;border-radius:12px;cursor:pointer;text-align:left">
+          <span style="font-size:24px">☀️</span><div><div style="font-weight:700;font-size:14px">Sáng (Light)</div><div style="font-size:12px;color:#6b7280">Giao diện sáng tối giản</div></div>
+        </button>
+        <button class="layer-option" data-style="osm" style="display:flex;align-items:center;gap:12px;padding:14px;background:#f9fafb;border:2px solid #e5e7eb;border-radius:12px;cursor:pointer;text-align:left">
+          <span style="font-size:24px">🌍</span><div><div style="font-weight:700;font-size:14px">OSM Fallback</div><div style="font-size:12px;color:#6b7280">Khi TrackAsia lỗi</div></div>
+        </button>
       </div>
     </div>
   </div>
+
+  <div class="modal" id="settingsModal">
+    <div class="modal-content">
+      <div class="modal-title"><span>Cài đặt</span><button class="modal-close" id="closeSettingsBtn">×</button></div>
+      <div class="setting-group">
+        <div class="setting-label">Engine</div>
+        <div class="toggle-row">
+          <div><div style="font-size:14px;font-weight:600">Valhalla (self-host)</div><div style="font-size:12px;color:var(--text-light)">Fallback TrackAsia khi 502</div></div>
+          <div class="toggle-switch on" id="valhallaToggle"></div>
+        </div>
+      </div>
+      <div class="setting-group">
+        <div class="setting-label">Hiển thị</div>
+        <div class="toggle-row">
+          <div><div style="font-size:14px;font-weight:500">Giao thông (TomTom)</div></div>
+          <div class="toggle-switch" id="trafficToggle"></div>
+        </div>
+        <div class="toggle-row">
+          <div><div style="font-size:14px;font-weight:500">Mapillary coverage</div></div>
+          <div class="toggle-switch" id="mapillaryToggle"></div>
+        </div>
+        <div class="toggle-row">
+          <div><div style="font-size:14px;font-weight:500">Giọng nói</div></div>
+          <div class="toggle-switch on" id="voiceToggle"></div>
+        </div>
+      </div>
+            <div class="setting-group">
+        <div class="setting-label">Cộng đồng</div>
+        <div class="toggle-row">
+          <div><div style="font-size:14px;font-weight:500">Cảnh báo cộng đồng <span class="count" id="poiCountBadge">0</span></div><div style="font-size:12px;color:var(--text-light)">Hiện marker do người dùng báo</div></div>
+          <div class="toggle-switch on" id="communityToggle"></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button id="clearOldPoiBtn" style="flex:1;padding:8px;background:#f3f4f6;border:0;border-radius:8px;font-size:12px;cursor:pointer">🧹 Xóa POI hết hạn</button>
+          <button id="myReportsBtn" style="flex:1;padding:8px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;font-size:12px;cursor:pointer;color:#ea580c">📋 Báo cáo của tôi</button>
+        </div>
+      </div>
+      <button id="logoutBtn" style="width:100%;margin-top:12px;padding:12px;background:#fee2e2;color:#991b1b;border:0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">Đăng xuất</button>
+    </div>
+  </div>
+
   <div class="modal streetview-modal" id="streetViewModal">
     <div class="modal-content">
       <button class="sv-close" id="closeSvBtn">×</button>
       <img id="svImage" src="" alt=""/>
     </div>
   </div>
+
   <div class="loading" id="loading"><div class="spinner"></div></div>
   <div class="toast" id="toast"></div>
 </div>
+
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
@@ -632,6 +460,7 @@ import {
 import {
   getDatabase, ref, push, set, onValue, update, remove, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
   authDomain: "drivekit-c88ef.firebaseapp.com",
@@ -645,21 +474,22 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getDatabase(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
+
 /* ============ CONFIG ============ */
 const CONFIG = {
   TRACKASIA_KEY: '1792297789c0cf0ddb16e5446d7364580f',
   TOMTOM_KEY: 'tG84Z1Yh4rauGWjz6pRn98rrWymLjTru',
   MAPILLARY_KEY: 'MLY|26842262835470842|df552a54c4d4735f048c7cccb365d6bb',
+  MAPBOX_TOKEN: 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', // public demo token - bạn thay bằng token riêng nếu có
   VALHALLA_URL: 'https://alarming-crematorium-jjxv449rvxgghj6p5-8003.app.github.dev/route'
 };
+
 const TRACKASIA = {
   style: n => `https://maps.track-asia.com/styles/v2/${n}.json?key=${CONFIG.TRACKASIA_KEY}`,
   autocomplete: q => `https://maps.track-asia.com/api/v4/place/autocomplete/json?apikey=${CONFIG.TRACKASIA_KEY}&text=${encodeURIComponent(q)}&language=vi`,
   detail: id => `https://maps.track-asia.com/api/v4/place/detail/json?apikey=${CONFIG.TRACKASIA_KEY}&refId=${id}&language=vi`,
-  // ✅ FIX: Endpoint routing chính xác của TrackAsia (chuẩn OSRM V1)
   route: (a, b, profile = 'car') => {
     const coords = `${a.lng},${a.lat};${b.lng},${b.lat}`;
-    // Map profile từ logic của app sang profile của TrackAsia
     const profileMap = {
       motor_scooter: 'moto', motorcycle: 'moto', auto: 'car', truck: 'truck',
       bicycle: 'bike', pedestrian: 'walk'
@@ -667,18 +497,21 @@ const TRACKASIA = {
     const taProfile = profileMap[state.costing] || 'car';
     return `https://maps.track-asia.com/route/v1/${taProfile}/${coords}.json` +
            `?geometries=polyline&overview=full&steps=true&key=${CONFIG.TRACKASIA_KEY}`;
-  }
+  },
+  // Mapbox (giữ lại backup) + TomTom
+  mapboxGeocode: q => `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${CONFIG.MAPBOX_TOKEN}&country=vn&language=vi&limit=5&proximity=${state.currentPos ? state.currentPos.lng+','+state.currentPos.lat : '105.8342,21.0285'}`,
+  tomtomGeocode: q => `https://api.tomtom.com/search/2/geocode/${encodeURIComponent(q)}.json?key=${CONFIG.TOMTOM_KEY}&countrySet=VN&language=vi-VN&limit=5&lat=${state.currentPos?.lat||21.0285}&lon=${state.currentPos?.lng||105.8342}`
 };
 const TOMTOM = { trafficFlow: () => `https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${CONFIG.TOMTOM_KEY}` };
 const MAPILLARY = {
-  coverageTiles: () => `https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${CONFIG.MAPILLARY_KEY}`,
+  tiles: () => `https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${CONFIG.MAPILLARY_KEY}`,
   trafficSignTiles: () => `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${CONFIG.MAPILLARY_KEY}`,
-  pointTiles: () => `https://tiles.mapillary.com/maps/vtp/mly_map_feature_point/2/{z}/{x}/{y}?access_token=${CONFIG.MAPILLARY_KEY}`,
+  trafficPointTiles: () => `https://tiles.mapillary.com/maps/vtp/mly_map_feature_point/2/{z}/{x}/{y}?access_token=${CONFIG.MAPILLARY_KEY}`,
   imagesInBbox: (bbox, limit=5) => `https://graph.mapillary.com/images?access_token=${CONFIG.MAPILLARY_KEY}&fields=id,geometry,thumb_1024_url,captured_at,compass_angle&bbox=${bbox}&limit=${limit}&is_pano=true`,
-  mapFeaturesInBbox: (bbox, limit=100) => `https://graph.mapillary.com/map_features?access_token=${CONFIG.MAPILLARY_KEY}&bbox=${bbox}&fields=id,geometry,object_value,object_type,first_seen_at,last_seen_at,images.thumb_1024_url,images.id&limit=${limit}`,
-  trafficSignsInBbox: (bbox, limit=100) => `https://graph.mapillary.com/map_features?access_token=${CONFIG.MAPILLARY_KEY}&bbox=${bbox}&object_values=regulatory--*,warning--*,information--*,complementary--*&fields=id,geometry,object_value,first_seen_at,last_seen_at&limit=${limit}`
+  mapFeaturesInBbox: (bbox) => `https://graph.mapillary.com/map_features?access_token=${CONFIG.MAPILLARY_KEY}&bbox=${bbox}&object_values=regulatory--*,warning--*&fields=id,value,geometry,images&limit=30`
 };
 const COSTING_TO_PROFILE = { motor_scooter:'driving', motorcycle:'driving', auto:'driving', truck:'driving', bicycle:'cycling', pedestrian:'walking' };
+
 /* ============ URL PARAMS ============ */
 const urlParams = new URLSearchParams(location.search);
 const truckParams = {
@@ -689,6 +522,7 @@ const truckParams = {
   axle_load: parseFloat(urlParams.get('truck_axle'))   || 8,
   hazmat:   urlParams.get('truck_hazmat') === 'true'
 };
+
 /* ============ STATE ============ */
 const state = {
   user: null,
@@ -717,13 +551,11 @@ const state = {
   poiTempLatLng: null,
   showPois: true,
   poiCount: 0,
-  isNavigating: false,
-  routeData: null,
-  navMarker: null,
-  navCurrentStep: 0,
-  lastBearing: 0,
-  routeLineCoords: []
+  trafficSignOn: false,
+  trafficSignMarkers: {},
+  currentMapStyle: 'streets'
 };
+
 /* ============ UTILS ============ */
 const $ = id => document.getElementById(id);
 let toastTimer;
@@ -737,6 +569,7 @@ function fmtTime(s) {
   const min = Math.max(1, Math.round(s/60));
   return min >= 60 ? `${Math.floor(min/60)} giờ ${min%60} phút` : `${min} phút`;
 }
+
 /* ⭐ Polyline precision 6 (Valhalla) */
 function decodePolyline(str, precision = 6) {
   if (!str || typeof str !== 'string') return [];
@@ -753,6 +586,7 @@ function decodePolyline(str, precision = 6) {
   }
   return coords;
 }
+
 /* ============ AUTH ============ */
 let authMode = 'login';
 $('switchAuth').addEventListener('click', () => {
@@ -762,117 +596,45 @@ $('switchAuth').addEventListener('click', () => {
   $('switchAuth').textContent = authMode === 'login' ? 'Đăng ký ngay' : 'Đăng nhập';
   $('authError').classList.remove('show');
 });
+
 $('loginForm').addEventListener('submit', async e => {
   e.preventDefault();
   const email = $('emailInput').value.trim(), password = $('passwordInput').value;
-  if (!email || !password){
-    $('authError').textContent = 'Nhập đủ email và mật khẩu';
-    $('authError').classList.add('show');
-    return;
-  }
-  const btn = $('submitBtn');
-  btn.disabled = true;
-  btn.textContent = 'Đang đăng nhập...';
-  $('authError').classList.remove('show');
-  console.log('Attempt login:', email, authMode, 'protocol:', location.protocol);
-  
-  const timeout = setTimeout(()=>{
-    btn.disabled = false;
-    btn.textContent = authMode==='login'?'Đăng nhập':'Đăng ký';
-    $('authError').innerHTML = `⏳ Firebase phản hồi chậm (có thể do mở file://).<br><small>Đang thử vào chế độ offline...</small>`;
-    $('authError').classList.add('show');
-    // auto fallback sau 10s
-    const localUser = {uid:'local_'+Date.now(), displayName: email.split('@')[0], email: email, photoURL:null, isLocal:true};
-    enterApp(localUser);
-    showToast('⚠️ Firebase chậm - đã vào chế độ offline', 4000);
-  }, 8000);
-  
+  if (!email || !password) return;
+  $('submitBtn').disabled = true; $('authError').classList.remove('show');
   try {
-    let userCred;
-    if (authMode === 'login'){
-      userCred = await signInWithEmailAndPassword(auth, email, password);
-      clearTimeout(timeout);
-      console.log('Login success', userCred.user.email);
-      enterApp(userCred.user);
-      return;
-    } else {
-      userCred = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(userCred.user, { displayName: email.split('@')[0] });
-      clearTimeout(timeout);
-      console.log('Signup success', userCred.user.email);
-      enterApp(userCred.user);
-      return;
+    if (authMode === 'login') await signInWithEmailAndPassword(auth, email, password);
+    else {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(cred.user, { displayName: email.split('@')[0] });
     }
   } catch (err) {
-    clearTimeout(timeout);
-    console.error('Auth error', err);
-    const isFileProtocol = location.protocol === 'file:';
-    const isDomainError = err.code==='auth/unauthorized-domain' || err.code==='auth/operation-not-allowed' || err.code==='auth/network-request-failed' || err.code==='auth/web-storage-unsupported';
-    
-    // Nếu mở file:// hoặc lỗi domain -> cho vào offline luôn
-    if(isFileProtocol || isDomainError){
-      console.warn('Fallback to offline mode due to', err.code);
-      $('authError').innerHTML = `⚠️ Firebase chặn <b>file://</b> (${err.code})<br><small>Đang vào chế độ offline với <b>${email}</b>...</small>`;
-      $('authError').classList.add('show');
-      const localUser = {uid:'local_'+Date.now(), displayName: email.split('@')[0], email: email, photoURL:null, isLocal:true};
-      setTimeout(()=>{
-        enterApp(localUser);
-        showToast(`✅ Đã vào offline với ${email}`, 3000);
-      }, 800);
-      return;
-    }
-    
-    $('authError').innerHTML = translateAuthError(err.code) + `<br><small style="font-size:11px;color:#6b7280">${err.message||''}<br>Code: ${err.code}</small>`;
+    $('authError').textContent = translateAuthError(err.code);
     $('authError').classList.add('show');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = authMode === 'login' ? 'Đăng nhập' : 'Đăng ký';
-  }
+  } finally { $('submitBtn').disabled = false; }
 });
+
 $('googleBtn').addEventListener('click', async () => {
-  $('authError').classList.remove('show');
-  $('googleBtn').textContent = 'Đang mở Google...';
-  try {
-    const cred = await signInWithPopup(auth, googleProvider);
-    console.log('Google login success', cred.user.email);
-    enterApp(cred.user);
-  }
+  try { await signInWithPopup(auth, googleProvider); }
   catch (err) {
-    console.error('Google auth error', err);
-    const isFileProtocol = location.protocol === 'file:';
-    if(isFileProtocol || err.code==='auth/unauthorized-domain' || err.code==='auth/popup-closed-by-user' || err.code==='auth/popup-blocked'){
-      // fallback offline cho Google luôn
-      $('authError').innerHTML = `⚠️ Google login bị chặn do file://<br><small>Đang vào offline...</small>`;
-      $('authError').classList.add('show');
-      const localUser = {uid:'local_'+Date.now(), displayName:'Tài xế', email:'driver@vietdriver.pro', photoURL:null, isLocal:true};
-      setTimeout(()=>{ enterApp(localUser); showToast('✅ Vào offline (Google bị chặn file://)', 3000); }, 600);
-      return;
-    }
-    let msg = translateAuthError(err.code);
-    $('authError').innerHTML = msg + `<br><small>${err.message}</small>`;
+    $('authError').textContent = translateAuthError(err.code);
     $('authError').classList.add('show');
-  } finally {
-    $('googleBtn').innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg> Đăng nhập với Google`;
   }
 });
+
 function translateAuthError(code) {
   const m = {
-    'auth/invalid-email':'Email không hợp lệ',
-    'auth/user-not-found':'Email chưa đăng ký',
-    'auth/wrong-password':'Sai mật khẩu',
-    'auth/invalid-credential':'Sai email hoặc mật khẩu - kiểm tra lại',
-    'auth/email-already-in-use':'Email đã đăng ký',
-    'auth/weak-password':'Mật khẩu ≥ 6 ký tự',
-    'auth/popup-closed-by-user':'Đã đóng popup',
-    'auth/network-request-failed':'Lỗi mạng - kiểm tra internet',
-    'auth/too-many-requests':'Thử quá nhiều, đợi 1 phút',
-    'auth/unauthorized-domain':'Domain bị chặn (file://) - dùng Live Server',
-    'auth/operation-not-allowed':'Chưa bật Email/Password trong Firebase Console'
+    'auth/invalid-email':'Email không hợp lệ','auth/user-not-found':'Email chưa đăng ký',
+    'auth/wrong-password':'Sai mật khẩu','auth/invalid-credential':'Sai email hoặc mật khẩu',
+    'auth/email-already-in-use':'Email đã đăng ký','auth/weak-password':'Mật khẩu ≥ 6 ký tự',
+    'auth/popup-closed-by-user':'Đã đóng popup'
   };
-  return m[code] || `Lỗi: ${code}`;
+  return m[code] || 'Lỗi: ' + code;
 }
+
 onAuthStateChanged(auth, user => {
   state.user = user;
+  showLoading(false);
   if (user) {
     $('loginScreen').style.display = 'none';
     $('app').classList.add('show');
@@ -890,9 +652,11 @@ onAuthStateChanged(auth, user => {
     $('userChip').classList.remove('show');
   }
 });
+
 $('logoutBtn').addEventListener('click', async () => {
   if (confirm('Đăng xuất?')) { await signOut(auth); $('settingsModal').classList.remove('show'); }
 });
+
 /* ============ COMMUNITY POI CONFIG ============ */
 const POI_TYPES = {
   police: { icon:'🚔', label:'CSGT / Chốt', color:'#1d4ed8', bg:'#eff6ff', expireHours:2, warning:'Phía trước 300m có CSGT' },
@@ -904,6 +668,7 @@ const POI_TYPES = {
   flood: { icon:'🌊', label:'Ngập lụt', color:'#0ea5e9', bg:'#e0f2fe', expireHours:6, warning:'Ngập lụt phía trước' },
   hazard: { icon:'❗', label:'Nguy hiểm khác', color:'#ef4444', bg:'#fee2e2', expireHours:3, warning:'Có nguy hiểm phía trước' }
 };
+
 function isPoiExpired(poi){
   if(!poi.createdAt) return false;
   const created = poi.createdAt;
@@ -919,6 +684,7 @@ function formatPoiTime(ts){
   if(h<24) return `${h} giờ trước`;
   return `${Math.floor(h/24)} ngày trước`;
 }
+
 function renderPoiGrid(){
   const grid = $('poiGrid');
   grid.innerHTML = Object.entries(POI_TYPES).map(([key,cfg])=>`
@@ -936,6 +702,7 @@ function renderPoiGrid(){
     });
   });
 }
+
 function openPoiPicker(){
   renderPoiGrid();
   $('poiPicker').classList.add('show');
@@ -943,6 +710,7 @@ function openPoiPicker(){
 function closePoiPicker(){
   $('poiPicker').classList.remove('show');
 }
+
 function startPoiReporting(type){
   state.poiType = type;
   state.poiReporting = true;
@@ -953,6 +721,7 @@ function startPoiReporting(type){
   showToast(`📍 ${POI_TYPES[type].icon} Chạm bản đồ để đặt ${POI_TYPES[type].label}`, 4000);
   if(map) map.getCanvas().style.cursor = 'crosshair';
 }
+
 function cancelPoiReporting(){
   state.poiReporting = false;
   state.poiType = null;
@@ -963,6 +732,7 @@ function cancelPoiReporting(){
   if(map) map.getCanvas().style.cursor = '';
   updateClickHint();
 }
+
 function handlePoiPlacement(lat,lng){
   state.poiTempLatLng = {lat,lng};
   if(state.poiTempMarker) state.poiTempMarker.remove();
@@ -982,6 +752,7 @@ function handlePoiPlacement(lat,lng){
   $('poiConfirm').classList.add('show');
   $('poiDescInput').focus();
 }
+
 async function submitPoi(){
   if(!state.poiTempLatLng || !state.poiType) return;
   const desc = $('poiDescInput').value.trim();
@@ -1022,6 +793,7 @@ async function submitPoi(){
     cancelPoiReporting();
   }
 }
+
 function createPoiMarkerElement(poi){
   const cfg = POI_TYPES[poi.type] || POI_TYPES.hazard;
   const el = document.createElement('div');
@@ -1030,6 +802,7 @@ function createPoiMarkerElement(poi){
   el.title = cfg.label;
   return el;
 }
+
 function renderPoiMarkers(){
   if(!map) return;
   // clear old
@@ -1077,6 +850,7 @@ function renderPoiMarkers(){
   // Check proximity if routing
   if(state.pointA && state.pointB) checkPoiProximity();
 }
+
 async function votePoi(id, action){
   const poi = state.communityPois[id];
   if(!poi) return;
@@ -1097,6 +871,7 @@ async function votePoi(id, action){
   if(idx>=0){ local[idx]= {...local[idx], upvotes:poi.upvotes, downvotes:poi.downvotes}; localStorage.setItem('vd_pois', JSON.stringify(local)); }
   renderPoiMarkers();
 }
+
 function initCommunityPois(){
   // Load local first
   try{
@@ -1122,6 +897,7 @@ function initCommunityPois(){
     });
   }catch(e){ console.warn('Firebase POI listen fail', e); }
 }
+
 function clearExpiredPois(){
   let removed=0;
   Object.entries(state.communityPois).forEach(([id,poi])=>{
@@ -1141,6 +917,7 @@ function clearExpiredPois(){
   renderPoiMarkers();
   showToast(`🧹 Đã xóa ${removed} POI hết hạn`);
 }
+
 function checkPoiProximity(){
   if(!state.currentPos) return;
   // Simple proximity check for warnings along route
@@ -1160,731 +937,9 @@ function haversine(lat1,lon1,lat2,lon2){
   const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
-function getBearing(lat1, lon1, lat2, lon2){
-  const dLon = (lon2-lon1)*Math.PI/180;
-  const y = Math.sin(dLon)*Math.cos(lat2*Math.PI/180);
-  const x = Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180) - Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);
-  let brng = Math.atan2(y,x)*180/Math.PI;
-  return (brng+360)%360;
-}
-function findClosestRouteIndex(lat,lng){
-  if(!state.routeLineCoords.length) return 0;
-  let minDist=Infinity, minIdx=0;
-  state.routeLineCoords.forEach((c,i)=>{
-    const d = haversine(lat,lng,c[1],c[0]);
-    if(d<minDist){ minDist=d; minIdx=i; }
-  });
-  return minIdx;
-}
-function createNavMarker(){
-  if(state.navMarker){ state.navMarker.remove(); }
-  if(!map) return;
-  const elWrap = document.createElement('div');
-  elWrap.className='nav-arrow-el';
-  const inner = document.createElement('div');
-  inner.className='nav-arrow-inner';
-  inner.id='navArrowInner';
-  inner.innerHTML='▲';
-  elWrap.appendChild(inner);
-  state.navMarker = new maplibregl.Marker({element:elWrap, rotationAlignment:'map', pitchAlignment:'map'}).setLngLat([state.currentPos.lng, state.currentPos.lat]).addTo(map);
-  // hide old dot
-  if(state.currentMarker) state.currentMarker.getElement().style.display='none';
-}
-function updateNavView(){
-  if(!state.isNavigating || !state.currentPos || !state.routeLineCoords.length) return;
-  // SNAP GPS vào đường xanh gần nhất
-  const snap = snapToRoute(state.currentPos.lat, state.currentPos.lng);
-  const curIdx = snap.idx;
-  const lookAhead = Math.min(curIdx+15, state.routeLineCoords.length-1);
-  const cur = state.routeLineCoords[curIdx];
-  const next = state.routeLineCoords[lookAhead];
-  if(!cur || !next) return;
-  const bearing = getBearing(cur[1],cur[0],next[1],next[0]);
-  // smooth bearing
-  let diff = bearing - state.lastBearing;
-  if(diff>180) diff-=360;
-  if(diff<-180) diff+=360;
-  state.lastBearing += diff*0.2;
-  
-  // update arrow - luôn ở trên đường xanh, xoay theo đường
-  const arrow = document.getElementById('navArrowInner');
-  if(arrow) arrow.style.transform = `translate(-50%,-50%) rotate(${state.lastBearing}deg)`;
-  if(state.navMarker) state.navMarker.setLngLat([snap.lng, snap.lat]);
-  
-  // update map camera to follow - nhìn thẳng mũi tên, hướng về đường xanh
-  map.easeTo({
-    center: [snap.lng, snap.lat],
-    bearing: state.lastBearing,
-    pitch: 70,
-    zoom: 19,
-    duration: 1000,
-    easing: t=>t
-  });
-  // update next maneuver banner
-  if(state.routeData?.steps?.length){
-    // find next step ahead
-    let nextStep = null;
-    for(let i=0;i<state.routeData.steps.length;i++){
-      const s = state.routeData.steps[i];
-      if(s.location){
-        const stepIdx = findClosestRouteIndex(s.location[1], s.location[0]);
-        if(stepIdx > curIdx){
-          nextStep = s;
-          state.navCurrentStep = i;
-          break;
-        }
-      }
-    }
-    if(!nextStep) nextStep = state.routeData.steps[state.routeData.steps.length-1];
-    if(nextStep){
-      const distToStep = nextStep.location ? haversine(state.currentPos.lat, state.currentPos.lng, nextStep.location[1], nextStep.location[0])*1000 : 0;
-      $('navNextText').textContent = nextStep.text || 'Đi thẳng';
-      $('navNextIcon').textContent = getManeuverIcon(nextStep.text);
-      $('navNextDist').innerHTML = distToStep>1000 ? `<b>${(distToStep/1000).toFixed(1)} km</b> nữa` : `<b>${Math.round(distToStep)} m</b> nữa`;
-      // voice when close
-      if(distToStep<80 && distToStep>20 && state.voiceEnabled){
-        // avoid spam
-        if(!nextStep._voiced){
-          speakInstruction(nextStep.text);
-          nextStep._voiced=true;
-          setTimeout(()=>nextStep._voiced=false, 15000);
-        }
-      }
-    }
-  }
-}
-function getManeuverIcon(text){
-  const t = (text||'').toLowerCase();
-  if(t.includes('trái')) return '↰';
-  if(t.includes('phải')) return '↱';
-  if(t.includes('vòng xuyến') || t.includes('vòng xuy')) return '↻';
-  if(t.includes('đến') || t.includes('đích')) return '🏁';
-  if(t.includes('quay đầu')) return '↩';
-  return '↑';
-}
-function snapToRoute(lat,lng){
-  if(!state.routeLineCoords.length) return {lat,lng, idx:0, bearing:0};
-  let minDist=Infinity, minIdx=0;
-  state.routeLineCoords.forEach((c,i)=>{
-    const d = haversine(lat,lng,c[1],c[0]);
-    if(d<minDist){ minDist=d; minIdx=i; }
-  });
-  const snapCoord = state.routeLineCoords[minIdx];
-  const nextIdx = Math.min(minIdx+5, state.routeLineCoords.length-1);
-  const nextCoord = state.routeLineCoords[nextIdx];
-  const bearing = getBearing(snapCoord[1], snapCoord[0], nextCoord[1], nextCoord[0]);
-  return {lat:snapCoord[1], lng:snapCoord[0], idx:minIdx, bearing, dist:minDist};
-}
-function startNavigation(){
-  if(!state.routeData || !state.routeLineCoords.length){
-    showToast('Chưa có tuyến đường - đang tính...');
-    if(state.pointA && state.pointB) calculateRoute().then(()=>{ if(state.routeData) startNavigation(); });
-    return;
-  }
-  // SNAP mũi tên vào đường xanh ngay lập tức
-  let snap;
-  if(state.currentPos){
-    snap = snapToRoute(state.currentPos.lat, state.currentPos.lng);
-  } else if(state.pointA){
-    snap = snapToRoute(state.pointA.lat, state.pointA.lng);
-  } else {
-    const first = state.routeLineCoords[0];
-    snap = {lat:first[1], lng:first[0], idx:0, bearing:getBearing(first[1],first[0], state.routeLineCoords[1][1], state.routeLineCoords[1][0])};
-  }
-  
-  state.isNavigating = true;
-  state.lastBearing = snap.bearing;
-  
-  $('routePanel').classList.remove('show');
-  $('vehicleSheet').classList.remove('show');
-  $('navBanner').classList.add('show');
-  $('exitNavBtn').classList.add('show');
-  $('fabStack').classList.add('nav-mode');
-  $('voiceBanner').classList.add('nav');
-  $('routeInputs').classList.remove('show');
-  
-  // Tạo marker tại vị trí snap trên đường
-  if(map){
-    if(state.navMarker) state.navMarker.remove();
-    const elWrap = document.createElement('div');
-    elWrap.className='nav-arrow-el';
-    const inner = document.createElement('div');
-    inner.className='nav-arrow-inner';
-    inner.id='navArrowInner';
-    inner.innerHTML='▲';
-    inner.style.transform = `translate(-50%,-50%) rotate(${snap.bearing}deg)`;
-    elWrap.appendChild(inner);
-    state.navMarker = new maplibregl.Marker({element:elWrap, rotationAlignment:'map', pitchAlignment:'map'}).setLngLat([snap.lng, snap.lat]).addTo(map);
-    if(state.currentMarker) state.currentMarker.getElement().style.display='none';
-    
-    // Bay tới vị trí snap với góc nhìn hướng theo đường xanh
-    map.flyTo({
-      center: [snap.lng, snap.lat],
-      zoom: 19,
-      pitch: 70,
-      bearing: snap.bearing,
-      duration: 1200,
-      essential:true
-    });
-    
-    // Sau đó nếu có GPS, từ từ dịch chuyển về GPS thật nhưng vẫn trên đường
-    if(state.currentPos && snap.dist>0.02){
-      setTimeout(()=>{
-        if(state.isNavigating && state.navMarker){
-          state.navMarker.setLngLat([snap.lng, snap.lat]);
-        }
-      }, 600);
-    }
-  }
-  
-  showToast(`🚀 Đã snap vào đường xanh • Hướng ${Math.round(snap.bearing)}°`, 3500);
-  if(state.voiceEnabled && state.routeData.steps[0]){
-    setTimeout(()=>speakInstruction(state.routeData.steps[0].text), 800);
-  }
-}
-function stopNavigation(){
-  state.isNavigating = false;
-  $('navBanner').classList.remove('show');
-  $('exitNavBtn').classList.remove('show');
-  $('fabStack').classList.remove('nav-mode');
-  $('voiceBanner').classList.remove('nav');
-  if(state.navMarker){ state.navMarker.remove(); state.navMarker=null; }
-  if(state.currentMarker) state.currentMarker.getElement().style.display='';
-  if(map){
-    map.easeTo({pitch:0, bearing:0, zoom:15, duration:800});
-    if(state.routeLineCoords.length){
-      const lngs = state.routeLineCoords.map(c=>c[0]), lats = state.routeLineCoords.map(c=>c[1]);
-      map.fitBounds([[Math.min(...lngs), Math.min(...lats)],[Math.max(...lngs), Math.max(...lats)]], {padding:80});
-    }
-  }
-  showToast('Đã thoát dẫn đường');
-}
-/* ===== USER MODAL - REALTIME + THEME + LAYERS ===== */
-let clockInterval=null;
-function startRealClock(){
-  if(clockInterval) clearInterval(clockInterval);
-  function upd(){
-    const now = new Date();
-    const vn = new Date(now.toLocaleString('en-US', {timeZone:'Asia/Ho_Chi_Minh'}));
-    const h = String(vn.getHours()).padStart(2,'0');
-    const m = String(vn.getMinutes()).padStart(2,'0');
-    const s = String(vn.getSeconds()).padStart(2,'0');
-    const clockEl = document.getElementById('realClock');
-    const dateEl = document.getElementById('realDate');
-    if(clockEl) clockEl.textContent = `${h}:${m}:${s}`;
-    if(dateEl){
-      const days = ['Chủ Nhật','Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7'];
-      dateEl.innerHTML = `${days[vn.getDay()]}<br/>${String(vn.getDate()).padStart(2,'0')}/${String(vn.getMonth()+1).padStart(2,'0')}/${vn.getFullYear()}`;
-    }
-  }
-  upd();
-  clockInterval = setInterval(upd, 1000);
-}
-function applyTheme(theme){
-  const root = document.documentElement;
-  if(theme==='dark'){ root.classList.add('dark'); document.body.classList.add('dark'); }
-  else if(theme==='light'){ root.classList.remove('dark'); document.body.classList.remove('dark'); }
-  else { // auto
-    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if(isDark){ root.classList.add('dark'); document.body.classList.add('dark'); }
-    else { root.classList.remove('dark'); document.body.classList.remove('dark'); }
-  }
-  localStorage.setItem('vd_theme', theme);
-  document.querySelectorAll('.theme-opt').forEach(el=>{
-    el.classList.toggle('selected', el.dataset.theme===theme);
-  });
-}
-let currentBaseLayer = localStorage.getItem('vd_baseLayer') || 'streets';
-let mapillarySignsOn = localStorage.getItem('vd_signs') !== '0'; // default ON
-let customLayersToRestore = [];
-function setBaseLayer(layer){
-  currentBaseLayer = layer;
-  localStorage.setItem('vd_baseLayer', layer);
-  document.querySelectorAll('.map-layer-card').forEach(c=>{
-    c.classList.toggle('selected', c.dataset.layer===layer);
-  });
-  if(!map) return;
-  // Save route to restore
-  const savedRoute = state.routeData;
-  showLoading(true);
-  if(layer==='streets'){
-    map.setStyle(TRACKASIA.style('streets'));
-  } else {
-    // Satellite - dùng Esri + TrackAsia overlay
-    const satStyle = {
-      version:8,
-      sources:{
-        'esri-sat':{type:'raster', tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize:256, attribution:'Esri'},
-        'esri-labels':{type:'raster', tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'], tileSize:256}
-      },
-      layers:[
-        {id:'esri-sat', type:'raster', source:'esri-sat'},
-        {id:'esri-labels', type:'raster', source:'esri-labels', paint:{'raster-opacity':0.8}}
-      ]
-    };
-    map.setStyle(satStyle);
-  }
-  map.once('styledata', ()=>{
-    setTimeout(()=>{
-      // restore custom layers
-      if(savedRoute) drawRoute(savedRoute);
-      if(state.trafficOn) addTraffic();
-      if(state.mapillaryOn) addMapillaryCoverage();
-      if(mapillarySignsOn){ addMapillarySigns(); setTimeout(()=>fetchTrafficSignsAPI(), 1000); }
-      renderPoiMarkers();
-      updateCurrentMarker();
-      showLoading(false);
-      showToast(layer==='streets'?'🗺️ Đã đổi sang TrackAsia':'🛰️ Đã đổi sang Vệ tinh');
-    }, 400);
-  });
-}
-// ===== MAPILLARY TRAFFIC SIGNS - CHUẨN DOCS v4 =====
-const TRAFFIC_SIGN_VI = {
-  'regulatory--stop--g1':'⛔ Biển STOP - Dừng lại',
-  'regulatory--yield--g1':'⚠️ Nhường đường',
-  'regulatory--maximum-speed-limit':'🚫 Giới hạn tốc độ',
-  'regulatory--no-entry--g1':'🚫 Cấm vào',
-  'regulatory--no-left-turn--g1':'↩️ Cấm rẽ trái',
-  'regulatory--no-right-turn--g1':'↪️ Cấm rẽ phải',
-  'regulatory--no-u-turn--g1':'↩️ Cấm quay đầu',
-  'regulatory--one-way':'➡️ Đường một chiều',
-  'warning--curve-left--g1':'⚠️ Đường cong trái',
-  'warning--curve-right--g1':'⚠️ Đường cong phải',
-  'warning--pedestrians-crossing--g1':'🚶 Người đi bộ qua đường',
-  'warning--school-zone--g1':'🏫 Khu vực trường học',
-  'warning--slippery-road--g1':'⚠️ Đường trơn',
-  'information--pedestrians-crossing--g1':'🚶 Vạch qua đường',
-  'regulatory--go-straight':'⬆️ Đi thẳng',
-  'regulatory--go-straight-or-turn-left':'⬆️↖️ Đi thẳng hoặc rẽ trái'
-};
-function translateSign(value){
-  if(!value) return 'Biển báo';
-  if(TRAFFIC_SIGN_VI[value]) return TRAFFIC_SIGN_VI[value];
-  // fuzzy match
-  const lower = value.toLowerCase();
-  if(lower.includes('stop')) return '⛔ Biển STOP';
-  if(lower.includes('maximum-speed')) {
-    const m = lower.match(/(\d+)/);
-    return m ? `🚫 Giới hạn ${m[0]} km/h` : '🚫 Giới hạn tốc độ';
-  }
-  if(lower.includes('yield')) return '⚠️ Nhường đường';
-  if(lower.includes('no-entry')) return '🚫 Cấm vào';
-  if(lower.includes('curve-left')) return '↰ Đường cong trái';
-  if(lower.includes('curve-right')) return '↱ Đường cong phải';
-  if(lower.includes('pedestrians')) return '🚶 Người đi bộ';
-  if(lower.includes('school')) return '🏫 Trường học';
-  if(lower.includes('roundabout')) return '🔄 Vòng xuyến';
-  if(lower.includes('traffic-light')) return '🚦 Đèn tín hiệu';
-  // generic
-  return value.replace(/--/g,' ').replace(/-g\d+/,'').replace('regulatory','Biển cấm').replace('warning','Biển cảnh báo').replace('information','Biển chỉ dẫn');
-}
-function addMapillarySigns(){
-  if(!map) return;
-  try{
-    // Xóa cũ nếu có
-    removeMapillarySigns();
-    // Source chuẩn theo docs: mly_map_feature_traffic_sign
-    if(!map.getSource('mapillary-traffic-sign')){
-      map.addSource('mapillary-traffic-sign', {
-        type:'vector',
-        tiles:[MAPILLARY.trafficSignTiles()],
-        minzoom:14,
-        maxzoom:14
-      });
-    }
-    // Layer 1: regulatory - đỏ
-    map.addLayer({
-      id:'mapillary-signs-regulatory',
-      type:'circle',
-      source:'mapillary-traffic-sign',
-      'source-layer':'traffic_sign',
-      filter:['==', ['slice', ['get','value'], 0, 10], 'regulatory'],
-      paint:{
-        'circle-radius': ['interpolate',['linear'],['zoom'],14,6,18,10],
-        'circle-color':'#dc2626',
-        'circle-stroke-width':2,
-        'circle-stroke-color':'#fff',
-        'circle-opacity':0.95
-      }
-    });
-    // Layer 2: warning - vàng
-    map.addLayer({
-      id:'mapillary-signs-warning',
-      type:'circle',
-      source:'mapillary-traffic-sign',
-      'source-layer':'traffic_sign',
-      filter:['==', ['slice', ['get','value'], 0, 7], 'warning'],
-      paint:{
-        'circle-radius': ['interpolate',['linear'],['zoom'],14,6,18,10],
-        'circle-color':'#f59e0b',
-        'circle-stroke-width':2,
-        'circle-stroke-color':'#fff',
-        'circle-opacity':0.95
-      }
-    });
-    // Layer 3: information - xanh
-    map.addLayer({
-      id:'mapillary-signs-info',
-      type:'circle',
-      source:'mapillary-traffic-sign',
-      'source-layer':'traffic_sign',
-      filter:['==', ['slice', ['get','value'], 0, 11], 'information'],
-      paint:{
-        'circle-radius': ['interpolate',['linear'],['zoom'],14,5,18,9],
-        'circle-color':'#0d6efd',
-        'circle-stroke-width':2,
-        'circle-stroke-color':'#fff',
-        'circle-opacity':0.9
-      }
-    });
-    // Layer 4: complementary + others - xám
-    map.addLayer({
-      id:'mapillary-signs-other',
-      type:'circle',
-      source:'mapillary-traffic-sign',
-      'source-layer':'traffic_sign',
-      filter:['all',
-        ['!=', ['slice', ['get','value'], 0, 10], 'regulatory'],
-        ['!=', ['slice', ['get','value'], 0, 7], 'warning'],
-        ['!=', ['slice', ['get','value'], 0, 11], 'information']
-      ],
-      paint:{
-        'circle-radius':5,
-        'circle-color':'#6b7280',
-        'circle-stroke-width':1.5,
-        'circle-stroke-color':'#fff',
-        'circle-opacity':0.85
-      }
-    });
-    // Label layer
-    map.addLayer({
-      id:'mapillary-signs-label',
-      type:'symbol',
-      source:'mapillary-traffic-sign',
-      'source-layer':'traffic_sign',
-      minzoom:15,
-      layout:{
-        'text-field': ['get','value'],
-        'text-size':9,
-        'text-offset':[0,1.3],
-        'text-anchor':'top',
-        'text-max-width':8
-      },
-      paint:{
-        'text-color':'#1f2937',
-        'text-halo-color':'#fff',
-        'text-halo-width':1.5,
-        'text-opacity':0.8
-      }
-    });
-    // Click handlers cho tất cả layers
-    ['mapillary-signs-regulatory','mapillary-signs-warning','mapillary-signs-info','mapillary-signs-other'].forEach(layerId=>{
-      map.on('click', layerId, async (e)=>{
-        const f = e.features[0];
-        if(!f) return;
-        const props = f.properties;
-        const value = props.value;
-        const translated = translateSign(value);
-        // Lấy ảnh chi tiết qua API nếu có
-        const id = props.id;
-        let imgUrl = null;
-        try{
-          const detail = await fetch(`https://graph.mapillary.com/${id}?access_token=${CONFIG.MAPILLARY_KEY}&fields=images.thumb_1024_url,images.id,first_seen_at,last_seen_at`).then(r=>r.json());
-          if(detail.images?.data?.[0]?.thumb_1024_url) imgUrl = detail.images.data[0].thumb_1024_url;
-        }catch{}
-        const popupHtml = `
-          <div style="min-width:200px;font-family:system-ui">
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-              <div style="width:28px;height:28px;border-radius:50%;background:${layerId.includes('regulatory')?'#fee2e2':layerId.includes('warning')?'#fffbeb':'#eff6ff'};display:flex;align-items:center;justify-content:center">🚸</div>
-              <div><div style="font-weight:700;font-size:13px">${translated}</div><div style="font-size:10px;color:#6b7280">${value}</div></div>
-            </div>
-            ${imgUrl?`<img src="${imgUrl}" style="width:100%;border-radius:8px;margin:6px 0;max-height:120px;object-fit:cover"/>`:''}
-            <div style="font-size:11px;color:#6b7280">ID: ${id}<br/>Lần đầu: ${props.first_seen_at? new Date(props.first_seen_at).toLocaleDateString('vi-VN'):''}</div>
-            <button onclick="window.open('https://www.mapillary.com/app/?lat=${e.lngLat.lat}&lng=${e.lngLat.lng}&z=17','_blank')" style="margin-top:8px;width:100%;padding:6px;background:#0d6efd;color:#fff;border:0;border-radius:6px;font-size:12px;cursor:pointer">Xem trên Mapillary</button>
-          </div>`;
-        new maplibregl.Popup({closeButton:true, maxWidth:'280px'}).setLngLat(e.lngLat).setHTML(popupHtml).addTo(map);
-        // voice warning if navigating
-        if(state.isNavigating && state.voiceEnabled){
-          if(value.includes('stop')) speakInstruction('Có biển STOP phía trước');
-          else if(value.includes('maximum-speed')) speakInstruction(translated);
-        }
-      });
-      map.on('mouseenter', layerId, ()=>{ map.getCanvas().style.cursor='pointer'; });
-      map.on('mouseleave', layerId, ()=>{ map.getCanvas().style.cursor=''; });
-    });
-    // Auto fetch signs in current view via Graph API for extra markers (fallback when tiles not loaded)
-    fetchTrafficSignsAPI();
-  }catch(e){ console.warn('Mapillary signs fail', e); showToast('Lỗi tải biển báo: '+e.message); }
-}
-function removeMapillarySigns(){
-  if(!map) return;
-  ['mapillary-signs-regulatory','mapillary-signs-warning','mapillary-signs-info','mapillary-signs-other','mapillary-signs-label'].forEach(l=>{
-    if(map.getLayer(l)) map.removeLayer(l);
-  });
-  if(map.getSource('mapillary-traffic-sign')) map.removeSource('mapillary-traffic-sign');
-}
-function setSignsOpacity(v){
-  if(!map) return;
-  const op = v/100;
-  ['mapillary-signs-regulatory','mapillary-signs-warning','mapillary-signs-info','mapillary-signs-other'].forEach(l=>{
-    if(map.getLayer(l)) map.setPaintProperty(l,'circle-opacity', op);
-  });
-  if(map.getLayer('mapillary-signs-label')){
-    map.setPaintProperty('mapillary-signs-label','text-opacity', op*0.8);
-  }
-}
-// Fetch qua Graph API theo bbox <0.01 deg - theo docs
-let trafficSignsCache = {};
-async function fetchTrafficSignsAPI(){
-  if(!map || !mapillarySignsOn) return;
-  const center = map.getCenter();
-  const d = 0.0045; // ~500m, <0.01 deg square per docs
-  const bbox = [center.lng-d, center.lat-d, center.lng+d, center.lat+d].join(',');
-  try{
-    const url = MAPILLARY.trafficSignsInBbox(bbox, 80);
-    const res = await fetch(url);
-    const data = await res.json();
-    if(!data.data) return;
-    // console.log('Mapillary signs API', data.data.length);
-    // Có thể cache để cảnh báo khi tới gần
-    data.data.forEach(f=>{
-      trafficSignsCache[f.id]=f;
-    });
-    // Check proximity if navigating
-    if(state.isNavigating && state.currentPos){
-      data.data.forEach(f=>{
-        if(!f.geometry?.coordinates) return;
-        const dist = haversine(state.currentPos.lat, state.currentPos.lng, f.geometry.coordinates[1], f.geometry.coordinates[0])*1000;
-        if(dist<100){
-          const tr = translateSign(f.object_value||f.value);
-          if(!f._warned){
-            showToast(`🚸 ${tr} - ${Math.round(dist)}m`, 4000);
-            if(state.voiceEnabled && (f.object_value||'').includes('stop')) speakInstruction('Sắp tới biển STOP');
-            f._warned=true;
-            setTimeout(()=>f._warned=false, 30000);
-          }
-        }
-      });
-    }
-  }catch(e){ console.warn('fetchTrafficSignsAPI', e); }
-}
-// ===== FILTER LOGIC =====
-let signFilters = {
-  all: true,
-  regulatory: true,
-  warning: true,
-  information: true,
-  complementary: false,
-  quick: [] // e.g. ['maximum-speed-limit','stop']
-};
-function updateSignFilters(){
-  if(!map) return;
-  const activeTypes = [];
-  if(signFilters.regulatory) activeTypes.push('regulatory');
-  if(signFilters.warning) activeTypes.push('warning');
-  if(signFilters.information) activeTypes.push('information');
-  if(signFilters.complementary) activeTypes.push('complementary');
-  
-  // Nếu lọc nhanh đang bật, ưu tiên lọc nhanh
-  const hasQuick = signFilters.quick.length>0;
-  
-  // Update layer visibility
-  const layers = {
-    'regulatory':'mapillary-signs-regulatory',
-    'warning':'mapillary-signs-warning',
-    'information':'mapillary-signs-info',
-    'complementary':'mapillary-signs-other'
-  };
-  
-  Object.entries(layers).forEach(([type, layerId])=>{
-    if(!map.getLayer(layerId)) return;
-    const isTypeActive = signFilters.all || activeTypes.includes(type);
-    if(!isTypeActive){
-      map.setLayoutProperty(layerId, 'visibility', 'none');
-      if(layerId==='mapillary-signs-other') {} // other handled
-      return;
-    }
-    // Nếu có quick filter, filter thêm theo value
-    if(hasQuick){
-      // Tạo filter kết hợp: type == type AND value contains quick
-      // Dùng any cho quick
-      const quickFilters = signFilters.quick.map(q=>['in', q, ['get','value']]);
-      // MapLibre filter: all [type filter, any quick]
-      let baseFilter;
-      if(type==='regulatory') baseFilter = ['==', ['slice', ['get','value'], 0, 10], 'regulatory'];
-      else if(type==='warning') baseFilter = ['==', ['slice', ['get','value'], 0, 7], 'warning'];
-      else if(type==='information') baseFilter = ['==', ['slice', ['get','value'], 0, 11], 'information'];
-      else baseFilter = ['all',['!=', ['slice', ['get','value'], 0, 10], 'regulatory'],['!=', ['slice', ['get','value'], 0, 7], 'warning'],['!=', ['slice', ['get','value'], 0, 11], 'information']];
-      
-      if(signFilters.quick.length===1){
-        const combined = ['all', baseFilter, ['in', signFilters.quick[0], ['get','value']]];
-        map.setFilter(layerId, combined);
-      } else {
-        const anyQuick = ['any', ...signFilters.quick.map(q=>['in', q, ['get','value']])];
-        const combined = ['all', baseFilter, anyQuick];
-        map.setFilter(layerId, combined);
-      }
-      map.setLayoutProperty(layerId, 'visibility', 'visible');
-    } else {
-      // reset to original filter
-      let original;
-      if(type==='regulatory') original = ['==', ['slice', ['get','value'], 0, 10], 'regulatory'];
-      else if(type==='warning') original = ['==', ['slice', ['get','value'], 0, 7], 'warning'];
-      else if(type==='information') original = ['==', ['slice', ['get','value'], 0, 11], 'information'];
-      else original = ['all',['!=', ['slice', ['get','value'], 0, 10], 'regulatory'],['!=', ['slice', ['get','value'], 0, 7], 'warning'],['!=', ['slice', ['get','value'], 0, 11], 'information']];
-      map.setFilter(layerId, original);
-      map.setLayoutProperty(layerId, 'visibility', 'visible');
-    }
-  });
-  
-  // Label visibility follows
-  if(map.getLayer('mapillary-signs-label')){
-    const anyVisible = activeTypes.length>0 || signFilters.all;
-    map.setLayoutProperty('mapillary-signs-label', 'visibility', anyVisible?'visible':'none');
-  }
-  
-  showToast(`🔍 Lọc: ${activeTypes.join(', ')}${hasQuick?' + '+signFilters.quick.join(', '):''}`, 2500);
-}
-// ===== ENHANCED LOCATE ME =====
-let locateMode = 'idle'; // idle, follow, compass
-let lastHeading = 0;
-let accuracyCircleId = 'accuracy-circle';
-let headingListenerAdded = false;
-function createOrUpdateAccuracyCircle(lat,lng,accuracy){
-  if(!map) return;
-  const radius = Math.min(accuracy, 100); // cap
-  // Create circle polygon approx
-  const points = 64;
-  const coords = [];
-  for(let i=0;i<points;i++){
-    const angle = (i/points)*2*Math.PI;
-    const dx = radius/111320 * Math.cos(angle) / Math.cos(lat*Math.PI/180);
-    const dy = radius/110540 * Math.sin(angle);
-    coords.push([lng+dx, lat+dy]);
-  }
-  coords.push(coords[0]);
-  const geojson = {type:'Feature', geometry:{type:'Polygon', coordinates:[coords]}, properties:{}};
-  if(map.getSource('accuracy')){
-    map.getSource('accuracy').setData(geojson);
-  } else {
-    map.addSource('accuracy', {type:'geojson', data:geojson});
-    map.addLayer({id:accuracyCircleId, type:'fill', source:'accuracy', paint:{'fill-color':'#0d6efd','fill-opacity':0.12}}, 'mapillary-signs-regulatory' || undefined);
-    map.addLayer({id:accuracyCircleId+'-line', type:'line', source:'accuracy', paint:{'line-color':'#0d6efd','line-width':1.5,'line-opacity':0.4,'line-dasharray':[2,2]}});
-  }
-}
-function updateLocateInfo(pos){
-  const lat = pos.coords.latitude;
-  const lng = pos.coords.longitude;
-  const acc = pos.coords.accuracy;
-  const heading = pos.coords.heading;
-  const speed = pos.coords.speed;
-  
-  const accEl = document.getElementById('locateAccuracy');
-  const latEl = document.getElementById('locateLat');
-  const lngEl = document.getElementById('locateLng');
-  const headEl = document.getElementById('locateHeading');
-  const titleEl = document.getElementById('locateInfoTitle');
-  const subEl = document.getElementById('locateInfoSub');
-  
-  if(accEl) accEl.textContent = acc ? `${Math.round(acc)}m` : '--';
-  if(latEl) latEl.textContent = lat.toFixed(5);
-  if(lngEl) lngEl.textContent = lng.toFixed(5);
-  if(headEl) headEl.textContent = heading!=null ? `${Math.round(heading)}°` : (lastHeading?`${Math.round(lastHeading)}°`:'--');
-  if(titleEl) titleEl.textContent = `Đã định vị • ${speed? (speed*3.6).toFixed(1)+' km/h':''}`;
-  if(subEl) subEl.textContent = `${new Date().toLocaleTimeString('vi-VN')} • ${acc<20?'Chính xác cao':acc<50?'Tốt':'Trung bình'}`;
-  
-  createOrUpdateAccuracyCircle(lat,lng,acc);
-}
-function setLocateMode(mode){
-  locateMode = mode;
-  const btn = document.getElementById('locateBtn');
-  const status = document.getElementById('locateStatus');
-  const statusText = document.getElementById('locateStatusText');
-  
-  if(btn){
-    btn.classList.remove('locating','tracking','compass','primary');
-    if(mode==='idle'){
-      btn.classList.add('primary');
-      if(status) status.classList.remove('show');
-    } else if(mode==='follow'){
-      btn.classList.add('tracking');
-      if(status){ status.classList.add('show'); statusText.textContent='👣 Đang theo dõi vị trí...'; }
-    } else if(mode==='compass'){
-      btn.classList.add('compass');
-      if(status){ status.classList.add('show'); statusText.textContent='🧭 Đang theo dõi + la bàn...'; }
-    }
-  }
-  
-  // Update modal buttons
-  ['locateFollowBtn','locateCompassBtn'].forEach(id=>{
-    const b = document.getElementById(id);
-    if(b) b.style.background = '#f3f4f6';
-  });
-  if(mode==='follow'){
-    const b = document.getElementById('locateFollowBtn');
-    if(b) b.style.background = '#0d6efd';
-  } else if(mode==='compass'){
-    const b = document.getElementById('locateCompassBtn');
-    if(b) b.style.background = '#10b981';
-  }
-}
-function enableCompass(){
-  if(headingListenerAdded) return;
-  if(window.DeviceOrientationEvent){
-    window.addEventListener('deviceorientation', (e)=>{
-      if(e.webkitCompassHeading!=null) lastHeading = e.webkitCompassHeading;
-      else if(e.alpha!=null) lastHeading = 360 - e.alpha;
-      const headEl = document.getElementById('locateHeading');
-      if(headEl) headEl.textContent = `${Math.round(lastHeading)}°`;
-      if(locateMode==='compass' && map && state.currentPos){
-        map.easeTo({bearing:lastHeading, duration:500});
-      }
-    });
-    headingListenerAdded=true;
-  }
-}
-function locateMeEnhanced(follow=false, compass=false){
-  if(!navigator.geolocation) return showToast('Không hỗ trợ GPS');
-  const btn = document.getElementById('locateBtn');
-  if(btn) btn.classList.add('locating');
-  showLoading(true);
-  navigator.geolocation.getCurrentPosition(
-    pos=>{
-      state.currentPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
-      updateCurrentMarker();
-      updateLocateInfo(pos);
-      if(map){
-        const zoom = follow?18:16;
-        const opts = {center:[pos.coords.longitude, pos.coords.latitude], zoom, duration:800};
-        if(compass && lastHeading) opts.bearing = lastHeading;
-        map.flyTo(opts);
-      }
-      showLoading(false);
-      if(btn) btn.classList.remove('locating');
-      if(follow){
-        setLocateMode(compass?'compass':'follow');
-        enableCompass();
-        if(compass) showToast('🧭 Đã bật theo dõi + la bàn');
-        else showToast('👣 Đang theo dõi vị trí của bạn');
-      } else {
-        setLocateMode('idle');
-        showToast(`📍 Đã định vị • ±${Math.round(pos.coords.accuracy)}m`);
-      }
-      // reverse geocode
-      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&accept-language=vi`)
-        .then(r=>r.json()).then(d=>{
-          if(d.display_name) showToast(`📍 ${d.display_name.split(',').slice(0,2).join(',')}`, 4000);
-        }).catch(()=>{});
-    },
-    err=>{
-      showLoading(false);
-      if(btn) btn.classList.remove('locating');
-      showToast('Không lấy được GPS: '+err.message);
-    },
-    {enableHighAccuracy:true, timeout:10000, maximumAge:0}
-  );
-}
+
 /* ============ MAP ============ */
+
 let map = null;
 const markerHTML = {
   current: '<div style="width:20px;height:20px;background:#0d6efd;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 3px rgba(13,110,253,.25),0 2px 6px rgba(0,0,0,.3)"></div>',
@@ -1892,8 +947,12 @@ const markerHTML = {
   B: '<div style="width:28px;height:28px;background:#ef4444;border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.3)">B</div>'
 };
 function createMarkerEl(k) { const d = document.createElement('div'); d.innerHTML = markerHTML[k]; return d.firstElementChild; }
+
 function initMap() {
-  if (map) return;
+  if (map) { showLoading(false); return; }
+  showLoading(true);
+  setTimeout(()=>showLoading(false), 4000);
+
   map = new maplibregl.Map({
     container: 'map',
     style: TRACKASIA.style('streets'),
@@ -1902,26 +961,103 @@ function initMap() {
   });
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-left');
   map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
+
   map.on('load', () => {
     state.mapReady = true;
+    showLoading(false);
     locateUser(true);
     startWatching();
     setTimeout(loadFromURL, 800);
-    // restore base layer
-    if(currentBaseLayer==='satellite'){
-      setTimeout(()=>setBaseLayer('satellite'), 500);
-    }
-    // auto enable signs by default - theo docs traffic_sign tiles
-    if(mapillarySignsOn){
-      setTimeout(()=>addMapillarySigns(), 800);
-    }
-    // fetch signs when map moves (bbox <0.01 per docs)
-    let fetchDebounce;
-    map.on('moveend', ()=>{
-      clearTimeout(fetchDebounce);
-      fetchDebounce = setTimeout(()=>{ if(mapillarySignsOn) fetchTrafficSignsAPI(); }, 800);
-    });
+    // Add traffic sign source - FIXED minzoom 12 so it shows at city zoom
+    try{
+      // Tắt vector tiles - chỉ dùng marker ảnh thật để có icon đẹp
+      // if(!map.getSource('mapillary-traffic-sign')){ 
+      if(false && !map.getSource('mapillary-traffic-sign')){
+        map.addSource('mapillary-traffic-sign', {
+          type:'vector',
+          tiles:[MAPILLARY.trafficSignTiles()],
+          minzoom:15, maxzoom:16
+        });
+        map.addLayer({
+          id:'traffic-sign-circle',
+          type:'circle',
+          source:'mapillary-traffic-sign',
+          'source-layer':'traffic_sign',
+          layout:{ visibility:'none' },
+          paint:{
+            'circle-radius': 12,
+            'circle-color': '#ffffff',
+            'circle-stroke-width':3,
+            'circle-stroke-color': [
+              'case',
+              ['in','regulatory',['get','value']], '#ef4444',
+              ['in','warning',['get','value']], '#f59e0b',
+              '#0d6efd'
+            ]
+          }
+          ,filter:['any',['in','regulatory',['get','value']],['in','warning',['get','value']]]
+        });
+        map.addLayer({
+          id:'traffic-sign-icon',
+          type:'symbol',
+          source:'mapillary-traffic-sign',
+          'source-layer':'traffic_sign',
+          layout:{
+            visibility:'none',
+            'text-field': [
+              'case',
+              ['in','stop',['get','value']], '🛑',
+              ['in','maximum-speed-limit',['get','value']], '🚸',
+              ['in','yield',['get','value']], '⚠️',
+              ['in','no-',['get','value']], '🚫',
+              ['in','warning',['get','value']], '⚠️',
+              ['in','information',['get','value']], 'ℹ️',
+              '🚏'
+            ],
+            'text-size': 18,
+            'text-allow-overlap': true,
+            'text-ignore-placement': true
+          }
+        });
+        map.addLayer({
+          id:'traffic-sign-label',
+          type:'symbol',
+          source:'mapillary-traffic-sign',
+          'source-layer':'traffic_sign',
+          layout:{
+            visibility:'none',
+            'text-field': ['slice',['get','value'],0,16],
+            'text-size':9,
+            'text-offset':[0,1.6],
+            'text-anchor':'top',
+            'text-allow-overlap': false
+          },
+          paint:{ 'text-color':'#111827', 'text-halo-color':'#fff', 'text-halo-width':1.5 }
+        });
+        // Click popup for traffic sign - show image
+        map.on('click','traffic-sign-circle', async (e)=>{
+          const f=e.features[0]; if(!f) return;
+          const val = f.properties.value||'';
+          // Try to get image via graph API for this feature id
+          let imgHtml = '<div style="font-size:11px;color:#9ca3af;margin-top:6px">Đang tải ảnh...</div>';
+          try{
+            const featUrl = `https://graph.mapillary.com/${f.properties.id}?access_token=${CONFIG.MAPILLARY_KEY}&fields=id,value,images`;
+            const r = await fetch(featUrl);
+            const featData = await r.json();
+            const firstImg = featData.images?.[0];
+            if(firstImg){
+              const imgData = await fetchImageDetails(firstImg);
+              if(imgData?.thumb_512_url){
+                imgHtml = `<img class="mly-img" src="${imgData.thumb_512_url}" style="height:140px" loading="lazy"/><div style="font-size:10px;color:#6b7280;margin-top:4px">${new Date(imgData.captured_at).toLocaleDateString()}</div>`;
+              }
+            }
+          }catch{}
+          new maplibregl.Popup({closeButton:true, maxWidth:'260px'}).setLngLat(e.lngLat).setHTML(`<div style="min-width:200px"><b>🛑 ${val}</b><br><small>ID: ${f.properties.id}</small><br>${imgHtml}<div style="margin-top:8px"><button onclick="window.open('https://www.mapillary.com/map/im/${f.properties.id}','_blank')" style="padding:5px 8px;background:#0d6efd;color:#fff;border:0;border-radius:6px;font-size:11px">Xem Mapillary</button></div></div>`).addTo(map);
+        });
+      }
+    }catch(err){ console.warn('Add traffic sign source fail', err); }
   });
+
   map.on('error', e => console.warn('Map error:', e?.error?.message));
   setTimeout(() => {
     if (!state.mapReady || !map.getStyle()?.sources) {
@@ -1931,6 +1067,7 @@ function initMap() {
       } catch(e) {}
     }
   }, 6000);
+
   map.on('click', e => {
     if (state.streetViewMode) {
       findNearestMapillaryImage(e.lngLat.lng, e.lngLat.lat);
@@ -1938,6 +1075,7 @@ function initMap() {
     }
     handleMapClick(e.lngLat.lat, e.lngLat.lng, 'left');
   });
+
   map.on('contextmenu', e => {
     if (state.poiReporting) { e.preventDefault(); handleMapClick(e.lngLat.lat, e.lngLat.lng, 'left'); return; }
     if (state.streetViewMode) return;
@@ -1957,55 +1095,72 @@ function initMap() {
   map.on('touchend', ()=>clearTimeout(longPressTimer));
   map.on('touchmove', ()=>clearTimeout(longPressTimer));
 }
+
+let lastClickedLatLng = null;
+
 function handleMapClick(lat, lng, button) {
   if (state.poiReporting && state.poiType) {
     handlePoiPlacement(lat,lng);
     return;
   }
+  // Right click vẫn set B nhanh
   if (button === 'right') {
     setPoint('B', lat, lng);
     showToast('📍 Đã đặt B (chuột phải)');
-    openVehicleSheet(lat,lng);
+    if (state.pointA) calculateRoute();
     return;
   }
-  if (!state.pointA) {
-    // A chưa có thì lấy GPS làm A, click làm B luôn cho nhanh
-    if(state.currentPos && !state.gpsAssignedToA){
-      setPoint('A', state.currentPos.lat, state.currentPos.lng);
-      state.gpsAssignedToA=true;
-    } else if(!state.pointA){
-      // nếu chưa có GPS, tạm lấy click làm B, A sẽ là GPS sau
-      setPoint('A', lat, lng);
-      showToast('📍 Đã đặt A, click thêm điểm B');
-      updateClickHint();
-      return;
-    }
+  // NEW UX: Show 3-button popup
+  showMapActionPopup(lat,lng);
+}
+
+async function showMapActionPopup(lat,lng){
+  lastClickedLatLng = {lat,lng};
+  state.clickedLatLng = {lat,lng};
+  $('mapActionCoords').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  $('mapActionAddress').textContent = '📍 Đang lấy địa chỉ (TomTom)...';
+  $('mapActionPopup').classList.add('show');
+  $('mapActionBackdrop').classList.add('show');
+  
+  // Reverse geocode via TomTom (theo yêu cầu: GEOCODING LÀ TOMTOM)
+  try{
+    const url = `https://api.tomtom.com/search/2/reverseGeocode/${lat},${lng}.json?key=${CONFIG.TOMTOM_KEY}&language=vi-VN`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const addr = data.addresses?.[0]?.address?.freeformAddress || data.addresses?.[0]?.address?.localName || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    $('mapActionAddress').textContent = '📍 ' + addr;
+  }catch(e){
+    $('mapActionAddress').textContent = `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
   }
-  setPoint('B', lat, lng);
-  openVehicleSheet(lat,lng);
 }
-function openVehicleSheet(lat,lng){
-  state.lastClickedLatLng = {lat,lng};
-  const info = $('sheetPointInfo');
-  if(info) info.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)} • Đang tìm địa chỉ...`;
-  // reverse geocode quick via Nominatim
-  fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=vi`)
-    .then(r=>r.json()).then(d=>{
-      if(d.display_name && info) info.textContent = d.display_name.split(',').slice(0,3).join(',');
-    }).catch(()=>{});
-  // sync vehicle UI
-  document.querySelectorAll('#sheetVehicleSelector .vehicle-btn').forEach(b=>{
-    b.classList.toggle('selected', b.dataset.costing===state.costing);
-  });
-  $('sheetTruckOptions').classList.toggle('show', state.costing==='truck');
-  $('vehicleSheet').classList.add('show');
+
+function hideMapActionPopup(){
+  $('mapActionPopup').classList.remove('show');
+  $('mapActionBackdrop').classList.remove('show');
+}
+
+function showRouteSheet(){
+  $('routeInputs').classList.add('show');
+  $('routeBackdrop').classList.add('show');
+}
+
+function hideRouteSheetAndClear(){
+  const wasVisible = $('routeInputs').classList.contains('show');
   $('routeInputs').classList.remove('show');
-  // haptic
-  if(navigator.vibrate) navigator.vibrate(20);
+  $('routeBackdrop').classList.remove('show');
+  // Yêu cầu: khi thoát bottom sheet chỉ đường thì đường xanh mất
+  if(wasVisible){
+    // Xóa route line
+    if(map){
+      ['route-line','route-outline'].forEach(l=>{ if(map.getLayer(l)) map.removeLayer(l); });
+      if(map.getSource('route')) map.removeSource('route');
+    }
+    $('routePanel').classList.remove('show');
+    showToast('Đã đóng chỉ đường - xóa tuyến');
+  }
 }
-function closeVehicleSheet(){
-  $('vehicleSheet').classList.remove('show');
-}
+
+
 function updateClickHint() {
   const hint = $('clickHint');
   if (state.streetViewMode) {
@@ -2025,52 +1180,59 @@ function updateClickHint() {
     setTimeout(() => hint.classList.remove('show'), 4000);
   }
 }
+
 /* ============ GEOLOCATION ============ */
 function updateCurrentMarker() {
   if (!state.currentPos || !map) return;
   const ll = [state.currentPos.lng, state.currentPos.lat];
   if (state.currentMarker) state.currentMarker.setLngLat(ll);
   else state.currentMarker = new maplibregl.Marker({ element: createMarkerEl('current') }).setLngLat(ll).addTo(map);
-  if(state.isNavigating){
-    if(!state.navMarker) createNavMarker();
-    updateNavView();
-  }
-  // POI proximity
-  checkPoiProximity();
 }
+
 function locateUser(center = true) {
-  locateMeEnhanced(center, false);
-  // also ensure A point
-  if (!state.pointA && !state.gpsAssignedToA && state.currentPos) {
-    setTimeout(()=>{
-      if(state.currentPos){
+  if (!navigator.geolocation) { showLoading(false); return showToast('Không hỗ trợ GPS'); }
+  showLoading(true);
+  let gpsTimeout=setTimeout(()=>showLoading(false),4000);
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      state.currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      updateCurrentMarker();
+      if (center && map) map.flyTo({ center: [state.currentPos.lng, state.currentPos.lat], zoom: 16 });
+
+      if (!state.pointA && !state.gpsAssignedToA) {
         setPoint('A', state.currentPos.lat, state.currentPos.lng);
         state.gpsAssignedToA = true;
         updateClickHint();
+        showToast('📍 A = vị trí GPS của bạn');
       }
-    }, 500);
-  }
+      clearTimeout(gpsTimeout); showLoading(false);
+    },
+    err => {
+      clearTimeout(gpsTimeout); showLoading(false);
+      if (!state.currentPos) {
+        state.currentPos = { lat: 21.0285, lng: 105.8542 };
+        updateCurrentMarker();
+        if (!state.pointA) {
+          setPoint('A', 21.0285, 105.8542);
+          state.gpsAssignedToA = true;
+        }
+      }
+      showToast('Không lấy được GPS, dùng Hà Nội mặc định');
+    },
+    { enableHighAccuracy: true, timeout: 8000 }
+  );
 }
+
 function startWatching() {
   if (state.watchId || !navigator.geolocation) return;
   state.watchId = navigator.geolocation.watchPosition(
     pos => {
       state.currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       updateCurrentMarker();
-      updateLocateInfo(pos);
-      if(locateMode!=='idle' && map){
-        // follow mode: keep centered
-        const center = [pos.coords.longitude, pos.coords.latitude];
-        if(locateMode==='follow'){
-          map.easeTo({center, duration:800});
-        } else if(locateMode==='compass'){
-          const bearing = pos.coords.heading!=null ? pos.coords.heading : lastHeading;
-          map.easeTo({center, bearing:bearing||0, duration:800});
-        }
-      }
-    }, (e)=>{ console.warn('watch error', e); }, { enableHighAccuracy: true, maximumAge: 1000 }
+    }, () => {}, { enableHighAccuracy: true, maximumAge: 2000 }
   );
 }
+
 /* ============ SET POINT ============ */
 function setPoint(key, lat, lng) {
   state['point' + key] = { lat, lng };
@@ -2088,6 +1250,7 @@ function setPoint(key, lat, lng) {
   else state.markerB = marker;
   $('point' + key + 'Input').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
+
 /* ============ VALHALLA ============ */
 async function routeWithValhalla(a, b) {
   const body = {
@@ -2095,6 +1258,7 @@ async function routeWithValhalla(a, b) {
     costing: state.costing,
     directions_options: { language: 'vi-VN' }
   };
+
   if (state.costing === 'truck') {
     body.costing_options = {
       truck: {
@@ -2107,19 +1271,23 @@ async function routeWithValhalla(a, b) {
       }
     };
   }
+
   const res = await fetch(CONFIG.VALHALLA_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
+
   if ([502, 503, 504].includes(res.status)) {
     const err = new Error(`Codespaces ngủ (HTTP ${res.status})`);
     err.codespaceDown = true;
     throw err;
   }
   if (!res.ok) throw new Error('Valhalla HTTP ' + res.status);
+
   const data = await res.json();
   if (!data.trip) throw new Error('Valhalla không trả trip');
+
   const trip = data.trip;
   const leg = trip.legs[0];
   const coords = decodePolyline(leg.shape, 6);
@@ -2129,6 +1297,7 @@ async function routeWithValhalla(a, b) {
     time: m.time,
     location: m.begin_shape_index != null && coords[m.begin_shape_index] ? coords[m.begin_shape_index] : null
   }));
+
   return {
     coords,
     distance: trip.summary.length * 1000,
@@ -2137,6 +1306,7 @@ async function routeWithValhalla(a, b) {
     engine: 'Valhalla'
   };
 }
+
 /* ============ FALLBACK TRACKASIA (ĐÃ SỬA) ============ */
 async function routeWithTrackAsia(a, b) {
   const res = await fetch(TRACKASIA.route(a, b));
@@ -2150,6 +1320,7 @@ async function routeWithTrackAsia(a, b) {
   const data = await res.json();
   const r = data.routes?.[0];
   if (!r) throw new Error('TrackAsia không trả route');
+
   let coords;
   if (r.geometry?.coordinates) {
     coords = r.geometry.coordinates;
@@ -2162,16 +1333,19 @@ async function routeWithTrackAsia(a, b) {
   } else {
     throw new Error('Geometry không hợp lệ');
   }
+
   const steps = (r.legs?.[0]?.steps || []).map(s => ({
     text: s.maneuver?.instruction || s.name || 'Đi tiếp',
     distance: s.distance || 0,
     time: s.duration || 0,
     location: s.maneuver?.location ? [s.maneuver.location[0], s.maneuver.location[1]] : null
   }));
+
   return { coords, distance: r.distance, duration: r.duration, steps, engine: 'TrackAsia' };
 }
+
 /* ============ CALCULATE ROUTE ============ */
-async function calculateRoute(autoStartNav=false) {
+async function calculateRoute() {
   if (!state.pointA || !state.pointB) return showToast('Cần đủ A và B');
   showLoading(true);
   try {
@@ -2188,23 +1362,17 @@ async function calculateRoute(autoStartNav=false) {
     }
     drawRoute(result);
     renderSteps(result);
-    if (state.voiceEnabled && result.steps[0] && !autoStartNav) speakInstruction(result.steps[0].text);
-    if(autoStartNav){
-      setTimeout(()=>startNavigation(), 400);
-    }
-    return result;
+    if (state.voiceEnabled && result.steps[0]) speakInstruction(result.steps[0].text);
   } catch (err) {
     showToast('Lỗi tính đường: ' + err.message, 5000);
-    throw err;
   } finally { showLoading(false); }
 }
+
 /* ============ DRAW ROUTE ============ */
 function drawRoute(route) {
   if (!map) return;
   ['route-outline', 'route-line'].forEach(l => { if (map.getLayer(l)) map.removeLayer(l); });
   if (map.getSource('route')) map.removeSource('route');
-  state.routeData = route;
-  state.routeLineCoords = route.coords;
   map.addSource('route', {
     type: 'geojson',
     data: { type: 'Feature', geometry: { type: 'LineString', coordinates: route.coords } }
@@ -2216,22 +1384,33 @@ function drawRoute(route) {
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: { 'line-color': '#00C853', 'line-width': 5, 'line-opacity': 0.95 } });
   const lngs = route.coords.map(c => c[0]), lats = route.coords.map(c => c[1]);
-  if(!state.isNavigating){
-    map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 80, pitch: 30 });
-  }
+  map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 80, pitch: 30 });
 }
+
 /* ============ RENDER STEPS ============ */
 function renderSteps(route) {
   $('routeTitle').textContent = fmtDist(route.distance);
-  $('routeSubtitle').innerHTML = `${fmtTime(route.duration)} • <span class="engine-badge">${route.engine}</span> • ${route.steps.length} thao tác`;
+  $('routeSubtitle').innerHTML = `${fmtTime(route.duration)} • ${route.steps.length} bước <span class="engine-badge">${route.engine}</span>`;
+  $('stepsList').innerHTML = route.steps.map((s, i) => `
+    <div class="step-item" data-idx="${i}">
+      <div class="step-icon">${stepIcon(s.text)}</div>
+      <div class="step-body">
+        <div class="step-text">${s.text}</div>
+        <div class="step-meta">${fmtDist(s.distance || 0)}</div>
+      </div>
+    </div>`).join('');
   $('routePanel').classList.add('show');
-  // Tự động hiện gợi ý bắt đầu nav sau 1s
-  setTimeout(()=>{
-    if(!state.isNavigating){
-      showToast('👆 Bấm BẮT ĐẦU DẪN ĐƯỜNG để vào góc nhìn 3D mũi tên', 4000);
-    }
-  }, 800);
+  $('stepsList').querySelectorAll('.step-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const s = route.steps[+el.dataset.idx];
+      if (s?.location) {
+        map.flyTo({ center: s.location, zoom: 17, pitch: 30 });
+        if (state.voiceEnabled) speakInstruction(s.text);
+      }
+    });
+  });
 }
+
 function stepIcon(text) {
   const t = text.toLowerCase();
   if (t.includes('đến') || t.includes('đích')) return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
@@ -2240,6 +1419,7 @@ function stepIcon(text) {
   if (t.includes('vòng xuyến')) return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="6"/><path d="M12 6V3"/></svg>';
   return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 4v16M6 10l6-6 6 6"/></svg>';
 }
+
 /* ============ VOICE ============ */
 function speakInstruction(text) {
   if (!('speechSynthesis' in window)) return;
@@ -2253,35 +1433,83 @@ function speakInstruction(text) {
   $('voiceBanner').classList.add('show');
   setTimeout(() => $('voiceBanner').classList.remove('show'), 3500);
 }
-/* ============ SEARCH ============ */
+
+/* ============ SEARCH - TrackAsia + TomTom Geocoding gộp lại giao cho TrackAsia ============ */
+async function fetchTrackAsiaSearch(q){
+  try{
+    const res = await fetch(TRACKASIA.autocomplete(q));
+    if(!res.ok) throw new Error('TrackAsia '+res.status);
+    const data = await res.json();
+    return (data.predictions||[]).map(p=>({ description: p.description, place_id: p.place_id, source:'trackasia', type:'trackasia' }));
+  }catch(e){ console.warn('TrackAsia search fail', e); return []; }
+}
+async function fetchMapboxSearch(q){
+  try{
+    if(!CONFIG.MAPBOX_TOKEN) return [];
+    const res = await fetch(TRACKASIA.mapboxGeocode(q));
+    if(!res.ok) throw new Error('Mapbox '+res.status);
+    const data = await res.json();
+    return (data.features||[]).map(f=>({ 
+      description: f.place_name, 
+      lat: f.center[1], lng: f.center[0],
+      source:'mapbox', 
+      type:'mapbox'
+    }));
+  }catch(e){ console.warn('Mapbox search fail', e); return []; }
+}
+async function fetchTomTomSearch(q){
+  try{
+    const res = await fetch(TRACKASIA.tomtomGeocode(q));
+    if(!res.ok) throw new Error('TomTom '+res.status);
+    const data = await res.json();
+    return (data.results||[]).map(r=>({ 
+      description: r.address?.freeformAddress || r.address?.localName || q,
+      lat: r.position?.lat, lng: r.position?.lon,
+      source:'tomtom', 
+      type:'tomtom'
+    })).filter(x=>x.lat!=null);
+  }catch(e){ console.warn('TomTom search fail', e); return []; }
+}
+
+// SEARCH = Mapbox+TrackAsia (theo yêu cầu mới), GEOCODING = TomTom (dùng cho reverse)
 async function doSearch(targetField) {
   const q = $('searchInput').value.trim();
   if (!q) return showToast('Nhập địa chỉ');
   state.targetFieldForSearch = targetField;
   showLoading(true);
   try {
-    const res = await fetch(TRACKASIA.autocomplete(q));
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    const preds = data.predictions || [];
-    if (!preds.length) return showToast('Không tìm thấy');
-    renderSuggestions(preds);
+    // SEARCH là Mapbox + TrackAsia
+    const [ta, mb] = await Promise.all([fetchTrackAsiaSearch(q), fetchMapboxSearch(q)]);
+    let combined = [...ta, ...mb];
+    // Nếu cả 2 rỗng thì mới fallback TomTom (geocoding)
+    if(combined.length===0){
+      combined = await fetchTomTomSearch(q);
+    }
+    if (!combined.length) return showToast('Không tìm thấy địa chỉ');
+    combined.sort((a,b)=>{
+      if(a.source==='trackasia' && b.source!=='trackasia') return -1;
+      if(b.source==='trackasia' && a.source!=='trackasia') return 1;
+      return 0;
+    });
+    renderSuggestions(combined);
   } catch (err) {
-    try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&countrycodes=vn&limit=5&accept-language=vi`, { headers: { 'Accept': 'application/json' } });
-      const data = await r.json();
-      if (!data.length) return showToast('Không tìm thấy');
-      renderSuggestions(data.map(d => ({ description: d.display_name, lat: parseFloat(d.lat), lng: parseFloat(d.lon), source: 'nominatim' })));
-    } catch (e) { showToast('Lỗi tìm kiếm'); }
+    showToast('Lỗi tìm kiếm: '+err.message);
   } finally { showLoading(false); }
 }
+
 function renderSuggestions(preds) {
   const el = $('suggestions');
-  el.innerHTML = preds.map((p, i) => `
-    <div class="suggestion-item" data-idx="${i}">
+  el.innerHTML = preds.map((p, i) => {
+    const badge = p.source==='trackasia' ? '<span style="background:#eff6ff;color:#0d6efd;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">TrackAsia</span>' : 
+                  p.source==='tomtom' ? '<span style="background:#fef3c7;color:#d97706;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">TomTom</span>' :
+                  p.source==='mapbox' ? '<span style="background:#f0fdf4;color:#16a34a;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">Mapbox</span>' :
+                  '<span style="background:#f3f4f6;color:#6b7280;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">OSM</span>';
+    return `
+    <div class="suggestion-item" data-idx="${i}" style="display:flex;gap:10px;align-items:flex-start">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0d6efd" stroke-width="2" style="flex-shrink:0;margin-top:2px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-      <div class="text">${p.description || p.display_name}</div>
-    </div>`).join('');
+      <div style="flex:1"><div class="text" style="font-size:13px;line-height:1.4">${p.description || p.display_name}</div><div style="margin-top:4px">${badge}</div></div>
+    </div>`;
+  }).join('');
   el.classList.add('show');
   el.querySelectorAll('.suggestion-item').forEach(item => {
     item.addEventListener('click', async () => {
@@ -2298,25 +1526,23 @@ function renderSuggestions(preds) {
         }
         const target = state.targetFieldForSearch || 'B';
         setPoint(target, lat, lng);
-        map.flyTo({ center: [lng, lat], zoom: 16 });
-        showToast(`📍 Đã đặt ${target}`);
-        if (state.pointA && state.pointB) calculateRoute();
+        if(map) map.flyTo({ center: [lng, lat], zoom: 16 });
+        showToast(`📍 Đã đặt ${target} [${p.source}] - bấm TÌM ĐƯỜNG để chỉ đường`);
+        // KHÔNG tự gọi direction khi search - theo yêu cầu
+        // if (state.pointA && state.pointB) calculateRoute();
+        showRouteSheet();
       } catch (e) { showToast('Lỗi tọa độ: ' + e.message); }
       finally { showLoading(false); state.targetFieldForSearch = null; }
     });
   });
 }
+
 /* ============ VEHICLE ============ */
 function applyCostingToUI() {
   document.querySelectorAll('.vehicle-btn').forEach(b => {
     b.classList.toggle('selected', b.dataset.costing === state.costing);
   });
-  document.querySelectorAll('#sheetVehicleSelector .vehicle-btn').forEach(b=>{
-    b.classList.toggle('selected', b.dataset.costing===state.costing);
-  });
   $('truckOptions').classList.toggle('show', state.costing === 'truck');
-  const sheetTruck = $('sheetTruckOptions');
-  if(sheetTruck) sheetTruck.classList.toggle('show', state.costing === 'truck');
   if (state.costing === 'truck') {
     $('truckHeight').value = truckParams.height;
     $('truckWidth').value = truckParams.width;
@@ -2326,6 +1552,7 @@ function applyCostingToUI() {
     $('truckHazmat').value = String(truckParams.hazmat);
   }
 }
+
 $('vehicleSelector').addEventListener('click', e => {
   const btn = e.target.closest('.vehicle-btn');
   if (!btn) return;
@@ -2334,6 +1561,7 @@ $('vehicleSelector').addEventListener('click', e => {
   showToast('Loại xe: ' + btn.textContent.trim());
   if (state.pointA && state.pointB) calculateRoute();
 });
+
 ['truckHeight','truckWidth','truckWeight','truckLength','truckAxle'].forEach(id => {
   $(id).addEventListener('input', e => {
     const map = { truckHeight:'height', truckWidth:'width', truckWeight:'weight', truckLength:'length', truckAxle:'axle_load' };
@@ -2341,24 +1569,23 @@ $('vehicleSelector').addEventListener('click', e => {
   });
 });
 $('truckHazmat').addEventListener('change', e => { truckParams.hazmat = e.target.value === 'true'; });
+
 /* ============ ROTATE ============ */
 $('rotateLeftBtn').addEventListener('click', () => map?.easeTo({ bearing: map.getBearing() - 30, duration: 400 }));
 $('rotateRightBtn').addEventListener('click', () => map?.easeTo({ bearing: map.getBearing() + 30, duration: 400 }));
 $('tiltBtn').addEventListener('click', () => map && map.easeTo({ pitch: map.getPitch() > 20 ? 0 : 60, duration: 500 }));
+
 /* ============ MAPILLARY ============ */
 function addMapillaryCoverage() {
-  if (!map) return;
-  if(map.getSource('mapillary-coverage')) return;
-  map.addSource('mapillary-coverage', { type: 'vector', tiles: [MAPILLARY.coverageTiles()], minzoom: 6, maxzoom: 14 });
-  map.addLayer({ id: 'mapillary-coverage', type: 'line', source: 'mapillary-coverage', 'source-layer': 'sequence',
+  if (!map || map.getSource('mapillary')) return;
+  map.addSource('mapillary', { type: 'vector', tiles: [MAPILLARY.tiles()], minzoom: 6, maxzoom: 14 });
+  map.addLayer({ id: 'mapillary-coverage', type: 'line', source: 'mapillary', 'source-layer': 'sequence',
     paint: { 'line-color': '#05cb63', 'line-width': 3, 'line-opacity': 0.75 } });
 }
-function addMapillaryCoverage() {
+function removeMapillaryCoverage() {
   if (!map) return;
-  if(map.getSource('mapillary-coverage')) return;
-  map.addSource('mapillary-coverage', { type: 'vector', tiles: [MAPILLARY.coverageTiles()], minzoom: 6, maxzoom: 14 });
-  map.addLayer({ id: 'mapillary-coverage', type: 'line', source: 'mapillary-coverage', 'source-layer': 'sequence',
-    paint: { 'line-color': '#05cb63', 'line-width': 3, 'line-opacity': 0.75 } });
+  if (map.getLayer('mapillary-coverage')) map.removeLayer('mapillary-coverage');
+  if (map.getSource('mapillary')) map.removeSource('mapillary');
 }
 async function findNearestMapillaryImage(lng, lat) {
   const d = 0.0015, bbox = [lng-d, lat-d, lng+d, lat+d].join(',');
@@ -2372,6 +1599,7 @@ async function findNearestMapillaryImage(lng, lat) {
     $('streetViewModal').classList.add('show');
   } catch (e) { showToast('Lỗi Mapillary'); }
 }
+
 /* ============ TOMTOM ============ */
 function addTraffic() {
   if (!map || map.getSource('tomtom-traffic')) return;
@@ -2384,6 +1612,7 @@ function removeTraffic() {
   if (map.getLayer('tomtom-traffic-layer')) map.removeLayer('tomtom-traffic-layer');
   if (map.getSource('tomtom-traffic')) map.removeSource('tomtom-traffic');
 }
+
 /* ============ CLEAR ============ */
 function clearAll() {
   if (map) {
@@ -2396,11 +1625,9 @@ function clearAll() {
   $('routePanel').classList.remove('show');
   $('pointAInput').value = ''; $('pointBInput').value = '';
   if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-  if(state.isNavigating) stopNavigation();
-  state.routeData=null;
-  state.routeLineCoords=[];
   updateClickHint();
 }
+
 /* ============ LOAD FROM URL ============ */
 function loadFromURL() {
   const aLat = parseFloat(urlParams.get('a_lat')), aLng = parseFloat(urlParams.get('a_lng'));
@@ -2410,15 +1637,18 @@ function loadFromURL() {
   if (state.pointA && state.pointB && urlParams.get('autoroute') === '1') calculateRoute();
   updateClickHint();
 }
+
 /* ============ EVENT BINDINGS ============ */
 $('searchBtn').addEventListener('click', () => doSearch(null));
 $('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(null); });
+
 $('pointAInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') { $('searchInput').value = e.target.value; doSearch('A'); }
 });
 $('pointBInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') { $('searchInput').value = e.target.value; doSearch('B'); }
 });
+
 $('gpsABtn').addEventListener('click', () => {
   if (state.currentPos) {
     setPoint('A', state.currentPos.lat, state.currentPos.lng);
@@ -2426,36 +1656,24 @@ $('gpsABtn').addEventListener('click', () => {
     if (state.pointB) calculateRoute();
   } else showToast('Chưa có GPS, bấm 📍 góc dưới phải');
 });
-$('locateBtn').addEventListener('click', () => {
-  if(locateMode==='idle'){
-    locateMeEnhanced(true,false);
-  } else if(locateMode==='follow'){
-    locateMeEnhanced(true,true);
-  } else {
-    setLocateMode('idle');
-    if(map) map.easeTo({pitch:0, bearing:0, duration:600});
-    const status = document.getElementById('locateStatus');
-    if(status) status.classList.remove('show');
-    showToast('Đã tắt theo dõi');
-  }
-});
-// long press locateBtn to reset
-let locatePressTimer;
-$('locateBtn').addEventListener('touchstart', ()=>{ locatePressTimer=setTimeout(()=>{ setLocateMode('idle'); showToast('Reset định vị'); }, 800); });
-$('locateBtn').addEventListener('touchend', ()=>clearTimeout(locatePressTimer));
+
+$('locateBtn').addEventListener('click', () => locateUser(true));
 $('clearBtn').addEventListener('click', clearAll);
 $('closeRouteBtn').addEventListener('click', () => $('routePanel').classList.remove('show'));
-$('settingsBtn').addEventListener('click', () => { $('settingsModal').classList.add('show'); startRealClock(); });
+$('settingsBtn').addEventListener('click', () => $('settingsModal').classList.add('show'));
 $('closeSettingsBtn').addEventListener('click', () => $('settingsModal').classList.remove('show'));
+
 $('routePanelBtn').addEventListener('click', () => {
-  $('routeInputs').classList.toggle('show');
-  if ($('routeInputs').classList.contains('show')) updateClickHint();
+  if($('routeInputs').classList.contains('show')) hideRouteSheetAndClear();
+  else { showRouteSheet(); updateClickHint(); }
 });
+
 $('findRouteBtn').addEventListener('click', () => {
   if (!state.pointA) { showToast('Chưa có A — click map hoặc bấm 📍'); return; }
-  if (!state.pointB) { showToast('Chưa có B — click map để chọn'); $('routeInputs').classList.remove('show'); return; }
+  if (!state.pointB) { showToast('Chưa có B — click map để chọn'); return; }
   calculateRoute();
 });
+
 $('swapBtn').addEventListener('click', () => {
   if (!state.pointA || !state.pointB) return;
   const tA = state.pointA, tB = state.pointB;
@@ -2463,23 +1681,27 @@ $('swapBtn').addEventListener('click', () => {
   setPoint('B', tA.lat, tA.lng);
   if (state.pointA && state.pointB) calculateRoute();
 });
+
 $('voiceBtn').addEventListener('click', () => {
   state.voiceEnabled = !state.voiceEnabled;
   $('voiceBtn').classList.toggle('success', state.voiceEnabled);
   $('voiceBtn').classList.toggle('danger', !state.voiceEnabled);
   showToast(state.voiceEnabled ? '🔊 Bật giọng' : '🔇 Tắt giọng');
 });
+
 $('streetViewBtn').addEventListener('click', () => {
   state.streetViewMode = !state.streetViewMode;
   $('streetViewBtn').classList.toggle('active', state.streetViewMode);
   if (state.streetViewMode) { addMapillaryCoverage(); updateClickHint(); }
   else { removeMapillaryCoverage(); updateClickHint(); }
 });
+
 $('trafficBtn').addEventListener('click', () => {
   state.trafficOn = !state.trafficOn;
   $('trafficBtn').classList.toggle('active', state.trafficOn);
   state.trafficOn ? addTraffic() : removeTraffic();
 });
+
 $('valhallaToggle').addEventListener('click', () => {
   state.useValhalla = !state.useValhalla;
   $('valhallaToggle').classList.toggle('on', state.useValhalla);
@@ -2499,122 +1721,316 @@ $('voiceToggle').addEventListener('click', () => {
   state.voiceEnabled = !state.voiceEnabled;
   $('voiceToggle').classList.toggle('on', state.voiceEnabled);
 });
+
 $('closeSvBtn').addEventListener('click', () => $('streetViewModal').classList.remove('show'));
 $('streetViewModal').addEventListener('click', e => { if (e.target === $('streetViewModal')) $('streetViewModal').classList.remove('show'); });
 $('settingsModal').addEventListener('click', e => { if (e.target === $('settingsModal')) $('settingsModal').classList.remove('show'); });
- // THEME
-document.querySelectorAll('.theme-opt').forEach(el=>{
-  el.addEventListener('click', ()=>applyTheme(el.dataset.theme));
+
+
+// === NEW UX - Map Action Buttons ===
+$('mapActionBackdrop').addEventListener('click', hideMapActionPopup);
+$('routeBackdrop').addEventListener('click', hideRouteSheetAndClear);
+
+// ESC để thoát bottom sheet
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='Escape'){
+    if($('mapActionPopup').classList.contains('show')) hideMapActionPopup();
+    else if($('routeInputs').classList.contains('show')) hideRouteSheetAndClear();
+    else if($('poiPicker').classList.contains('show')) closePoiPicker();
+    else if($('layerPickerModal').classList.contains('show')) $('layerPickerModal').classList.remove('show');
+  }
 });
-// LAYERS
-$('layerStreets').addEventListener('click', ()=>setBaseLayer('streets'));
-$('layerSatellite').addEventListener('click', ()=>setBaseLayer('satellite'));
-// MAPILLARY SIGNS - default ON
-$('mapillarySignsToggle').addEventListener('click', (e)=>{
-  mapillarySignsOn = !mapillarySignsOn;
-  e.currentTarget.classList.toggle('on', mapillarySignsOn);
-  localStorage.setItem('vd_signs', mapillarySignsOn?'1':'0');
-  if(mapillarySignsOn){ addMapillarySigns(); showToast('🚸 Bật lớp biển báo Mapillary'); }
-  else { removeMapillarySigns(); showToast('Đã tắt biển báo'); }
-});
-$('signsOpacity').addEventListener('input', e=>{ setSignsOpacity(e.target.value); });
-// FILTER CHIPS - type
-document.querySelectorAll('#signTypeFilters .filter-chip').forEach(chip=>{
-  chip.addEventListener('click', ()=>{
-    const f = chip.dataset.filter;
-    if(f==='all'){
-      const isActive = chip.classList.contains('active');
-      signFilters.all = !isActive;
-      chip.classList.toggle('active', signFilters.all);
-      document.querySelectorAll('#signTypeFilters .filter-chip:not([data-filter="all"])').forEach(c=>{
-        c.classList.toggle('active', signFilters.all);
-        signFilters[c.dataset.filter]=signFilters.all;
-      });
-    } else {
-      chip.classList.toggle('active');
-      signFilters[f]=chip.classList.contains('active');
-      // update all chip state
-      const allActive = ['regulatory','warning','information','complementary'].every(k=>signFilters[k]);
-      signFilters.all = allActive;
-      const allChip = document.querySelector('#signTypeFilters [data-filter="all"]');
-      if(allChip) allChip.classList.toggle('active', allActive);
-    }
-    updateSignFilters();
-  });
-});
-// QUICK FILTERS
-document.querySelectorAll('#signQuickFilters .filter-chip').forEach(chip=>{
-  chip.addEventListener('click', ()=>{
-    const q = chip.dataset.quick;
-    const idx = signFilters.quick.indexOf(q);
-    if(idx>=0){
-      signFilters.quick.splice(idx,1);
-      chip.classList.remove('active');
-    } else {
-      signFilters.quick.push(q);
-      chip.classList.add('active');
-    }
-    updateSignFilters();
-  });
-});
-// LOCATED ME ENHANCED
-$('locateMeBtn').addEventListener('click', ()=>{ locateMeEnhanced(true,false); $('settingsModal').classList.remove('show'); });
-$('locateFollowBtn').addEventListener('click', ()=>{
-  if(locateMode==='follow'){ setLocateMode('idle'); showToast('Đã tắt theo dõi'); }
-  else { locateMeEnhanced(true,false); $('settingsModal').classList.remove('show'); }
-});
-$('locateCompassBtn').addEventListener('click', ()=>{
-  if(locateMode==='compass'){ setLocateMode('idle'); showToast('Đã tắt la bàn'); }
-  else { locateMeEnhanced(true,true); $('settingsModal').classList.remove('show'); }
-});
-// NAV EVENTS
-$('startNavBtn').addEventListener('click', startNavigation);
-$('exitNavBtn').addEventListener('click', stopNavigation);
-// VEHICLE SHEET EVENTS
-$('sheetCloseBtn').addEventListener('click', closeVehicleSheet);
-$('vehicleSheet').addEventListener('click', e=>{ if(e.target===$('vehicleSheet')) closeVehicleSheet(); });
-$('sheetSwapBtn').addEventListener('click', ()=>{
-  if(!state.pointA || !state.pointB) return;
-  const tA=state.pointA, tB=state.pointB;
-  setPoint('A', tB.lat, tB.lng);
-  setPoint('B', tA.lat, tA.lng);
-  if(state.lastClickedLatLng) openVehicleSheet(state.lastClickedLatLng.lat, state.lastClickedLatLng.lng);
+
+// 3 nút trong popup map
+$('actionDirections').addEventListener('click', ()=>{
+  if(!lastClickedLatLng) return;
+  const {lat,lng} = lastClickedLatLng;
+  hideMapActionPopup();
+  // Set B = điểm click, A = GPS nếu chưa có
+  if(!state.pointA && state.currentPos){
+    setPoint('A', state.currentPos.lat, state.currentPos.lng);
+  } else if(!state.pointA){
+    setPoint('A', lat, lng);
+    showToast('A chưa có - tạm đặt A tại đây, hãy đổi A sau');
+  }
+  setPoint('B', lat, lng);
+  showRouteSheet();
   if(state.pointA && state.pointB) calculateRoute();
 });
-document.querySelectorAll('#sheetVehicleSelector .vehicle-btn').forEach(btn=>{
+
+$('actionReport').addEventListener('click', ()=>{
+  if(!lastClickedLatLng) return;
+  hideMapActionPopup();
+  // Mở POI cảnh báo tại vị trí click
+  state.poiTempLatLng = {lat:lastClickedLatLng.lat, lng:lastClickedLatLng.lng};
+  openPoiPicker();
+  showToast('Chọn loại cảnh báo cho vị trí này');
+});
+
+$('actionCommunity').addEventListener('click', ()=>{
+  hideMapActionPopup();
+  // Hiện POI cộng đồng gần đây
+  state.showPois = true;
+  renderPoiMarkers();
+  $('poiPicker').classList.add('show');
+  showToast('👥 POI cộng đồng quanh đây');
+});
+
+// Zoom controls
+$('zoomInBtn')?.addEventListener('click', ()=>map?.zoomIn());
+$('zoomOutBtn')?.addEventListener('click', ()=>map?.zoomOut());
+
+// === LAYER SWITCHER - Cho họ tự chọn ===
+
+const MAP_STYLES = {
+  streets: { name:'Đường phố', url:()=>TRACKASIA.style('streets') },
+  satellite: { name:'Vệ tinh', url:()=>TRACKASIA.style('satellite') },
+  dark: { name:'Tối', url:()=>TRACKASIA.style('dark') },
+  light: { name:'Sáng', url:()=>TRACKASIA.style('light') },
+  osm: { name:'OSM', url:()=> ({ version:8, sources:{ osm:{ type:'raster', tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize:256 } }, layers:[{ id:'osm', type:'raster', source:'osm' }] }) }
+};
+function openLayerPicker(){
+  $('layerPickerModal').classList.add('show');
+  // highlight current
+  document.querySelectorAll('.layer-option').forEach(btn=>{
+    btn.style.borderColor = btn.dataset.style===state.currentMapStyle ? '#0d6efd' : '#e5e7eb';
+    btn.style.background = btn.dataset.style===state.currentMapStyle ? '#eff6ff' : '#f9fafb';
+  });
+}
+function closeLayerPicker(){ $('layerPickerModal').classList.remove('show'); }
+$('layerBtn').addEventListener('click', openLayerPicker);
+$('closeLayerPickerBtn').addEventListener('click', closeLayerPicker);
+$('layerPickerModal').addEventListener('click', e=>{ if(e.target===$('layerPickerModal')) closeLayerPicker(); });
+document.querySelectorAll('.layer-option').forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    document.querySelectorAll('#sheetVehicleSelector .vehicle-btn').forEach(b=>b.classList.remove('selected'));
-    btn.classList.add('selected');
-    state.costing = btn.dataset.costing;
-    $('sheetTruckOptions').classList.toggle('show', state.costing==='truck');
-    // sync main selector too
-    document.querySelectorAll('#vehicleSelector .vehicle-btn').forEach(b=>b.classList.toggle('selected', b.dataset.costing===state.costing));
-    applyCostingToUI();
-    if(state.pointA && state.pointB) calculateRoute();
+    const next = btn.dataset.style;
+    state.currentMapStyle = next;
+    try{ 
+      map.setStyle(MAP_STYLES[next].url()); 
+      showToast('🗺️ Lớp: '+MAP_STYLES[next].name);
+      // Re-add sources after style change
+      setTimeout(()=>{
+        try{
+          if(state.trafficSignOn && !map.getSource('mapillary-traffic-sign')){
+            map.addSource('mapillary-traffic-sign', { type:'vector', tiles:[MAPILLARY.trafficSignTiles()], minzoom:12, maxzoom:16 });
+            map.addLayer({ id:'traffic-sign-circle', type:'circle', source:'mapillary-traffic-sign', 'source-layer':'traffic_sign', layout:{ visibility:'visible' }, paint:{ 'circle-radius':7, 'circle-color':[ 'case', ['in','regulatory',['get','value']], '#ef4444', ['in','warning',['get','value']], '#f59e0b', ['in','information',['get','value']], '#0d6efd', '#6b7280' ], 'circle-stroke-width':2, 'circle-stroke-color':'#fff' } });
+            map.addLayer({ id:'traffic-sign-label', type:'symbol', source:'mapillary-traffic-sign', 'source-layer':'traffic_sign', layout:{ visibility:'visible', 'text-field':['slice',['get','value'],0,18], 'text-size':10, 'text-offset':[0,1.2], 'text-anchor':'top' }, paint:{ 'text-color':'#111827', 'text-halo-color':'#fff', 'text-halo-width':1 } });
+          }
+        }catch{}
+      }, 1000);
+    }catch(e){ console.warn(e); }
+    closeLayerPicker();
   });
 });
-// sync truck inputs sheet <-> main
-['Height','Width','Weight','Length','Axle'].forEach(k=>{
-  const sheetEl = $(`sheetTruck${k}`);
-  const mainEl = $(`truck${k}`);
-  if(sheetEl && mainEl){
-    sheetEl.addEventListener('input', e=>{ mainEl.value=e.target.value; mainEl.dispatchEvent(new Event('input')); });
-    mainEl.addEventListener('input', e=>{ sheetEl.value=e.target.value; });
-  }
-});
-$('sheetTruckHazmat').addEventListener('change', e=>{ $('truckHazmat').value=e.target.value; $('truckHazmat').dispatchEvent(new Event('change')); });
-$('truckHazmat').addEventListener('change', e=>{ $('sheetTruckHazmat').value=e.target.value; });
-$('sheetStartBtn').addEventListener('click', async ()=>{
-  if(!state.pointA || !state.pointB){
-    showToast('Thiếu điểm A hoặc B');
-    return;
-  }
-  closeVehicleSheet();
+
+// === TRAFFIC SIGN TOGGLE - FIXED ===
+async function toggleTrafficSigns(){
+  state.trafficSignOn = !state.trafficSignOn;
+  const btn=$('trafficSignBtn');
+  btn.classList.toggle('active', state.trafficSignOn);
+  btn.style.background = state.trafficSignOn ? '#ef4444' : '#fff';
+  btn.style.color = state.trafficSignOn ? '#fff' : 'var(--text)';
+  
+  // Toggle vector tiles
   try{
-    await calculateRoute(true); // auto start nav
-  }catch{}
+    if(map.getLayer('traffic-sign-circle')){
+      map.setLayoutProperty('traffic-sign-circle', 'visibility', state.trafficSignOn?'visible':'none');
+      map.setLayoutProperty('traffic-sign-icon', 'visibility', state.trafficSignOn?'visible':'none');
+      map.setLayoutProperty('traffic-sign-label', 'visibility', state.trafficSignOn?'visible':'none');
+    }
+  }catch(e){ console.warn(e); }
+  
+  if(state.trafficSignOn){
+    showToast('🛑 Đang tải biển báo...');
+    fetchTrafficSignsGraph();
+  } else {
+    // Clear graph markers
+    Object.values(state.trafficSignMarkers).forEach(m=>m.remove());
+    state.trafficSignMarkers={};
+    showToast('Đã tắt biển báo');
+  }
+}
+
+function createTrafficSignElement(value, imageUrl=null){
+  const safeValue = (value || '').toString();
+  const el=document.createElement('div');
+  let cls='traffic-sign-marker';
+  const v = safeValue.toLowerCase();
+  if(v.includes('regulatory')) cls+=' regulatory';
+  else if(v.includes('warning')) cls+=' warning';
+  else if(v.includes('information')) cls+=' information';
+  else cls+=' complementary';
+  el.className=cls;
+  el.title = safeValue || 'traffic sign';
+  
+  // Nếu có ảnh thật từ Mapillary thì dùng ảnh làm icon
+  if(imageUrl){
+    el.innerHTML = `<img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" loading="lazy" onerror="this.parentElement.textContent='🚏'"/>`;
+    el.style.padding='0';
+    el.style.overflow='hidden';
+    el.style.borderWidth='3px';
+    return el;
+  }
+  
+  // Fallback emoji nếu chưa có ảnh
+  let emoji = '🚏';
+  if(v.includes('stop')) emoji='🛑';
+  else if(v.includes('maximum-speed-limit-') || v.includes('speed-limit')){
+    const m = v.match(/(\d+)/);
+    const speed = m?m[1]:'';
+    if(speed){
+      el.innerHTML = `<div class="speed-text">${speed}</div>`;
+      return el;
+    }
+    emoji='🚸';
+  }
+  else if(v.includes('yield')) emoji='⚠️';
+  else if(v.includes('no-')) emoji='🚫';
+  else if(v.includes('warning')) emoji='⚠️';
+  else if(v.includes('information')) emoji='ℹ️';
+  el.textContent = emoji;
+  return el;
+}
+
+// Cache image details to avoid re-fetch
+const imageCache = new Map();
+
+async function fetchImageDetails(imageId){
+  if(!imageId) return null;
+  if(imageCache.has(imageId)) return imageCache.get(imageId);
+  try{
+    const url = `https://graph.mapillary.com/${imageId}?access_token=${CONFIG.MAPILLARY_KEY}&fields=id,thumb_1024_url,thumb_512_url,computed_geometry,captured_at,creator`;
+    const res = await fetch(url);
+    const data = await res.json();
+    imageCache.set(imageId, data);
+    return data;
+  }catch(e){ console.warn('fetch image fail', imageId, e); return null; }
+}
+
+async function fetchTrafficSignsGraph(){
+  if(!map) return;
+  try{
+    const b=map.getBounds();
+    const w=b.getEast()-b.getWest(), h=b.getNorth()-b.getSouth();
+    if(w*h > 0.05){ showToast('Zoom gần hơn để thấy biển báo (zoom >=14)'); return; }
+    const bbox=[b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
+    const url=MAPILLARY.mapFeaturesInBbox(bbox);
+    const res=await fetch(url);
+    const data=await res.json();
+    const features=data.data||[];
+    // Clear old
+    Object.values(state.trafficSignMarkers).forEach(m=>m.remove());
+    state.trafficSignMarkers={};
+    
+    // Fetch signs with REAL Mapillary image as icon
+    const limited = features.slice(0,25); // giới hạn 25 để không quá nhiều
+    for(const f of limited){
+      const coords=f.geometry?.coordinates;
+      if(!coords) continue;
+      const val = f.value || '';
+      const firstImageId = f.images?.[0];
+      let thumb512 = null;
+      let thumb1024 = null;
+      let imgData = null;
+      
+      if(firstImageId){
+        imgData = await fetchImageDetails(firstImageId);
+        thumb512 = imgData?.thumb_512_url || imgData?.thumb_256_url;
+        thumb1024 = imgData?.thumb_1024_url;
+      }
+      
+      // Icon = ảnh thật của Mapillary, fallback emoji nếu không có
+      const el=createTrafficSignElement(val, thumb512);
+      const marker=new maplibregl.Marker({element:el}).setLngLat(coords).addTo(map);
+      
+      let imgHtml = '';
+      if(thumb1024){
+        imgHtml = `<img class="mly-img" src="${thumb1024}" loading="lazy" onerror="this.style.display='none'"/><div style="font-size:10px;color:#6b7280;margin-top:4px">Ảnh thật: ${new Date(imgData.captured_at).toLocaleDateString()} • @${imgData.creator?.username||'user'}</div>`;
+      } else {
+        imgHtml = '<div style="margin-top:8px;font-size:11px;color:#9ca3af">Không có ảnh</div>';
+      }
+      
+      const popupHtml = `
+        <div style="min-width:240px;max-width:300px">
+          <div style="display:flex;gap:10px;align-items:center">
+            <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;border:2px solid #ef4444;flex-shrink:0">${thumb512?`<img src="${thumb512}" style="width:100%;height:100%;object-fit:cover"/>`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px">🚏</div>`}</div>
+            <div>
+              <div style="font-weight:800;font-size:13px">🛑 ${val||'Biển báo'}</div>
+              <div style="font-size:11px;color:#6b7280">ID: ${f.id.slice(0,12)}...</div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:#6b7280;margin-top:6px">Loại: ${val}</div>
+          ${imgHtml}
+          <div style="display:flex;gap:6px;margin-top:10px">
+            <button onclick="window.open('https://www.mapillary.com/map/im/${firstImageId||''}','_blank')" style="flex:1;padding:8px;background:#0d6efd;color:#fff;border:0;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer">Xem trên Mapillary</button>
+            ${thumb1024?`<button onclick="window.open('${thumb1024}','_blank')" style="padding:8px 12px;background:#f3f4f6;border:0;border-radius:10px;font-size:12px;cursor:pointer">🔍</button>`:''}
+          </div>
+          ${firstImageId?`<button onclick="openMapillaryViewer('${firstImageId}')" style="width:100%;margin-top:6px;padding:8px;background:#10b981;color:#fff;border:0;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer">🎥 Mở Viewer 360°</button>`:''}
+        </div>`;
+      
+      const popup=new maplibregl.Popup({offset:20, maxWidth:'320px'}).setHTML(popupHtml);
+      marker.setPopup(popup);
+      state.trafficSignMarkers[f.id]=marker;
+    }
+    showToast(`🛑 Tìm thấy ${features.length} biển báo (hiện ${limited.length} có ảnh)`);
+  }catch(e){
+    console.warn('Fetch traffic sign fail', e);
+    showToast('Lỗi tải biển báo: '+e.message);
+  }
+}
+
+// Mở MapillaryJS viewer
+let mlyViewer = null;
+function openMapillaryViewer(imageId){
+  const modal = document.getElementById('mlyViewerModal');
+  const container = document.getElementById('mlyViewerContainer');
+  if(!modal||!container) return;
+  modal.classList.add('show');
+  // Khởi tạo MapillaryJS viewer nếu chưa có
+  try{
+    if(mlyViewer) mlyViewer.remove();
+    mlyViewer = new Mapillary.Viewer({
+      accessToken: CONFIG.MAPILLARY_KEY,
+      container: container,
+      imageId: imageId
+    });
+  }catch(err){
+    container.innerHTML = `<div style="padding:20px;text-align:center;color:#fff"><p>Lỗi viewer: ${err.message}</p><img src="https://images.mapillary.com/${imageId}/thumb-1024.jpg" style="width:100%;border-radius:8px;margin-top:10px"/></div>`;
+    console.warn('MapillaryJS error', err);
+  }
+}
+function closeMapillaryViewer(){
+  const modal = document.getElementById('mlyViewerModal');
+  if(modal) modal.classList.remove('show');
+  if(mlyViewer){ try{ mlyViewer.remove(); }catch{} mlyViewer=null; }
+}
+
+
+// Auto fetch when map moves if enabled
+let trafficSignMoveTimer;
+if(typeof map !== 'undefined'){
+  // will be attached after init
+}
+
+$('trafficSignBtn').addEventListener('click', toggleTrafficSigns);
+
+// Make loading clickable to dismiss
+$('loading').addEventListener('click', ()=> showLoading(false));
+
+// Fix vehicle selector - ensure truck params show
+document.querySelectorAll('.vehicle-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.vehicle-btn').forEach(b=>b.classList.remove('selected'));
+    btn.classList.add('selected');
+    state.costing=btn.dataset.costing;
+    const truckOpt=$('truckOptions');
+    if(state.costing==='truck') truckOpt.classList.add('show');
+    else truckOpt.classList.remove('show');
+  });
 });
+
 // POI EVENTS
+
 $('reportPoiBtn').addEventListener('click', openPoiPicker);
 $('closePoiPickerBtn').addEventListener('click', closePoiPicker);
 $('poiPicker').addEventListener('click', e=>{ if(e.target===$('poiPicker')) closePoiPicker(); });
@@ -2643,22 +2059,14 @@ $('myReportsBtn').addEventListener('click', ()=>{
 });
 $('poiConfirm').addEventListener('click', e=>{ if(e.target===$('poiConfirm')) cancelPoiReporting(); });
 document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.poiReporting) cancelPoiReporting(); });
+
 // Long press to quick report on mobile
 let pressTimer;
 if(map){
   // will attach after map init via map.on, but also add global
 }
+
 if ('speechSynthesis' in window) window.speechSynthesis.getVoices();
-// DEBUG: double click logo to force enter
-const logoForce = document.getElementById('logoForce');
-if(logoForce){
-  logoForce.addEventListener('dblclick', ()=>{
-    const email = document.getElementById('emailInput').value || 'test@vietdriver.pro';
-    const localUser = {uid:'debug_'+Date.now(), displayName: email.split('@')[0], email: email, photoURL:null, isLocal:true};
-    enterApp(localUser);
-    showToast('🔧 Force enter - double click logo');
-  });
-}
 </script>
-</body>
+<script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
 </html>
