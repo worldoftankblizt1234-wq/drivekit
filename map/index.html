@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hệ thống Biển báo Giao thông - Mapillary Official Icons</title>
+    <title>Hệ thống Biển báo Giao thông - Official Mapillary Icons</title>
     
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -67,30 +67,10 @@
 
         map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-        // ==========================================
-        // 1. HÀM LẤY LINK ICON CHÍNH THỨC CỦA MAPILLARY
-        // ==========================================
-        // Mapillary lưu trữ icon trên GitHub. Mã value (vd: regulatory--stop--g1)
-        // cũng chính là tên file SVG của họ.
-        function getMapillaryIconUrl(value) {
-            return `https://cdn.jsdelivr.net/gh/mapillary/mapillary_sprite_source@master/package/traffic_sign/${value}.svg`;
-        }
-
-        // Tạo icon mặc định (Fallback) nếu link bị lỗi/không có
-        const fallbackIconUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32">
-                <circle cx="16" cy="16" r="14" fill="#6b7280" stroke="#fff" stroke-width="2"/>
-                <text x="16" y="23" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial" fill="#fff">?</text>
-            </svg>
-        `)}`;
-
-        // ==========================================
-        // 2. TỪ ĐIỂN DỊCH MÃ
-        // ==========================================
+        // Hàm dịch tên biển báo
         function translateMapillaryCode(code) {
             if (!code) return 'Biển báo không xác định';
             const c = code.toLowerCase();
-
             if (c.includes('junction-with-a-side-road-perpendicular-right')) return 'Giao lộ với đường nhánh vuông góc bên phải';
             if (c.includes('junction-with-a-side-road-perpendicular-left')) return 'Giao lộ với đường nhánh vuông góc bên trái';
             if (c.includes('pedestrian-crossing')) return 'Đường dành cho người đi bộ cắt ngang';
@@ -107,58 +87,76 @@
             }
             if (c.includes('warning')) return 'Cảnh báo nguy hiểm khác';
             if (c.includes('regulatory')) return 'Biển hiệu lệnh khác';
-
             return code.replace(/--/g, ' ').replace(/-/g, ' ').toUpperCase();
         }
 
-        // ==========================================
-        // 3. TỰ ĐỘNG TẢI ICON ĐỘNG (DYNAMIC LOADER)
-        // ==========================================
-        // Theo dõi các icon đã tải để không tải lại
-        const loadedIcons = new Set();
-        let isFirstLoad = true;
+        // Icon dự phòng nếu link Mapillary bị lỗi 404
+        const fallbackIconUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32">
+                <circle cx="16" cy="16" r="14" fill="#6b7280" stroke="#fff" stroke-width="2"/>
+                <text x="16" y="23" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial" fill="#fff">?</text>
+            </svg>
+        `)}`;
 
-        function loadMapillaryIcons() {
-            // Lấy tất cả features hiện có trên bản đồ
+        const loadedIcons = new Set();
+
+        // ==========================================
+        // HÀM TẢI ICON CHÍNH THỨC CỦA MAPILLARY (FIX LỖI CORS)
+        // ==========================================
+        async function loadMapillaryIcons() {
             const features = map.querySourceFeatures('mapillary-signs', {
                 sourceLayer: 'traffic_sign'
             });
 
-            // Lấy danh sách các mã value duy nhất (loại bỏ trùng lặp)
             const uniqueValues = [...new Set(features.map(f => f.properties.value))].filter(v => v);
 
-            uniqueValues.forEach(async (value) => {
-                // Nếu icon chưa được tải, tiến hành tải
-                if (!map.hasImage(value) && !loadedIcons.has(value)) {
-                    loadedIcons.add(value); // Đánh dấu đang tải để tránh gọi trùng
+            for (const value of uniqueValues) {
+                if (map.hasImage(value) || loadedIcons.has(value)) continue;
+                
+                loadedIcons.add(value);
+                
+                // Lấy link SVG chính thức từ kho Mapillary
+                const svgUrl = `https://cdn.jsdelivr.net/gh/mapillary/mapillary_sprite_source@master/package/traffic_sign/${value}.svg`;
+                
+                try {
+                    // Dùng fetch để lấy nội dung SVG (tránh bị chặn CORS)
+                    const res = await fetch(svgUrl);
+                    if (!res.ok) throw new Error('Không tìm thấy icon');
+                    
+                    const svgText = await res.text();
+                    const blob = new Blob([svgText], { type: 'image/svg+xml' });
+                    const blobUrl = URL.createObjectURL(blob);
                     
                     const img = new Image();
-                    img.crossOrigin = 'anonymous'; // Tránh lỗi CORS khi vẽ từ CDN
-                    
                     img.onload = () => {
                         if (!map.hasImage(value)) {
-                            // Mapillary SVG thường có kích thước chuẩn, scale để vừa bản đồ
-                            map.addImage(value, img, { pixelRatio: 1 });
+                            // Vẽ qua Canvas để đảm bảo kích thước chuẩn (tránh lỗi ảnh 0x0 trên mobile)
+                            const canvas = document.createElement('canvas');
+                            canvas.width = 64;
+                            canvas.height = 64;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, 64, 64);
+                            
+                            map.addImage(value, canvas, { pixelRatio: 1 });
                         }
+                        URL.revokeObjectURL(blobUrl);
                     };
+                    img.src = blobUrl;
                     
-                    img.onerror = () => {
-                        // Nếu link 404 (không có icon), dùng icon mặc định
-                        if (!map.hasImage(value)) {
-                            const fallbackImg = new Image();
-                            fallbackImg.onload = () => map.addImage(value, fallbackImg, { pixelRatio: 2 });
-                            fallbackImg.src = fallbackIconUrl;
-                        }
-                    };
-                    
-                    // Bắt đầu tải SVG từ CDN của Mapillary
-                    img.src = getMapillaryIconUrl(value);
+                } catch (err) {
+                    console.warn(`Lỗi tải icon ${value}:`, err);
+                    // Nếu lỗi, gán icon dấu hỏi
+                    if (!map.hasImage(value)) {
+                        const fallback = new Image();
+                        fallback.onload = () => map.addImage(value, fallback, { pixelRatio: 2 });
+                        fallback.src = fallbackIconUrl;
+                    }
                 }
-            });
+            }
         }
 
         // ==========================================
-        // 4. KHỞI TẠO BẢN ĐỒ
+        // KHỞI TẠO BẢN ĐỒ
         // ==========================================
         map.on('load', () => {
             map.addSource('mapillary-signs', {
@@ -168,7 +166,7 @@
                 maxzoom: 14
             });
 
-            // LỚP 1: ICON CHÍNH THỨC CỦA MAPILLARY
+            // LỚP 1: HIỂN THỊ ICON MAPILLARY
             map.addLayer({
                 id: 'traffic-signs-layer',
                 type: 'symbol',
@@ -176,11 +174,10 @@
                 'source-layer': 'traffic_sign',
                 minzoom: 14,
                 layout: {
-                    // SỬ DỤNG VALUE LÀM KEY CỦA ICON
-                    'icon-image': ['get', 'value'], 
+                    'icon-image': ['get', 'value'],
                     'icon-size': [
                         'interpolate', ['linear'], ['zoom'],
-                        14, 0.3, // Icon Mapillary gốc khá to, cần thu nhỏ
+                        14, 0.3,
                         18, 0.6
                     ],
                     'icon-allow-overlap': true,
@@ -202,26 +199,26 @@
                     'text-size': ['interpolate', ['linear'], ['zoom'], 14, 8, 18, 14],
                     'text-allow-overlap': true,
                     'text-ignore-placement': true,
-                    'text-anchor': 'center'
+                    'text-anchor': 'middle'
                 },
-                paint: { 'text-color': '#111111' }
+                paint: { 
+                    'text-color': '#111111',
+                    'text-translate': [0, 0] // Căn giữa số
+                }
             });
 
-            // Kích hoạt tải icon ngay khi dữ liệu nguồn sẵn sàng
+            // Kích hoạt tải icon
             map.on('sourcedata', (e) => {
                 if (e.sourceId === 'mapillary-signs' && e.isSourceLoaded) {
                     loadMapillaryIcons();
                 }
             });
 
-            // Tải lại icon mỗi khi người dùng di chuyển bản đồ đến khu vực mới
             map.on('idle', () => {
                 loadMapillaryIcons();
             });
 
-            // ==========================================
-            // 5. TƯƠNG TÁC & POPUP
-            // ==========================================
+            // TƯƠNG TÁC
             const interactiveLayers = ['traffic-signs-layer', 'speed-text-layer'];
             map.on('mouseenter', interactiveLayers, () => map.getCanvas().style.cursor = 'pointer');
             map.on('mouseleave', interactiveLayers, () => map.getCanvas().style.cursor = '');
@@ -282,9 +279,7 @@
                 }
             });
 
-            // ==========================================
-            // 6. BỘ LỌC
-            // ==========================================
+            // BỘ LỌC
             function applyFilter() {
                 const isWarning = document.getElementById('filter-warning').checked;
                 const isRegulatory = document.getElementById('filter-regulatory').checked;
