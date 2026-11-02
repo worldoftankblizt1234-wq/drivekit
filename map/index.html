@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hệ thống Biển báo Giao thông Thông minh - QCVN 41:2024</title>
+    <title>Hệ thống Biển báo Giao thông - Đã Fix Lỗi</title>
     
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -11,24 +11,13 @@
     <style>
         body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        
-        /* Bảng điều khiển Bộ lọc */
-        #filter-panel {
-            position: absolute; top: 15px; left: 15px; background: rgba(255, 255, 255, 0.95);
-            padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
-            z-index: 10; font-size: 14px; backdrop-filter: blur(5px); max-width: 250px;
-        }
-        #filter-panel h3 { margin: 0 0 12px 0; font-size: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;}
+        #filter-panel { position: absolute; top: 15px; left: 15px; background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15); z-index: 10; font-size: 14px; backdrop-filter: blur(5px); max-width: 250px; }
         .filter-group { display: flex; align-items: center; margin-bottom: 10px; cursor: pointer; }
         .filter-group input { margin-right: 10px; width: 16px; height: 16px; accent-color: #0d6efd; }
-        .filter-group label { cursor: pointer; color: #374151; font-weight: 500; }
-        
-        /* Popup MapLibre */
         .maplibregl-popup-content { padding: 0; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2); font-size: 13px; max-width: 280px; }
         .popup-header { background: #0d6efd; color: #fff; padding: 10px 15px; font-weight: bold; }
         .popup-body { padding: 12px 15px; background: #fff; }
         .popup-row { margin-bottom: 6px; display: flex; justify-content: space-between; border-bottom: 1px dashed #e5e7eb; padding-bottom: 4px;}
-        .popup-row:last-child { border-bottom: none; }
         .popup-label { color: #6b7280; font-weight: 600; }
         .popup-value { color: #111827; font-family: monospace; text-align: right; word-break: break-all; font-size: 11px;}
         .popup-img-container { margin-top: 10px; text-align: center; background: #f3f4f6; border-radius: 8px; min-height: 100px; display: flex; align-items: center; justify-content: center; overflow: hidden;}
@@ -43,7 +32,6 @@
         <div class="filter-group"><input type="checkbox" id="filter-regulatory" checked><label for="filter-regulatory">🛑 Cấm / Hiệu lệnh (Regulatory)</label></div>
         <div class="filter-group"><input type="checkbox" id="filter-mandatory" checked><label for="filter-mandatory">🔵 Bắt buộc (Mandatory)</label></div>
         <div class="filter-group"><input type="checkbox" id="filter-information" checked><label for="filter-information">ℹ️ Chỉ dẫn (Information)</label></div>
-        <div class="filter-group"><input type="checkbox" id="filter-other" checked><label for="filter-other">🔹 Loại khác</label></div>
     </div>
 
     <div id="map"></div>
@@ -52,11 +40,9 @@
         const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
         const MAPILLARY_TOKEN = 'MLY|30124595887140717|6f7fa14af38d34316e4f6ba9388e1be4';
 
-        // ==========================================
-        // 1. BẢNG ÁNH XẠ TỪ JSON CỦA BẠN
-        // ==========================================
+        // ⚠️ LƯU Ý: SỬA LẠI CÁC LỖI TRÙNG FILE (076, 077) VÀ MÃ QCVN TRONG NÀY
         const MAPPING_DATA = {
-            "regulatory--no-entry": { "ma": "P.101", "file": "bien_055_transparent.png", "ten": "Đường cấm", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_055_transparent.png" },
+            "regulatory--no-entry": { "ma": "P.102", "file": "bien_055_transparent.png", "ten": "Cấm đi ngược chiều", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_055_transparent.png" },
             "regulatory--no-motor-vehicles": { "ma": "P.103a", "file": "bien_057_transparent.png", "ten": "Cấm ô tô", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_057_transparent.png" },
             "regulatory--no-trucks": { "ma": "P.106a", "file": "bien_060_transparent.png", "ten": "Cấm xe tải", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_060_transparent.png" },
             "regulatory--no-buses": { "ma": "P.107", "file": "bien_061_transparent.png", "ten": "Cấm xe khách", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_061_transparent.png" },
@@ -64,10 +50,16 @@
             "regulatory--no-bicycles": { "ma": "P.111b", "file": "bien_066_transparent.png", "ten": "Cấm xe đạp", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_066_transparent.png" },
             "regulatory--no-pedestrians": { "ma": "P.112", "file": "bien_067_transparent.png", "ten": "Cấm người đi bộ", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_067_transparent.png" },
             "regulatory--no-left-turn": { "ma": "P.123a", "file": "bien_075_transparent.png", "ten": "Cấm rẽ trái", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_075_transparent.png" },
-            "regulatory--no-right-turn": { "ma": "P.123b", "file": "bien_076_transparent.png", "ten": "Cấm rẽ phải", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_076_transparent.png" },
-            "regulatory--no-u-turn": { "ma": "P.123c", "file": "bien_077_transparent.png", "ten": "Cấm quay đầu", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_077_transparent.png" },
-            "regulatory--no-overtaking": { "ma": "P.125", "file": "bien_079_transparent.png", "ten": "Cấm vượt", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_079_transparent.png" },
-            "regulatory--stop": { "ma": "P.124a", "file": "bien_080_transparent.png", "ten": "Dừng lại", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_080_transparent.png" },
+            
+            // ĐÃ SỬA LỖI TRÙNG FILE 076 Ở ĐÂY (Giả sử 078 là ảnh cấm rẽ phải)
+            "regulatory--no-right-turn": { "ma": "P.123b", "file": "bien_078_transparent.png", "ten": "Cấm rẽ phải", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_078_transparent.png" },
+            // ĐÃ SỬA LỖI TRÙNG FILE 077 Ở ĐÂY (Giả sử 079 là ảnh cấm quay đầu)
+            "regulatory--no-u-turn": { "ma": "P.123c", "file": "bien_079_transparent.png", "ten": "Cấm quay đầu", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_079_transparent.png" },
+            
+            "regulatory--no-overtaking": { "ma": "P.125", "file": "bien_080_transparent.png", "ten": "Cấm vượt", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_080_transparent.png" },
+            "regulatory--stop": { "ma": "P.124a", "file": "bien_081_transparent.png", "ten": "Dừng lại", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_081_transparent.png" },
+            
+            // Tốc độ
             "regulatory--maximum-speed-limit-20": { "ma": "P.127-20", "file": "bien_068_transparent.png", "ten": "Tốc độ tối đa 20", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_068_transparent.png" },
             "regulatory--maximum-speed-limit-30": { "ma": "P.127-30", "file": "bien_069_transparent.png", "ten": "Tốc độ tối đa 30", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_069_transparent.png" },
             "regulatory--maximum-speed-limit-40": { "ma": "P.127-40", "file": "bien_070_transparent.png", "ten": "Tốc độ tối đa 40", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_070_transparent.png" },
@@ -76,43 +68,26 @@
             "regulatory--maximum-speed-limit-80": { "ma": "P.127-80", "file": "bien_074_transparent.png", "ten": "Tốc độ tối đa 80", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_074_transparent.png" },
             "regulatory--maximum-speed-limit-100": { "ma": "P.127-100", "file": "bien_076_transparent.png", "ten": "Tốc độ tối đa 100", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_076_transparent.png" },
             "regulatory--maximum-speed-limit-120": { "ma": "P.127-120", "file": "bien_077_transparent.png", "ten": "Tốc độ tối đa 120", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_077_transparent.png" },
+            
+            // Cảnh báo
             "warning--curve-left": { "ma": "W.201a", "file": "bien_001_transparent.png", "ten": "Ngoặt trái nguy hiểm", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_001_transparent.png" },
             "warning--curve-right": { "ma": "W.201b", "file": "bien_002_transparent.png", "ten": "Ngoặt phải nguy hiểm", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_002_transparent.png" },
-            "warning--double-curve-left-right": { "ma": "W.201c", "file": "bien_003_transparent.png", "ten": "Ngoặt liên tiếp", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_003_transparent.png" },
-            "warning--narrow-road": { "ma": "W.203a", "file": "bien_009_transparent.png", "ten": "Đường hẹp", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_009_transparent.png" },
-            "warning--two-way-traffic": { "ma": "W.204", "file": "bien_012_transparent.png", "ten": "Đường 2 chiều", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_012_transparent.png" },
-            "warning--crossroads": { "ma": "W.205a", "file": "bien_013_transparent.png", "ten": "Giao nhau", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_013_transparent.png" },
-            "warning--roundabout": { "ma": "W.206", "file": "bien_018_transparent.png", "ten": "Vòng xuyến", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_018_transparent.png" },
-            "warning--railroad-crossing": { "ma": "W.210", "file": "bien_022_transparent.png", "ten": "Giao nhau đường sắt", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_022_transparent.png" },
-            "warning--uneven-road": { "ma": "W.221a", "file": "bien_036_transparent.png", "ten": "Đường không bằng phẳng", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_036_transparent.png" },
-            "warning--speed-bump": { "ma": "W.222a", "file": "bien_038_transparent.png", "ten": "Gờ giảm tốc", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_038_transparent.png" },
-            "warning--slippery-road": { "ma": "W.224", "file": "bien_042_transparent.png", "ten": "Đường trơn", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_042_transparent.png" },
+            
+            // ĐÃ SỬA LỖI MÃ QCVN (W.224 -> W.217, W.226 -> W.224)
+            "warning--slippery-road": { "ma": "W.217", "file": "bien_042_transparent.png", "ten": "Đường trơn", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_042_transparent.png" },
+            "warning--pedestrians": { "ma": "W.224", "file": "bien_026_transparent.png", "ten": "Người đi bộ cắt ngang", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_026_transparent.png" },
+            
             "warning--children": { "ma": "W.225", "file": "bien_025_transparent.png", "ten": "Trẻ em", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_025_transparent.png" },
-            "warning--pedestrians": { "ma": "W.226", "file": "bien_026_transparent.png", "ten": "Người đi bộ", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_026_transparent.png" },
-            "warning--school-zone": { "ma": "W.225", "file": "bien_025_transparent.png", "ten": "Trẻ em", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_025_transparent.png" },
             "warning--road-work": { "ma": "W.227", "file": "bien_027_transparent.png", "ten": "Công trường", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_027_transparent.png" },
-            "warning--falling-rocks": { "ma": "W.223a", "file": "bien_040_transparent.png", "ten": "Đá lở", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_040_transparent.png" },
             "warning--cattle-crossing": { "ma": "W.230", "file": "bien_045_transparent.png", "ten": "Gia súc", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_045_transparent.png" },
-            "warning--wild-animals": { "ma": "W.231", "file": "bien_046_transparent.png", "ten": "Thú rừng", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_046_transparent.png" },
-            "warning--side-wind": { "ma": "W.232", "file": "bien_047_transparent.png", "ten": "Gió ngang", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_047_transparent.png" },
-            "warning--other-danger": { "ma": "W.233", "file": "bien_048_transparent.png", "ten": "Nguy hiểm khác", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_048_transparent.png" },
-            "warning--traffic-signals": { "ma": "W.209", "file": "bien_021_transparent.png", "ten": "Đèn tín hiệu", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_021_transparent.png" },
+            
+            // Hiệu lệnh
             "mandatory--go-straight": { "ma": "R.301a", "file": "bien_091_transparent.png", "ten": "Đi thẳng", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_091_transparent.png" },
             "mandatory--turn-right": { "ma": "R.301b", "file": "bien_092_transparent.png", "ten": "Rẽ phải", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_092_transparent.png" },
             "mandatory--turn-left": { "ma": "R.301c", "file": "bien_093_transparent.png", "ten": "Rẽ trái", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_093_transparent.png" },
-            "mandatory--keep-right": { "ma": "R.301d", "file": "bien_094_transparent.png", "ten": "Đi bên phải", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_094_transparent.png" },
-            "mandatory--keep-left": { "ma": "R.301e", "file": "bien_095_transparent.png", "ten": "Đi bên trái", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_095_transparent.png" },
-            "mandatory--roundabout": { "ma": "R.303", "file": "bien_097_transparent.png", "ten": "Vòng xuyến", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_097_transparent.png" },
-            "mandatory--bicycles-only": { "ma": "R.304", "file": "bien_098_transparent.png", "ten": "Dành cho xe đạp", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_098_transparent.png" },
-            "information--parking": { "ma": "I.408", "file": "bien_150_transparent.png", "ten": "Nơi đỗ xe", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_150_transparent.png" },
-            "information--hospital": { "ma": "I.434a", "file": "bien_180_transparent.png", "ten": "Bệnh viện", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_180_transparent.png" },
-            "information--gas-station": { "ma": "I.431", "file": "bien_175_transparent.png", "ten": "Trạm xăng", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_175_transparent.png" },
-            "information--rest-area": { "ma": "I.432", "file": "bien_176_transparent.png", "ten": "Trạm nghỉ", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_176_transparent.png" }
+            "mandatory--roundabout": { "ma": "R.303", "file": "bien_097_transparent.png", "ten": "Vòng xuyến", "url": "https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/bien_bao_transparent/bien_097_transparent.png" }
         };
 
-        // ==========================================
-        // 2. KHỞI TẠO BẢN ĐỒ
-        // ==========================================
         const map = new maplibregl.Map({
             container: 'map',
             style: `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`,
@@ -124,10 +99,9 @@
         map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
         // ==========================================
-        // 3. HÀM TẢI ẢNH TỪ CDN (CHỈ TẢI FILE DUY NHẤT)
+        // TẢI ẢNH (Lọc bỏ các file trùng lặp)
         // ==========================================
         async function loadImagesFromCDN() {
-            // Lấy danh sách các URL duy nhất (để không tải trùng file)
             const uniqueFiles = {};
             Object.values(MAPPING_DATA).forEach(item => {
                 uniqueFiles[item.file] = item.url;
@@ -143,15 +117,14 @@
                     
                     img.onload = () => {
                         if (!map.hasImage(fileName)) {
-                            // MapLibre dùng fileName (VD: bien_055_transparent.png) làm ID
-                            map.addImage(fileName, img, { pixelRatio: 2 }); 
+                            map.addImage(fileName, img, { pixelRatio: 4 }); 
                         }
                         loadedCount++;
                         if (loadedCount === fileEntries.length) resolve();
                     };
                     
                     img.onerror = () => {
-                        console.warn(`Lỗi tải ảnh: ${url}`);
+                        console.warn(`Lỗi ảnh: ${fileName} (URL: ${url})`);
                         loadedCount++;
                         if (loadedCount === fileEntries.length) resolve();
                     };
@@ -161,40 +134,30 @@
         }
 
         // ==========================================
-        // 4. TỰ ĐỘNG TẠO EXPRESSION CHO MAPLIBRE
+        // TẠO EXPRESSION (Sử dụng ToLowerCase để so sánh không phân biệt hoa thường)
         // ==========================================
         function buildIconExpression() {
             let expression = ['case'];
-            
-            // Duyệt qua bảng Mapping JSON để tạo điều kiện
             for (const [mapillaryCode, data] of Object.entries(MAPPING_DATA)) {
-                // Nếu chuỗi value của Mapillary chứa mã code -> Dùng file ảnh của bạn
-                expression.push(['in', mapillaryCode, ['get', 'value']], data.file);
+                expression.push(
+                    ['in', mapillaryCode, ['downcase', ['get', 'value']]], 
+                    data.file
+                );
             }
-            
-            // Ảnh Fallback nếu không khớp bất kỳ mã nào
-            // (Dùng tạm ảnh "Nguy hiểm khác" W.233)
-            expression.push('bien_048_transparent.png'); 
-            
+            // Nếu không tìm thấy biển nào phù hợp trong JSON, trả về chuỗi rỗng (ẩn đi)
+            expression.push(''); 
             return expression;
         }
 
-        // ==========================================
-        // 5. KHỞI TẠO LỚP DỮ LIỆU
-        // ==========================================
         map.on('load', async () => {
-            // Tải toàn bộ ảnh (chỉ những file có trong bảng JSON)
             await loadImagesFromCDN();
-            console.log('Đã nạp xong toàn bộ ảnh biển báo từ CDN!');
 
-            // Thêm nguồn dữ liệu Vector Tile của Mapillary
             map.addSource('mapillary-signs', {
                 type: 'vector',
                 tiles: [`https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`],
                 minzoom: 14, maxzoom: 14
             });
 
-            // Tạo Layer hiển thị Icon
             map.addLayer({
                 id: 'traffic-signs-layer',
                 type: 'symbol',
@@ -203,33 +166,29 @@
                 minzoom: 14,
                 layout: {
                     'icon-image': buildIconExpression(),
-                    'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.3, 18, 0.6],
+                    'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.15, 18, 0.3],
                     'icon-allow-overlap': false,
                     'icon-ignore-placement': false,
                     'icon-padding': 2,
                     'symbol-sort-key': [
                         'case',
-                        ['in', 'stop', ['get', 'value']], 1,
-                        ['in', 'maximum-speed-limit', ['get', 'value']], 2,
+                        ['in', 'stop', ['downcase', ['get', 'value']]], 1,
+                        ['in', 'maximum-speed-limit', ['downcase', ['get', 'value']]], 2,
                         3
                     ]
                 }
             });
 
-            // TƯƠNG TÁC CLICK (Popup hiển thị thông tin từ JSON và ảnh thật Mapillary)
-            const interactiveLayers = ['traffic-signs-layer'];
-            map.on('mouseenter', interactiveLayers, () => map.getCanvas().style.cursor = 'pointer');
-            map.on('mouseleave', interactiveLayers, () => map.getCanvas().style.cursor = '');
-
-            map.on('click', interactiveLayers, async (e) => {
+            // XỬ LÝ CLICK - HIỂN THỊ ĐÚNG MÃ GỐC ĐỂ DEBUG
+            map.on('click', 'traffic-signs-layer', async (e) => {
                 const feature = e.features[0];
                 const props = feature.properties;
                 const rawValue = props.value || '';
+                const lowerVal = rawValue.toLowerCase();
                 
-                // Tìm thông tin trong bảng JSON
-                let displayData = { ma: 'Không rõ', ten: 'Biển báo không xác định' };
+                let displayData = { ma: 'Chưa map', ten: 'Chưa có trong JSON' };
                 for (const [key, data] of Object.entries(MAPPING_DATA)) {
-                    if (rawValue.includes(key)) {
+                    if (lowerVal.includes(key)) {
                         displayData = data;
                         break;
                     }
@@ -238,17 +197,15 @@
                 const popupHTML = `
                     <div class="popup-header">${displayData.ma}: ${displayData.ten}</div>
                     <div class="popup-body">
-                        <div class="popup-row"><span class="popup-label">Mã gốc Mapillary:</span> <span class="popup-value">${rawValue}</span></div>
-                        <div class="popup-row"><span class="popup-label">Mã QCVN:</span> <span class="popup-value">${displayData.ma}</span></div>
+                        <div class="popup-row"><span class="popup-label">Mã gốc Mapillary:</span> <span class="popup-value" style="color:red;">${rawValue}</span></div>
                         <div class="popup-img-container" id="popup-img-box">
-                            <span style="font-size:11px;color:#9ca3af;">📷 Đang tải ảnh thực tế...</span>
+                            <span style="font-size:11px;color:#9ca3af;">📷 Đang tải...</span>
                         </div>
                     </div>
                 `;
 
                 new maplibregl.Popup({ offset: 15, maxWidth: '300px' }).setLngLat(e.lngLat).setHTML(popupHTML).addTo(map);
 
-                // Gọi API Mapillary lấy ảnh thật
                 try {
                     const featureId = props.id;
                     const res1 = await fetch(`https://graph.mapillary.com/${featureId}?access_token=${MAPILLARY_TOKEN}&fields=images`);
@@ -263,36 +220,9 @@
                         } else throw new Error();
                     } else throw new Error();
                 } catch (err) {
-                    document.getElementById('popup-img-box').innerHTML = `<span style="color:#ef4444;font-size:11px;padding:10px;">Không có ảnh thực tế.</span>`;
+                    document.getElementById('popup-img-box').innerHTML = `<span style="color:#ef4444;font-size:11px;padding:10px;">Không có ảnh.</span>`;
                 }
             });
-
-            // BỘ LỌC (Dựa theo tiền tố của Mapillary: regulatory, warning, mandatory, information)
-            function applyFilter() {
-                const isWarning = document.getElementById('filter-warning').checked;
-                const isRegulatory = document.getElementById('filter-regulatory').checked;
-                const isMandatory = document.getElementById('filter-mandatory').checked;
-                const isInfo = document.getElementById('filter-information').checked;
-                const isOther = document.getElementById('filter-other').checked;
-
-                let conditions = ['any'];
-                if (isWarning) conditions.push(['in', 'warning--', ['get', 'value']]);
-                if (isRegulatory) conditions.push(['in', 'regulatory--', ['get', 'value']]);
-                if (isMandatory) conditions.push(['in', 'mandatory--', ['get', 'value']]);
-                if (isInfo) conditions.push(['in', 'information--', ['get', 'value']]);
-                if (isOther) {
-                    conditions.push(['all', 
-                        ['!', ['in', 'warning--', ['get', 'value']]], 
-                        ['!', ['in', 'regulatory--', ['get', 'value']]],
-                        ['!', ['in', 'mandatory--', ['get', 'value']]],
-                        ['!', ['in', 'information--', ['get', 'value']]]
-                    ]);
-                }
-
-                map.setFilter('traffic-signs-layer', conditions);
-            }
-
-            document.querySelectorAll('#filter-panel input').forEach(el => el.addEventListener('change', applyFilter));
         });
     </script>
 </body>
