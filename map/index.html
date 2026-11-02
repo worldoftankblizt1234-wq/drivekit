@@ -2,8 +2,8 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Mapillary Signs — Debug + vConsole</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Mapillary Signs - New Token</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-serif}
@@ -23,7 +23,6 @@
                 text-align:left}
   #tools button.warn{background:#ef4444}
   #tools button.ok{background:#10b981}
-  #tools button.gray{background:#6b7280}
   #tools button:active{transform:scale(.97)}
 </style>
 </head>
@@ -41,28 +40,23 @@
 
 <div id="tools">
   <button class="ok" id="btn-test-token">1. Test Token</button>
-  <button id="btn-goto-nyc">2. Go NYC (zoom 17)</button>
-  <button class="gray" id="btn-dump">3. Dump Features</button>
-  <button class="warn" id="btn-toggle-icons">4. Toggle Icon Layer</button>
+  <button class="warn" id="btn-toggle-icons">2. Toggle Icon / Circle</button>
 </div>
 
-<!-- vConsole PHẢI load trước mọi script để bắt được log sớm -->
 <script src="https://unpkg.com/vconsole@3.15.1/dist/vconsole.min.js"></script>
 <script>
   window.vConsole = new window.VConsole({ theme: 'dark' });
-  console.log('%c vConsole ready ✓', 'color:#0f0;font-weight:bold;font-size:14px');
 </script>
-
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 
 <script>
 /* ============================================================
-   CONFIG
+   1. TOKEN MỚI CỦA BẠN
    ============================================================ */
-const TOKEN = 'MLY|26842262835470842|df552a54c4d4735f048c7cccb365d6bb';
+const TOKEN = 'MLY|30124595887140717|6f7fa14af38d34316e4f6ba9388e1be4';
 
 /* ============================================================
-   HELPERS
+   2. HELPERS
    ============================================================ */
 function setStatus(id, status, text) {
   const el = document.getElementById('status-' + id);
@@ -71,24 +65,24 @@ function setStatus(id, status, text) {
   el.textContent = text;
 }
 
-/* SVG data URI — thêm width/height để loadImage có intrinsic size */
-function svgURI(inner) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32">${inner}</svg>`;
-  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+// Chuyển SVG sang Base64 để tránh lỗi "Failed to fetch" trên mobile
+function svgToBase64(svgString) {
+  const base64 = btoa(unescape(encodeURIComponent(svgString)));
+  return 'data:image/svg+xml;base64,' + base64;
 }
 
 const ICONS = {
-  stop: svgURI('<circle cx="16" cy="16" r="14" fill="#dc2626" stroke="#fff" stroke-width="2"/><text x="16" y="21" text-anchor="middle" font-size="9" font-weight="900" font-family="Arial,sans-serif" fill="#fff">STOP</text>'),
-  yield: svgURI('<polygon points="16,3 30,29 2,29" fill="#fff" stroke="#dc2626" stroke-width="3" stroke-linejoin="round"/><text x="16" y="26" text-anchor="middle" font-size="6" font-weight="900" font-family="Arial,sans-serif" fill="#111">YIELD</text>'),
-  warning: svgURI('<polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><text x="16" y="26" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial,sans-serif" fill="#fff">!</text>'),
-  speed: svgURI('<circle cx="16" cy="16" r="14" fill="#fff" stroke="#dc2626" stroke-width="3"/><text x="16" y="21" text-anchor="middle" font-size="11" font-weight="900" font-family="Arial,sans-serif" fill="#111">50</text>'),
-  noEntry: svgURI('<circle cx="16" cy="16" r="14" fill="#dc2626" stroke="#fff" stroke-width="2"/><rect x="6" y="13" width="20" height="6" fill="#fff"/>'),
-  info: svgURI('<circle cx="16" cy="16" r="14" fill="#0d6efd" stroke="#fff" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="18" font-weight="900" font-family="Arial,sans-serif" fill="#fff">i</text>'),
-  other: svgURI('<circle cx="16" cy="16" r="14" fill="#6b7280" stroke="#fff" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial,sans-serif" fill="#fff">?</text>')
+  stop: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#dc2626" stroke="#fff" stroke-width="2"/><text x="16" y="21" text-anchor="middle" font-size="9" font-weight="900" font-family="Arial,sans-serif" fill="#fff">STOP</text></svg>`),
+  yield: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#fff" stroke="#dc2626" stroke-width="3" stroke-linejoin="round"/><text x="16" y="26" text-anchor="middle" font-size="6" font-weight="900" font-family="Arial,sans-serif" fill="#111">YIELD</text></svg>`),
+  warning: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><text x="16" y="26" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial,sans-serif" fill="#fff">!</text></svg>`),
+  speed: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#fff" stroke="#dc2626" stroke-width="3"/><text x="16" y="21" text-anchor="middle" font-size="11" font-weight="900" font-family="Arial,sans-serif" fill="#111">50</text></svg>`),
+  noEntry: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#dc2626" stroke="#fff" stroke-width="2"/><rect x="6" y="13" width="20" height="6" fill="#fff"/></svg>`),
+  info: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#0d6efd" stroke="#fff" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="18" font-weight="900" font-family="Arial,sans-serif" fill="#fff">i</text></svg>`),
+  other: svgToBase64(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#6b7280" stroke="#fff" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial,sans-serif" fill="#fff">?</text></svg>`)
 };
 
 /* ============================================================
-   MAP INIT — OSM raster
+   3. MAP INIT (Bắt đầu ở New York để thấy biển báo ngay)
    ============================================================ */
 const map = new maplibregl.Map({
   container: 'map',
@@ -97,94 +91,70 @@ const map = new maplibregl.Map({
     sources: {
       osm: {
         type: 'raster',
-        tiles: [
-          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png'
-        ],
+        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
         tileSize: 256,
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        attribution: '© OpenStreetMap'
       }
     },
     layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
   },
-  center: [105.8542, 21.0285],
-  zoom: 16
+  center: [-73.9855, 40.7580], // Times Square, NYC
+  zoom: 17
 });
 
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
 /* ============================================================
-   TEST 1: TOKEN — kiểm tra token bằng Graph API
+   4. TEST TOKEN
    ============================================================ */
 async function testToken() {
   setStatus('token', 'pending', 'testing...');
-  console.log('%c [TEST 1] Checking token... ', 'color:#f59e0b;font-weight:bold');
-
   try {
-    const url = `https://graph.mapillary.com/images?access_token=${TOKEN}&bbox=105.84,21.02,105.86,21.03&limit=1`;
-    console.log('[TEST1] URL:', url);
-
+    const url = `https://graph.mapillary.com/images?access_token=${TOKEN}&bbox=-73.99,40.75,-73.98,40.76&limit=1`;
     const res = await fetch(url);
     const data = await res.json();
-    console.log('[TEST1] status:', res.status, 'data:', data);
 
     if (res.ok && !data.error) {
       setStatus('token', 'ok', 'OK ✓');
-      console.log('%c [TEST1] TOKEN VALID ✓ ', 'color:#0f0;font-weight:bold');
+      console.log('%c [TEST] TOKEN HỢP LỆ!', 'color:#0f0;font-weight:bold');
     } else {
       setStatus('token', 'fail', 'FAIL ' + res.status);
-      console.error('[TEST1] Token error:', data);
+      console.error('[TEST] Token error:', data);
     }
   } catch (e) {
     setStatus('token', 'fail', 'ERR');
-    console.error('[TEST1] Fatal:', e);
   }
 }
 testToken();
 
 /* ============================================================
-   MAP LOAD — add source + layers
+   5. MAP LOAD
    ============================================================ */
 map.on('load', () => {
-  console.log('%c [MAP] loaded ', 'color:#0f0;font-weight:bold;font-size:13px');
-
-  /* --- SOURCE --- */
-  const tileUrl =
-    `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}` +
-    `?access_token=${encodeURIComponent(TOKEN)}`;
-  console.log('[SOURCE URL]', tileUrl);
-
+  const tileUrl = `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${encodeURIComponent(TOKEN)}`;
+  
   map.addSource('mly-signs', {
     type: 'vector',
     tiles: [tileUrl],
     minzoom: 14,
-    maxzoom: 14   // MapLibre tự "overzoom" khi zoom > 14
+    maxzoom: 14
   });
   setStatus('source', 'pending', 'loading...');
 
-  /* --- FALLBACK CIRCLE LAYER ---
-     Chứng minh source có dữ liệu, tách biệt vấn đề icon */
+  // Lớp dự phòng (Fallback)
   map.addLayer({
     id: 'sign-circle',
     type: 'circle',
     source: 'mly-signs',
     'source-layer': 'traffic_sign',
     paint: {
-      'circle-radius': 12,
-      'circle-color': [
-        'case',
-        ['in', 'regulatory', ['downcase', ['get', 'value']]], '#dc2626',
-        ['in', 'warning',    ['downcase', ['get', 'value']]], '#f59e0b',
-        ['in', 'information',['downcase', ['get', 'value']]], '#0d6efd',
-        '#6b7280'
-      ],
+      'circle-radius': 8,
+      'circle-color': '#0d6efd',
       'circle-stroke-width': 2,
       'circle-stroke-color': '#fff'
     }
   });
-  console.log('[LAYER] sign-circle added (fallback — nếu thấy chấm tròn = source OK)');
 
-  /* --- LOAD ICONS → SYMBOL LAYER --- */
   loadAllIcons().then(allOk => {
     if (allOk) {
       addSymbolLayer();
@@ -194,138 +164,86 @@ map.on('load', () => {
     }
   });
 
-  /* --- SOURCE DATA EVENTS --- */
   map.on('sourcedata', (e) => {
     if (e.sourceId === 'mly-signs' && e.isSourceLoaded) {
-      console.log('%c [SOURCE LOADED ✓] ', 'color:#0f0;font-weight:bold');
       setStatus('source', 'ok', 'loaded ✓');
       updateCount();
     }
   });
 
-  map.on('error', (e) => {
-    if (e.sourceId === 'mly-signs') {
-      console.error('[SOURCE ERROR]', e.error);
-      setStatus('source', 'fail', 'ERR');
-    }
-  });
-
-  /* --- CLICK --- */
-  map.on('click', 'sign-circle', onSignClick);
   map.on('click', 'sign-icon', onSignClick);
-  map.on('mouseenter', ['sign-circle', 'sign-icon'], () => map.getCanvas().style.cursor = 'pointer');
-  map.on('mouseleave', ['sign-circle', 'sign-icon'], () => map.getCanvas().style.cursor = '');
-
+  map.on('mouseenter', 'sign-icon', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'sign-icon', () => map.getCanvas().style.cursor = '');
   map.on('moveend', updateCount);
   map.on('idle', updateCount);
-
-  /* --- TEST PNG loadImage --- */
-  map.loadImage('https://docs.maptiler.com/openmaptiles/maptiler-logo.png', (err, img) => {
-    if (err) console.warn('[TEST PNG] loadImage FAIL — vấn đề ở MapLibre/browser:', err);
-    else console.log('[TEST PNG] loadImage OK ✓', img?.width + 'x' + img?.height);
-  });
 });
 
 /* ============================================================
-   ICON LOADER (SVG → addImage)
+   6. ICON LOADER
    ============================================================ */
 function loadAllIcons() {
-  console.log('%c [ICONS] Loading SVGs... ', 'color:#f59e0b;font-weight:bold');
-
   const promises = Object.entries(ICONS).map(([name, url]) => {
     return new Promise((resolve) => {
       map.loadImage(url, (err, img) => {
-        if (err) {
-          console.error(`[ICON FAIL] ${name}:`, err);
-          return resolve({ name, ok: false, error: err.message });
-        }
-        if (!img) {
-          console.error(`[ICON EMPTY] ${name} — img is null`);
+        if (err || !img) {
+          console.error(`[ICON FAIL] ${name}`, err);
           return resolve({ name, ok: false });
         }
-        console.log(`[ICON OK] ${name}: ${img.width}x${img.height}`);
-        try {
-          if (!map.hasImage('sign-' + name)) {
-            map.addImage('sign-' + name, img, { pixelRatio: 2 });
-          }
-          resolve({ name, ok: true });
-        } catch (e) {
-          console.error(`[ADD IMAGE FAIL] ${name}:`, e);
-          resolve({ name, ok: false, error: e.message });
+        if (!map.hasImage('sign-' + name)) {
+          map.addImage('sign-' + name, img, { pixelRatio: 2 });
         }
+        resolve({ name, ok: true });
       });
     });
   });
-
-  return Promise.all(promises).then(results => {
-    const failed = results.filter(r => !r.ok);
-    const ok = results.filter(r => r.ok);
-    console.log(`%c [ICONS] ${ok.length}/${results.length} loaded`, 
-                'color:' + (failed.length ? '#f59e0b' : '#0f0') + ';font-weight:bold');
-    if (failed.length) console.warn('[ICONS] failed:', failed.map(f => f.name));
-    return failed.length === 0;
-  });
+  return Promise.all(promises).then(results => results.every(r => r.ok));
 }
 
 /* ============================================================
-   SYMBOL LAYER
+   7. SYMBOL LAYER
    ============================================================ */
 function addSymbolLayer() {
-  if (map.getLayer('sign-icon')) {
-    console.log('[SYMBOL] already exists');
-    return;
-  }
+  if (map.getLayer('sign-icon')) return;
 
-  try {
-    map.addLayer({
-      id: 'sign-icon',
-      type: 'symbol',
-      source: 'mly-signs',
-      'source-layer': 'traffic_sign',
-      layout: {
-        'icon-image': [
-          'case',
-          ['in', 'stop',                ['downcase', ['get', 'value']]], 'sign-stop',
-          ['in', 'yield',               ['downcase', ['get', 'value']]], 'sign-yield',
-          ['in', 'no-entry',            ['downcase', ['get', 'value']]], 'sign-noEntry',
-          ['in', 'maximum-speed-limit', ['downcase', ['get', 'value']]], 'sign-speed',
-          ['in', 'speed',               ['downcase', ['get', 'value']]], 'sign-speed',
-          ['in', 'no-',                 ['downcase', ['get', 'value']]], 'sign-noEntry',
-          ['in', 'warning',             ['downcase', ['get', 'value']]], 'sign-warning',
-          ['in', 'regulatory',          ['downcase', ['get', 'value']]], 'sign-warning',
-          ['in', 'information',         ['downcase', ['get', 'value']]], 'sign-info',
-          'sign-other'
-        ],
-        'icon-size': [
-          'interpolate', ['linear'], ['zoom'],
-          14, 0.5,
-          18, 1.0
-        ],
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true
-      }
-    });
-    console.log('%c [SYMBOL LAYER ADDED ✓] sign-icon ', 
-                'color:#0f0;font-weight:bold;background:#000;padding:2px 6px');
-
-    // Ẩn circle layer khi icon đã hiện
-    map.setLayoutProperty('sign-circle', 'visibility', 'none');
-    console.log('[LAYER] sign-circle hidden (symbol visible)');
-  } catch (e) {
-    console.error('[ADD SYMBOL LAYER FAIL]', e);
-  }
+  map.addLayer({
+    id: 'sign-icon',
+    type: 'symbol',
+    source: 'mly-signs',
+    'source-layer': 'traffic_sign',
+    layout: {
+      'icon-image': [
+        'case',
+        ['in', 'stop',                ['downcase', ['get', 'value']]], 'sign-stop',
+        ['in', 'yield',               ['downcase', ['get', 'value']]], 'sign-yield',
+        ['in', 'no-entry',            ['downcase', ['get', 'value']]], 'sign-noEntry',
+        ['in', 'maximum-speed-limit', ['downcase', ['get', 'value']]], 'sign-speed',
+        ['in', 'speed',               ['downcase', ['get', 'value']]], 'sign-speed',
+        ['in', 'no-',                 ['downcase', ['get', 'value']]], 'sign-noEntry',
+        ['in', 'warning',             ['downcase', ['get', 'value']]], 'sign-warning',
+        ['in', 'regulatory',          ['downcase', ['get', 'value']]], 'sign-warning',
+        ['in', 'information',         ['downcase', ['get', 'value']]], 'sign-info',
+        'sign-other'
+      ],
+      'icon-size': [
+        'interpolate', ['linear'], ['zoom'],
+        14, 0.5,
+        18, 1.0
+      ],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true
+    }
+  });
+  // Ẩn lớp chấm tròn dự phòng
+  map.setLayoutProperty('sign-circle', 'visibility', 'none');
 }
 
 /* ============================================================
-   CLICK HANDLER — popup + tải ảnh thật
+   8. CLICK HANDLER (Tải ảnh thật)
    ============================================================ */
 async function onSignClick(e) {
   const f = e.features[0];
-  const props = f.properties || {};
-  console.log('[CLICK] feature:', props);
-
-  const featureId = props.id || f.id;
-  const value = props.value || '(unknown)';
+  const featureId = f.properties.id || f.id;
+  const value = f.properties.value || '(unknown)';
 
   const popup = new maplibregl.Popup({ offset: 16, maxWidth: '300px' })
     .setLngLat(e.lngLat)
@@ -333,9 +251,7 @@ async function onSignClick(e) {
       <div style="font-size:13px;line-height:1.5;min-width:220px">
         <b>🛑 ${value}</b><br>
         <span style="color:#6b7280;font-size:11px">ID: ${featureId || 'n/a'}</span>
-        <div id="popup-img" style="margin-top:8px;font-size:11px;color:#9ca3af">
-          Đang tải ảnh...
-        </div>
+        <div id="popup-img" style="margin-top:8px;font-size:11px;color:#9ca3af">Đang tải ảnh...</div>
       </div>
     `)
     .addTo(map);
@@ -343,40 +259,30 @@ async function onSignClick(e) {
   if (!featureId) return;
 
   try {
-    const r1 = await fetch(
-      `https://graph.mapillary.com/${featureId}?access_token=${TOKEN}&fields=id,value,images`
-    );
+    const r1 = await fetch(`https://graph.mapillary.com/${featureId}?access_token=${TOKEN}&fields=id,value,images`);
     const d1 = await r1.json();
-    console.log('[GRAPH FEATURE]', d1);
-
     const imgId = d1.images?.[0];
     if (!imgId) {
       document.getElementById('popup-img').textContent = 'Không có ảnh liên kết';
       return;
     }
 
-    const r2 = await fetch(
-      `https://graph.mapillary.com/${imgId}?access_token=${TOKEN}&fields=thumb_512_url,captured_at`
-    );
+    const r2 = await fetch(`https://graph.mapillary.com/${imgId}?access_token=${TOKEN}&fields=thumb_512_url`);
     const d2 = await r2.json();
-    console.log('[GRAPH IMAGE]', d2);
-
     const el = document.getElementById('popup-img');
     if (el && d2.thumb_512_url) {
-      el.innerHTML = `<img src="${d2.thumb_512_url}" 
-                         style="width:100%;border-radius:8px;display:block" loading="lazy"/>`;
+      el.innerHTML = `<img src="${d2.thumb_512_url}" style="width:100%;border-radius:8px;display:block" loading="lazy"/>`;
     } else if (el) {
-      el.textContent = 'Không có ảnh';
+      el.textContent = 'Không tải được ảnh';
     }
   } catch (err) {
-    console.error('[IMAGE FETCH ERR]', err);
     const el = document.getElementById('popup-img');
-    if (el) el.textContent = 'Lỗi: ' + err.message;
+    if (el) el.textContent = 'Lỗi tải ảnh!';
   }
 }
 
 /* ============================================================
-   COUNT + DIAGNOSTICS
+   9. CONTROLS & BUTTONS
    ============================================================ */
 function updateCount() {
   try {
@@ -386,99 +292,17 @@ function updateCount() {
   document.getElementById('zoom-level').textContent = map.getZoom().toFixed(1);
 }
 
-/* ============================================================
-   BUTTONS
-   ============================================================ */
 document.getElementById('btn-test-token').addEventListener('click', testToken);
 
-document.getElementById('btn-goto-nyc').addEventListener('click', () => {
-  console.log('[NAV] → Times Square NYC');
-  map.flyTo({ center: [-73.9855, 40.7580], zoom: 17, duration: 1500 });
-});
-
-document.getElementById('btn-dump').addEventListener('click', () => {
-  console.log('%c ===== DUMP FEATURES ===== ', 'color:#0d6efd;font-weight:bold;font-size:13px');
-
-  // Thử với sourceLayer chỉ định
-  let feats = [];
-  try {
-    feats = map.querySourceFeatures('mly-signs', { sourceLayer: 'traffic_sign' });
-    console.log(`[DUMP] with 'traffic_sign':`, feats.length, 'features');
-  } catch (e) {
-    console.error('[DUMP] traffic_sign query fail:', e);
-  }
-
-  // Thử KHÔNG sourceLayer để xem có layer nào khác
-  try {
-    const all = map.querySourceFeatures('mly-signs');
-    console.log(`[DUMP] all source layers:`, all.length, 'features');
-    const layers = [...new Set(all.map(f => f.sourceLayer))];
-    console.log('%c [DUMP] source-layer names present: ' + JSON.stringify(layers), 
-                'color:#0d6efd;font-weight:bold');
-    if (layers.length > 0) {
-      layers.forEach(l => {
-        const cnt = all.filter(f => f.sourceLayer === l).length;
-        console.log(`  • "${l}": ${cnt} features`);
-      });
-    }
-  } catch (e) {
-    console.error('[DUMP] bare query fail:', e);
-  }
-
-  if (feats.length === 0) {
-    console.warn('%c [DUMP] 0 features. Nguyên nhân có thể:\n' +
-      '  1. Zoom < 14 (hiện tại: ' + map.getZoom().toFixed(1) + ')\n' +
-      '  2. Token hết hạn (chạy test 1)\n' +
-      '  3. source-layer sai tên (xem log "source-layer names present" ở trên)\n' +
-      '  4. Khu vực không có biển báo Mapillary (thử NYC)',
-      'color:#f59e0b;font-weight:bold');
-  } else {
-    console.log('%c [DUMP] 20 features đầu tiên:', 'color:#0f0;font-weight:bold');
-    feats.slice(0, 20).forEach((f, i) => {
-      console.log(`${i}.`, {
-        sourceLayer: f.sourceLayer,
-        id: f.properties.id,
-        value: f.properties.value,
-        geometry: f.geometry
-      });
-    });
-  }
-});
-
 document.getElementById('btn-toggle-icons').addEventListener('click', () => {
-  if (!map.getLayer('sign-icon')) {
-    console.warn('[TOGGLE] chưa có sign-icon layer');
-    return;
-  }
+  if (!map.getLayer('sign-icon')) return;
   const cur = map.getLayoutProperty('sign-icon', 'visibility');
   const next = cur === 'none' ? 'visible' : 'none';
   map.setLayoutProperty('sign-icon', 'visibility', next);
-  console.log('[TOGGLE]', cur, '→', next);
-
-  // Đồng thời bật/tắt circle layer ngược lại
   if (map.getLayer('sign-circle')) {
     map.setLayoutProperty('sign-circle', 'visibility', next === 'visible' ? 'none' : 'visible');
   }
 });
-
-/* ============================================================
-   INITIAL LOG
-   ============================================================ */
-console.log('%c ═══════════════════════════════════════════', 'color:#0d6efd');
-console.log('%c  Mapillary Signs Debug Panel', 'color:#0d6efd;font-weight:bold;font-size:15px');
-console.log('%c ═══════════════════════════════════════════', 'color:#0d6efd');
-console.log(`
-HƯỚNG DẪN:
-1. Xem "Token" ở panel trái — nếu FAIL thì token hết hạn, đổi token mới.
-2. Bấm "Go NYC (zoom 17)" — khu vực rất nhiều biển báo.
-3. Bấm "Dump Features" để xem source có trả feature không.
-
-PHÂN TÍCH KẾT QUẢ:
-• Thấy chấm tròn đỏ/vàng/xanh → source OK, lỗi nằm ở ICON.
-• Không thấy gì cả + feature-count = 0 → source/token/zoom.
-• Không thấy gì + feature-count > 0 → icon layer bị ẩn hoặc lỗi addImage.
-• Circle hiện nhưng icon không hiện → xem console tìm "[ICON FAIL]".
-`);
 </script>
 </body>
 </html>
