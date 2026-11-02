@@ -68,13 +68,13 @@
         map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
         // ==========================================
-        // 1. TỪ ĐIỂN DỊCH MÃ MAPILLARY SANG TIẾNG VIỆT (CHUẨN QCVN 41:2024)
+        // 1. TỪ ĐIỂN DỊCH MÃ (ĐÃ THÊM ROAD CLOSED)
         // ==========================================
         function translateMapillaryCode(code) {
             if (!code) return 'Biển báo không xác định';
             const c = code.toLowerCase();
 
-            // --- NHÓM BIỂN CẤM (P) ---
+            if (c.includes('road-closed-to-vehicles')) return 'P.101: Đường cấm';
             if (c.includes('no-entry')) return 'P.102: Cấm đi ngược chiều';
             if (c.includes('no-left-turn')) return 'P.123a: Cấm rẽ trái';
             if (c.includes('no-right-turn')) return 'P.123b: Cấm rẽ phải';
@@ -85,63 +85,58 @@
                 return match ? `P.127: Tốc độ tối đa ${match[0]} km/h` : 'P.127: Giới hạn tốc độ';
             }
 
-            // --- NHÓM BIỂN NGUY HIỂM (W) ---
             if (c.includes('junction-with-a-side-road-perpendicular-right')) return 'W.207b: Giao nhau với đường nhánh bên phải';
             if (c.includes('junction-with-a-side-road-perpendicular-left')) return 'W.207a: Giao nhau với đường nhánh bên trái';
-            if (c.includes('pedestrian-crossing')) return 'W.224: Đường dành cho người đi bộ cắt ngang';
-            if (c.includes('children')) return 'W.225: Cảnh báo trẻ em qua đường';
-            if (c.includes('curve-to-right')) return 'W.201b: Chỗ ngoặt nguy hiểm vòng bên phải';
-            if (c.includes('curve-to-left')) return 'W.201a: Chỗ ngoặt nguy hiểm vòng bên trái';
+            if (c.includes('pedestrian-crossing')) return 'W.224: Người đi bộ cắt ngang';
+            if (c.includes('children')) return 'W.225: Trẻ em qua đường';
+            if (c.includes('curve-to-right')) return 'W.201b: Ngoặt nguy hiểm bên phải';
+            if (c.includes('curve-to-left')) return 'W.201a: Ngoặt nguy hiểm bên trái';
             if (c.includes('slippery')) return 'W.217: Đường trơn trượt';
             if (c.includes('road-narrows')) return 'W.203: Đường bị thu hẹp';
             if (c.includes('warning')) return 'W: Cảnh báo nguy hiểm khác';
 
-            // --- NHÓM BIỂN HIỆU LỆNH (R) ---
             if (c.includes('stop')) return 'STOP: Dừng lại';
             if (c.includes('yield') || c.includes('give-way')) return 'Nhường đường';
-            if (c.includes('roundabout')) return 'R.303: Nơi giao nhau chạy theo vòng xuyến';
-            if (c.includes('keep-right')) return 'R.301b: Hướng đi phải theo (Rẽ phải)';
-            if (c.includes('keep-left')) return 'R.301a: Hướng đi phải theo (Rẽ trái)';
-            if (c.includes('regulatory')) return 'R: Biển hiệu lệnh khác';
+            if (c.includes('roundabout')) return 'R.303: Vòng xuyến';
+            if (c.includes('keep-right')) return 'R.301b: Rẽ phải';
+            if (c.includes('keep-left')) return 'R.301a: Rẽ trái';
+            if (c.includes('regulatory')) return 'R: Hiệu lệnh khác';
 
-            // --- NHÓM BIỂN CHỈ DẪN (I) ---
-            if (c.includes('information')) return 'I: Biển chỉ dẫn thông tin';
+            if (c.includes('information')) return 'I: Chỉ dẫn thông tin';
 
             return code.replace(/--/g, ' ').replace(/-/g, ' ').toUpperCase();
         }
 
         // ==========================================
-        // 2. BỘ ICON SVG CHUẨN QCVN 41:2024
+        // 2. BỘ ICON SVG (THÊM P.101)
         // ==========================================
         const svgToDataUrl = (svg) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
         const ICONS = {
-            // --- BIỂN CẤM (P) ---
-            'P101': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#dc2626" stroke="#fff" stroke-width="1.5"/><rect x="7" y="13" width="18" height="6" fill="#fff"/></svg>`), // P.102 Cấm đi ngược chiều
-            'P123a': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc2626" stroke-width="3"/><path d="M20 22V14a4 4 0 0 0-4-4h-4m0 0l3-3m-3 3l3 3" fill="none" stroke="#111" stroke-width="3" stroke-linejoin="round"/><line x1="6" y1="6" x2="26" y2="26" stroke="#dc2626" stroke-width="3"/></svg>`), // P.123a Cấm rẽ trái
-            'P123b': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc2626" stroke-width="3"/><path d="M12 22V14a4 4 0 0 1 4-4h4m0 0l-3-3m3 3l-3 3" fill="none" stroke="#111" stroke-width="3" stroke-linejoin="round"/><line x1="6" y1="6" x2="26" y2="26" stroke="#dc2626" stroke-width="3"/></svg>`), // P.123b Cấm rẽ phải
-            'P131': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#dc2626" stroke-width="3"/><path d="M12 22V10h4a4 4 0 0 1 0 8h-4" fill="none" stroke="#fff" stroke-width="2.5"/><line x1="7" y1="7" x2="25" y2="25" stroke="#dc2626" stroke-width="3"/></svg>`), // P.131 Cấm đỗ xe
-            'P130': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#dc2626" stroke-width="3"/><line x1="10" y1="10" x2="22" y2="22" stroke="#dc2626" stroke-width="3"/><line x1="22" y1="10" x2="10" y2="22" stroke="#dc2626" stroke-width="3"/></svg>`), // P.130 Cấm dừng xe
-            'P127': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc2626" stroke-width="4"/></svg>`), // P.127 Giới hạn tốc độ (nền cho text)
+            // Thêm P.101 Đường cấm (Vòng tròn đỏ có gạch ngang trắng)
+            'P101': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#dc2626" stroke="#fff" stroke-width="2"/><rect x="6" y="13" width="20" height="6" fill="#fff"/></svg>`), 
+            'P102': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#dc2626" stroke="#fff" stroke-width="1.5"/><rect x="7" y="13" width="18" height="6" fill="#fff"/></svg>`),
+            'P123a': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc2626" stroke-width="3"/><path d="M20 22V14a4 4 0 0 0-4-4h-4m0 0l3-3m-3 3l3 3" fill="none" stroke="#111" stroke-width="3" stroke-linejoin="round"/><line x1="6" y1="6" x2="26" y2="26" stroke="#dc2626" stroke-width="3"/></svg>`),
+            'P123b': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc2626" stroke-width="3"/><path d="M12 22V14a4 4 0 0 1 4-4h4m0 0l-3-3m3 3l-3 3" fill="none" stroke="#111" stroke-width="3" stroke-linejoin="round"/><line x1="6" y1="6" x2="26" y2="26" stroke="#dc2626" stroke-width="3"/></svg>`),
+            'P131': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#dc2626" stroke-width="3"/><path d="M12 22V10h4a4 4 0 0 1 0 8h-4" fill="none" stroke="#fff" stroke-width="2.5"/><line x1="7" y1="7" x2="25" y2="25" stroke="#dc2626" stroke-width="3"/></svg>`),
+            'P130': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#dc2626" stroke-width="3"/><line x1="10" y1="10" x2="22" y2="22" stroke="#dc2626" stroke-width="3"/><line x1="22" y1="10" x2="10" y2="22" stroke="#dc2626" stroke-width="3"/></svg>`),
+            'P127': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc2626" stroke-width="4"/></svg>`),
 
-            // --- BIỂN NGUY HIỂM (W) ---
-            'W207b': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M16 26V14h8" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/><path d="M16 26V10" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/></svg>`), // W.207b Giao nhau với đường nhánh bên phải
-            'W207a': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M16 26V14H8" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/><path d="M16 26V10" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/></svg>`), // W.207a Giao nhau với đường nhánh bên trái
-            'W224': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="16" cy="11" r="2" fill="#111"/><path d="M15 14v5l-2 4m3-9l2 4 2 2m-4-6l-2 2" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round"/></svg>`), // W.224 Người đi bộ cắt ngang
-            'W225': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="16" r="2" fill="#111"/><path d="M12 19v5m0-5l-2-2m2 2l2-2" fill="none" stroke="#111" stroke-width="1.5"/><circle cx="20" cy="14" r="2" fill="#111"/><path d="M20 17v5m0-5l-2-2m2 2l2-2" fill="none" stroke="#111" stroke-width="1.5"/></svg>`), // W.225 Trẻ em qua đường
-            'W201a': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M22 26c0-8-4-12-12-12" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/></svg>`), // W.201a Ngoặt trái
-            'W201b': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M10 26c0-8 4-12 12-12" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/></svg>`), // W.201b Ngoặt phải
-            'W217': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M12 20c2-2 6-2 8 0s6 2 8 0" fill="none" stroke="#111" stroke-width="2"/><path d="M12 24c2-2 6-2 8 0s6 2 8 0" fill="none" stroke="#111" stroke-width="2"/><path d="M12 16c2-2 6-2 8 0s6 2 8 0" fill="none" stroke="#111" stroke-width="2"/></svg>`), // W.217 Đường trơn trượt
-            'W203': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M8 26l4-12h8l4 12" fill="none" stroke="#111" stroke-width="3" stroke-linejoin="round"/></svg>`), // W.203 Đường bị thu hẹp
-            'W_generic': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><text x="16" y="26" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial" fill="#111">!</text></svg>`), // Biển cảnh báo chung
+            'W207b': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M16 26V14h8" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/><path d="M16 26V10" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/></svg>`),
+            'W207a': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M16 26V14H8" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/><path d="M16 26V10" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/></svg>`),
+            'W224': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="16" cy="11" r="2" fill="#111"/><path d="M15 14v5l-2 4m3-9l2 4 2 2m-4-6l-2 2" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round"/></svg>`),
+            'W225': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="16" r="2" fill="#111"/><path d="M12 19v5m0-5l-2-2m2 2l2-2" fill="none" stroke="#111" stroke-width="1.5"/><circle cx="20" cy="14" r="2" fill="#111"/><path d="M20 17v5m0-5l-2-2m2 2l2-2" fill="none" stroke="#111" stroke-width="1.5"/></svg>`),
+            'W201a': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M22 26c0-8-4-12-12-12" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/></svg>`),
+            'W201b': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M10 26c0-8 4-12 12-12" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/></svg>`),
+            'W217': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M12 20c2-2 6-2 8 0s6 2 8 0" fill="none" stroke="#111" stroke-width="2"/><path d="M12 24c2-2 6-2 8 0s6 2 8 0" fill="none" stroke="#111" stroke-width="2"/><path d="M12 16c2-2 6-2 8 0s6 2 8 0" fill="none" stroke="#111" stroke-width="2"/></svg>`),
+            'W203': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M8 26l4-12h8l4 12" fill="none" stroke="#111" stroke-width="3" stroke-linejoin="round"/></svg>`),
+            'W_generic': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><polygon points="16,3 30,29 2,29" fill="#f59e0b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><text x="16" y="26" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial" fill="#111">!</text></svg>`),
 
-            // --- BIỂN HIỆU LỆNH (R) ---
-            'R303': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#fff" stroke-width="2"/><path d="M16 8a6 6 0 1 1-6 6" fill="none" stroke="#fff" stroke-width="2"/><polygon points="16,5 16,11 20,8" fill="#fff"/></svg>`), // R.303 Vòng xuyến
-            'R301b': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#fff" stroke-width="2"/><path d="M16 26V12h-6m0 0l4-4m-4 4l4 4" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>`), // R.301b Hướng đi phải theo (rẽ phải)
-            'R301a': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#fff" stroke-width="2"/><path d="M16 26V12h6m0 0l-4-4m4 4l-4 4" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>`), // R.301a Hướng đi phải theo (rẽ trái)
+            'R303': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#fff" stroke-width="2"/><path d="M16 8a6 6 0 1 1-6 6" fill="none" stroke="#fff" stroke-width="2"/><polygon points="16,5 16,11 20,8" fill="#fff"/></svg>`),
+            'R301b': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#fff" stroke-width="2"/><path d="M16 26V12h-6m0 0l4-4m-4 4l4 4" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>`),
+            'R301a': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0d6efd" stroke="#fff" stroke-width="2"/><path d="M16 26V12h6m0 0l-4-4m4 4l-4 4" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>`),
             'stop': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#dc2626" stroke="#fff" stroke-width="1.5"/><text x="16" y="21" text-anchor="middle" font-size="9" font-weight="900" font-family="Arial" fill="#fff">STOP</text></svg>`),
             
-            // --- BIỂN CHỈ DẪN (I) & KHÁC ---
-            'I_generic': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><rect x="2" y="8" width="28" height="16" fill="#0d6efd" stroke="#fff" stroke-width="2"/><text x="16" y="22" text-anchor="middle" font-size="18" font-weight="900" font-family="Arial" fill="#fff">i</text></svg>`), // Biển chỉ dẫn chung
+            'I_generic': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><rect x="2" y="8" width="28" height="16" fill="#0d6efd" stroke="#fff" stroke-width="2"/><text x="16" y="22" text-anchor="middle" font-size="18" font-weight="900" font-family="Arial" fill="#fff">i</text></svg>`),
             'fallback': svgToDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#6b7280" stroke="#fff" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="16" font-weight="900" font-family="Arial" fill="#fff">?</text></svg>`)
         };
 
@@ -182,7 +177,8 @@
                     'icon-image': [
                         'case',
                         // Cấm
-                        ['in', 'no-entry', ['get', 'value']], 'icon-P101',
+                        ['in', 'road-closed-to-vehicles', ['get', 'value']], 'icon-P101',
+                        ['in', 'no-entry', ['get', 'value']], 'icon-P102',
                         ['in', 'no-left-turn', ['get', 'value']], 'icon-P123a',
                         ['in', 'no-right-turn', ['get', 'value']], 'icon-P123b',
                         ['in', 'no-parking', ['get', 'value']], 'icon-P131',
@@ -208,8 +204,22 @@
                         'icon-fallback'
                     ],
                     'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.5, 18, 0.9],
-                    'icon-allow-overlap': true,
-                    'icon-ignore-placement': true
+                    
+                    // ====================================================
+                    // 🔥 CHỐNG RỐI BẢN ĐỒ (TỰ ĐỘNG ẨN CÁC BIỂN TRÙNG LẶP)
+                    // ====================================================
+                    'icon-allow-overlap': false, // Tắt cho phép đè lên nhau
+                    'icon-ignore-placement': false, // Bắt buộc MapLibre phải tính toán vị trí
+                    'icon-padding': 2, // Khoảng cách tối thiểu giữa các icon
+
+                    // Ưu tiên hiển thị các biển quan trọng lên trước (số càng nhỏ càng ưu tiên)
+                    'symbol-sort-key': [
+                        'case',
+                        ['in', 'stop', ['get', 'value']], 1,
+                        ['in', 'maximum-speed-limit', ['get', 'value']], 2,
+                        ['in', 'road-closed-to-vehicles', ['get', 'value']], 3,
+                        4 // Các biển khác
+                    ]
                 }
             });
 
@@ -225,14 +235,14 @@
                     'text-field': ['slice', ['get', 'value'], ['+', ['index-of', ['get', 'value'], 'limit-'], 6], ['index-of', ['get', 'value'], '--']],
                     'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
                     'text-size': ['interpolate', ['linear'], ['zoom'], 14, 10, 18, 18],
-                    'text-allow-overlap': true,
-                    'text-ignore-placement': true,
+                    'text-allow-overlap': false, // Text cũng không được đè lên nhau
+                    'text-ignore-placement': false,
                     'text-anchor': 'center'
                 },
                 paint: { 'text-color': '#111111' }
             });
 
-            // TƯƠNG TÁC
+            // ... (Phần Tương tác Popup và Bộ lọc giữ nguyên như cũ)
             const interactiveLayers = ['traffic-signs-layer', 'speed-text-layer'];
             map.on('mouseenter', interactiveLayers, () => map.getCanvas().style.cursor = 'pointer');
             map.on('mouseleave', interactiveLayers, () => map.getCanvas().style.cursor = '');
@@ -293,7 +303,6 @@
                 }
             });
 
-            // BỘ LỌC
             function applyFilter() {
                 const isWarning = document.getElementById('filter-warning').checked;
                 const isRegulatory = document.getElementById('filter-regulatory').checked;
