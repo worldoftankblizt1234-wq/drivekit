@@ -92,8 +92,8 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .click-hint.show{display:block}
 
 /* FAB - CLEAN MOBILE: only 3 buttons */
-.fab-stack{position:fixed;right:12px;bottom:90px;z-index:1000;display:flex;flex-direction:column;gap:10px;pointer-events:none}
-.fab-stack .fab{pointer-events:auto;width:48px;height:48px;border-radius:16px;background:#fff;border:0;box-shadow:0 4px 16px rgba(0,0,0,.15);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text);font-size:20px;transition:all .15s}
+.fab-stack{position:fixed;right:12px;bottom:90px;z-index:1200;display:flex;flex-direction:column;gap:10px;pointer-events:none}
+.fab-stack .fab{pointer-events:auto;width:48px;height:48px;border-radius:16px;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 4px 16px rgba(0,0,0,.15);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text);font-size:20px;transition:all .15s;position:relative;z-index:1201}
 .fab-stack .fab:active{transform:scale(.92)}
 .fab-stack .fab.primary{width:56px;height:56px;background:var(--primary);color:#fff;box-shadow:0 6px 20px rgba(13,110,253,.4);border-radius:18px}
 .fab-stack .fab.active{background:var(--primary);color:#fff}
@@ -178,7 +178,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .feature-item .label{font-size:11px;font-weight:600;color:var(--text);text-align:center;line-height:1.2}
 .feature-item.active{background:#eff6ff;border-color:var(--primary)}
 .feature-item.active .icon{background:var(--primary);color:#fff}
-.bottom-bar{position:fixed;left:12px;right:12px;bottom:12px;z-index:1000;background:rgba(255,255,255,.95);backdrop-filter:blur(16px);border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,.15);padding:8px 12px;display:flex;justify-content:space-around;align-items:center;border:1px solid rgba(0,0,0,.06);max-width:400px;margin:0 auto}
+.bottom-bar{position:fixed;left:12px;right:12px;bottom:12px;z-index:1200;background:rgba(255,255,255,.98);backdrop-filter:blur(16px);border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,.18);padding:8px 12px;display:flex;justify-content:space-around;align-items:center;border:1px solid rgba(0,0,0,.06);max-width:400px;margin:0 auto;pointer-events:auto}
 .bottom-bar-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:14px;cursor:pointer;background:transparent;border:0;transition:all .15s}
 .bottom-bar-btn .icon{font-size:22px}
 .bottom-bar-btn .label{font-size:10px;font-weight:600;color:var(--text-light)}
@@ -227,9 +227,6 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     </button>
     <div class="switch-auth"><span id="switchText">Chưa có tài khoản?</span> <a id="switchAuth">Đăng ký ngay</a></div>
     <div id="debugInfo" style="display:none;font-size:11px;color:#6b7280;margin-top:10px;padding:8px;background:#f9fafb;border-radius:8px;word-break:break-all"></div>
-    <button type="button" class="btn-google" id="guestBtn" style="margin-top:10px;background:#f3f4f6;border-color:#e5e7eb">
-      🚀 Dùng thử không cần đăng nhập
-    </button>
   </div>
 </div>
 
@@ -735,7 +732,7 @@ $('loginForm').addEventListener('submit', async e => {
     setDebug('Lỗi: '+err.code+' - '+err.message+' | Protocol: '+location.protocol+' | Host: '+location.host);
     // Nếu file:// thì Firebase Auth hay chặn
     if(location.protocol==='file:'){
-      $('authError').textContent += ' | File:// bị chặn, hãy bấm Dùng thử';
+      $('authError').textContent += ' | File:// bị chặn - hãy dùng https hoặc cho phép vị trí';
     }
   } finally { $('submitBtn').disabled = false; $('submitBtn').textContent= authMode==='login'?'Đăng nhập':'Đăng ký'; }
 });
@@ -753,12 +750,12 @@ $('googleBtn').addEventListener('click', async () => {
     $('authError').classList.add('show');
     setDebug('Google lỗi: '+err.code+' - '+err.message);
     if(location.protocol==='file:'){
-      $('authError').textContent += ' | File:// Google bị chặn, dùng Dùng thử';
+      $('authError').textContent += ' | File:// Google bị chặn - hãy dùng https';
     }
   }
 });
 
-const guestBtnEl = $('guestBtn');
+const guestBtnEl = null;
 if(guestBtnEl){
   guestBtnEl.addEventListener('click', ()=>{
     console.log('Guest mode activated');
@@ -1384,14 +1381,48 @@ function updateCurrentMarker() {
 }
 
 function locateUser(center = true) {
-  if (!navigator.geolocation) { return showToast('Không hỗ trợ GPS'); }
-  // Bỏ màn hình loading xoay xoay - chỉ hiện toast nhẹ
+  console.log('locateUser clicked, center=', center, 'map ready=', state.mapReady);
+  if(!map){
+    showToast('Map chưa sẵn sàng, đợi xíu...');
+    return;
+  }
+  if (!navigator.geolocation) { 
+    showToast('Không hỗ trợ GPS - dùng Hà Nội');
+    state.currentPos = { lat: 21.0285, lng: 105.8542 };
+    updateCurrentMarker();
+    if(center) map.flyTo({ center: [105.8542, 21.0285], zoom: 14 });
+    if (!state.pointA) setPoint('A', 21.0285, 105.8542);
+    return;
+  }
   showToast('📍 Đang lấy GPS...');
+  // Thêm timeout fallback nếu GPS treo
+  let gpsDone = false;
+  const fallbackTimer = setTimeout(()=>{
+    if(!gpsDone){
+      gpsDone = true;
+      console.warn('GPS timeout, fallback Hanoi');
+      if (!state.currentPos) {
+        state.currentPos = { lat: 21.0285, lng: 105.8542 };
+        updateCurrentMarker();
+        if (!state.pointA) {
+          setPoint('A', 21.0285, 105.8542);
+          state.gpsAssignedToA = true;
+        }
+        if(center) map.flyTo({ center: [105.8542, 21.0285], zoom: 14 });
+      }
+      showToast('GPS chậm - dùng Hà Nội mặc định');
+    }
+  }, 5000);
+
   navigator.geolocation.getCurrentPosition(
     pos => {
+      if(gpsDone) return;
+      gpsDone = true;
+      clearTimeout(fallbackTimer);
+      console.log('GPS success', pos.coords);
       state.currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       updateCurrentMarker();
-      if (center && map) map.flyTo({ center: [state.currentPos.lng, state.currentPos.lat], zoom: 16 });
+      if (center) map.flyTo({ center: [state.currentPos.lng, state.currentPos.lat], zoom: 16, essential:true });
 
       if (!state.pointA && !state.gpsAssignedToA) {
         setPoint('A', state.currentPos.lat, state.currentPos.lng);
@@ -1403,6 +1434,10 @@ function locateUser(center = true) {
       }
     },
     err => {
+      if(gpsDone) return;
+      gpsDone = true;
+      clearTimeout(fallbackTimer);
+      console.warn('GPS error', err);
       if (!state.currentPos) {
         state.currentPos = { lat: 21.0285, lng: 105.8542 };
         updateCurrentMarker();
@@ -1410,10 +1445,11 @@ function locateUser(center = true) {
           setPoint('A', 21.0285, 105.8542);
           state.gpsAssignedToA = true;
         }
+        if(center) map.flyTo({ center: [105.8542, 21.0285], zoom: 14 });
       }
-      showToast('Không lấy được GPS, dùng Hà Nội mặc định');
+      showToast('Không lấy được GPS: '+(err.message||err.code)+' - dùng Hà Nội');
     },
-    { enableHighAccuracy: true, timeout: 8000 }
+    { enableHighAccuracy: false, timeout: 8000, maximumAge: 10000 }
   );
 }
 
@@ -1979,7 +2015,7 @@ $('gpsABtn').addEventListener('click', () => {
   } else showToast('Chưa có GPS, bấm 📍 góc dưới phải');
 });
 
-$('locateBtn').addEventListener('click', () => locateUser(true));
+$('locateBtn')?.addEventListener('click', (e)=>{ e.stopPropagation(); console.log('locateBtn clicked'); locateUser(true); });
 $('clearBtn').addEventListener('click', clearAll);
 $('closeRouteBtn').addEventListener('click', () => $('routePanel').classList.remove('show'));
 $('settingsBtn').addEventListener('click', () => $('settingsModal').classList.add('show'));
@@ -2125,13 +2161,13 @@ $('featVoice').addEventListener('click', ()=>{
   $('featVoice').classList.toggle('active', state.voiceEnabled);
   showToast(state.voiceEnabled?'Bật giọng nói':'Tắt giọng nói');
 });
-$('featLocate').addEventListener('click', ()=>{ closeFeatureSheet(); locateUser(true); });
+$('featLocate')?.addEventListener('click', ()=>{ closeFeatureSheet(); setTimeout(()=>locateUser(true), 200); });
 $('featClear').addEventListener('click', ()=>{ closeFeatureSheet(); clearAll(); });
 // Bottom bar
 $('bottomDirections').addEventListener('click', ()=> showRouteSheet());
 $('bottomReport').addEventListener('click', ()=> openPoiPicker());
 $('bottomLayers').addEventListener('click', ()=> openLayerPicker());
-$('bottomLocate').addEventListener('click', ()=> locateUser(true));
+$('bottomLocate')?.addEventListener('click', (e)=>{ e.stopPropagation(); console.log('bottomLocate clicked'); locateUser(true); });
 // Mini layer buttons
  document.querySelectorAll('.mini-layer-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
