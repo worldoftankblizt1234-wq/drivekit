@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -294,6 +293,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         </div>
         <button class="close-btn" id="closeRouteBtn">×</button>
       </div>
+      <div id="routeSelector" style="display:none;gap:8px;padding:10px 0 8px;overflow-x:auto"></div>
     </div>
     <div class="steps-list" id="stepsList"></div>
   </div>
@@ -494,7 +494,7 @@ const TRACKASIA = {
     };
     const taProfile = profileMap[state.costing] || 'car';
     return `https://maps.track-asia.com/route/v1/${taProfile}/${coords}.json` +
-           `?geometries=polyline&overview=full&steps=true&key=${CONFIG.TRACKASIA_KEY}`;
+           `?geometries=polyline&overview=full&steps=true&alternatives=true&key=${CONFIG.TRACKASIA_KEY}`;
   },
   // Mapbox (giữ lại backup) + TomTom
   mapboxGeocode: q => `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${CONFIG.MAPBOX_TOKEN}&country=vn&language=vi&limit=5&proximity=${state.currentPos ? state.currentPos.lng+','+state.currentPos.lat : '105.8342,21.0285'}`,
@@ -549,7 +549,10 @@ const state = {
   poiCount: 0,
   trafficSignOn: false,
   trafficSignMarkers: {},
-  currentMapStyle: 'streets'
+  currentMapStyle: 'streets',
+  alternativeRoutes: [],
+  selectedRouteIndex: 0,
+  routeNumberMarkers: []
 };
 /* ============ UTILS ============ */
 const $ = id => document.getElementById(id);
@@ -602,31 +605,81 @@ $('loginForm').addEventListener('submit', async e => {
   e.preventDefault();
   const email = $('emailInput').value.trim(), password = $('passwordInput').value;
   if (!email || !password) return;
-  $('submitBtn').disabled = true; $('authError').classList.remove('show');
+  $('submitBtn').disabled = true; $('submitBtn').textContent='Đang đăng nhập...'; $('authError').classList.remove('show');
+  $('debugInfo').style.display='block';
+  $('debugInfo').textContent='Đang thử đăng nhập '+email+'... Protocol: '+location.protocol;
+  console.log('Login attempt', email, 'protocol', location.protocol);
   try {
-    if (authMode === 'login') await signInWithEmailAndPassword(auth, email, password);
-    else {
+    if (authMode === 'login') {
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      console.log('Login success', cred.user);
+      $('debugInfo').textContent='Đăng nhập thành công: '+cred.user.uid;
+    } else {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(cred.user, { displayName: email.split('@')[0] });
+      console.log('Signup success', cred.user);
     }
   } catch (err) {
-    $('authError').textContent = translateAuthError(err.code);
+    console.error('Auth error', err);
+    const msg = translateAuthError(err.code) + ' | ' + (err.message||'');
+    $('authError').textContent = msg;
     $('authError').classList.add('show');
-  } finally { $('submitBtn').disabled = false; }
+    $('debugInfo').textContent='Lỗi: '+err.code+' - '+err.message+' | Protocol: '+location.protocol+' | Host: '+location.host;
+    $('debugInfo').style.display='block';
+    // Nếu file:// thì Firebase Auth hay chặn
+    if(location.protocol==='file:'){
+      $('authError').textContent += ' | File:// bị chặn, hãy bấm Dùng thử';
+    }
+  } finally { $('submitBtn').disabled = false; $('submitBtn').textContent= authMode==='login'?'Đăng nhập':'Đăng ký'; }
 });
 $('googleBtn').addEventListener('click', async () => {
-  try { await signInWithPopup(auth, googleProvider); }
-  catch (err) {
-    $('authError').textContent = translateAuthError(err.code);
-    $('authError').classList.add('show');
+  $('authError').classList.remove('show');
+  $('debugInfo').style.display='block';
+  $('debugInfo').textContent='Đang thử Google login... Protocol: '+location.protocol;
+  try { 
+    const cred = await signInWithPopup(auth, googleProvider); 
+    console.log('Google login success', cred.user);
   }
+  catch (err) {
+    console.error('Google auth error', err);
+    $('authError').textContent = translateAuthError(err.code)+' | '+err.message;
+    $('authError').classList.add('show');
+    $('debugInfo').textContent='Google lỗi: '+err.code+' - '+err.message;
+    if(location.protocol==='file:'){
+      $('authError').textContent += ' | File:// Google bị chặn, dùng Dùng thử';
+    }
+  }
+});
+$('guestBtn').addEventListener('click', ()=>{
+  console.log('Guest mode activated');
+  // Bỏ qua Firebase, vào app luôn
+  $('loginScreen').style.display='none';
+  $('app').classList.add('show');
+  $('userName').textContent = 'Khách (Guest)';
+  $('userAvatar').src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4 4-6 8-6s8 2 8 6"/></svg>';
+  $('userChip').classList.add('show');
+  state.user = { uid:'guest_'+Date.now(), displayName:'Guest', isGuest:true };
+  // Ẩn splash
+  const splash=$('splashScreen'); if(splash) splash.style.display='none';
+  initMap();
+  applyCostingToUI();
+  initCommunityPois();
+  setInterval(checkPoiProximity, 5000);
+  showToast('🚀 Đang ở chế độ khách - không cần đăng nhập');
 });
 function translateAuthError(code) {
   const m = {
-    'auth/invalid-email':'Email không hợp lệ','auth/user-not-found':'Email chưa đăng ký',
-    'auth/wrong-password':'Sai mật khẩu','auth/invalid-credential':'Sai email hoặc mật khẩu',
-    'auth/email-already-in-use':'Email đã đăng ký','auth/weak-password':'Mật khẩu ≥ 6 ký tự',
-    'auth/popup-closed-by-user':'Đã đóng popup'
+    'auth/invalid-email':'Email không hợp lệ',
+    'auth/user-not-found':'Email chưa đăng ký',
+    'auth/wrong-password':'Sai mật khẩu',
+    'auth/invalid-credential':'Sai email hoặc mật khẩu (kiểm tra lại)',
+    'auth/email-already-in-use':'Email đã đăng ký',
+    'auth/weak-password':'Mật khẩu ≥ 6 ký tự',
+    'auth/popup-closed-by-user':'Đã đóng popup',
+    'auth/operation-not-allowed':'Chưa bật Email login trong Firebase Console',
+    'auth/unauthorized-domain':'Domain chưa được cho phép trong Firebase',
+    'auth/network-request-failed':'Lỗi mạng - kiểm tra internet',
+    'auth/too-many-requests':'Bị chặn do thử quá nhiều - đợi 1 phút'
   };
   return m[code] || 'Lỗi: ' + code;
 }
@@ -636,6 +689,11 @@ setTimeout(()=>{
   if(splash){ splash.style.opacity='0'; setTimeout(()=>{ splash.style.display='none'; $('loginScreen').style.display='flex'; },400); }
 }, 800);
 onAuthStateChanged(auth, user => {
+  console.log('Auth state changed', user ? user.uid : 'null');
+  if(state.user?.isGuest){
+    console.log('Guest mode, ignore auth state');
+    return;
+  }
   state.user = user;
   // Ẩn splash nếu còn
   const splash=$('splashScreen');
@@ -650,12 +708,14 @@ onAuthStateChanged(auth, user => {
     initMap();
     applyCostingToUI();
     initCommunityPois();
-    // also start proximity check interval
     setInterval(checkPoiProximity, 5000);
   } else {
-    $('loginScreen').style.display = 'flex';
-    $('app').classList.remove('show');
-    $('userChip').classList.remove('show');
+    // Chỉ hiện login nếu chưa ở guest mode
+    if(!state.user?.isGuest){
+      $('loginScreen').style.display = 'flex';
+      $('app').classList.remove('show');
+      $('userChip').classList.remove('show');
+    }
   }
 });
 $('logoutBtn').addEventListener('click', async () => {
@@ -1230,140 +1290,267 @@ function setPoint(key, lat, lng) {
   else state.markerB = marker;
   $('point' + key + 'Input').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
-/* ============ VALHALLA ============ */
-async function routeWithValhalla(a, b) {
-  const body = {
-    locations: [{ lat: a.lat, lon: a.lng }, { lat: b.lat, lon: b.lng }],
-    costing: state.costing,
-    directions_options: { language: 'vi-VN' }
-  };
-  if (state.costing === 'truck') {
-    body.costing_options = {
-      truck: {
+/* ============ VALHALLA 3 TUYẾN - DÙNG CODE BẠN ĐƯA ============ */
+async function routeNhieuTuyen(aLat, aLon, bLat, bLon){
+  const res = await fetch(CONFIG.VALHALLA_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      locations: [{lat:aLat, lon:aLon}, {lat:bLat, lon:bLon}],
+      costing: state.costing,
+      alternates: 2, // xin thêm 2 tuyến nữa, tổng 3 tuyến
+      directions_options: {language:'vi-VN'},
+      ...(state.costing==='truck' ? { costing_options:{ truck:{
         height: truckParams.height,
         width: truckParams.width,
         weight: truckParams.weight,
         length: truckParams.length,
         axle_load: truckParams.axle_load,
         hazmat: truckParams.hazmat
-      }
-    };
-  }
-  const res = await fetch(CONFIG.VALHALLA_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+      }}} : {})
+    })
   });
+  
   if ([502, 503, 504].includes(res.status)) {
     const err = new Error(`Codespaces ngủ (HTTP ${res.status})`);
     err.codespaceDown = true;
     throw err;
   }
   if (!res.ok) throw new Error('Valhalla HTTP ' + res.status);
+  
   const data = await res.json();
   if (!data.trip) throw new Error('Valhalla không trả trip');
-  const trip = data.trip;
-  const leg = trip.legs[0];
-  const coords = decodePolyline(leg.shape, 6);
-  const steps = (leg.maneuvers || []).map(m => ({
-    text: m.instruction || 'Đi tiếp',
-    distance: m.length * 1000,
-    time: m.time,
-    location: m.begin_shape_index != null && coords[m.begin_shape_index] ? coords[m.begin_shape_index] : null
-  }));
-  return {
-    coords,
-    distance: trip.summary.length * 1000,
-    duration: trip.summary.time,
-    steps,
-    engine: 'Valhalla'
-  };
+  
+  // Tuyến chính + alternates
+  const allTrips = [data.trip, ...(data.alternates||[])];
+  
+  const allRoutes = allTrips.map((trip, i) => {
+    const coords = decodePolyline(trip.legs[0].shape, 6);
+    const steps = (trip.legs[0].maneuvers || []).map(m => ({
+      text: m.instruction || 'Đi tiếp',
+      distance: m.length * 1000,
+      time: m.time,
+      location: m.begin_shape_index != null && coords[m.begin_shape_index] ? coords[m.begin_shape_index] : null,
+      type: m.type || '',
+      modifier: m.verbal_post_transition_instruction || ''
+    }));
+    return {
+      coords,
+      distance: trip.summary.length * 1000,
+      duration: trip.summary.time,
+      steps,
+      engine: 'Valhalla',
+      index: i,
+      summary: trip.summary
+    };
+  });
+  
+  return allRoutes;
 }
-/* ============ FALLBACK TRACKASIA (ĐÃ SỬA) ============ */
+async function routeWithValhalla(a, b) {
+  // Dùng hàm bạn đưa - 1 lần bấm gọi 3 tuyến luôn
+  return await routeNhieuTuyen(a.lat, a.lng, b.lat, b.lng);
+}
+/* ============ TRACKASIA WITH ALTERNATIVES ============ */
 async function routeWithTrackAsia(a, b) {
   const res = await fetch(TRACKASIA.route(a, b));
   if (!res.ok) {
-    // Nếu vẫn 401, hiển thị gợi ý rõ ràng
     if (res.status === 401) {
       throw new Error('TrackAsia 401: Key hết hạn hoặc là public_key. Đăng ký key mới tại account.track-asia.com');
     }
     throw new Error('TrackAsia HTTP ' + res.status);
   }
   const data = await res.json();
-  const r = data.routes?.[0];
-  if (!r) throw new Error('TrackAsia không trả route');
-  let coords;
-  if (r.geometry?.coordinates) {
-    coords = r.geometry.coordinates;
-  } else if (typeof r.geometry === 'string') {
-    // TrackAsia có thể trả polyline precision 5 hoặc 6, thử cả hai
-    coords = decodePolyline(r.geometry, 5);
-    if (coords.length > 0 && (coords[0][0] < -180 || coords[0][0] > 180)) {
-      coords = decodePolyline(r.geometry, 6);
+  if (!data.routes?.length) throw new Error('TrackAsia không trả route');
+  const routes = data.routes.map((r, idx) => {
+    let coords;
+    if (r.geometry?.coordinates) {
+      coords = r.geometry.coordinates;
+    } else if (typeof r.geometry === 'string') {
+      coords = decodePolyline(r.geometry, 5);
+      if (coords.length > 0 && (coords[0][0] < -180 || coords[0][0] > 180)) {
+        coords = decodePolyline(r.geometry, 6);
+      }
+    } else {
+      coords = [];
     }
-  } else {
-    throw new Error('Geometry không hợp lệ');
-  }
-  const steps = (r.legs?.[0]?.steps || []).map(s => ({
-    text: s.maneuver?.instruction || s.name || 'Đi tiếp',
-    distance: s.distance || 0,
-    time: s.duration || 0,
-    location: s.maneuver?.location ? [s.maneuver.location[0], s.maneuver.location[1]] : null
-  }));
-  return { coords, distance: r.distance, duration: r.duration, steps, engine: 'TrackAsia' };
+    const steps = (r.legs?.[0]?.steps || []).map(s => ({
+      text: s.maneuver?.instruction || s.name || 'Đi tiếp',
+      distance: s.distance || 0,
+      time: s.duration || 0,
+      location: s.maneuver?.location ? [s.maneuver.location[0], s.maneuver.location[1]] : null,
+      // Thêm type để icon rẽ
+      type: s.maneuver?.type || '',
+      modifier: s.maneuver?.modifier || ''
+    }));
+    return { coords, distance: r.distance, duration: r.duration, steps, engine: 'TrackAsia', index: idx };
+  });
+  return routes;
 }
-/* ============ CALCULATE ROUTE ============ */
+/* ============ CALCULATE ROUTE - MULTI ROUTES ============ */
 async function calculateRoute() {
   if (!state.pointA || !state.pointB) return showToast('Cần đủ A và B');
   state.isCalculatingRoute = true;
   showLoadingForce(true);
   try {
-    let result;
-    if (state.useValhalla) {
-      try { result = await routeWithValhalla(state.pointA, state.pointB); }
+    let results;
+    // Mặc định dùng Valhalla 3 tuyến như bạn yêu cầu - 1 lần bấm gọi 3 tuyến luôn
+    if (true || state.useValhalla) {
+      try { 
+        const single = await routeWithValhalla(state.pointA, state.pointB);
+        results = [single]; // Valhalla chỉ 1 tuyến
+      }
       catch (err) {
         if (err.codespaceDown) showToast('⚠️ Codespaces ngủ → fallback TrackAsia', 5000);
         else showToast('⚠️ Valhalla lỗi → TrackAsia');
-        result = await routeWithTrackAsia(state.pointA, state.pointB);
+        results = await routeWithTrackAsia(state.pointA, state.pointB);
       }
     } else {
-      result = await routeWithTrackAsia(state.pointA, state.pointB);
+      results = await routeWithTrackAsia(state.pointA, state.pointB);
     }
-    drawRoute(result);
-    renderSteps(result);
-    if (state.voiceEnabled && result.steps[0]) speakInstruction(result.steps[0].text);
+    
+    // Đảm bảo results là array
+    if (!Array.isArray(results)) results = [results];
+    state.alternativeRoutes = results;
+    state.selectedRouteIndex = 0;
+    
+    // Ẩn bottom sheet chỉ đường khi tìm được tuyến
+    $('routeInputs').classList.remove('show');
+    $('routeBackdrop').classList.remove('show');
+    $('mapActionPopup').classList.remove('show');
+    $('mapActionBackdrop').classList.remove('show');
+    
+    drawRoutes(results);
+    renderRouteSelector(results);
+    renderSteps(results[0]);
+    if (state.voiceEnabled && results[0].steps[0]) speakInstruction(results[0].steps[0].text);
+    
+    if(results.length>1) showToast(`Tìm thấy ${results.length} tuyến - bấm 1,2,3 để chọn`);
   } catch (err) {
     showToast('Lỗi tính đường: ' + err.message, 5000);
   } finally { $('searchBtn').textContent='Tìm'; }
 }
-/* ============ DRAW ROUTE ============ */
-function drawRoute(route) {
+/* ============ DRAW MULTI ROUTES WITH NUMBERS 1,2,3 ============ */
+function drawRoutes(routes) {
   if (!map) return;
-  ['route-outline', 'route-line'].forEach(l => { if (map.getLayer(l)) map.removeLayer(l); });
-  if (map.getSource('route')) map.removeSource('route');
-  map.addSource('route', {
-    type: 'geojson',
-    data: { type: 'Feature', geometry: { type: 'LineString', coordinates: route.coords } }
+  // Xóa tuyến cũ
+  for(let i=0;i<10;i++){
+    ['route-outline-'+i, 'route-line-'+i, 'route-line-bg-'+i].forEach(l => { if (map.getLayer(l)) map.removeLayer(l); });
+    if (map.getSource('route-'+i)) map.removeSource('route-'+i);
+  }
+  // Xóa markers số cũ
+  if(state.routeNumberMarkers) state.routeNumberMarkers.forEach(m=>m.remove());
+  state.routeNumberMarkers = [];
+  
+  const allCoords = [];
+  
+  routes.forEach((route, idx) => {
+    const isSelected = idx === state.selectedRouteIndex;
+    const sourceId = 'route-'+idx;
+    
+    map.addSource(sourceId, {
+      type: 'geojson',
+      data: { type: 'Feature', geometry: { type: 'LineString', coordinates: route.coords } }
+    });
+    
+    // Outline trắng
+    map.addLayer({ 
+      id: 'route-outline-'+idx, 
+      type: 'line', 
+      source: sourceId,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 
+        'line-color': '#fff', 
+        'line-width': isSelected ? 10 : 8, 
+        'line-opacity': isSelected ? 1 : 0.6 
+      } 
+    });
+    
+    // Line chính - tuyến được chọn màu xanh lá đậm, tuyến khác màu xám xanh nhạt
+    const colors = ['#00C853', '#0d6efd', '#f59e0b']; // 1:xanh, 2:xanh dương, 3:cam
+    map.addLayer({ 
+      id: 'route-line-'+idx, 
+      type: 'line', 
+      source: sourceId,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 
+        'line-color': colors[idx % colors.length], 
+        'line-width': isSelected ? 6 : 4, 
+        'line-opacity': isSelected ? 1 : 0.5
+      } 
+    });
+    
+    // Click để chọn tuyến
+    map.on('click', 'route-line-'+idx, ()=>{ selectRoute(idx); });
+    map.on('mouseenter', 'route-line-'+idx, ()=>{ map.getCanvas().style.cursor='pointer'; });
+    map.on('mouseleave', 'route-line-'+idx, ()=>{ map.getCanvas().style.cursor=''; });
+    
+    // Marker số 1,2,3 ở giữa tuyến
+    if(route.coords.length>0){
+      const midIdx = Math.floor(route.coords.length/2);
+      const midCoord = route.coords[midIdx];
+      const el = document.createElement('div');
+      el.style.cssText = `width:28px;height:28px;background:${isSelected?'#0d6efd':'#6b7280'};border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer`;
+      el.textContent = (idx+1).toString();
+      el.addEventListener('click', ()=>selectRoute(idx));
+      const marker = new maplibregl.Marker({element:el}).setLngLat(midCoord).addTo(map);
+      state.routeNumberMarkers.push(marker);
+      allCoords.push(...route.coords);
+    }
   });
-  map.addLayer({ id: 'route-outline', type: 'line', source: 'route',
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#fff', 'line-width': 9, 'line-opacity': 0.9 } });
-  map.addLayer({ id: 'route-line', type: 'line', source: 'route',
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#00C853', 'line-width': 5, 'line-opacity': 0.95 } });
-  const lngs = route.coords.map(c => c[0]), lats = route.coords.map(c => c[1]);
-  map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 80, pitch: 30 });
+  
+  if(allCoords.length>0){
+    const lngs = allCoords.map(c => c[0]), lats = allCoords.map(c => c[1]);
+    map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: {top:80, bottom:200, left:60, right:60}, pitch: 20 });
+  }
 }
-/* ============ RENDER STEPS ============ */
+function selectRoute(idx){
+  if(!state.alternativeRoutes || !state.alternativeRoutes[idx]) return;
+  state.selectedRouteIndex = idx;
+  drawRoutes(state.alternativeRoutes);
+  renderRouteSelector(state.alternativeRoutes);
+  renderSteps(state.alternativeRoutes[idx]);
+  showToast(`Đã chọn tuyến ${idx+1} - ${fmtDist(state.alternativeRoutes[idx].distance)}`);
+}
+// Giữ lại hàm cũ cho tương thích
+function drawRoute(route){ drawRoutes([route]); }
+/* ============ RENDER ROUTE SELECTOR 1,2,3 ============ */
+function renderRouteSelector(routes){
+  const selector = $('routeSelector');
+  if(!selector) return;
+  if(routes.length<=1){
+    selector.innerHTML = '';
+    selector.style.display='none';
+    return;
+  }
+  selector.style.display='flex';
+  const colors = ['#00C853', '#0d6efd', '#f59e0b'];
+  selector.innerHTML = routes.map((r, idx) => {
+    const isSelected = idx===state.selectedRouteIndex;
+    return `<div class="route-option ${isSelected?'selected':''}" data-idx="${idx}" style="flex:1;padding:10px 8px;background:${isSelected?'#eff6ff':'#f9fafb'};border:2px solid ${isSelected?colors[idx]:'#e5e7eb'};border-radius:14px;cursor:pointer;min-width:80px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <div style="width:22px;height:22px;background:${colors[idx]};color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px">${idx+1}</div>
+        <div style="font-weight:800;font-size:13px">${fmtDist(r.distance)}</div>
+      </div>
+      <div style="font-size:11px;color:#6b7280">${fmtTime(r.duration)} • ${r.steps.length} bước</div>
+      ${isSelected?'<div style="margin-top:4px;font-size:10px;color:#0d6efd;font-weight:700">✓ Đang chọn</div>':''}
+    </div>`;
+  }).join('');
+  
+  selector.querySelectorAll('.route-option').forEach(el=>{
+    el.addEventListener('click', ()=> selectRoute(+el.dataset.idx));
+  });
+}
+/* ============ RENDER STEPS WITH TURN ICONS ============ */
 function renderSteps(route) {
   $('routeTitle').textContent = fmtDist(route.distance);
-  $('routeSubtitle').innerHTML = `${fmtTime(route.duration)} • ${route.steps.length} bước <span class="engine-badge">${route.engine}</span>`;
+  $('routeSubtitle').innerHTML = `${fmtTime(route.duration)} • ${route.steps.length} bước <span class="engine-badge">${route.engine}</span> • Tuyến ${state.selectedRouteIndex+1}`;
   $('stepsList').innerHTML = route.steps.map((s, i) => `
     <div class="step-item" data-idx="${i}">
-      <div class="step-icon">${stepIcon(s.text)}</div>
+      <div class="step-icon">${stepIcon(s.text, s.modifier)}</div>
       <div class="step-body">
         <div class="step-text">${s.text}</div>
-        <div class="step-meta">${fmtDist(s.distance || 0)}</div>
+        <div class="step-meta">${fmtDist(s.distance || 0)} ${s.modifier? '• '+s.modifier:''}</div>
       </div>
     </div>`).join('');
   $('routePanel').classList.add('show');
@@ -1377,13 +1564,14 @@ function renderSteps(route) {
     });
   });
 }
-function stepIcon(text) {
-  const t = text.toLowerCase();
-  if (t.includes('đến') || t.includes('đích')) return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
-  if (t.includes('trái')) return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l-6 6 6 6M3 12h18"/></svg>';
-  if (t.includes('phải')) return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 6l6 6-6 6M21 12H3"/></svg>';
-  if (t.includes('vòng xuyến')) return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="6"/><path d="M12 6V3"/></svg>';
-  return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 4v16M6 10l6-6 6 6"/></svg>';
+function stepIcon(text, modifier='') {
+  const t = (text + ' ' + modifier).toLowerCase();
+  if (t.includes('đến') || t.includes('đích') || t.includes('arrive')) return '<div style="width:32px;height:32px;background:#10b981;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff">🏁</div>';
+  if (t.includes('trái') || t.includes('left') || modifier==='left') return '<div style="width:32px;height:32px;background:#eff6ff;border-radius:10px;display:flex;align-items:center;justify-content:center">↩️</div>';
+  if (t.includes('phải') || t.includes('right') || modifier==='right') return '<div style="width:32px;height:32px;background:#eff6ff;border-radius:10px;display:flex;align-items:center;justify-content:center">↪️</div>';
+  if (t.includes('vòng xuyến') || t.includes('roundabout')) return '<div style="width:32px;height:32px;background:#fffbeb;border-radius:10px;display:flex;align-items:center;justify-content:center">🔄</div>';
+  if (t.includes('rẽ') || modifier) return '<div style="width:32px;height:32px;background:#f3f4f6;border-radius:10px;display:flex;align-items:center;justify-content:center">➡️</div>';
+  return '<div style="width:32px;height:32px;background:#f3f4f6;border-radius:10px;display:flex;align-items:center;justify-content:center">⬆️</div>';
 }
 /* ============ VOICE ============ */
 function speakInstruction(text) {
