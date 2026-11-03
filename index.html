@@ -33,6 +33,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.21/leaflet-maplibre-gl.js"></script>
 <style>
@@ -259,6 +260,13 @@ body.navigating .fab-rest-stop-filter { display: none; }
 .live-other-pin i { color: white; font-size: 0.8rem; }
 .avoid-zone-pin { width: 36px; height: 36px; background: linear-gradient(135deg, #ef4444, #b91c1c); border-radius: 50%; border: 2px solid white; box-shadow: 0 3px 8px rgba(239,68,68,0.5); display: flex; align-items: center; justify-content: center; }
 .avoid-zone-pin i { color: white; font-size: 0.9rem; }
+
+.fab-compass { position: fixed; bottom: calc(200px + var(--safe-bottom)); right: 16px; width: 44px; height: 44px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; z-index: 450; box-shadow: 0 4px 12px rgba(0,0,0,0.3); cursor: pointer; transition: transform 0.2s; }
+.fab-compass i { transition: transform 0.2s; }
+.fab-compass.north i { color: var(--danger); }
+.maplibregl-ctrl-compass { display: none !important; } /* hide default */
+.leaflet-map-pane { transition: none !important; }
+
 </style>
 </head>
 <body>
@@ -297,6 +305,9 @@ body.navigating .fab-rest-stop-filter { display: none; }
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
   <button class="fab-layers" id="btnLayerMenu" onclick="event.stopPropagation(); toggleLayerMenu()" title="Lớp bản đồ">
     <i class="fas fa-layer-group"></i>
+  </button>
+  <button class="fab-compass" id="btnCompass" onclick="resetMapBearing()" title="Bắc / Reset xoay 360°">
+    <i class="fas fa-compass"></i>
   </button>
   <button class="fab-layers" id="btnQuickPin" onclick="event.stopPropagation(); openQuickPin()" style="bottom: calc(140px + var(--safe-bottom)); right: 16px; left: auto; background: var(--success); color: white; border: none; box-shadow: 0 4px 15px rgba(16,185,129,0.4);" title="Ghim nhanh vị trí">
     <i class="fas fa-map-marker-alt"></i>
@@ -1050,6 +1061,7 @@ function updateUIState() {
   const fabQuickPin = document.getElementById('btnQuickPin');
   const fabReport = document.getElementById('btnReport');
   const fabRestStop = document.getElementById('btnRestStopFilter');
+  const fabCompass = document.getElementById('btnCompass');
 
   if (isDirOpen || isSearchBoxShow) {
     fabLocate.style.display = 'none';
@@ -1058,6 +1070,7 @@ function updateUIState() {
     fabQuickPin.style.display = 'none';
     fabReport.style.display = 'none';
     fabRestStop.style.display = 'none';
+    if(fabCompass) fabCompass.style.display = 'none';
   } else if (isNav) {
     fabLocate.style.display = 'none';
     fabDir.style.display = 'none';
@@ -1065,6 +1078,7 @@ function updateUIState() {
     fabQuickPin.style.display = 'none';
     fabReport.style.display = 'flex';
     fabRestStop.style.display = 'none';
+    if(fabCompass) fabCompass.style.display = 'flex';
   } else {
     fabLocate.style.display = 'flex';
     fabDir.style.display = 'flex';
@@ -1072,12 +1086,15 @@ function updateUIState() {
     fabQuickPin.style.display = 'flex';
     fabReport.style.display = 'flex';
     fabRestStop.style.display = 'flex';
+    if(fabCompass) fabCompass.style.display = 'flex';
   }
 }
 
 function initMap() {
   if (map) return;
-  map = L.map('map', { center: initialCenter, zoom: initialZoom, zoomControl: false });
+  map = L.map('map', { center: initialCenter, zoom: initialZoom, zoomControl: false, rotate: true, bearing: 0, touchRotate: true, rotateControl: false, attributionControl: true });
+  // Enable 360 rotation tracking
+  map.on('rotate', function(e){ const b = map.getBearing ? map.getBearing() : 0; const comp = document.getElementById('btnCompass'); if(comp){ const icon = comp.querySelector('i'); if(icon) icon.style.transform = `rotate(${-b}deg)`; if(Math.abs(b) < 3) comp.classList.add('north'); else comp.classList.remove('north'); } });
   setTimeout(() => { changeLayer('maptiler', document.querySelector('.layer-option.active')); }, 100);
 
   let pressTimer = null;
@@ -2170,29 +2187,71 @@ function changeLayer(type, btn) {
   document.querySelectorAll('.layer-option').forEach(el => el.classList.remove('active'));
   if (btn) btn.classList.add('active');
   document.getElementById('layerMenu').classList.remove('show');
+  const enableMapLibreRotate = (layer) => {
+    try {
+      const mlMap = layer.getMaplibreMap && layer.getMaplibreMap();
+      if (mlMap) {
+        // Bật xoay 360 độ cho MapLibre
+        if (mlMap.dragRotate) mlMap.dragRotate.enable();
+        if (mlMap.touchZoomRotate) {
+          mlMap.touchZoomRotate.enable();
+          mlMap.touchZoomRotate.enableRotation();
+        }
+        // Đồng bộ bearing MapLibre -> Leaflet rotate
+        mlMap.on('rotate', () => {
+          const b = mlMap.getBearing();
+          if (map.setBearing) map.setBearing(b);
+        });
+        mlMap.on('move', () => {
+          const b = mlMap.getBearing();
+          if (Math.abs(b - (map.getBearing ? map.getBearing() : 0)) > 0.5) {
+            if (map.setBearing) map.setBearing(b);
+          }
+        });
+      }
+    } catch(e){ console.warn('rotate sync error', e); }
+  };
+
   if (type === 'trackasia-maplibre' || type === 'trackasia') {
-    // 1. TrackAsia + MapLibre
+    // 1. TrackAsia + MapLibre - xoay 360
     try {
       const trackAsiaStyle = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
       currentMapLayer = L.maplibreGL({ style: trackAsiaStyle, attribution: '© TrackAsia © OSM' }).addTo(map);
+      currentMapLayer.on('add', () => setTimeout(() => enableMapLibreRotate(currentMapLayer), 300));
     } catch (error) {
       console.warn('TrackAsia MapLibre failed', error);
       currentMapLayer = L.tileLayer(`https://maps.track-asia.com/styles/v2/streets/{z}/{x}/{y}.png?key=${TRACKASIA_KEY}`, { maxZoom: 19, tileSize: 256, attribution: '© TrackAsia' }).addTo(map);
     }
   } else if (type === 'maptiler') {
-    // 2. MapLibre + MapTiler Streets V4 - link: https://api.maptiler.com/maps/streets-v4/?key=aEzMCP0ANRz52vd1RvrW
+    // 2. MapLibre + MapTiler Streets V4 - xoay 360 - link: https://api.maptiler.com/maps/streets-v4/?key=aEzMCP0ANRz52vd1RvrW
     try {
       currentMapLayer = L.maplibreGL({ style: MAPTILER_STYLE, attribution: '© <a href="https://www.maptiler.com/copyright/" target="_blank">MapTiler</a> © OSM' }).addTo(map);
+      currentMapLayer.on('add', () => setTimeout(() => enableMapLibreRotate(currentMapLayer), 300));
     } catch (error) {
       console.warn('MapTiler failed, fallback raster', error);
       currentMapLayer = L.tileLayer(`https://api.maptiler.com/maps/streets-v4/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`, { maxZoom: 20, tileSize: 512, zoomOffset: -1, attribution: '© MapTiler' }).addTo(map);
     }
   } else if (type === 'satellite') {
-    // 3. Vệ tinh
+    // 3. Vệ tinh - raster không xoay vector, nhưng vẫn cho Leaflet xoay 360
     currentMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '© Esri' }).addTo(map);
-    // Nếu muốn dùng hybrid MapTiler: L.maplibreGL({ style: `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}` })
+    // Nếu muốn vệ tinh xoay vector MapTiler:
+    // currentMapLayer = L.maplibreGL({ style: `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}` }).addTo(map);
+    // currentMapLayer.on('add', () => setTimeout(() => enableMapLibreRotate(currentMapLayer), 300));
   }
 }
+function resetMapBearing() {
+  try {
+    if (map.setBearing) map.setBearing(0);
+    if (currentMapLayer && currentMapLayer.getMaplibreMap) {
+      const ml = currentMapLayer.getMaplibreMap();
+      if (ml) { ml.setBearing(0); ml.setPitch(0); }
+    }
+    // Hiệu ứng
+    const btn = document.getElementById('btnCompass');
+    if (btn) { btn.style.transform = 'scale(0.9)'; setTimeout(()=> btn.style.transform='scale(1)',150); }
+  } catch(e){ console.warn(e); }
+}
+
 
 window.goToLongPressLocation = function(lat, lng, name) {
   endPoint = { lat, lng, name };
