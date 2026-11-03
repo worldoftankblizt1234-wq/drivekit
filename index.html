@@ -196,7 +196,158 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .poi-type-btn.selected{background:#eff6ff;border-color:var(--primary);color:var(--primary)}
 .poi-type-btn .emoji{font-size:24px}
 
-/* ===== NAVIGATION MODE - Chỉ hiện POI + chỉ đường ===== */
+
+/* ===== FIX UI CHỒNG CHÉO NHƯ ẢNH ===== */
+.route-inputs {
+  z-index: 1060 !important;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+}
+.route-inputs.show ~ #bottomBar,
+.route-inputs.show + #bottomBar { display: none !important; }
+.bottom-bar {
+  z-index: 1200 !important;
+}
+.fab-stack { z-index: 1190 !important; }
+
+/* Bottom sheet chọn tuyến - gọn hơn */
+.route-panel {
+  max-height: 78vh !important;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+#routeSelector {
+  max-height: 45vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.route-option-card {
+  transition: all .2s;
+}
+.route-option-card.selected {
+  transform: scale(1.02);
+  box-shadow: 0 4px 20px rgba(13,110,253,.15);
+}
+
+/* ===== NAV MODE - FIRST PERSON VIEW - CLEAN ===== */
+body.nav-mode {
+  overflow: hidden;
+}
+body.nav-mode .top-bar,
+body.nav-mode .route-inputs,
+body.nav-mode .zoom-controls,
+body.nav-mode .layer-controls,
+body.nav-mode .bottom-bar,
+body.nav-mode .suggestions,
+body.nav-mode .click-hint,
+body.nav-mode .feature-sheet,
+body.nav-mode .map-action-popup,
+body.nav-mode .poi-picker,
+body.nav-mode .backdrop,
+body.nav-mode .route-panel,
+body.nav-mode .layer-picker-modal {
+  display: none !important;
+}
+body.nav-mode .fab-stack {
+  display: flex !important;
+  bottom: 140px !important;
+}
+
+/* Nav panel mới - tối giản, giống Google Maps */
+.nav-mode-panel {
+  position: fixed;
+  left: 0; right: 0; top: 0;
+  z-index: 1300;
+  display: none;
+  flex-direction: column;
+  pointer-events: none;
+}
+body.nav-mode .nav-mode-panel { display: flex !important; }
+
+/* Header chỉ đường ở trên */
+.nav-top-card {
+  margin: 12px 12px 0;
+  background: #0d6efd;
+  color: #fff;
+  border-radius: 20px;
+  padding: 14px 16px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  box-shadow: 0 8px 30px rgba(13,110,253,.4);
+  pointer-events: auto;
+}
+.nav-top-icon {
+  width: 56px; height: 56px;
+  background: #fff;
+  border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; flex-shrink: 0;
+  color: #0d6efd;
+}
+.nav-top-text { flex:1; min-width:0 }
+.nav-top-next {
+  font-size: 18px; font-weight: 800; line-height: 1.2;
+}
+.nav-top-dist {
+  font-size: 13px; opacity: .9; margin-top: 4px;
+  display: flex; gap: 8px; align-items: center;
+}
+.nav-top-exit {
+  width: 40px; height: 40px;
+  background: rgba(0,0,0,.15);
+  border: 0; border-radius: 12px;
+  color: #fff; font-size: 18px;
+  cursor: pointer; flex-shrink:0;
+}
+
+/* Bottom nav controls - chỉ hiện POI */
+.nav-bottom-controls {
+  position: fixed;
+  left: 12px; right: 12px; bottom: 12px;
+  z-index: 1301;
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+  max-width: 500px;
+  margin: 0 auto;
+}
+.nav-bottom-btn {
+  flex: 1;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 16px;
+  padding: 12px 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.15);
+  cursor: pointer;
+  font-size: 11px; font-weight: 700;
+  color: #1f2937;
+}
+.nav-bottom-btn .icon { font-size: 20px; }
+.nav-bottom-btn.report { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
+.nav-bottom-btn.poi { background: #fff7ed; color: #ea580c; border-color: #fed7aa; }
+.nav-bottom-btn.active { background: #0d6efd; color: #fff; }
+
+/* Mũi tên vị trí - first person */
+.current-arrow {
+  width: 0; height: 0;
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-bottom: 28px solid #0d6efd;
+  position: relative;
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,.4));
+  transition: transform .3s linear;
+}
+.current-arrow::after {
+  content: '';
+  position: absolute;
+  left: -6px; top: 22px;
+  width: 12px; height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  border: 2px solid #0d6efd;
+}
+
+/* ===== OLD NAV MODE - REPLACED ===== */
 body.nav-mode .top-bar,
 body.nav-mode .route-inputs,
 body.nav-mode .zoom-controls,
@@ -296,7 +447,158 @@ body.nav-mode .nav-mode-panel { display: flex !important; }
   <div style="margin-top:24px;width:40px;height:40px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite"></div>
 </div>
 <style>@keyframes pop{0%{transform:scale(0.5)}100%{transform:scale(1)}} @keyframes spin{to{transform:rotate(360deg)}}
-/* ===== NAVIGATION MODE - Chỉ hiện POI + chỉ đường ===== */
+
+/* ===== FIX UI CHỒNG CHÉO NHƯ ẢNH ===== */
+.route-inputs {
+  z-index: 1060 !important;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+}
+.route-inputs.show ~ #bottomBar,
+.route-inputs.show + #bottomBar { display: none !important; }
+.bottom-bar {
+  z-index: 1200 !important;
+}
+.fab-stack { z-index: 1190 !important; }
+
+/* Bottom sheet chọn tuyến - gọn hơn */
+.route-panel {
+  max-height: 78vh !important;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+#routeSelector {
+  max-height: 45vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.route-option-card {
+  transition: all .2s;
+}
+.route-option-card.selected {
+  transform: scale(1.02);
+  box-shadow: 0 4px 20px rgba(13,110,253,.15);
+}
+
+/* ===== NAV MODE - FIRST PERSON VIEW - CLEAN ===== */
+body.nav-mode {
+  overflow: hidden;
+}
+body.nav-mode .top-bar,
+body.nav-mode .route-inputs,
+body.nav-mode .zoom-controls,
+body.nav-mode .layer-controls,
+body.nav-mode .bottom-bar,
+body.nav-mode .suggestions,
+body.nav-mode .click-hint,
+body.nav-mode .feature-sheet,
+body.nav-mode .map-action-popup,
+body.nav-mode .poi-picker,
+body.nav-mode .backdrop,
+body.nav-mode .route-panel,
+body.nav-mode .layer-picker-modal {
+  display: none !important;
+}
+body.nav-mode .fab-stack {
+  display: flex !important;
+  bottom: 140px !important;
+}
+
+/* Nav panel mới - tối giản, giống Google Maps */
+.nav-mode-panel {
+  position: fixed;
+  left: 0; right: 0; top: 0;
+  z-index: 1300;
+  display: none;
+  flex-direction: column;
+  pointer-events: none;
+}
+body.nav-mode .nav-mode-panel { display: flex !important; }
+
+/* Header chỉ đường ở trên */
+.nav-top-card {
+  margin: 12px 12px 0;
+  background: #0d6efd;
+  color: #fff;
+  border-radius: 20px;
+  padding: 14px 16px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  box-shadow: 0 8px 30px rgba(13,110,253,.4);
+  pointer-events: auto;
+}
+.nav-top-icon {
+  width: 56px; height: 56px;
+  background: #fff;
+  border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; flex-shrink: 0;
+  color: #0d6efd;
+}
+.nav-top-text { flex:1; min-width:0 }
+.nav-top-next {
+  font-size: 18px; font-weight: 800; line-height: 1.2;
+}
+.nav-top-dist {
+  font-size: 13px; opacity: .9; margin-top: 4px;
+  display: flex; gap: 8px; align-items: center;
+}
+.nav-top-exit {
+  width: 40px; height: 40px;
+  background: rgba(0,0,0,.15);
+  border: 0; border-radius: 12px;
+  color: #fff; font-size: 18px;
+  cursor: pointer; flex-shrink:0;
+}
+
+/* Bottom nav controls - chỉ hiện POI */
+.nav-bottom-controls {
+  position: fixed;
+  left: 12px; right: 12px; bottom: 12px;
+  z-index: 1301;
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+  max-width: 500px;
+  margin: 0 auto;
+}
+.nav-bottom-btn {
+  flex: 1;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 16px;
+  padding: 12px 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.15);
+  cursor: pointer;
+  font-size: 11px; font-weight: 700;
+  color: #1f2937;
+}
+.nav-bottom-btn .icon { font-size: 20px; }
+.nav-bottom-btn.report { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
+.nav-bottom-btn.poi { background: #fff7ed; color: #ea580c; border-color: #fed7aa; }
+.nav-bottom-btn.active { background: #0d6efd; color: #fff; }
+
+/* Mũi tên vị trí - first person */
+.current-arrow {
+  width: 0; height: 0;
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-bottom: 28px solid #0d6efd;
+  position: relative;
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,.4));
+  transition: transform .3s linear;
+}
+.current-arrow::after {
+  content: '';
+  position: absolute;
+  left: -6px; top: 22px;
+  width: 12px; height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  border: 2px solid #0d6efd;
+}
+
+/* ===== OLD NAV MODE - REPLACED ===== */
 body.nav-mode .top-bar,
 body.nav-mode .route-inputs,
 body.nav-mode .zoom-controls,
@@ -530,21 +832,23 @@ body.nav-mode .nav-mode-panel { display: flex !important; }
     <button class="nav-start-btn" id="startNavBtn" style="display:none">▶️ BẮT ĐẦU DẪN ĐƯỜNG</button><div style="padding:8px 4px 0;font-size:11px;color:#6b7280;text-align:center">💡 Chọn <b>✓ Chọn tuyến này</b> ở tuyến bạn muốn để vào chế độ chỉ đường tối giản (chỉ hiện POI)</div>
   </div>
   <div class="nav-mode-panel" id="navModePanel">
-    <div class="nav-mode-header">
-      <div class="nav-mode-title">🧭 Đang dẫn đường <span id="navModeRouteInfo" style="font-weight:400;font-size:12px;color:#6b7280;margin-left:6px"></span></div>
-      <button class="nav-mode-exit" id="exitNavBtn">✕ Thoát</button>
-    </div>
-    <div class="nav-mode-main" id="navModeMain">
-      <div class="nav-mode-icon" id="navModeIcon">⬆️</div>
-      <div class="nav-mode-text">
-        <div class="next" id="navModeNext">Bắt đầu di chuyển</div>
-        <div class="dist" id="navModeDist">0 m • 0 phút</div>
+    <div class="nav-top-card">
+      <div class="nav-top-icon" id="navModeIcon">⬆️</div>
+      <div class="nav-top-text">
+        <div class="nav-top-next" id="navModeNext">Sẵn sàng dẫn đường</div>
+        <div class="nav-top-dist">
+          <span id="navModeDist">0 m</span>
+          <span style="opacity:.6">•</span>
+          <span id="navModeRouteInfo">Tuyến 1</span>
+        </div>
       </div>
+      <button class="nav-top-exit" id="exitNavBtn">✕</button>
     </div>
-    <div class="nav-mode-footer">
-      <button class="btn-poi-community" id="navPoiCommunityBtn">👁️ POI cộng đồng</button>
-      <button class="btn-poi-warning" id="navReportPoiBtn">🚨 Báo cảnh báo</button>
-      <button class="btn-voice" id="navVoiceBtn">🔊 Voice</button>
+    <div class="nav-bottom-controls">
+      <button class="nav-bottom-btn poi" id="navPoiCommunityBtn"><span class="icon">👁️</span><span>POI</span></button>
+      <button class="nav-bottom-btn report" id="navReportPoiBtn"><span class="icon">🚨</span><span>Báo</span></button>
+      <button class="nav-bottom-btn" id="navVoiceBtn"><span class="icon">🔊</span><span>Voice</span></button>
+      <button class="nav-bottom-btn" id="navRecenterBtn"><span class="icon">🎯</span><span>Tâm</span></button>
     </div>
   </div>
 
@@ -1560,18 +1864,38 @@ function hideMapActionPopup(){
 function showRouteSheet(){
   $('routeInputs').classList.add('show');
   $('routeBackdrop').classList.add('show');
+  // Fix UI chồng như ảnh bạn gửi
+  if($('bottomBar')) $('bottomBar').style.display='none';
+  const fab = document.querySelector('.fab-stack');
+  if(fab) fab.style.display='none';
+  const zoom = document.querySelector('.zoom-controls');
+  if(zoom) zoom.style.display='none';
+  const layer = document.querySelector('.layer-controls');
+  if(layer) layer.style.display='none';
 }
 
 function hideRouteSheetAndClear(){
   const wasVisible = $('routeInputs').classList.contains('show');
   $('routeInputs').classList.remove('show');
   $('routeBackdrop').classList.remove('show');
+  // Hiện lại UI
+  if($('bottomBar')) $('bottomBar').style.display='flex';
+  const fab = document.querySelector('.fab-stack');
+  if(fab) fab.style.display='flex';
+  const zoom = document.querySelector('.zoom-controls');
+  if(zoom) zoom.style.display='flex';
+  const layer = document.querySelector('.layer-controls');
+  if(layer) layer.style.display='flex';
   // Yêu cầu: khi thoát bottom sheet chỉ đường thì đường xanh mất
   if(wasVisible){
-    // Xóa route line
     if(map){
+      for(let i=0;i<10;i++){
+        ['route-outline-'+i,'route-line-'+i].forEach(l=>{ if(map.getLayer(l)) map.removeLayer(l); });
+        if(map.getSource('route-'+i)) map.removeSource('route-'+i);
+      }
       ['route-line','route-outline'].forEach(l=>{ if(map.getLayer(l)) map.removeLayer(l); });
       if(map.getSource('route')) map.removeSource('route');
+      if(state.routeNumberMarkers) state.routeNumberMarkers.forEach(m=>m.remove());
     }
     $('routePanel').classList.remove('show');
     showToast('Đã đóng chỉ đường - xóa tuyến');
@@ -2732,9 +3056,33 @@ if(map){
 
 if ('speechSynthesis' in window) window.speechSynthesis.getVoices();
 
-// ============ NAVIGATION MODE - YÊU CẦU MỚI ============
+// ============ NAVIGATION MODE - FIRST PERSON VIEW ============
 let navWatchId = null;
 let navCurrentStepIndex = 0;
+let lastPos = null;
+let currentHeading = 0;
+let isFollowing = true;
+
+function createArrowElement(){
+  const el = document.createElement('div');
+  el.className = 'current-arrow';
+  el.style.transform = `rotate(${currentHeading}deg)`;
+  return el;
+}
+
+function updateCurrentMarkerFirstPerson(lat, lng, heading){
+  if(!map) return;
+  if(state.currentMarker){
+    state.currentMarker.setLngLat([lng, lat]);
+    const el = state.currentMarker.getElement();
+    if(el && el.classList.contains('current-arrow')){
+      el.style.transform = `rotate(${heading}deg)`;
+    }
+  } else {
+    const el = createArrowElement();
+    state.currentMarker = new maplibregl.Marker({ element: el, rotationAlignment:'map' }).setLngLat([lng, lat]).addTo(map);
+  }
+}
 
 function enterNavigationMode(){
   if(!state.alternativeRoutes || !state.alternativeRoutes[state.selectedRouteIndex]){
@@ -2742,43 +3090,78 @@ function enterNavigationMode(){
     return;
   }
   state.isNavigating = true;
+  isFollowing = true;
   document.body.classList.add('nav-mode');
   navCurrentStepIndex = 0;
+  lastPos = null;
   const route = state.alternativeRoutes[state.selectedRouteIndex];
-  $('navModeRouteInfo').textContent = `${fmtDist(route.distance)} • ${fmtTime(route.duration)}`;
+  $('navModeRouteInfo').textContent = `Tuyến ${state.selectedRouteIndex+1} • ${fmtDist(route.distance)}`;
   updateNavModeUI();
-  // Ẩn các panel khác
+  // Ẩn panel
   $('routeInputs').classList.remove('show');
   $('routeBackdrop').classList.remove('show');
   $('routePanel').classList.remove('show');
   $('suggestions').classList.remove('show');
-  // Bắt đầu theo dõi GPS liên tục
+  if($('bottomBar')) $('bottomBar').style.display='none';
+  // Chuyển map sang góc nhìn thứ nhất
+  if(map){
+    map.easeTo({ pitch: 60, zoom: 18, duration: 800 });
+  }
+  // Watch GPS
   if(navigator.geolocation){
     if(navWatchId) navigator.geolocation.clearWatch(navWatchId);
     navWatchId = navigator.geolocation.watchPosition(pos=>{
-      state.currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      updateCurrentMarker();
-      if(map) map.panTo([state.currentPos.lng, state.currentPos.lat]);
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const heading = pos.coords.heading;
+      let calcHeading = currentHeading;
+      if(heading !== null && !isNaN(heading)){
+        calcHeading = heading;
+      } else if(lastPos){
+        // tính heading từ vị trí trước
+        calcHeading = bearingBetween(lastPos.lat, lastPos.lng, lat, lng);
+      }
+      if(!isNaN(calcHeading)) currentHeading = calcHeading;
+      state.currentPos = { lat, lng };
+      lastPos = { lat, lng };
+      updateCurrentMarkerFirstPerson(lat, lng, currentHeading);
+      if(isFollowing && map){
+        map.easeTo({
+          center: [lng, lat],
+          bearing: currentHeading,
+          pitch: 60,
+          zoom: 18,
+          duration: 1000,
+          easing: t=>t
+        });
+      }
       checkNavProgress();
-    }, ()=>{}, { enableHighAccuracy:true, maximumAge:1000 });
+    }, (err)=>{
+      console.warn('nav GPS error', err);
+    }, { enableHighAccuracy:true, maximumAge:500, timeout:10000 });
   }
-  showToast('🧭 Đã vào chế độ chỉ đường - chỉ hiện POI + cảnh báo');
-  // Vẫn hiện POI
+  showToast('🧭 Đã vào góc nhìn thứ nhất - màn hình xoay theo bạn');
   renderPoiMarkers();
 }
 
 function exitNavigationMode(){
   state.isNavigating = false;
+  isFollowing = false;
   document.body.classList.remove('nav-mode');
-  if(navWatchId && navigator.geolocation){
+  if(navWatchId){
     navigator.geolocation.clearWatch(navWatchId);
     navWatchId = null;
   }
-  // Hiện lại routePanel nếu muốn
+  if(map){
+    map.easeTo({ pitch: 0, bearing: 0, zoom: 15, duration: 600 });
+  }
+  if($('bottomBar')) $('bottomBar').style.display='flex';
+  const fab = document.querySelector('.fab-stack');
+  if(fab) fab.style.display='flex';
   if(state.alternativeRoutes){
     $('routePanel').classList.add('show');
   }
-  showToast('Đã thoát chế độ dẫn đường');
+  showToast('Đã thoát dẫn đường');
 }
 
 function updateNavModeUI(){
@@ -2788,8 +3171,18 @@ function updateNavModeUI(){
   const step = route.steps[navCurrentStepIndex] || route.steps[0];
   if(!step) return;
   $('navModeNext').textContent = step.text;
-  $('navModeDist').textContent = `${fmtDist(step.distance||0)} • ${step.modifier||''} - Bước ${navCurrentStepIndex+1}/${route.steps.length}`;
-  $('navModeIcon').innerHTML = stepIcon(step.text, step.modifier);
+  $('navModeDist').textContent = `${fmtDist(step.distance||0)} • Bước ${navCurrentStepIndex+1}/${route.steps.length}`;
+  // icon rẽ
+  const iconEl = $('navModeIcon');
+  if(iconEl){
+    // dùng emoji đơn giản cho first person
+    const t = (step.text||'').toLowerCase();
+    if(t.includes('trái')) iconEl.textContent='↩️';
+    else if(t.includes('phải')) iconEl.textContent='↪️';
+    else if(t.includes('vòng xuyến')) iconEl.textContent='🔄';
+    else if(t.includes('đích')||t.includes('đến')) iconEl.textContent='🏁';
+    else iconEl.textContent='⬆️';
+  }
   if(state.voiceEnabled) speakInstruction(step.text);
 }
 
@@ -2799,17 +3192,15 @@ function checkNavProgress(){
   if(!route) return;
   const step = route.steps[navCurrentStepIndex];
   if(!step || !step.location) return;
-  // Tính khoảng cách đến điểm rẽ tiếp theo
   const d = distanceBetween(state.currentPos.lat, state.currentPos.lng, step.location[1], step.location[0]);
-  if(d < 30 && navCurrentStepIndex < route.steps.length-1){
+  if(d < 25 && navCurrentStepIndex < route.steps.length-1){
     navCurrentStepIndex++;
     updateNavModeUI();
-  }
-  // Cập nhật khoảng cách còn lại
-  if(route.coords && state.currentPos){
-    // đơn giản: hiện khoảng cách đến step
+  } else {
     $('navModeDist').textContent = `${Math.round(d)}m tới chỗ rẽ • Bước ${navCurrentStepIndex+1}/${route.steps.length}`;
   }
+  // Check POI cảnh báo gần
+  checkPoiProximity();
 }
 
 function distanceBetween(lat1, lon1, lat2, lon2){
@@ -2819,16 +3210,21 @@ function distanceBetween(lat1, lon1, lat2, lon2){
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
   return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
+function bearingBetween(lat1, lon1, lat2, lon2){
+  const y = Math.sin((lon2-lon1)*Math.PI/180) * Math.cos(lat2*Math.PI/180);
+  const x = Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180) - Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos((lon2-lon1)*Math.PI/180);
+  const brng = Math.atan2(y, x)*180/Math.PI;
+  return (brng+360)%360;
+}
 
-// Gắn sự kiện
+// Gắn sự kiện nav
 document.addEventListener('DOMContentLoaded', ()=>{
   setTimeout(()=>{
-    const startBtn = document.getElementById('startNavBtn');
     const exitBtn = document.getElementById('exitNavBtn');
     const navReport = document.getElementById('navReportPoiBtn');
     const navCommunity = document.getElementById('navPoiCommunityBtn');
     const navVoice = document.getElementById('navVoiceBtn');
-    if(startBtn) startBtn.addEventListener('click', enterNavigationMode);
+    const recenterBtn = document.getElementById('navRecenterBtn');
     if(exitBtn) exitBtn.addEventListener('click', exitNavigationMode);
     if(navReport) navReport.addEventListener('click', ()=>{ openPoiPicker(); });
     if(navCommunity) navCommunity.addEventListener('click', ()=>{
@@ -2836,18 +3232,32 @@ document.addEventListener('DOMContentLoaded', ()=>{
       const toggle = document.getElementById('communityToggle');
       if(toggle) toggle.classList.toggle('on', state.showPois);
       renderPoiMarkers();
-      showToast(state.showPois?'👁️ Hiện POI cộng đồng':'🙈 Ẩn POI cộng đồng');
+      showToast(state.showPois?'👁️ Hiện POI':'🙈 Ẩn POI');
+      navCommunity.classList.toggle('active', state.showPois);
     });
     if(navVoice) navVoice.addEventListener('click', ()=>{
       state.voiceEnabled = !state.voiceEnabled;
-      showToast(state.voiceEnabled?'🔊 Bật giọng nói':'🔇 Tắt giọng nói');
+      showToast(state.voiceEnabled?'🔊 Bật voice':'🔇 Tắt voice');
+      navVoice.classList.toggle('active', state.voiceEnabled);
       if(state.voiceEnabled) updateNavModeUI();
     });
-    // Cho phép bấm ESC để thoát nav
+    if(recenterBtn) recenterBtn.addEventListener('click', ()=>{
+      isFollowing = true;
+      if(state.currentPos && map){
+        map.easeTo({ center:[state.currentPos.lng, state.currentPos.lat], bearing: currentHeading, pitch:60, zoom:18, duration:500 });
+      }
+      showToast('🎯 Đã khóa tâm theo bạn');
+    });
+    // Kéo bản đồ thì tạm dừng follow
+    setTimeout(()=>{
+      if(map){
+        map.on('dragstart', ()=>{ if(state.isNavigating) isFollowing=false; });
+      }
+    }, 2000);
     document.addEventListener('keydown', (e)=>{
       if(e.key==='Escape' && state.isNavigating) exitNavigationMode();
     });
-  }, 1000);
+  }, 1200);
 });
 
 </script>
