@@ -209,7 +209,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 </div>
 <style>@keyframes pop{0%{transform:scale(0.5)}100%{transform:scale(1)}} @keyframes spin{to{transform:rotate(360deg)}}</style>
 
-<div class="login-screen" id="loginScreen" style="display:none">
+<div class="login-screen" id="loginScreen" style="display:flex">
   <div class="login-card">
     <div class="logo">🚗</div>
     <h1>VietDriver Pro</h1>
@@ -524,7 +524,8 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import {
   getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, updateProfile
+  GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, updateProfile,
+  setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
   getDatabase, ref, push, set, onValue, update, remove, serverTimestamp
@@ -543,6 +544,8 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getDatabase(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
+// FIX: Ép persistence local để tự động đăng nhập
+setPersistence(auth, browserLocalPersistence).catch(e=>console.warn('setPersistence fail', e));
 
 /* ============ CONFIG ============ */
 const CONFIG = {
@@ -631,11 +634,11 @@ const state = {
 
 /* ============ UTILS + EARLY SPLASH FALLBACK ============ */
 const $ = id => document.getElementById(id);
-// Fallback an toàn: dù code sau có crash thì splash vẫn tự tắt sau 1.5s
+// Fallback an toàn: chỉ ẩn splash, không ép login
 setTimeout(()=>{ 
   try{
     const splash=document.getElementById('splashScreen'); 
-    if(splash) { splash.style.opacity='0'; setTimeout(()=>{ splash.style.display='none'; const login=document.getElementById('loginScreen'); if(login && login.style.display==='none') login.style.display='flex'; },400); }
+    if(splash && !splashHidden) { splash.style.opacity='0'; setTimeout(()=>{ splash.style.display='none'; },400); }
   }catch(e){ console.warn('splash fallback error', e); }
 }, 1500);
 
@@ -709,8 +712,20 @@ $('switchAuth').addEventListener('click', () => {
 
 $('loginForm').addEventListener('submit', async e => {
   e.preventDefault();
+  e.stopPropagation();
   const email = $('emailInput').value.trim(), password = $('passwordInput').value;
-  if (!email || !password) return;
+  if (!email || !password){
+    $('authError').textContent='Vui lòng nhập đủ email và mật khẩu';
+    $('authError').classList.add('show');
+    return;
+  }
+  // Kiểm tra file://
+  if(location.protocol==='file:'){
+    $('authError').textContent='Bạn đang mở file trực tiếp (file://). Firebase chặn đăng nhập. Hãy chạy bằng Live Server hoặc https://';
+    $('authError').classList.add('show');
+    setDebug('BLOCK: file:// protocol không được Firebase cho phép. Dùng http://localhost');
+    // vẫn thử tiếp để xem lỗi gì
+  }
   $('submitBtn').disabled = true; $('submitBtn').textContent='Đang đăng nhập...'; $('authError').classList.remove('show');
   setDebug('Đang thử đăng nhập '+email+'... Protocol: '+location.protocol);
   console.log('Login attempt', email, 'protocol', location.protocol);
@@ -737,7 +752,13 @@ $('loginForm').addEventListener('submit', async e => {
   } finally { $('submitBtn').disabled = false; $('submitBtn').textContent= authMode==='login'?'Đăng nhập':'Đăng ký'; }
 });
 
-$('googleBtn').addEventListener('click', async () => {
+$('googleBtn').addEventListener('click', async (e) => {
+  e.preventDefault();
+  if(location.protocol==='file:'){
+    $('authError').textContent='Google login không chạy trên file://. Hãy dùng Live Server / https';
+    $('authError').classList.add('show');
+    return;
+  }
   $('authError').classList.remove('show');
   setDebug('Đang thử Google login... Protocol: '+location.protocol);
   try { 
@@ -796,15 +817,25 @@ function translateAuthError(code) {
   return m[code] || 'Lỗi: ' + code;
 }
 
-// Splash screen nhanh - hiện 800ms rồi ẩn
-setTimeout(()=>{ 
-  const splash=$('splashScreen'); 
-  if(splash){ splash.style.opacity='0'; setTimeout(()=>{ splash.style.display='none'; if(!$('app').classList.contains('show')) $('loginScreen').style.display='flex'; hideLoading(); },400); }
-}, 1200);
-// Force hide splash after 3s nếu kẹt
-setTimeout(()=>{ const s=$('splashScreen'); if(s) s.style.display='none'; $('loginScreen').style.display='flex'; hideLoading(); }, 3000);
+// ============ FIX SPLASH + AUTO LOGIN ============
+let authReady = false;
+let splashHidden = false;
+function hideSplashOnce(){
+  if(splashHidden) return;
+  splashHidden = true;
+  const splash=$('splashScreen');
+  if(splash){ splash.style.opacity='0'; setTimeout(()=>{ splash.style.display='none'; },400); }
+  hideLoading();
+}
+
+setTimeout(()=>{ hideSplashOnce(); }, 1200); // chỉ ẩn splash, không ép hiện login
+
+// Force hide sau 3s tránh kẹt
+setTimeout(()=>{ hideSplashOnce(); if(!authReady){ console.warn('Auth chưa ready sau 3s, vẫn hiện login'); $('loginScreen').style.display='flex'; } }, 3000);
 
 onAuthStateChanged(auth, user => {
+  authReady = true;
+  hideSplashOnce();
   console.log('Auth state changed', user ? user.uid : 'null');
   if(state.user?.isGuest){
     console.log('Guest mode, ignore auth state');
