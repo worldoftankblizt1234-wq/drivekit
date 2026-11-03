@@ -1,363 +1,253 @@
 <!DOCTYPE html>
 <html lang="vi">
-<head><style>
-@font-face {
-  font-family: "Optimistic";
-  font-style: normal;
-  font-weight: 400 600;
-  font-display: swap;
-  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Optimistic Mono";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
-}
-:where(html) {
-  font-family: "Optimistic", system-ui, sans-serif;
-}
-:where(code, pre, kbd, samp) {
-  font-family: "Optimistic Mono", ui-monospace, monospace;
-}
-</style>
+<head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>VietDriver Pro - Chỉ đường thông minh</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
 <link rel="stylesheet" href="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.css"/>
+<style>
+:root{
+  --z-map:0; --z-map-ctrl:10; --z-fab:20; --z-bottom:25;
+  --z-search:30; --z-suggest:35; --z-inputs:40; --z-sheet:45;
+  --z-backdrop:48; --z-modal:50; --z-toast:60; --z-splash:100;
+  --c-primary:#0d6efd; --c-primary-dark:#0a58ca; --c-accent:#10b981;
+  --c-danger:#ef4444; --c-warning:#f59e0b; --c-bg:#f8fafc;
+  --c-surface:#fff; --c-border:#e5e7eb; --c-text:#0f172a; --c-text-2:#64748b;
+  --sh-1:0 2px 8px rgba(0,0,0,.06); --sh-2:0 4px 16px rgba(0,0,0,.12); --sh-3:0 10px 40px rgba(0,0,0,.22);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:var(--c-bg);color:var(--c-text);overflow:hidden}
 
+#app{display:none}
+#app.show{display:block}
+#loginScreen{display:none;position:fixed;inset:0;z-index:var(--z-modal);background:linear-gradient(135deg,#0d6efd,#0a58ca);align-items:center;justify-content:center;padding:20px}
+body.pre-auth #app, body.pre-auth #loginScreen{visibility:hidden}
+
+.splash-screen{position:fixed;inset:0;z-index:var(--z-splash);background:linear-gradient(135deg,#0d6efd,#0a58ca);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;transition:opacity .4s}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pop{0%{transform:scale(.5)}100%{transform:scale(1)}}
+
+.login-card{background:#fff;border-radius:24px;padding:28px;width:100%;max-width:380px;box-shadow:var(--sh-3)}
+.login-card .logo{width:64px;height:64px;background:linear-gradient(135deg,#0d6efd,#10b981);border-radius:16px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:32px;color:#fff}
+.login-card h1{text-align:center;font-size:24px;margin-bottom:6px}
+.login-card .subtitle{text-align:center;color:var(--c-text-2);font-size:14px;margin-bottom:24px}
+.login-card .form-group{margin-bottom:14px}
+.login-card input{width:100%;padding:13px 16px;border:2px solid var(--c-border);border-radius:10px;font-size:15px;outline:0}
+.login-card input:focus{border-color:var(--c-primary)}
+.login-card .btn-primary{width:100%;padding:14px;background:var(--c-primary);color:#fff;border:0;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px}
+.login-card .btn-primary:disabled{opacity:.6;cursor:not-allowed}
+.login-card .btn-google{width:100%;padding:13px;background:#fff;color:var(--c-text);border:2px solid var(--c-border);border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:10px}
+.login-card .divider{display:flex;align-items:center;gap:10px;margin:18px 0;color:var(--c-text-2);font-size:12px}
+.login-card .divider::before,.login-card .divider::after{content:'';flex:1;height:1px;background:var(--c-border)}
+.login-card .switch-auth{text-align:center;margin-top:18px;font-size:13px;color:var(--c-text-2)}
+.login-card .switch-auth a{color:var(--c-primary);font-weight:600;cursor:pointer}
+.login-card .error{background:#fee2e2;color:#991b1b;padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:12px;display:none}
+.login-card .error.show{display:block}
+
+#map{position:absolute;inset:0;z-index:var(--z-map)}
+
+.top-bar{position:absolute;top:0;left:0;right:0;z-index:var(--z-search);padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top));display:flex;gap:8px;pointer-events:none}
+.search-box{pointer-events:auto;flex:1;display:flex;align-items:center;gap:8px;background:#fff;border-radius:16px;padding:6px 6px 6px 14px;box-shadow:var(--sh-2);border:1px solid rgba(0,0,0,.06)}
+.search-box svg{color:var(--c-text-2);flex-shrink:0}
+.search-box input{flex:1;border:0;outline:0;font-size:15px;background:transparent;min-width:0;padding:10px 4px}
+#searchBtn{background:var(--c-primary);color:#fff;border:0;border-radius:12px;padding:10px 18px;font-weight:700;cursor:pointer;white-space:nowrap}
+.icon-btn{pointer-events:auto;width:46px;height:46px;border-radius:14px;background:#fff;border:0;box-shadow:var(--sh-2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--c-text);flex-shrink:0}
+
+.user-chip{position:fixed;top:calc(64px + env(safe-area-inset-top));right:12px;z-index:var(--z-search);display:none;align-items:center;gap:6px;background:#fff;border-radius:20px;padding:4px 10px 4px 4px;box-shadow:var(--sh-2);cursor:pointer}
+.user-chip.show{display:flex}
+.user-chip img{width:28px;height:28px;border-radius:50%;object-fit:cover}
+.user-chip .name{font-size:12px;font-weight:600;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.suggestions{position:fixed;top:64px;left:12px;right:12px;z-index:var(--z-suggest);background:#fff;border-radius:16px;box-shadow:var(--sh-3);max-height:50vh;overflow:auto;display:none;max-width:500px;margin:0 auto}
+.suggestions.show{display:block}
+.suggestion-item{padding:12px 14px;display:flex;gap:10px;cursor:pointer;border-bottom:1px solid #f3f4f6}
+.suggestion-item:last-child{border-bottom:0}
+.suggestion-item:hover{background:#f9fafb}
+
+.route-inputs{position:fixed;bottom:0;left:0;right:0;z-index:var(--z-inputs);background:#fff;border-radius:24px 24px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,.15);transform:translateY(110%);transition:transform .35s cubic-bezier(.34,1.26,.64,1);max-width:500px;margin:0 auto;padding:16px 16px calc(24px + env(safe-area-inset-bottom));overflow:auto;max-height:85vh}
+.route-inputs.show{transform:translateY(0)}
+body.routing .bottom-bar{display:none!important}
+body.routing .fab-stack{display:none!important}
+body.routing .zoom-controls,body.routing .layer-controls{display:none!important}
+.input-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.point-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.point-dot.a{background:#10b981}
+.point-dot.b{background:#ef4444}
+.input-row input{flex:1;padding:12px 14px;border:2px solid var(--c-border);border-radius:12px;font-size:14px;outline:0;background:#f9fafb;min-width:0}
+.input-row input:focus{border-color:var(--c-primary);background:#fff}
+.mini-btn{background:#f3f4f6;border:0;border-radius:10px;padding:10px 12px;cursor:pointer;font-size:14px;flex-shrink:0}
+.mini-btn.gps{background:#eff6ff;color:var(--c-primary)}
+.vehicle-selector{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;-ms-overflow-style:none;scrollbar-width:none}
+.vehicle-selector::-webkit-scrollbar{display:none}
+.vehicle-btn{flex-shrink:0;padding:8px 12px;background:#f9fafb;border:2px solid var(--c-border);border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;color:var(--c-text-2)}
+.vehicle-btn.selected{background:#eff6ff;border-color:var(--c-primary);color:var(--c-primary)}
+.vehicle-btn .emoji{font-size:16px}
+.truck-options{display:none;margin-top:10px;padding:12px;background:#fefce8;border:1px solid #fde68a;border-radius:12px}
+.truck-options.show{display:block}
+.truck-options .title{font-size:12px;font-weight:700;color:#92400e;margin-bottom:8px}
+.truck-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.truck-grid label{font-size:11px;color:#92400e;display:block}
+.truck-grid input,.truck-grid select{width:100%;padding:8px 10px;border:1px solid #fde68a;border-radius:8px;font-size:13px;margin-top:4px;background:#fff}
+.find-route-btn{width:100%;padding:14px;background:var(--c-primary);color:#fff;border:0;border-radius:14px;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(13,110,253,.3);margin-top:12px}
+
+.click-hint{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(31,41,55,.92);color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;font-weight:600;z-index:var(--z-search);display:none;white-space:nowrap;backdrop-filter:blur(8px);box-shadow:var(--sh-2)}
+.click-hint.show{display:block}
+
+.voice-banner{position:fixed;bottom:160px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;padding:10px 16px;border-radius:20px;font-size:13px;display:none;z-index:var(--z-search);gap:8px;align-items:center;max-width:90vw}
+.voice-banner.show{display:flex}
+
+.reporting-hint{position:fixed;top:calc(72px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:#dc2626;color:#fff;padding:10px 16px;border-radius:20px;font-size:13px;font-weight:600;z-index:var(--z-toast);display:none;box-shadow:var(--sh-2);max-width:90vw;text-align:center}
+.reporting-hint.show{display:block}
+
+.zoom-controls{position:fixed;left:12px;bottom:200px;z-index:var(--z-map-ctrl);display:flex;flex-direction:column;gap:6px}
+.zoom-btn{width:40px;height:40px;border-radius:12px;background:#fff;border:0;box-shadow:var(--sh-1);cursor:pointer;font-size:18px;font-weight:700;color:var(--c-text);display:flex;align-items:center;justify-content:center}
+
+.layer-controls{position:fixed;left:12px;bottom:90px;z-index:var(--z-map-ctrl);display:flex;flex-direction:column;gap:8px}
+.layer-btn{width:44px;height:44px;border-radius:14px;background:#fff;border:0;box-shadow:var(--sh-2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--c-text)}
+.layer-btn.active{background:var(--c-primary);color:#fff}
+
+.fab-stack{position:fixed;right:12px;bottom:90px;z-index:var(--z-fab);display:flex;flex-direction:column;gap:10px}
+.fab{width:48px;height:48px;border-radius:16px;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:var(--sh-2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--c-text)}
+.fab:active{transform:scale(.92)}
+.fab.primary{width:56px;height:56px;background:var(--c-primary);color:#fff;box-shadow:0 6px 20px rgba(13,110,253,.4);border-radius:18px}
+.fab.report{background:#fee2e2;color:#dc2626}
+.fab.success{background:#f0fdf4;color:#16a34a}
+.fab.danger{background:#fef2f2;color:#dc2626}
+.fab.active{background:var(--c-primary);color:#fff}
+
+.route-panel{position:fixed;bottom:0;left:0;right:0;z-index:var(--z-sheet);background:#fff;border-radius:24px 24px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.2);transform:translateY(110%);transition:transform .35s cubic-bezier(.34,1.26,.64,1);max-height:78vh;display:flex;flex-direction:column;max-width:500px;margin:0 auto;overflow:hidden;padding-bottom:env(safe-area-inset-bottom)}
+.route-panel.show{transform:translateY(0)}
+.route-header{padding:10px 16px 8px;border-bottom:1px solid #f3f4f6;flex-shrink:0}
+.drag-handle{width:40px;height:5px;background:#e5e7eb;border-radius:3px;margin:0 auto 8px}
+.summary-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.summary-main{flex:1;min-width:0}
+.summary-title{font-size:16px;font-weight:800;color:var(--c-primary)}
+.summary-sub{font-size:11px;color:var(--c-text-2);margin-top:2px}
+.engine-badge{font-size:10px;background:#eff6ff;color:var(--c-primary);padding:2px 6px;border-radius:6px;font-weight:700;margin-left:6px}
+.close-btn{border:0;background:#f3f4f6;width:36px;height:36px;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--c-text);flex-shrink:0}
+#routeSelector{display:flex;flex-direction:row;gap:8px;padding:10px 12px;overflow-x:auto;overflow-y:hidden;flex-shrink:0;scrollbar-width:none;max-height:45vh}
+#routeSelector::-webkit-scrollbar{display:none}
+.route-option-card{min-width:130px;max-width:160px;flex-shrink:0;padding:10px;background:#fff;border:2px solid var(--c-border);border-radius:14px;cursor:pointer;transition:all .2s}
+.route-option-card.selected{transform:scale(1.02);box-shadow:0 4px 20px rgba(13,110,253,.15);background:#eff6ff!important;border-color:var(--c-primary)!important}
+.steps-list{flex:1;overflow-y:auto;padding:0 0 10px;-webkit-overflow-scrolling:touch}
+.step-item{display:flex;gap:12px;padding:8px 16px;cursor:pointer}
+.step-item:hover{background:#f9fafb}
+.step-icon{width:32px;height:32px;border-radius:10px;background:#eff6ff;color:var(--c-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px}
+.step-body{flex:1;min-width:0}
+.step-text{font-size:13px;line-height:1.4}
+.step-meta{font-size:11px;color:var(--c-text-2);margin-top:2px}
+.route-hint{padding:8px 16px;font-size:11px;color:#6b7280;background:#f9fafb;border-top:1px solid #f3f4f6;text-align:center;flex-shrink:0}
+.nav-start-btn{width:calc(100% - 32px);margin:10px 16px calc(10px + env(safe-area-inset-bottom));padding:14px;background:var(--c-primary);color:#fff;border:0;border-radius:14px;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 4px 12px rgba(13,110,253,.3)}
+
+.bottom-bar{position:fixed;left:12px;right:12px;bottom:12px;z-index:var(--z-bottom);background:rgba(255,255,255,.98);backdrop-filter:blur(16px);border-radius:20px;box-shadow:var(--sh-3);padding:8px 12px;display:flex;justify-content:space-around;align-items:center;border:1px solid rgba(0,0,0,.06);max-width:400px;margin:0 auto;padding-bottom:calc(8px + env(safe-area-inset-bottom))}
+.bottom-bar-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:14px;cursor:pointer;background:transparent;border:0;font-size:10px;font-weight:600;color:var(--c-text-2)}
+.bottom-bar-btn .icon{font-size:20px}
+.bottom-bar-btn.active{color:var(--c-primary);background:#eff6ff}
+
+.backdrop{position:fixed;inset:0;z-index:var(--z-backdrop);background:rgba(0,0,0,.3);display:none;backdrop-filter:blur(2px)}
+.backdrop.show{display:block}
+
+.map-action-popup{position:fixed;left:0;right:0;bottom:0;z-index:var(--z-sheet);background:#fff;border-radius:24px 24px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.25);padding:16px 16px calc(28px + env(safe-area-inset-bottom));transform:translateY(110%);transition:transform .35s cubic-bezier(.34,1.26,.64,1);max-width:500px;margin:0 auto}
+.map-action-popup.show{transform:translateY(0)}
+.action-btn{width:100%;padding:14px 16px;border:0;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:10px;justify-content:center;transition:all .15s}
+.action-btn.primary{background:var(--c-primary);color:#fff;box-shadow:0 4px 12px rgba(13,110,253,.25)}
+.action-btn.secondary{background:#f3f4f6;color:var(--c-text)}
+.action-btn:active{transform:scale(.97)}
+
+.feature-sheet{position:fixed;left:0;right:0;bottom:0;z-index:var(--z-sheet);background:#fff;border-radius:28px 28px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.2);padding:16px 16px calc(30px + env(safe-area-inset-bottom));transform:translateY(110%);transition:transform .35s cubic-bezier(.34,1.26,.64,1);max-width:500px;margin:0 auto;max-height:75vh;overflow:auto}
+.feature-sheet.show{transform:translateY(0)}
+.feature-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px}
+.feature-item{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;background:#f9fafb;border-radius:16px;cursor:pointer;border:2px solid transparent;transition:all .15s}
+.feature-item:active{transform:scale(.95);background:#eff6ff;border-color:var(--c-primary)}
+.feature-item.active{background:#eff6ff;border-color:var(--c-primary)}
+.feature-item .icon{width:44px;height:44px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.feature-item .label{font-size:11px;font-weight:600;text-align:center;line-height:1.2}
+
+.poi-picker{position:fixed;left:0;right:0;bottom:0;z-index:var(--z-sheet);background:#fff;border-radius:24px 24px 0 0;padding:16px 16px calc(24px + env(safe-area-inset-bottom));transform:translateY(110%);transition:transform .35s;max-width:500px;margin:0 auto;max-height:85vh;overflow:auto;box-shadow:0 -10px 40px rgba(0,0,0,.25)}
+.poi-picker.show{transform:translateY(0)}
+.poi-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.poi-type-btn{padding:12px 8px;background:#f9fafb;border:2px solid var(--c-border);border-radius:14px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--c-text)}
+.poi-type-btn .emoji{font-size:22px}
+.poi-type-btn.selected{background:#eff6ff;border-color:var(--c-primary);color:var(--c-primary)}
+.poi-tab{flex:1;padding:10px;background:#f3f4f6;border:2px solid #e5e7eb;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer}
+.poi-tab.active{background:#eff6ff!important;border-color:var(--c-primary)!important;color:var(--c-primary)!important}
+.poi-confirm{display:none;padding:12px;background:#f9fafb;border-radius:12px;margin-top:10px}
+.poi-confirm.show{display:block}
+
+.poi-marker{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:50%;width:38px;height:38px;font-size:18px;box-shadow:0 3px 10px rgba(0,0,0,.2);border:2.5px solid var(--c-primary);cursor:pointer;user-select:none}
+@keyframes pulse-report{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+
+.poi-popup{font-family:inherit;min-width:230px}
+.poi-head{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
+.poi-head .ic{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.poi-title{font-weight:800;font-size:13px}
+.poi-time{font-size:11px;color:#6b7280;margin-top:2px}
+.poi-desc{background:#f9fafb;padding:8px;border-radius:8px;font-size:12px;margin:6px 0;font-style:italic}
+.poi-actions{display:flex;gap:6px;margin-top:8px}
+.vote-btn{flex:1;padding:6px;border:1px solid #e5e7eb;background:#fff;border-radius:8px;font-size:11px;cursor:pointer}
+.vote-btn.up{color:#16a34a}
+.vote-btn.down{color:#dc2626}
+
+.toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%) translateY(20px);background:#111827;color:#fff;padding:12px 18px;border-radius:14px;font-size:13px;z-index:var(--z-toast);opacity:0;pointer-events:none;transition:.25s;max-width:90vw;text-align:center;box-shadow:var(--sh-3)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+body.nav-mode .top-bar,body.nav-mode .route-inputs,body.nav-mode .bottom-bar,
+body.nav-mode .suggestions,body.nav-mode .fab-stack,body.nav-mode .route-panel,
+body.nav-mode .zoom-controls,body.nav-mode .layer-controls,body.nav-mode .click-hint,
+body.nav-mode .map-action-popup,body.nav-mode .feature-sheet,body.nav-mode .poi-picker,
+body.nav-mode .user-chip,body.nav-mode .reporting-hint{display:none!important}
+.nav-mode-panel{position:fixed;left:0;right:0;top:0;z-index:var(--z-modal);display:none;flex-direction:column;pointer-events:none}
+body.nav-mode .nav-mode-panel{display:flex!important}
+.nav-top-card{margin:12px 12px 0;background:var(--c-primary);color:#fff;border-radius:20px;padding:14px 16px;display:flex;gap:12px;align-items:center;box-shadow:0 8px 30px rgba(13,110,253,.4);pointer-events:auto;padding-top:calc(14px + env(safe-area-inset-top))}
+.nav-top-icon{width:56px;height:56px;background:#fff;color:var(--c-primary);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0}
+.nav-top-text{flex:1;min-width:0}
+.nav-top-next{font-size:18px;font-weight:800;line-height:1.2}
+.nav-top-dist{font-size:13px;opacity:.9;margin-top:4px;display:flex;gap:8px;align-items:center}
+.nav-top-exit{width:40px;height:40px;background:rgba(0,0,0,.15);border:0;border-radius:12px;color:#fff;font-size:18px;cursor:pointer;flex-shrink:0}
+.nav-bottom-controls{position:fixed;left:12px;right:12px;bottom:12px;z-index:calc(var(--z-modal) + 1);display:flex;gap:8px;pointer-events:auto;max-width:500px;margin:0 auto;padding-bottom:env(safe-area-inset-bottom)}
+.nav-bottom-btn{flex:1;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:16px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:var(--sh-3);cursor:pointer;font-size:11px;font-weight:700;color:var(--c-text)}
+.nav-bottom-btn .icon{font-size:20px}
+.nav-bottom-btn.poi{background:#fff7ed;color:#ea580c;border-color:#fed7aa}
+.nav-bottom-btn.report{background:#fee2e2;color:#dc2626;border-color:#fecaca}
+.nav-bottom-btn.active{background:var(--c-primary);color:#fff}
+.current-arrow{width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:28px solid var(--c-primary);filter:drop-shadow(0 3px 8px rgba(0,0,0,.4));transition:transform .3s linear;position:relative}
+.current-arrow::after{content:'';position:absolute;left:-6px;top:22px;width:12px;height:12px;background:#fff;border-radius:50%;border:2px solid var(--c-primary)}
+
+.modal{position:fixed;inset:0;z-index:var(--z-modal);background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;padding:20px}
+.modal.show{display:flex}
+.modal-content{background:#fff;border-radius:20px;padding:20px;width:100%;max-width:500px;max-height:85vh;overflow:auto;box-shadow:var(--sh-3);position:relative}
+.modal-title{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:16px;margin-bottom:12px}
+.modal-close{border:0;background:#f3f4f6;width:36px;height:36px;border-radius:12px;cursor:pointer;font-size:20px;color:var(--c-text)}
+.layer-option{padding:12px;border:2px solid var(--c-border);border-radius:12px;cursor:pointer;display:flex;align-items:center;gap:10px;margin-bottom:8px;background:#f9fafb;text-align:left;width:100%;font-family:inherit}
+.layer-option.active{border-color:var(--c-primary);background:#eff6ff}
+.sv-close{position:absolute;top:12px;right:12px;z-index:10;background:rgba(0,0,0,.6);color:#fff;border:0;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px}
+.mly-viewer{width:100%;height:60vh;min-height:400px;background:#000;position:relative}
+
+.setting-group{margin:14px 0}
+.setting-label{font-size:12px;font-weight:800;color:var(--c-text-2);text-transform:uppercase;margin-bottom:8px;letter-spacing:.5px}
+.toggle-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f3f4f6;gap:10px}
+.toggle-row:last-child{border-bottom:0}
+.toggle-switch{width:44px;height:26px;background:#e5e7eb;border-radius:13px;position:relative;cursor:pointer;transition:.2s;flex-shrink:0}
+.toggle-switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.toggle-switch.on{background:var(--c-primary)}
+.toggle-switch.on::after{left:21px}
+
+.loading{position:fixed;inset:0;z-index:var(--z-splash);background:rgba(255,255,255,.9);display:none;flex-direction:column;align-items:center;justify-content:center;cursor:pointer}
+.loading.show{display:flex}
+.spinner{width:36px;height:36px;border:3px solid #e5e7eb;border-top-color:var(--c-primary);border-radius:50%;animation:spin 1s linear infinite}
+</style>
 </head>
 <body class="pre-auth">
 
-<!-- LOGIN -->
-
-<div class="splash-screen" id="splashScreen" style="position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#0d6efd,#0a58ca);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;transition:opacity .4s">
+<div class="splash-screen" id="splashScreen">
   <div style="width:80px;height:80px;background:#fff;border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:40px;box-shadow:0 10px 30px rgba(0,0,0,.2);animation:pop .6s cubic-bezier(.34,1.56,.64,1)">🚗</div>
-  <div style="margin-top:20px;font-size:22px;font-weight:800;letter-spacing:-0.5px">VietDriver Pro</div>
+  <div style="margin-top:20px;font-size:22px;font-weight:800;letter-spacing:-.5px">VietDriver Pro</div>
   <div style="margin-top:8px;font-size:13px;opacity:.8">Chỉ đường thông minh • Sắp xong...</div>
-  <div style="margin-top:24px;width:40px;height:40px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+  <div style="margin-top:24px;width:40px;height:40px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite"></div>
 </div>
-<style>@keyframes pop{0%{transform:scale(0.5)}100%{transform:scale(1)}} @keyframes spin{to{transform:rotate(360deg)}}
 
-/* ===== FIX UI CHỒNG CHÉO NHƯ ẢNH ===== */
-.route-inputs {
-  z-index: 1060 !important;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important;
-}
-.route-inputs.show ~ #bottomBar,
-.route-inputs.show + #bottomBar { display: none !important; }
-.bottom-bar {
-  z-index: 1200 !important;
-}
-.fab-stack { z-index: 1190 !important; }
-
-
-/* ===== ROUTE PANEL MỚI - GỌN, KHÔNG CHE BẢN ĐỒ ===== */
-.route-panel.show { transform: translateY(0) !important; }
-.route-header {
-  padding: 10px 16px 8px !important;
-  border-bottom: 1px solid #f3f4f6 !important;
-  flex-shrink: 0;
-}
-.route-header .drag-handle { margin-bottom: 8px !important; }
-.summary-title { font-size: 16px !important; font-weight: 800 !important; }
-.summary-sub { font-size: 11px !important; }
-
-#routeSelector {
-  display: flex !important;
-  flex-direction: row !important;
-  gap: 8px !important;
-  padding: 10px 12px !important;
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
-  flex-shrink: 0;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-#routeSelector::-webkit-scrollbar { display: none; }
-.route-option-card {
-  min-width: 130px !important;
-  max-width: 160px !important;
-  flex-shrink: 0 !important;
-  padding: 10px !important;
-  border-radius: 14px !important;
-}
-.route-option-card .choose-route-btn {
-  margin-top: 8px !important;
-  width: 100% !important;
-  padding: 8px !important;
-  font-size: 11px !important;
-}
-.steps-list {
-  flex: 1;
-  overflow-y: auto !important;
-  padding: 0 0 10px !important;
-  max-height: none !important;
-}
-.step-item { padding: 8px 16px !important; }
-.step-item .step-text { font-size: 13px !important; }
-.step-item .step-meta { font-size: 11px !important; }
-
-/* Hint nhỏ gọn */
-.route-hint {
-  padding: 8px 16px;
-  font-size: 11px;
-  color: #6b7280;
-  background: #f9fafb;
-  border-top: 1px solid #f3f4f6;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-/* Nút bắt đầu dẫn đường - sticky bottom */
-.route-start-sticky {
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
-  background: #fff;
-  border-top: 1px solid #e5e7eb;
-  flex-shrink: 0;
-}
-.route-start-sticky button {
-  width: 100%;
-  padding: 14px;
-  background: #0d6efd;
-  color: #fff;
-  border: 0;
-  border-radius: 14px;
-  font-weight: 800;
-  font-size: 14px;
-  box-shadow: 0 4px 12px rgba(13,110,253,.3);
-}
-
-/* Bottom sheet chọn tuyến - gọn hơn */
-.route-panel {
-  max-height: 78vh !important;
-  padding-bottom: env(safe-area-inset-bottom);
-}
-#routeSelector {
-  max-height: 45vh;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.route-option-card {
-  transition: all .2s;
-}
-.route-option-card.selected {
-  transform: scale(1.02);
-  box-shadow: 0 4px 20px rgba(13,110,253,.15);
-}
-
-/* ===== NAV MODE - FIRST PERSON VIEW - CLEAN ===== */
-body.nav-mode {
-  overflow: hidden;
-}
-body.nav-mode .top-bar,
-body.nav-mode .route-inputs,
-body.nav-mode .zoom-controls,
-body.nav-mode .layer-controls,
-body.nav-mode .bottom-bar,
-body.nav-mode .suggestions,
-body.nav-mode .click-hint,
-body.nav-mode .feature-sheet,
-body.nav-mode .map-action-popup,
-body.nav-mode .poi-picker,
-body.nav-mode .backdrop,
-body.nav-mode .route-panel,
-body.nav-mode .layer-picker-modal {
-  display: none !important;
-}
-body.nav-mode .fab-stack {
-  display: flex !important;
-  bottom: 140px !important;
-}
-
-/* Nav panel mới - tối giản, giống Google Maps */
-.nav-mode-panel {
-  position: fixed;
-  left: 0; right: 0; top: 0;
-  z-index: 1300;
-  display: none;
-  flex-direction: column;
-  pointer-events: none;
-}
-body.nav-mode .nav-mode-panel { display: flex !important; }
-
-/* Header chỉ đường ở trên */
-.nav-top-card {
-  margin: 12px 12px 0;
-  background: #0d6efd;
-  color: #fff;
-  border-radius: 20px;
-  padding: 14px 16px;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  box-shadow: 0 8px 30px rgba(13,110,253,.4);
-  pointer-events: auto;
-}
-.nav-top-icon {
-  width: 56px; height: 56px;
-  background: #fff;
-  border-radius: 16px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 28px; flex-shrink: 0;
-  color: #0d6efd;
-}
-.nav-top-text { flex:1; min-width:0 }
-.nav-top-next {
-  font-size: 18px; font-weight: 800; line-height: 1.2;
-}
-.nav-top-dist {
-  font-size: 13px; opacity: .9; margin-top: 4px;
-  display: flex; gap: 8px; align-items: center;
-}
-.nav-top-exit {
-  width: 40px; height: 40px;
-  background: rgba(0,0,0,.15);
-  border: 0; border-radius: 12px;
-  color: #fff; font-size: 18px;
-  cursor: pointer; flex-shrink:0;
-}
-
-/* Bottom nav controls - chỉ hiện POI */
-.nav-bottom-controls {
-  position: fixed;
-  left: 12px; right: 12px; bottom: 12px;
-  z-index: 1301;
-  display: flex;
-  gap: 8px;
-  pointer-events: auto;
-  max-width: 500px;
-  margin: 0 auto;
-}
-.nav-bottom-btn {
-  flex: 1;
-  background: #fff;
-  border: 1px solid rgba(0,0,0,.08);
-  border-radius: 16px;
-  padding: 12px 8px;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  box-shadow: 0 4px 20px rgba(0,0,0,.15);
-  cursor: pointer;
-  font-size: 11px; font-weight: 700;
-  color: #1f2937;
-}
-.nav-bottom-btn .icon { font-size: 20px; }
-.nav-bottom-btn.report { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
-.nav-bottom-btn.poi { background: #fff7ed; color: #ea580c; border-color: #fed7aa; }
-.nav-bottom-btn.active { background: #0d6efd; color: #fff; }
-
-/* Mũi tên vị trí - first person */
-.current-arrow {
-  width: 0; height: 0;
-  border-left: 14px solid transparent;
-  border-right: 14px solid transparent;
-  border-bottom: 28px solid #0d6efd;
-  position: relative;
-  filter: drop-shadow(0 3px 8px rgba(0,0,0,.4));
-  transition: transform .3s linear;
-}
-.current-arrow::after {
-  content: '';
-  position: absolute;
-  left: -6px; top: 22px;
-  width: 12px; height: 12px;
-  background: #fff;
-  border-radius: 50%;
-  border: 2px solid #0d6efd;
-}
-
-/* ===== OLD NAV MODE - REPLACED ===== */
-body.nav-mode .top-bar,
-body.nav-mode .route-inputs,
-body.nav-mode .zoom-controls,
-body.nav-mode .layer-controls,
-body.nav-mode .bottom-bar,
-body.nav-mode .suggestions,
-body.nav-mode .click-hint,
-body.nav-mode .feature-sheet,
-body.nav-mode .map-action-popup,
-body.nav-mode .poi-picker,
-body.nav-mode .backdrop,
-body.nav-mode .route-panel,
-body.nav-mode .settings-modal,
-body.nav-mode .layer-picker-modal {
-  display: none !important;
-}
-body.nav-mode .fab-stack {
-  display: flex !important;
-  flex-direction: column;
-  gap: 12px;
-  bottom: 20px;
-  right: 12px;
-}
-body.nav-mode .fab-stack .fab {
-  display: none !important;
-}
-body.nav-mode .fab-stack #reportPoiBtn,
-body.nav-mode .fab-stack #locateBtn,
-body.nav-mode .fab-stack #clearBtn {
-  display: flex !important;
-}
-#reportPoiBtn { display: flex !important; } /* ép hiện lại dù CSS cũ ẩn */
-
-.nav-mode-panel {
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
-  z-index: 1300;
-  background: #fff;
-  border-radius: 24px 24px 0 0;
-  box-shadow: 0 -10px 40px rgba(0,0,0,.25);
-  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
-  max-width: 500px;
-  margin: 0 auto;
-  display: none;
-  flex-direction: column;
-  gap: 12px;
-}
-body.nav-mode .nav-mode-panel { display: flex !important; }
-
-.nav-mode-header {
-  display: flex; justify-content: space-between; align-items: center;
-}
-.nav-mode-title {
-  font-size: 14px; font-weight: 800; color: var(--primary);
-  display: flex; align-items: center; gap: 6px;
-}
-.nav-mode-exit {
-  padding: 8px 14px; background: #fee2e2; color: #991b1b; border:0; border-radius: 10px;
-  font-weight: 700; font-size: 13px; cursor: pointer;
-}
-.nav-mode-main {
-  background: #0d6efd; color: #fff; border-radius: 16px; padding: 14px 16px;
-  display: flex; gap: 12px; align-items: center;
-}
-.nav-mode-icon {
-  width: 48px; height: 48px; background: rgba(255,255,255,.2); border-radius: 14px;
-  display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink:0;
-}
-.nav-mode-text { flex:1; min-width:0 }
-.nav-mode-text .next { font-size: 18px; font-weight: 800; line-height: 1.2; }
-.nav-mode-text .dist { font-size: 13px; opacity: .9; margin-top: 4px; }
-.nav-mode-footer {
-  display: flex; gap: 8px;
-}
-.nav-mode-footer button {
-  flex:1; padding: 12px; border-radius: 12px; border:0; font-weight: 700; font-size: 13px; cursor:pointer;
-}
-.btn-poi-community { background: #fff7ed; color: #ea580c; border: 1.5px solid #fdba74 !important; }
-.btn-poi-warning { background: #fee2e2; color: #dc2626; }
-.btn-voice { background: #f3f4f6; color: #1f2937; }
-.nav-start-btn {
-  width: 100%; padding: 14px; background: var(--primary); color: #fff; border:0; border-radius: 14px;
-  font-size: 15px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(13,110,253,.3);
-  margin-top: 8px;
-}
-
-</style>
-
-<div class="login-screen" id="loginScreen">
+<div id="loginScreen">
   <div class="login-card">
     <div class="logo">🚗</div>
     <h1>VietDriver Pro</h1>
@@ -378,7 +268,6 @@ body.nav-mode .nav-mode-panel { display: flex !important; }
   </div>
 </div>
 
-<!-- APP -->
 <div id="app">
   <div id="map"></div>
 
@@ -401,16 +290,16 @@ body.nav-mode .nav-mode-panel { display: flex !important; }
     <span class="name" id="userName">User</span>
   </div>
 
-  <!-- Route inputs -->
   <div class="route-inputs" id="routeInputs">
+    <div class="drag-handle"></div>
     <div class="input-row">
       <div class="point-dot a"></div>
-      <input type="text" id="pointAInput" placeholder="A - Điểm đi (mặc định: GPS) - bấm để tìm"/>
+      <input type="text" id="pointAInput" placeholder="A - Điểm đi (mặc định: GPS)"/>
       <button class="mini-btn gps" id="gpsABtn" title="Dùng GPS">📍</button>
     </div>
     <div class="input-row">
       <div class="point-dot b"></div>
-      <input type="text" id="pointBInput" placeholder="B - Điểm đến - bấm để tìm"/>
+      <input type="text" id="pointBInput" placeholder="B - Điểm đến"/>
       <button class="mini-btn" id="swapBtn" title="Đảo chiều">⇄</button>
     </div>
     <div class="vehicle-selector" id="vehicleSelector">
@@ -420,8 +309,6 @@ body.nav-mode .nav-mode-panel { display: flex !important; }
       <button class="vehicle-btn" data-costing="bicycle"><span class="emoji">🚲</span>XE ĐẠP</button>
       <button class="vehicle-btn" data-costing="pedestrian"><span class="emoji">🚶</span>ĐI BỘ</button>
     </div>
-
-    <!-- Truck options -->
     <div class="truck-options" id="truckOptions">
       <div class="title">🚚 Thông số xe tải (Valhalla)</div>
       <div class="truck-grid">
@@ -431,28 +318,30 @@ body.nav-mode .nav-mode-panel { display: flex !important; }
         <label>Chiều dài (m)<input type="number" id="truckLength" value="10" step="0.5" min="2" max="30"></label>
         <label>Tải trục (tấn)<input type="number" id="truckAxle" value="8" step="0.5" min="1" max="20"></label>
         <label>Hazmat
-          <select id="truckHazmat" style="width:100%;padding:6px 8px;border:1px solid #fde68a;border-radius:6px;font-size:13px;margin-top:3px;background:#fff">
+          <select id="truckHazmat">
             <option value="false">Không</option>
             <option value="true">Có</option>
           </select>
         </label>
       </div>
     </div>
-
-    <button class="find-route-btn" id="findRouteBtn">🧭 TÌM ĐƯỜNG</button>
+    <button class="find-route-btn" id="findRouteBtn">🧭 Tìm đường</button>
   </div>
 
   <div class="suggestions" id="suggestions"></div>
-
   <div class="click-hint" id="clickHint">👆 Click bản đồ để chọn điểm A</div>
-
   <div class="voice-banner" id="voiceBanner">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
     <span id="voiceText"></span>
   </div>
 
-  <div class="zoom-controls"><button class="zoom-btn" id="zoomInBtn">+</button><button class="zoom-btn" id="zoomOutBtn">−</button></div><div class="layer-controls">
-    <button class="layer-btn" id="layerBtn" title="Đổi lớp bản đồ (Streets/Satellite)">
+  <div class="zoom-controls">
+    <button class="zoom-btn" id="zoomInBtn">+</button>
+    <button class="zoom-btn" id="zoomOutBtn">−</button>
+  </div>
+
+  <div class="layer-controls">
+    <button class="layer-btn" id="layerBtn" title="Lớp bản đồ">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
     </button>
     <button class="layer-btn" id="tiltBtn" title="Nghiêng 3D">
@@ -474,7 +363,6 @@ body.nav-mode .nav-mode-panel { display: flex !important; }
     <button class="fab" id="trafficBtn" title="Giao thông TomTom">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><circle cx="12" cy="7" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="17" r="1.5" fill="currentColor"/></svg>
     </button>
-    <button class="fab" id="trafficSignBtn" title="Biển báo giao thông">🛑</button>
     <button class="fab success" id="voiceBtn" title="Giọng nói">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
     </button>
@@ -496,11 +384,13 @@ body.nav-mode .nav-mode-panel { display: flex !important; }
         </div>
         <button class="close-btn" id="closeRouteBtn">×</button>
       </div>
-      <div id="routeSelector" style="display:none;gap:8px;padding:10px 0 8px;overflow-x:auto"></div>
+      <div id="routeSelector" style="display:none"></div>
     </div>
     <div class="steps-list" id="stepsList"></div>
-    <button class="nav-start-btn" id="startNavBtn" style="display:none">▶️ BẮT ĐẦU DẪN ĐƯỜNG</button><div style="padding:8px 4px 0;font-size:11px;color:#6b7280;text-align:center">💡 Chọn <b>✓ Chọn tuyến này</b> ở tuyến bạn muốn để vào chế độ chỉ đường tối giản (chỉ hiện POI)</div>
+    <div class="route-hint">💡 Chọn <b>▶ Dẫn đường</b> để vào chế độ tối giản</div>
+    <button class="nav-start-btn" id="startNavBtn" style="display:none">▶️ Bắt đầu dẫn đường</button>
   </div>
+
   <div class="nav-mode-panel" id="navModePanel">
     <div class="nav-top-card">
       <div class="nav-top-icon" id="navModeIcon">⬆️</div>
@@ -522,56 +412,12 @@ body.nav-mode .nav-mode-panel { display: flex !important; }
     </div>
   </div>
 
-
-  
   <div class="reporting-hint" id="reportingHint">📍 Chạm bản đồ để đặt cảnh báo • <span id="reportingTypeLabel"></span></div>
 
-  <div class="poi-confirm" id="poiConfirm">
-    <h4 id="poiConfirmTitle">Xác nhận cảnh báo</h4>
-    <input type="text" id="poiDescInput" placeholder="Mô tả thêm (không bắt buộc) VD: chốt to, tắc 2km..."/>
-    <div class="row">
-      <button class="btn cancel" id="cancelPoiBtn">Hủy</button>
-      <button class="btn submit" id="submitPoiBtn">🚀 Gửi cảnh báo</button>
-    </div>
-  </div>
-
-  <div class="poi-picker" id="poiPicker" style="max-height:85vh">
-    <div class="drag-handle"></div>
-    <h3 style="margin:0 0 4px">📍 Thêm POI</h3>
-    <div class="sub" style="margin-bottom:12px">Chọn loại - Cảnh báo sẽ tự hết hạn, Địa điểm lưu lâu dài</div>
-    
-    <div style="display:flex;gap:8px;margin-bottom:12px">
-      <button class="poi-tab active" data-tab="warning" style="flex:1;padding:10px;background:#fee2e2;border:2px solid #dc2626;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer">🚨 Cảnh báo</button>
-      <button class="poi-tab" data-tab="place" style="flex:1;padding:10px;background:#f3f4f6;border:2px solid #e5e7eb;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer">📍 Địa điểm</button>
-    </div>
-
-    <div id="poiWarningGrid" class="poi-grid">
-      <!-- JS render warning -->
-    </div>
-    <div id="poiPlaceGrid" class="poi-grid" style="display:none">
-      <!-- JS render place -->
-    </div>
-
-    <div id="poiNameInputWrap" style="display:none;margin-top:12px">
-      <label style="font-size:12px;font-weight:700;color:#374151">Tên địa điểm (bắt buộc cho POI địa điểm)</label>
-      <input type="text" id="poiPlaceNameInput" placeholder="VD: Siêu thị Co.opmart Biên Hòa, Trạm dừng nghỉ 123..." style="width:100%;padding:10px 12px;border:2px solid #e5e7eb;border-radius:10px;margin-top:4px;font-size:14px"/>
-    </div>
-
-    
-
-    <div style="margin-top:14px;display:flex;gap:8px">
-      <button id="closePoiPickerBtn" style="flex:1;padding:12px;background:#f3f4f6;border:0;border-radius:10px;font-weight:600;cursor:pointer">Đóng</button>
-      <button id="togglePoiLayerBtn" style="flex:1;padding:12px;background:#fff7ed;border:1px solid #fdba74;border-radius:10px;font-weight:600;cursor:pointer;color:#ea580c">👁️ Ẩn/hiện POI</button>
-    </div>
-  </div>
-
-  
   <div class="backdrop" id="mapActionBackdrop"></div>
-  <div class="backdrop" id="routeBackdrop" style="z-index:1055;background:rgba(0,0,0,.25)"></div>
-
   <div class="map-action-popup" id="mapActionPopup">
     <div class="drag-handle"></div>
-    <div id="mapActionAddress" style="font-size:13px;color:var(--text-light);margin-bottom:12px;text-align:center;line-height:1.4">📍 Đang lấy địa chỉ...</div>
+    <div id="mapActionAddress" style="font-size:13px;color:var(--c-text-2);margin-bottom:12px;text-align:center;line-height:1.4">📍 Đang lấy địa chỉ...</div>
     <div style="display:grid;gap:10px">
       <button class="action-btn primary" id="actionDirections">🧭 Chỉ đường tới đây</button>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -582,13 +428,16 @@ body.nav-mode .nav-mode-panel { display: flex !important; }
     <div style="margin-top:12px;font-size:11px;color:#9ca3af;text-align:center">📍 <span id="mapActionCoords"></span></div>
   </div>
 
+  <div class="backdrop" id="routeBackdrop" style="z-index:calc(var(--z-inputs) - 1)"></div>
+
+  <div class="backdrop" id="featureBackdrop"></div>
   <div class="feature-sheet" id="featureSheet">
     <div class="drag-handle"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <div style="font-weight:800;font-size:16px">✨ Tính năng</div>
-      <button onclick="$('featureSheet').classList.remove('show');$('featureBackdrop').classList.remove('show')" style="border:0;background:#f3f4f6;width:32px;height:32px;border-radius:12px;cursor:pointer">×</button>
+      <button onclick="document.getElementById('featureSheet').classList.remove('show');document.getElementById('featureBackdrop').classList.remove('show')" style="border:0;background:#f3f4f6;width:32px;height:32px;border-radius:12px;cursor:pointer;font-size:18px">×</button>
     </div>
-    <div style="font-size:12px;color:var(--text-light);margin-bottom:12px">Ấn vào tính năng để bật/tắt</div>
+    <div style="font-size:12px;color:var(--c-text-2);margin-bottom:12px">Ấn vào tính năng để bật/tắt</div>
     <div class="feature-grid">
       <div class="feature-item" id="featDirections"><div class="icon">🧭</div><div class="label">Chỉ đường</div></div>
       <div class="feature-item" id="featReport"><div class="icon">🚨</div><div class="label">Báo POI</div></div>
@@ -599,92 +448,64 @@ body.nav-mode .nav-mode-panel { display: flex !important; }
       <div class="feature-item" id="featLocate"><div class="icon">📍</div><div class="label">Vị trí tôi</div></div>
       <div class="feature-item" id="featClear"><div class="icon">🗑️</div><div class="label">Xóa</div></div>
     </div>
-    <div style="margin-top:16px;padding:12px;background:#f9fafb;border-radius:12px">
-      <div style="font-size:12px;font-weight:700;margin-bottom:8px">Lớp bản đồ nhanh</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="mini-layer-btn" data-style="streets" style="padding:8px 12px;background:#eff6ff;border:1.5px solid var(--primary);border-radius:10px;font-size:12px;font-weight:600;cursor:pointer">Đường phố</button>
-        <button class="mini-layer-btn" data-style="satellite" style="padding:8px 12px;background:#fff;border:1.5px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;cursor:pointer">Vệ tinh</button>
-        <button class="mini-layer-btn" data-style="dark" style="padding:8px 12px;background:#fff;border:1.5px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;cursor:pointer">Tối</button>
-        <button class="mini-layer-btn" data-style="maptiler" style="padding:8px 12px;background:#eff6ff;border:1.5px solid var(--primary);border-radius:10px;font-size:12px;font-weight:600;cursor:pointer">Sáng Hiện Đại</button>
-        <button class="mini-layer-btn" data-style="light" style="padding:8px 12px;background:#fff;border:1.5px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;cursor:pointer">Sáng</button>
-      </div>
-    </div>
   </div>
-  <div class="backdrop" id="featureBackdrop" style="z-index:1075"></div>
 
   <div class="bottom-bar" id="bottomBar">
     <button class="bottom-bar-btn" id="bottomDirections"><div class="icon">🧭</div><div class="label">Chỉ đường</div></button>
     <button class="bottom-bar-btn" id="bottomReport"><div class="icon">🚨</div><div class="label">Báo cáo</div></button>
-    <button class="bottom-bar-btn" id="bottomFeatures" style="background:var(--primary);border-radius:16px;padding:10px 16px"><div class="icon" style="color:#fff">✨</div><div class="label" style="color:#fff">Tính năng</div></button>
+    <button class="bottom-bar-btn" id="bottomFeatures" style="background:var(--c-primary);border-radius:16px;padding:10px 16px"><div class="icon" style="color:#fff">✨</div><div class="label" style="color:#fff">Tính năng</div></button>
     <button class="bottom-bar-btn" id="bottomLayers"><div class="icon">🗺️</div><div class="label">Lớp</div></button>
     <button class="bottom-bar-btn" id="bottomLocate"><div class="icon">📍</div><div class="label">GPS</div></button>
   </div>
 
-  <div class="modal" id="mlyViewerModal" style="z-index:2000">
-    
-        <div style="margin-top:12px;padding:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px">
-          <div style="font-size:12px;font-weight:700;color:#166534">🔧 API Base (gộp 1 cổng)</div>
-          <div style="font-size:11px;color:#6b7280;margin:4px 0">Khi tạo Codespaces mới, dán URL mới vào đây</div>
-          <div style="display:flex;gap:6px;margin-top:6px">
-            <input type="text" id="apiBaseInput" placeholder="https://xxx-8000.app.github.dev" style="flex:1;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-size:12px"/>
-            <button id="saveApiBaseBtn" style="padding:8px 12px;background:#16a34a;color:#fff;border:0;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Lưu</button>
-          </div>
-          <div style="font-size:10px;color:#6b7280;margin-top:4px">Hiện tại: <span id="currentApiBase" style="font-family:monospace"></span></div>
-        </div>
-
-<div class="modal-content" style="max-width:800px;width:95vw;padding:0;overflow:hidden;background:#000">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#111;color:#fff">
-        <span style="font-weight:700">🎥 Mapillary Viewer - Ảnh biển báo</span>
-        <button onclick="closeMapillaryViewer()" style="background:#222;color:#fff;border:0;width:32px;height:32px;border-radius:50%;cursor:pointer">×</button>
+  <div class="poi-picker" id="poiPicker">
+    <div class="drag-handle"></div>
+    <h3 style="margin:0 0 4px">📍 Thêm POI cộng đồng</h3>
+    <div style="margin-bottom:12px;font-size:12px;color:#6b7280">Cảnh báo tự hết hạn, Địa điểm lưu lâu dài</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="poi-tab active" data-tab="warning">🚨 Cảnh báo</button>
+      <button class="poi-tab" data-tab="place">📍 Địa điểm</button>
+    </div>
+    <div id="poiWarningGrid" class="poi-grid"></div>
+    <div id="poiPlaceGrid" class="poi-grid" style="display:none"></div>
+    <div id="poiNameInputWrap" style="display:none;margin-top:12px">
+      <label style="font-size:12px;font-weight:700;color:#374151">Tên địa điểm (bắt buộc)</label>
+      <input type="text" id="poiPlaceNameInput" placeholder="VD: Siêu thị Co.opmart" style="width:100%;padding:10px 12px;border:2px solid #e5e7eb;border-radius:10px;margin-top:4px;font-size:14px"/>
+    </div>
+    <div class="poi-confirm" id="poiConfirm">
+      <h4 id="poiConfirmTitle" style="margin:0 0 8px;font-size:14px">Xác nhận</h4>
+      <input type="text" id="poiDescInput" placeholder="Mô tả thêm (không bắt buộc)" style="width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:13px"/>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button id="cancelPoiBtn" style="flex:1;padding:12px;background:#f3f4f6;border:0;border-radius:10px;font-weight:600;cursor:pointer">Hủy</button>
+        <button id="submitPoiBtn" style="flex:1;padding:12px;background:#0d6efd;color:#fff;border:0;border-radius:10px;font-weight:800;cursor:pointer">🚀 Gửi</button>
       </div>
-      <div id="mlyViewerContainer" class="mly-viewer" style="height:60vh;min-height:400px"></div>
-      <div style="padding:10px 16px;background:#111;color:#9ca3af;font-size:11px">Ảnh từ Mapillary - Dùng MapillaryJS 4 để xem 360°. Kéo để xoay, scroll để zoom.</div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:8px">
+      <button id="closePoiPickerBtn" style="flex:1;padding:12px;background:#f3f4f6;border:0;border-radius:10px;font-weight:600;cursor:pointer">Đóng</button>
+      <button id="togglePoiLayerBtn" style="flex:1;padding:12px;background:#fff7ed;border:1px solid #fdba74;border-radius:10px;font-weight:600;cursor:pointer;color:#ea580c">👁️ Ẩn/hiện POI</button>
     </div>
   </div>
 
   <div class="modal" id="layerPickerModal">
-    
-        <div style="margin-top:12px;padding:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px">
-          <div style="font-size:12px;font-weight:700;color:#166534">🔧 API Base (gộp 1 cổng)</div>
-          
-        </div>
-
-<div class="modal-content" style="max-width:360px">
+    <div class="modal-content" style="max-width:360px">
       <div class="modal-title"><span>🗺️ Chọn lớp bản đồ</span><button class="modal-close" id="closeLayerPickerBtn">×</button></div>
       <div style="display:grid;gap:10px;padding:4px 0">
-        <button class="layer-option" data-style="streets" style="display:flex;align-items:center;gap:12px;padding:14px;background:#eff6ff;border:2px solid #0d6efd;border-radius:12px;cursor:pointer;text-align:left">
-          <span style="font-size:24px">🗺️</span><div><div style="font-weight:700;font-size:14px">Chuẩn VN</div><div style="font-size:12px;color:#6b7280">TRACKASIA - chi tiết VN (key cũ)</div></div>
-        </button>
-        <button class="layer-option" data-style="satellite" style="display:flex;align-items:center;gap:12px;padding:14px;background:#f9fafb;border:2px solid #e5e7eb;border-radius:12px;cursor:pointer;text-align:left">
-          <span style="font-size:24px">🛰️</span><div><div style="font-weight:700;font-size:14px">Vệ Tinh</div><div style="font-size:12px;color:#6b7280">TRACKASIA Satellite</div></div>
-        </button>
-        <button class="layer-option" data-style="dark" style="display:flex;align-items:center;gap:12px;padding:14px;background:#f9fafb;border:2px solid #e5e7eb;border-radius:12px;cursor:pointer;text-align:left">
-          <span style="font-size:24px">🌙</span><div><div style="font-weight:700;font-size:14px">Tối (Dark)</div><div style="font-size:12px;color:#6b7280">Đi đêm đỡ chói</div></div>
-        </button>
-        <button class="layer-option" data-style="light" style="display:flex;align-items:center;gap:12px;padding:14px;background:#f9fafb;border:2px solid #e5e7eb;border-radius:12px;cursor:pointer;text-align:left">
-          <span style="font-size:24px">☀️</span><div><div style="font-weight:700;font-size:14px">Sáng (Light)</div><div style="font-size:12px;color:#6b7280">Giao diện sáng tối giản</div></div>
-        </button>
-        <button class="layer-option" data-style="maptiler" style="display:flex;align-items:center;gap:12px;padding:14px;background:#eff6ff;border:2px solid #0d6efd;border-radius:12px;cursor:pointer;text-align:left">
-          <span style="font-size:24px">✨</span><div><div style="font-weight:700;font-size:14px">Sáng Hiện Đại</div><div style="font-size:12px;color:#0d6efd">MapTiler v4 - Mặc định đẹp nhất</div></div>
-        </button>
-
+        <button class="layer-option" data-style="maptiler"><span style="font-size:24px">✨</span><div><div style="font-weight:700;font-size:14px">Sáng Hiện Đại</div><div style="font-size:12px;color:#6b7280">MapTiler v4</div></div></button>
+        <button class="layer-option" data-style="streets"><span style="font-size:24px">🗺️</span><div><div style="font-weight:700;font-size:14px">Chuẩn VN</div><div style="font-size:12px;color:#6b7280">TrackAsia</div></div></button>
+        <button class="layer-option" data-style="satellite"><span style="font-size:24px">🛰️</span><div><div style="font-weight:700;font-size:14px">Vệ Tinh</div><div style="font-size:12px;color:#6b7280">TrackAsia Satellite</div></div></button>
+        <button class="layer-option" data-style="dark"><span style="font-size:24px">🌙</span><div><div style="font-weight:700;font-size:14px">Tối</div><div style="font-size:12px;color:#6b7280">Đi đêm đỡ chói</div></div></button>
+        <button class="layer-option" data-style="light"><span style="font-size:24px">☀️</span><div><div style="font-weight:700;font-size:14px">Sáng</div><div style="font-size:12px;color:#6b7280">Giao diện sáng</div></div></button>
       </div>
     </div>
   </div>
 
   <div class="modal" id="settingsModal">
-    
-        <div style="margin-top:12px;padding:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px">
-          <div style="font-size:12px;font-weight:700;color:#166534">🔧 API Base (gộp 1 cổng)</div>
-          
-        </div>
-
-<div class="modal-content">
+    <div class="modal-content">
       <div class="modal-title"><span>Cài đặt</span><button class="modal-close" id="closeSettingsBtn">×</button></div>
       <div class="setting-group">
         <div class="setting-label">Engine</div>
         <div class="toggle-row">
-          <div><div style="font-size:14px;font-weight:600">Valhalla (self-host)</div><div style="font-size:12px;color:var(--text-light)">Fallback TrackAsia khi 502</div></div>
+          <div><div style="font-size:14px;font-weight:600">Valhalla (self-host)</div><div style="font-size:12px;color:var(--c-text-2)">Fallback TrackAsia khi 502</div></div>
           <div class="toggle-switch on" id="valhallaToggle"></div>
         </div>
       </div>
@@ -703,191 +524,1109 @@ body.nav-mode .nav-mode-panel { display: flex !important; }
           <div class="toggle-switch on" id="voiceToggle"></div>
         </div>
       </div>
-            <div class="setting-group">
+      <div class="setting-group">
         <div class="setting-label">Cộng đồng</div>
         <div class="toggle-row">
-          <div><div style="font-size:14px;font-weight:500">Cảnh báo cộng đồng <span class="count" id="poiCountBadge">0</span></div><div style="font-size:12px;color:var(--text-light)">Hiện marker do người dùng báo</div></div>
+          <div><div style="font-size:14px;font-weight:500">Cảnh báo cộng đồng <span id="poiCountBadge" style="background:#eff6ff;color:#0d6efd;padding:2px 6px;border-radius:6px;font-size:11px">0</span></div></div>
           <div class="toggle-switch on" id="communityToggle"></div>
         </div>
-        <div style="display:flex;gap:6px;margin-top:8px">
-          
+        <div style="margin:12px 0;padding:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px">
+          <div style="font-size:12px;font-weight:700;color:#166534">🔧 API Base</div>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <input type="text" id="apiBaseInput" placeholder="https://xxx-8000.app.github.dev" style="flex:1;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-size:12px"/>
+            <button id="saveApiBaseBtn" style="padding:8px 12px;background:#16a34a;color:#fff;border:0;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Lưu</button>
+          </div>
+          <div style="font-size:10px;color:#6b7280;margin-top:4px">Hiện tại: <span id="currentApiBase"></span></div>
         </div>
-
-<div class="modal-content">
-      <button class="sv-close" id="closeSvBtn">×</button>
-      <img id="svImage" src="" alt=""/>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button id="clearOldPoiBtn" style="flex:1;padding:8px;background:#f3f4f6;border:0;border-radius:8px;font-size:12px;cursor:pointer">🧹 Xóa POI hết hạn</button>
+          <button id="myReportsBtn" style="flex:1;padding:8px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;font-size:12px;cursor:pointer;color:#ea580c">📋 Báo cáo của tôi</button>
+        </div>
+      </div>
+      <button id="logoutBtn" style="width:100%;margin-top:12px;padding:12px;background:#fee2e2;color:#991b1b;border:0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">Đăng xuất</button>
     </div>
   </div>
 
-  <div class="loading" id="loading" style="pointer-events:none"><div class="spinner"></div>
-          <div><div class="poi-title">${poi.placeName ? poi.placeName + ' ('+cfg.label+')' : cfg.label}</div><div class="poi-time">${formatPoiTime(poi.createdAt)} • bởi ${poi.creatorName||'Cộng đồng'} • ${poi.category==='place'?'Địa điểm':'Cảnh báo'}</div></div>
-        </div>
-        ${poi.desc? `<div class="poi-desc">"${poi.desc}"</div>`:''}
-        <div style="font-size:11px;color:#6b7280">📍 ${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}</div>
-        <div class="poi-actions">
-          <button class="vote-btn up" data-action="up" data-id="${id}">👍 ${poi.upvotes||0} ${poi.category==='place'?'Hữu ích':'Còn đó'}</button>
-          <button class="vote-btn down" data-action="down" data-id="${id}">👎 ${poi.downvotes||0} ${poi.category==='place'?'Không đúng':'Hết rồi'}</button>
-        </div>
-      </div>`;
-    const popup = new maplibregl.Popup({offset:18, closeButton:false, maxWidth:'280px'}).setHTML(popupHtml);
-    marker.setPopup(popup);
-    // handle vote after popup open
-    popup.on('open', ()=>{
-      setTimeout(()=>{
-        document.querySelectorAll(`.vote-btn[data-id="${id}"]`).forEach(btn=>{
-          btn.addEventListener('click', (e)=>{
-            e.stopPropagation();
-            votePoi(id, btn.dataset.action);
-          });
-        });
-      },100);
+  <div class="modal" id="streetViewModal">
+    <div class="modal-content" style="padding:8px;position:relative;background:#000">
+      <button class="sv-close" id="closeSvBtn">×</button>
+      <img id="svImage" src="" alt="" style="width:100%;border-radius:12px;display:block"/>
+    </div>
+  </div>
+
+  <div class="modal" id="mlyViewerModal">
+    <div class="modal-content" style="max-width:800px;width:95vw;padding:0;overflow:hidden;background:#000">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#111;color:#fff">
+        <span style="font-weight:700">🎥 Mapillary Viewer</span>
+        <button onclick="document.getElementById('mlyViewerModal').classList.remove('show')" style="background:#222;color:#fff;border:0;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px">×</button>
+      </div>
+      <div id="mlyViewerContainer" class="mly-viewer"></div>
+    </div>
+  </div>
+
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div style="margin-top:12px;color:var(--c-text-2);font-size:13px;font-weight:600">Đang tính đường...</div>
+  </div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, updateProfile, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getDatabase, ref, push, set, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
+  authDomain: "drivekit-c88ef.firebaseapp.com",
+  databaseURL: "https://drivekit-c88ef-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "drivekit-c88ef",
+  storageBucket: "drivekit-c88ef.firebasestorage.app",
+  messagingSenderId: "1073887619343",
+  appId: "1:1073887619343:web:d89a872968bc4ee871f67a"
+};
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getDatabase(firebaseApp);
+const googleProvider = new GoogleAuthProvider();
+setPersistence(auth, browserLocalPersistence).catch(e=>console.warn('setPersistence fail', e));
+
+const API_BASE = localStorage.getItem('vietdriver_api_base') || 'https://alarming-crematorium-jjxv449rvxgghj6p5-8003.app.github.dev';
+const CONFIG = {
+  TRACKASIA_KEY:'1792297789c0cf0ddb16e5446d7364580f',
+  TOMTOM_KEY:'tG84Z1Yh4rauGWjz6pRn98rrWymLjTru',
+  MAPTILER_KEY:'aEzMCP0ANRz52vd1RvrW',
+  MAPILLARY_KEY:'MLY|26842262835470842|df552a54c4d4735f048c7cccb365d6bb',
+  MAPBOX_TOKEN:'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw',
+  VALHALLA_URL: API_BASE + '/route',
+  SEARCH_URL: API_BASE + '/search',
+  POI_URL: API_BASE + '/api/poi',
+  MAP_STYLE_URL: API_BASE + '/style.json'
+};
+
+const TRACKASIA = {
+  style: n => `https://maps.track-asia.com/styles/v2/${n}.json?key=${CONFIG.TRACKASIA_KEY}`,
+  autocomplete: q => `https://maps.track-asia.com/api/v4/place/autocomplete/json?apikey=${CONFIG.TRACKASIA_KEY}&text=${encodeURIComponent(q)}&language=vi`,
+  detail: id => `https://maps.track-asia.com/api/v4/place/detail/json?apikey=${CONFIG.TRACKASIA_KEY}&refId=${id}&language=vi`,
+  mapboxGeocode: q => `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${CONFIG.MAPBOX_TOKEN}&country=vn&language=vi&limit=5&proximity=${state.currentPos?state.currentPos.lng+','+state.currentPos.lat:'105.8342,21.0285'}`,
+  tomtomGeocode: q => `https://api.tomtom.com/search/2/geocode/${encodeURIComponent(q)}.json?key=${CONFIG.TOMTOM_KEY}&countrySet=VN&language=vi-VN&limit=5&lat=${state.currentPos?.lat||21.0285}&lon=${state.currentPos?.lng||105.8342}`
+};
+const TOMTOM = { trafficFlow: () => `https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${CONFIG.TOMTOM_KEY}` };
+const MAPILLARY = {
+  tiles: () => `https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${CONFIG.MAPILLARY_KEY}`,
+  imagesInBbox: (bbox, limit=5) => `https://graph.mapillary.com/images?access_token=${CONFIG.MAPILLARY_KEY}&fields=id,geometry,thumb_1024_url,captured_at&bbox=${bbox}&limit=${limit}&is_pano=true`
+};
+
+const urlParams = new URLSearchParams(location.search);
+const truckParams = {
+  height: parseFloat(urlParams.get('truck_height'))||3.5,
+  width: parseFloat(urlParams.get('truck_width'))||2.5,
+  weight: parseFloat(urlParams.get('truck_weight'))||10,
+  length: parseFloat(urlParams.get('truck_length'))||10,
+  axle_load: parseFloat(urlParams.get('truck_axle'))||8,
+  hazmat: urlParams.get('truck_hazmat')==='true'
+};
+
+const state = {
+  user:null, currentPos:null, pointA:null, pointB:null,
+  currentMarker:null, markerA:null, markerB:null, watchId:null,
+  voiceEnabled:true, trafficOn:false, mapillaryOn:false, streetViewMode:false,
+  costing:urlParams.get('costing')||'motor_scooter', useValhalla:true,
+  mapReady:false, gpsAssignedToA:false, targetFieldForSearch:null,
+  communityPois:{}, reports:{}, poiMarkers:{}, poiReporting:false, poiType:null,
+  poiTempMarker:null, poiTempLatLng:null, showPois:true, poiCount:0,
+  currentMapStyle:'maptiler', alternativeRoutes:[], selectedRouteIndex:0,
+  routeNumberMarkers:[], isNavigating:false
+};
+
+const $ = id => document.getElementById(id);
+const on = (id, ev, fn) => { const el=$(id); if(el) el.addEventListener(ev, fn); };
+
+// Utils
+let splashHidden = false;
+function hideSplashOnce(){
+  if(splashHidden) return;
+  splashHidden = true;
+  const s = $('splashScreen');
+  if(s){ s.style.opacity='0'; setTimeout(()=>{ s.style.display='none'; }, 400); }
+  hideLoading();
+}
+setTimeout(hideSplashOnce, 1500);
+setTimeout(()=>{ hideSplashOnce(); document.body.classList.remove('pre-auth'); }, 3000);
+
+let toastTimer;
+function showToast(msg, dur=3000){
+  const t = $('toast'); if(!t) return;
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), dur);
+}
+let loadingTimeout;
+function showLoadingForce(b){
+  const l = $('loading'); if(!l) return;
+  if(b){ l.classList.add('show'); clearTimeout(loadingTimeout); loadingTimeout = setTimeout(()=>hideLoading(), 10000); }
+  else hideLoading();
+}
+function hideLoading(){
+  const l = $('loading'); if(l) l.classList.remove('show');
+  clearTimeout(loadingTimeout);
+}
+function setDebug(msg){ const el=$('debugInfo'); if(el){ el.style.display='block'; el.textContent=msg; } }
+function fmtDist(m){ return m>=1000 ? (m/1000).toFixed(1)+' km' : Math.round(m)+' m'; }
+function fmtTime(s){ const min=Math.max(1, Math.round(s/60)); return min>=60 ? `${Math.floor(min/60)} giờ ${min%60} phút` : `${min} phút`; }
+function decodePolyline(str, precision=6){
+  if(!str || typeof str!=='string') return [];
+  let index=0, lat=0, lng=0;
+  const coords=[], factor=Math.pow(10, precision);
+  while(index<str.length){
+    let shift=0, result=0, byte;
+    do { byte=str.charCodeAt(index++)-63; result|=(byte&0x1f)<<shift; shift+=5; } while(byte>=0x20);
+    lat += (result&1) ? ~(result>>1) : (result>>1);
+    shift=0; result=0;
+    do { byte=str.charCodeAt(index++)-63; result|=(byte&0x1f)<<shift; shift+=5; } while(byte>=0x20);
+    lng += (result&1) ? ~(result>>1) : (result>>1);
+    coords.push([lng/factor, lat/factor]);
+  }
+  return coords;
+}
+function distanceBetween(lat1,lon1,lat2,lon2){
+  const R=6371000, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function bearingBetween(lat1,lon1,lat2,lon2){
+  const y=Math.sin((lon2-lon1)*Math.PI/180)*Math.cos(lat2*Math.PI/180);
+  const x=Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180)-Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos((lon2-lon1)*Math.PI/180);
+  return (Math.atan2(y,x)*180/Math.PI+360)%360;
+}
+
+// Auth
+let authMode = 'login';
+on('switchAuth','click', ()=>{
+  authMode = authMode==='login' ? 'signup' : 'login';
+  $('submitBtn').textContent = authMode==='login' ? 'Đăng nhập' : 'Đăng ký';
+  $('switchText').textContent = authMode==='login' ? 'Chưa có tài khoản?' : 'Đã có tài khoản?';
+  $('switchAuth').textContent = authMode==='login' ? 'Đăng ký ngay' : 'Đăng nhập';
+  $('authError').classList.remove('show');
+});
+
+on('loginForm','submit', async e => {
+  e.preventDefault();
+  const email = $('emailInput').value.trim(), password = $('passwordInput').value;
+  if(!email || !password){ $('authError').textContent='Vui lòng nhập email và mật khẩu'; $('authError').classList.add('show'); return; }
+  $('submitBtn').disabled=true; $('submitBtn').textContent='Đang xử lý...'; $('authError').classList.remove('show');
+  try {
+    if(authMode==='login'){ await signInWithEmailAndPassword(auth, email, password); }
+    else { const c = await createUserWithEmailAndPassword(auth, email, password); await updateProfile(c.user, {displayName: email.split('@')[0]}); }
+  } catch(err){
+    $('authError').textContent = translateAuthError(err.code) + ' | ' + err.message;
+    $('authError').classList.add('show');
+    setDebug(err.code + ' - ' + err.message);
+  } finally {
+    $('submitBtn').disabled=false;
+    $('submitBtn').textContent = authMode==='login'?'Đăng nhập':'Đăng ký';
+  }
+});
+
+on('googleBtn','click', async e => {
+  e.preventDefault();
+  $('authError').classList.remove('show');
+  try { await signInWithPopup(auth, googleProvider); }
+  catch(err){ $('authError').textContent = translateAuthError(err.code)+' | '+err.message; $('authError').classList.add('show'); }
+});
+
+function translateAuthError(code){
+  const m = {'auth/invalid-email':'Email không hợp lệ','auth/user-not-found':'Email chưa đăng ký','auth/wrong-password':'Sai mật khẩu','auth/invalid-credential':'Sai email hoặc mật khẩu','auth/email-already-in-use':'Email đã đăng ký','auth/weak-password':'Mật khẩu ≥ 6 ký tự','auth/popup-closed-by-user':'Đã đóng popup','auth/operation-not-allowed':'Chưa bật Email login','auth/unauthorized-domain':'Domain chưa được cho phép','auth/network-request-failed':'Lỗi mạng','auth/too-many-requests':'Bị chặn - đợi 1 phút'};
+  return m[code] || 'Lỗi: ' + code;
+}
+
+onAuthStateChanged(auth, user => {
+  hideSplashOnce();
+  document.body.classList.remove('pre-auth');
+  state.user = user;
+  if(user){
+    $('loginScreen').style.display = 'none';
+    $('app').classList.add('show');
+    $('userName').textContent = user.displayName || user.email?.split('@')[0] || 'User';
+    $('userAvatar').src = user.photoURL || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4 4-6 8-6s8 2 8 6"/></svg>';
+    $('userChip').classList.add('show');
+    initMap();
+    applyCostingToUI();
+    initCommunityPois();
+    setInterval(checkPoiProximity, 5000);
+  } else {
+    $('loginScreen').style.display = 'flex';
+    $('app').classList.remove('show');
+    $('userChip').classList.remove('show');
+  }
+});
+
+on('logoutBtn','click', async ()=>{
+  if(confirm('Đăng xuất?')){ await signOut(auth); $('settingsModal').classList.remove('show'); }
+});
+
+// POI Types
+const POI_TYPES = {
+  police:{cat:'warning',icon:'🚔',label:'CSGT',color:'#1d4ed8',bg:'#eff6ff',expireHours:2,warning:'Có CSGT phía trước'},
+  camera:{cat:'warning',icon:'📷',label:'CAMERA',color:'#6b7280',bg:'#f3f4f6',expireHours:720,warning:'Camera phạt nguội'},
+  toll:{cat:'warning',icon:'💰',label:'THU PHÍ',color:'#ca8a04',bg:'#fefce8',expireHours:168,warning:'Trạm thu phí'},
+  traffic_jam:{cat:'warning',icon:'🚗',label:'KẸT XE',color:'#f97316',bg:'#fff7ed',expireHours:1,warning:'Kẹt xe'},
+  bridge_collapse:{cat:'warning',icon:'🌉',label:'SẬP CẦU',color:'#dc2626',bg:'#fee2e2',expireHours:24,warning:'Cầu sập'},
+  road_collapse:{cat:'warning',icon:'🕳️',label:'SẬP ĐƯỜNG',color:'#991b1b',bg:'#fee2e2',expireHours:24,warning:'Đường sập'},
+  accident:{cat:'warning',icon:'💥',label:'TAI NẠN',color:'#dc2626',bg:'#fee2e2',expireHours:4,warning:'Tai nạn'},
+  road_closed:{cat:'warning',icon:'🚧',label:'ĐƯỜNG CẤM',color:'#ea580c',bg:'#fff7ed',expireHours:24,warning:'Đường bị chặn'},
+  flood:{cat:'warning',icon:'🌊',label:'NGẬP',color:'#0ea5e9',bg:'#e0f2fe',expireHours:6,warning:'Ngập lụt'},
+  hazard:{cat:'warning',icon:'❗',label:'NGUY HIỂM',color:'#ef4444',bg:'#fee2e2',expireHours:3,warning:'Nguy hiểm'},
+  supermarket:{cat:'place',icon:'🛒',label:'SIÊU THỊ',color:'#16a34a',bg:'#f0fdf4',expireHours:720,needName:true},
+  rest_stop:{cat:'place',icon:'⛽',label:'TRẠM DỪNG',color:'#0ea5e9',bg:'#e0f2fe',expireHours:720,needName:true},
+  school:{cat:'place',icon:'🏫',label:'TRƯỜNG HỌC',color:'#2563eb',bg:'#eff6ff',expireHours:720,needName:true},
+  hospital:{cat:'place',icon:'🏥',label:'BỆNH VIỆN',color:'#dc2626',bg:'#fee2e2',expireHours:720,needName:true},
+  gas_station:{cat:'place',icon:'⛽',label:'CÂY XĂNG',color:'#ea580c',bg:'#fff7ed',expireHours:720,needName:true},
+  parking:{cat:'place',icon:'🅿️',label:'BÃI XE',color:'#6b7280',bg:'#f3f4f6',expireHours:720,needName:true},
+  restaurant:{cat:'place',icon:'🍜',label:'NHÀ HÀNG',color:'#f97316',bg:'#fff7ed',expireHours:720,needName:true},
+  cafe:{cat:'place',icon:'☕',label:'CÀ PHÊ',color:'#78350f',bg:'#fef3c7',expireHours:720,needName:true},
+  hotel:{cat:'place',icon:'🏨',label:'KHÁCH SẠN',color:'#7c3aed',bg:'#f5f3ff',expireHours:720,needName:true},
+  market:{cat:'place',icon:'🧺',label:'CHỢ',color:'#16a34a',bg:'#f0fdf4',expireHours:720,needName:true},
+  atm:{cat:'place',icon:'🏧',label:'ATM',color:'#0e7490',bg:'#ecfeff',expireHours:720,needName:true},
+  repair:{cat:'place',icon:'🔧',label:'SỬA XE',color:'#57534e',bg:'#f5f5f4',expireHours:720,needName:true}
+};
+const POI_CATEGORIES = {
+  warning:['police','camera','toll','traffic_jam','bridge_collapse','road_collapse','accident','road_closed','flood','hazard'],
+  place:['supermarket','rest_stop','school','hospital','gas_station','parking','restaurant','cafe','hotel','market','atm','repair']
+};
+
+function isPoiExpired(poi){
+  if(!poi) return true;
+  if(poi.expiresAt && poi.expiresAt < Date.now()) return true;
+  const created = poi.createdAt || poi.timestamp;
+  if(!created) return false;
+  const expireMs = (POI_TYPES[poi.type]?.expireHours || 2) * 3600000;
+  return (Date.now() - created) > expireMs;
+}
+function formatPoiTime(ts){
+  if(!ts) return 'vừa xong';
+  const diff = Math.floor((Date.now()-ts)/60000);
+  if(diff<1) return 'vừa xong';
+  if(diff<60) return `${diff} phút trước`;
+  const h = Math.floor(diff/60);
+  if(h<24) return `${h} giờ trước`;
+  return `${Math.floor(h/24)} ngày trước`;
+}
+
+function renderPoiGrid(){
+  const wg = $('poiWarningGrid'), pg = $('poiPlaceGrid');
+  if(!wg || !pg) return;
+  const build = types => types.map(k=>{
+    const c = POI_TYPES[k];
+    return `<button class="poi-type-btn" data-type="${k}" style="border-color:${c.color};background:${c.bg}"><span class="emoji">${c.icon}</span><span>${c.label}</span></button>`;
+  }).join('');
+  wg.innerHTML = build(POI_CATEGORIES.warning);
+  pg.innerHTML = build(POI_CATEGORIES.place);
+  const bind = g => g.querySelectorAll('.poi-type-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      g.querySelectorAll('.poi-type-btn').forEach(x=>x.classList.remove('selected'));
+      b.classList.add('selected');
+      startPoiReporting(b.dataset.type);
     });
-    state.poiMarkers[id]=marker;
+  });
+  bind(wg); bind(pg);
+  document.querySelectorAll('.poi-tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      document.querySelectorAll('.poi-tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      const isW = tab.dataset.tab==='warning';
+      wg.style.display = isW?'grid':'none';
+      pg.style.display = isW?'none':'grid';
+      $('poiNameInputWrap').style.display = isW?'none':'block';
+    });
+  });
+}
+
+function openPoiPicker(){ renderPoiGrid(); $('poiPicker').classList.add('show'); }
+function closePoiPicker(){ $('poiPicker').classList.remove('show'); }
+
+function startPoiReporting(type){
+  state.poiType = type; state.poiReporting = true;
+  closePoiPicker();
+  $('reportingHint').classList.add('show');
+  $('reportingTypeLabel').textContent = POI_TYPES[type].label;
+  $('clickHint').classList.remove('show');
+  showToast(`📍 Chạm bản đồ để đặt ${POI_TYPES[type].label}`, 4000);
+  if(map) map.getCanvas().style.cursor = 'crosshair';
+}
+
+function cancelPoiReporting(){
+  state.poiReporting = false; state.poiType = null; state.poiTempLatLng = null;
+  if(state.poiTempMarker){ state.poiTempMarker.remove(); state.poiTempMarker = null; }
+  $('reportingHint').classList.remove('show');
+  $('poiConfirm').classList.remove('show');
+  if(map) map.getCanvas().style.cursor = '';
+  updateClickHint();
+}
+
+function handlePoiPlacement(lat, lng){
+  state.poiTempLatLng = {lat, lng};
+  if(state.poiTempMarker) state.poiTempMarker.remove();
+  const cfg = POI_TYPES[state.poiType];
+  const el = document.createElement('div');
+  el.className = `poi-marker ${state.poiType}`;
+  el.style.width='44px'; el.style.height='44px'; el.style.fontSize='22px';
+  el.style.borderColor = cfg.color;
+  el.style.animation = 'pulse-report 1s infinite';
+  el.textContent = cfg.icon;
+  state.poiTempMarker = new maplibregl.Marker({element:el, draggable:true}).setLngLat([lng, lat]).addTo(map);
+  state.poiTempMarker.on('dragend', ()=>{
+    const ll = state.poiTempMarker.getLngLat();
+    state.poiTempLatLng = {lat: ll.lat, lng: ll.lng};
+  });
+  $('poiConfirmTitle').textContent = `${cfg.icon} ${cfg.label} tại đây?`;
+  $('poiPicker').classList.add('show');
+  $('poiConfirm').classList.add('show');
+  $('poiNameInputWrap').style.display = cfg.needName ? 'block' : 'none';
+  $('poiDescInput').focus();
+}
+
+async function submitPoi(){
+  if(!state.poiTempLatLng || !state.poiType) return showToast('Chưa có vị trí/loại');
+  const cfg = POI_TYPES[state.poiType];
+  const desc = $('poiDescInput')?.value?.trim() || '';
+  const placeName = $('poiPlaceNameInput')?.value?.trim() || '';
+  if(cfg.cat==='place' && !placeName){ showToast('Vui lòng nhập tên'); $('poiPlaceNameInput')?.focus(); return; }
+  const uid = state.user?.uid || 'anon';
+  const authorName = state.user?.displayName || state.user?.email?.split('@')[0] || 'Ẩn danh';
+  const now = Date.now();
+  showLoadingForce(true);
+  try {
+    if(cfg.cat==='place'){
+      await set(push(ref(db,'communityPois')), {lat:state.poiTempLatLng.lat, lng:state.poiTempLatLng.lng, name:placeName, tag:state.poiType, uid, authorName, timestamp:now, upvotes:0});
+      showToast(`✅ Đã thêm ${cfg.label}`);
+    } else {
+      const expireMs = (cfg.expireHours || 2) * 3600 * 1000;
+      await set(push(ref(db,'reports')), {lat:state.poiTempLatLng.lat, lng:state.poiTempLatLng.lng, type:state.poiType, timestamp:now, expiresAt:now+expireMs, uid});
+      showToast(`🚨 Đã báo ${cfg.label}`);
+    }
+  } catch(e){
+    console.warn('Save fail', e);
+    const id = 'local_'+now;
+    state.communityPois[id] = {lat:state.poiTempLatLng.lat, lng:state.poiTempLatLng.lng, type:state.poiType, tag:state.poiType, name:placeName, desc, createdAt:now, timestamp:now, creatorName:authorName, upvotes:0, downvotes:0};
+    try { const stored=JSON.parse(localStorage.getItem('vd_pois')||'[]'); stored.push({...state.communityPois[id], id}); localStorage.setItem('vd_pois', JSON.stringify(stored.slice(-200))); } catch {}
+    renderPoiMarkers();
+    showToast(`✅ Lưu cục bộ ${cfg.label} (offline)`);
+  } finally {
+    hideLoading(); cancelPoiReporting();
+    if($('poiPlaceNameInput')) $('poiPlaceNameInput').value = '';
+    if($('poiDescInput')) $('poiDescInput').value = '';
+  }
+}
+
+function createPoiMarkerElement(poi){
+  const cfg = POI_TYPES[poi.type] || POI_TYPES.hazard;
+  const el = document.createElement('div');
+  el.className = `poi-marker ${poi.type}`;
+  el.style.borderColor = cfg.color;
+  el.textContent = cfg.icon;
+  el.title = poi.name || cfg.label;
+  return el;
+}
+
+function renderPoiMarkers(){
+  if(!map) return;
+  Object.values(state.poiMarkers).forEach(m=>m.remove());
+  state.poiMarkers = {};
+  if(!state.showPois) return;
+  let count = 0;
+  const all = {...state.communityPois, ...state.reports};
+  Object.entries(all).forEach(([id, poi])=>{
+    if(isPoiExpired(poi)) return;
+    if(!poi.lat || !poi.lng) return;
+    count++;
+    const el = createPoiMarkerElement(poi);
+    const marker = new maplibregl.Marker({element:el}).setLngLat([poi.lng, poi.lat]).addTo(map);
+    const cfg = POI_TYPES[poi.type || poi.tag] || POI_TYPES.hazard;
+    const popupHtml = `<div class="poi-popup"><div class="poi-head"><div class="ic" style="background:${cfg.bg};border:1px solid ${cfg.color}">${cfg.icon}</div><div><div class="poi-title">${poi.name || cfg.label}</div><div class="poi-time">${formatPoiTime(poi.createdAt||poi.timestamp)} • ${poi.authorName||poi.creatorName||'Cộng đồng'}</div></div></div>${poi.desc?`<div class="poi-desc">"${poi.desc}"</div>`:''}<div class="poi-actions"><button class="vote-btn up" data-action="up" data-id="${id}">👍 ${poi.upvotes||0}</button><button class="vote-btn down" data-action="down" data-id="${id}">👎 ${poi.downvotes||0}</button></div></div>`;
+    marker.setPopup(new maplibregl.Popup({offset:18, closeButton:false, maxWidth:'280px'}).setHTML(popupHtml));
+    state.poiMarkers[id] = marker;
   });
   state.poiCount = count;
   const badge = $('poiCountBadge'); if(badge) badge.textContent = count;
-  // Check proximity if routing
-  if(state.pointA && state.pointB) checkPoiProximity();
 }
 
-async function votePoi(id, action){
-  const poi = state.communityPois[id];
-  if(!poi) return;
-  if(action==='up'){ poi.upvotes=(poi.upvotes||0)+1; showToast('👍 Cảm ơn bạn xác nhận!'); }
-  else { poi.downvotes=(poi.downvotes||0)+1;
-    if((poi.downvotes||0)>=3){ // auto remove if 3 downvotes
-      showToast('POI đã hết, sẽ ẩn sau khi nhiều người báo hết');
-    } else showToast('👎 Đã ghi nhận hết');
-  }
-  try{
-    if(!id.startsWith('local_')){
-      await update(ref(db, `community_pois/${id}`), {upvotes:poi.upvotes, downvotes:poi.downvotes});
-    }
-  }catch(e){ console.warn(e); }
-  // update local
-  const local = JSON.parse(localStorage.getItem('vd_pois')||'[]');
-  const idx = local.findIndex(p=>p.id===id);
-  if(idx>=0){ local[idx]= {...local[idx], upvotes:poi.upvotes, downvotes:poi.downvotes}; localStorage.setItem('vd_pois', JSON.stringify(local)); }
-  renderPoiMarkers();
-}
-
-// ============ RTDB FULL SCHEMA - KHỚP 100% VỚI BẠN GỬI ============
 function initCommunityPois(){
-  // FIX 7: listen 2 path theo schema thật
-  const poisRef = ref(db, 'communityPois');
-  onValue(poisRef, snap=>{
-    state.communityPois = snap.val() || {};
-    renderPoiMarkers();
-  });
-  const reportsRef = ref(db, 'reports');
-  onValue(reportsRef, snap=>{
-    state.reports = snap.val() || {};
-    renderPoiMarkers();
-  });
-  // avoid_zones và public_users giữ nguyên
-  const zonesRef = ref(db, 'avoid_zones');
-  onValue(zonesRef, snap=>{ state.avoidZones = snap.val()||{}; if(typeof renderAvoidZones==='function') renderAvoidZones(); });
-  const publicRef = ref(db, 'public_users');
-  onValue(publicRef, snap=>{ state.publicUsers = snap.val()||{}; });
+  try { const local = JSON.parse(localStorage.getItem('vd_pois')||'[]'); local.forEach(p=>{ if(!isPoiExpired(p)) state.communityPois[p.id]=p; }); } catch {}
+  renderPoiMarkers();
+  try {
+    onValue(ref(db,'communityPois'), snap=>{
+      state.communityPois = snap.val() || {};
+      renderPoiMarkers();
+    });
+    onValue(ref(db,'reports'), snap=>{
+      state.reports = snap.val() || {};
+      renderPoiMarkers();
+    });
+  } catch(e){ console.warn('FB POI listen fail', e); }
 }
 
-function initCommunityPois_OLD_DISABLED(){
-
-  // 1. communityPois: Trạm dừng nghỉ + Địa điểm (cafe, cây xăng...)
-  // Schema: { lat, lng, name, tag, uid, authorName, timestamp, upvotes }
-  const poisRef = ref(db, 'communityPois');
-  onValue(poisRef, snap=>{
-    const data = snap.val() || {};
-    state.communityPois = data;
-    console.log('📍 communityPois loaded', Object.keys(data).length);
-    renderPoiMarkers();
+function clearExpiredPois(){
+  let removed = 0;
+  Object.entries(state.communityPois).forEach(([id, poi])=>{
+    if(isPoiExpired(poi)){ delete state.communityPois[id]; removed++; try { if(!id.startsWith('local_')) remove(ref(db, `communityPois/${id}`)); } catch {} }
   });
+  try { const local = JSON.parse(localStorage.getItem('vd_pois')||'[]').filter(p=>!isPoiExpired(p)); localStorage.setItem('vd_pois', JSON.stringify(local)); } catch {}
+  renderPoiMarkers();
+  showToast(`🧹 Đã xóa ${removed} POI`);
+}
 
-  // 2. reports: CSGT, Tai nạn, Kẹt xe... có expiresAt
-  // Schema: { lat, lng, type, timestamp, expiresAt, uid }
-  const reportsRef = ref(db, 'reports');
-  onValue(reportsRef, snap=>{
-    const data = snap.val() || {};
-    state.reports = data;
-    console.log('🚨 reports loaded', Object.keys(data).length);
-    renderPoiMarkers();
-  });
-
-  // 3. avoid_zones: Vùng cấm do Admin vẽ
-  // Schema: { name, lat1,lng1,lat2,lng2, waypoints (string JSON), startTime,endTime,bannedVehicles,timestamp }
-  const zonesRef = ref(db, 'avoid_zones');
-  onValue(zonesRef, snap=>{
-    const data = snap.val() || {};
-    state.avoidZones = data;
-    console.log('🚧 avoid_zones loaded', Object.keys(data).length);
-    renderAvoidZones();
-  });
-
-  // 4. public_users: Người bật Public trong Live Room
-  const publicUsersRef = ref(db, 'public_users');
-  onValue(publicUsersRef, snap=>{
-    const data = snap.val() || {};
-    state.publicUsers = data;
-    renderPublicUsers();
-  });
-
-  // 5. live_rooms: Phòng live
-  const liveRoomsRef = ref(db, 'live_rooms');
-  onValue(liveRoomsRef, snap=>{
-    const data = snap.val() || {};
-    state.liveRooms = data;
-    renderLiveRooms();
+let lastAlerted = {};
+function checkPoiProximity(){
+  if(!state.currentPos) return;
+  const all = {...state.communityPois, ...state.reports};
+  Object.entries(all).forEach(([id, poi])=>{
+    if(isPoiExpired(poi)) return;
+    if(POI_TYPES[poi.type||poi.tag]?.cat !== 'warning') return;
+    const d = haversine(state.currentPos.lat, state.currentPos.lng, poi.lat, poi.lng);
+    if(d < 0.3){
+      if(lastAlerted[id] && Date.now()-lastAlerted[id] < 300000) return;
+      lastAlerted[id] = Date.now();
+      const cfg = POI_TYPES[poi.type||poi.tag];
+      if(state.voiceEnabled) speakInstruction(cfg.warning);
+      showToast(`${cfg.icon} ${cfg.warning}`, 4000);
+    }
   });
 }
 
-function initUserData(uid){
-  if(!uid) return;
-  // 6. users/{uid}/savedPlaces
-  const savedPlacesRef = ref(db, `users/${uid}/savedPlaces`);
-  onValue(savedPlacesRef, snap=>{
-    state.savedPlaces = snap.val() || {};
-    renderSavedPlaces();
+// Map
+let map = null;
+const markerHTML = {
+  current:'<div style="width:20px;height:20px;background:#0d6efd;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 3px rgba(13,110,253,.25),0 2px 6px rgba(0,0,0,.3)"></div>',
+  A:'<div style="width:28px;height:28px;background:#10b981;border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.3)">A</div>',
+  B:'<div style="width:28px;height:28px;background:#ef4444;border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.3)">B</div>',
+  search:'<div style="width:24px;height:24px;background:#f59e0b;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.3)"></div>'
+};
+function createMarkerEl(k){ const d=document.createElement('div'); d.innerHTML=markerHTML[k]; return d.firstElementChild; }
+
+const MAP_STYLES = {
+  maptiler:{name:'Sáng Hiện Đại', url:()=>`https://api.maptiler.com/maps/streets-v4/style.json?key=${CONFIG.MAPTILER_KEY}`},
+  streets:{name:'Chuẩn VN', url:()=>TRACKASIA.style('streets')},
+  satellite:{name:'Vệ Tinh', url:()=>TRACKASIA.style('satellite')},
+  dark:{name:'Đêm', url:()=>TRACKASIA.style('dark')},
+  light:{name:'Nhẹ', url:()=>TRACKASIA.style('light')}
+};
+
+function initMap(){
+  if(map) { hideLoading(); return; }
+  hideLoading();
+  const defaultStyle = CONFIG.MAPTILER_KEY ? MAP_STYLES.maptiler.url() : TRACKASIA.style('streets');
+  state.currentMapStyle = CONFIG.MAPTILER_KEY ? 'maptiler' : 'streets';
+  map = new maplibregl.Map({container:'map', style:defaultStyle, center:[105.8542, 21.0285], zoom:13, pitch:0, bearing:0, pitchWithRotate:true, dragRotate:true, touchPitchRotate:true});
+  map.addControl(new maplibregl.NavigationControl({visualizePitch:true}), 'bottom-left');
+  map.addControl(new maplibregl.AttributionControl({compact:true}), 'bottom-left');
+  map.on('load', ()=>{ state.mapReady=true; hideLoading(); locateUser(true); startWatching(); setTimeout(loadFromURL, 800); });
+  map.on('error', e => {
+    const msg = e?.error?.message || '';
+    if(msg.includes('401') || msg.includes('404')) showToast('⚠️ Lớp bản đồ lỗi - thử lớp khác');
   });
-  // 7. users/{uid}/history
-  const historyRef = ref(db, `users/${uid}/history`);
-  onValue(historyRef, snap=>{
-    state.tripHistory = snap.val() || {};
-    renderTripHistory();
+  map.on('click', e => {
+    if(state.streetViewMode){ findNearestMapillaryImage(e.lngLat.lng, e.lngLat.lat); return; }
+    handleMapClick(e.lngLat.lat, e.lngLat.lng, 'left');
   });
-  // 8. users/{uid}/savedRoutes
-  const savedRoutesRef = ref(db, `users/${uid}/savedRoutes`);
-  onValue(savedRoutesRef, snap=>{
-    state.savedRoutes = snap.val() || {};
-    renderSavedRoutes();
+  map.on('contextmenu', e => {
+    if(state.poiReporting){ e.preventDefault(); handleMapClick(e.lngLat.lat, e.lngLat.lng, 'left'); return; }
+    if(state.streetViewMode) return;
+    e.preventDefault();
+    handleMapClick(e.lngLat.lat, e.lngLat.lng, 'right');
   });
 }
-);
-$('clearOldPoiBtn').addEventListener('click', clearExpiredPois);
-$('myReportsBtn').addEventListener('click', ()=>{
-  const mine = Object.entries(state.communityPois).filter(([id,p])=>p.createdBy===state.user?.uid);
-  if(!mine.length) return showToast('Bạn chưa báo cáo gì');
-  showToast(`Bạn đã báo ${mine.length} cảnh báo`);
-  // fly to first
-  const first = mine[0][1];
-  map.flyTo({center:[first.lng, first.lat], zoom:16});
+
+let lastClickedLatLng = null;
+function handleMapClick(lat, lng, button){
+  if(state.poiReporting && state.poiType){ handlePoiPlacement(lat, lng); return; }
+  if(button==='right'){ setPoint('B', lat, lng); showToast('📍 Đã đặt B - bấm Tìm đường'); return; }
+  showMapActionPopup(lat, lng);
+}
+
+async function showMapActionPopup(lat, lng){
+  lastClickedLatLng = {lat, lng};
+  $('mapActionCoords').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  $('mapActionAddress').textContent = '📍 Đang lấy địa chỉ...';
+  $('mapActionPopup').classList.add('show');
+  $('mapActionBackdrop').classList.add('show');
+  try {
+    const res = await fetch(`https://api.tomtom.com/search/2/reverseGeocode/${lat},${lng}.json?key=${CONFIG.TOMTOM_KEY}&language=vi-VN`);
+    const data = await res.json();
+    const addr = data.addresses?.[0]?.address?.freeformAddress || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    $('mapActionAddress').textContent = '📍 ' + addr;
+  } catch { $('mapActionAddress').textContent = `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`; }
+}
+function hideMapActionPopup(){ $('mapActionPopup').classList.remove('show'); $('mapActionBackdrop').classList.remove('show'); }
+
+function showRouteSheet(){
+  $('routeInputs').classList.add('show');
+  document.body.classList.add('routing');
+  $('routeBackdrop').classList.add('show');
+  if(!state.pointA && state.currentPos){ setPoint('A', state.currentPos.lat, state.currentPos.lng); state.gpsAssignedToA = true; showToast('📍 A = GPS của bạn'); }
+  else if(!state.pointA) locateUser(false);
+  if(!state.targetFieldForSearch) state.targetFieldForSearch = 'B';
+}
+function hideRouteSheetAndClear(){
+  const wasVisible = $('routeInputs').classList.contains('show');
+  $('routeInputs').classList.remove('show');
+  document.body.classList.remove('routing');
+  $('routeBackdrop').classList.remove('show');
+  if(wasVisible && map){
+    for(let i=0;i<10;i++){
+      ['route-outline-'+i,'route-line-'+i].forEach(l=>{ if(map.getLayer(l)) map.removeLayer(l); });
+      if(map.getSource('route-'+i)) map.removeSource('route-'+i);
+    }
+    if(state.routeNumberMarkers) state.routeNumberMarkers.forEach(m=>m.remove());
+    $('routePanel').classList.remove('show');
+  }
+}
+
+function updateClickHint(){
+  const h = $('clickHint'); if(!h) return;
+  if(state.streetViewMode){ h.textContent = '👆 Click đường xanh để xem ảnh'; h.classList.add('show'); return; }
+  if(!state.pointA){ h.textContent = '👆 Click bản đồ để chọn A'; h.classList.add('show'); }
+  else if(!state.pointB){ h.textContent = '👆 Click bản đồ để chọn B'; h.classList.add('show'); }
+  else { h.textContent = '👆 Click đổi B'; h.classList.add('show'); setTimeout(()=>h.classList.remove('show'), 4000); }
+}
+
+// Geo
+function updateCurrentMarker(){
+  if(!state.currentPos || !map) return;
+  const ll = [state.currentPos.lng, state.currentPos.lat];
+  if(state.currentMarker) state.currentMarker.setLngLat(ll);
+  else state.currentMarker = new maplibregl.Marker({element: createMarkerEl('current')}).setLngLat(ll).addTo(map);
+}
+function locateUser(center=true){
+  if(!map){ showToast('Map chưa sẵn sàng'); return; }
+  if(!navigator.geolocation){
+    state.currentPos = {lat:21.0285, lng:105.8542};
+    updateCurrentMarker();
+    if(center) map.flyTo({center:[105.8542,21.0285], zoom:14});
+    if(!state.pointA) setPoint('A', 21.0285, 105.8542);
+    return;
+  }
+  showToast('📍 Đang lấy GPS...');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      state.currentPos = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+      updateCurrentMarker();
+      if(center) map.flyTo({center:[state.currentPos.lng, state.currentPos.lat], zoom:16, essential:true});
+      if(!state.pointA && !state.gpsAssignedToA){ setPoint('A', state.currentPos.lat, state.currentPos.lng); state.gpsAssignedToA=true; updateClickHint(); showToast('📍 A = GPS'); }
+    },
+    err => {
+      state.currentPos = {lat:21.0285, lng:105.8542};
+      updateCurrentMarker();
+      if(!state.pointA){ setPoint('A', 21.0285, 105.8542); state.gpsAssignedToA = true; }
+      if(center) map.flyTo({center:[105.8542,21.0285], zoom:14});
+      showToast('Không có GPS - dùng Hà Nội');
+    },
+    {enableHighAccuracy:false, timeout:8000, maximumAge:10000}
+  );
+}
+function startWatching(){
+  if(state.watchId || !navigator.geolocation) return;
+  state.watchId = navigator.geolocation.watchPosition(
+    pos => { state.currentPos = {lat:pos.coords.latitude, lng:pos.coords.longitude}; updateCurrentMarker(); },
+    ()=>{}, {enableHighAccuracy:true, maximumAge:2000}
+  );
+}
+function setPoint(key, lat, lng){
+  state['point'+key] = {lat, lng};
+  const old = key==='A' ? state.markerA : state.markerB;
+  if(old) old.remove();
+  if(!map) return;
+  const marker = new maplibregl.Marker({element: createMarkerEl(key), draggable:true}).setLngLat([lng, lat]).addTo(map);
+  marker.on('dragend', ()=>{
+    const p = marker.getLngLat();
+    state['point'+key] = {lat:p.lat, lng:p.lng};
+    $('point'+key+'Input').value = `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`;
+  });
+  if(key==='A') state.markerA = marker;
+  else state.markerB = marker;
+  $('point'+key+'Input').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+}
+
+// Routing
+async function routeNhieuTuyen(aLat, aLon, bLat, bLon){
+  const res = await fetch(CONFIG.VALHALLA_URL, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      locations:[{lat:aLat, lon:aLon}, {lat:bLat, lon:bLon}],
+      costing: state.costing,
+      alternates: 2,
+      directions_options: {language:'vi-VN'},
+      ...(state.costing==='truck' ? {costing_options:{truck:{height:truckParams.height, width:truckParams.width, weight:truckParams.weight, length:truckParams.length, axle_load:truckParams.axle_load, hazmat:truckParams.hazmat}}} : {})
+    })
+  });
+  if([502,503,504].includes(res.status)){ const e = new Error(`Host ngủ (${res.status})`); e.codespaceDown=true; throw e; }
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if(!data.trip) throw new Error('Không có trip');
+  const allTrips = [data.trip, ...(data.alternates||[])];
+  return allTrips.map((trip, i)=>{
+    const coords = decodePolyline(trip.legs[0].shape, 6);
+    const steps = (trip.legs[0].maneuvers||[]).map(m=>({
+      text: m.instruction || 'Đi tiếp',
+      distance: m.length*1000,
+      time: m.time,
+      location: m.begin_shape_index != null && coords[m.begin_shape_index] ? coords[m.begin_shape_index] : null,
+      type: m.type || '',
+      modifier: m.verbal_post_transition_instruction || ''
+    }));
+    return {coords, distance: trip.summary.length*1000, duration: trip.summary.time, steps, engine:'Valhalla', index:i};
+  });
+}
+
+async function calculateRoute(){
+  if(!state.pointA || !state.pointB) return showToast('Cần đủ A và B');
+  showLoadingForce(true);
+  try {
+    let routes = await routeNhieuTuyen(state.pointA.lat, state.pointA.lng, state.pointB.lat, state.pointB.lng);
+    if(!Array.isArray(routes)) routes = [routes];
+    state.alternativeRoutes = routes;
+    state.selectedRouteIndex = 0;
+    $('routeInputs').classList.remove('show');
+    $('routeBackdrop').classList.remove('show');
+    $('mapActionPopup').classList.remove('show');
+    $('mapActionBackdrop').classList.remove('show');
+    drawRoutes(routes);
+    renderRouteSelector(routes);
+    renderSteps(routes[0]);
+    if(state.voiceEnabled && routes[0].steps[0]) speakInstruction(routes[0].steps[0].text);
+    showToast(routes.length>1 ? `✅ ${routes.length} tuyến` : `✅ 1 tuyến`);
+  } catch(err){
+    console.error('Routing error', err);
+    if(err.codespaceDown) showToast('⚠️ Host đang ngủ - wake host!', 6000);
+    else showToast('❌ Lỗi: ' + err.message, 6000);
+  } finally {
+    hideLoading();
+    const sb = $('searchBtn'); if(sb) sb.textContent = 'Tìm';
+  }
+}
+
+function drawRoutes(routes){
+  if(!map) return;
+  for(let i=0;i<10;i++){
+    ['route-outline-'+i,'route-line-'+i].forEach(l=>{ if(map.getLayer(l)) map.removeLayer(l); });
+    if(map.getSource('route-'+i)) map.removeSource('route-'+i);
+  }
+  if(state.routeNumberMarkers) state.routeNumberMarkers.forEach(m=>m.remove());
+  state.routeNumberMarkers = [];
+  const allCoords = [];
+  routes.forEach((route, idx)=>{
+    const isSelected = idx === state.selectedRouteIndex;
+    const sourceId = 'route-'+idx;
+    map.addSource(sourceId, {type:'geojson', data:{type:'Feature', geometry:{type:'LineString', coordinates: route.coords}}});
+    map.addLayer({id:'route-outline-'+idx, type:'line', source:sourceId, layout:{'line-cap':'round','line-join':'round'}, paint:{'line-color':'#fff','line-width': isSelected?10:8, 'line-opacity': isSelected?1:0.6}});
+    const colors = ['#00C853','#0d6efd','#f59e0b'];
+    map.addLayer({id:'route-line-'+idx, type:'line', source:sourceId, layout:{'line-cap':'round','line-join':'round'}, paint:{'line-color':colors[idx%colors.length], 'line-width': isSelected?6:4, 'line-opacity': isSelected?1:0.5}});
+    map.on('click', 'route-line-'+idx, ()=>selectRoute(idx));
+    if(route.coords.length>0){
+      const mid = route.coords[Math.floor(route.coords.length/2)];
+      const el = document.createElement('div');
+      el.style.cssText = `width:28px;height:28px;background:${isSelected?'#0d6efd':'#6b7280'};border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer`;
+      el.textContent = (idx+1).toString();
+      el.addEventListener('click', ()=>selectRoute(idx));
+      state.routeNumberMarkers.push(new maplibregl.Marker({element:el}).setLngLat(mid).addTo(map));
+      allCoords.push(...route.coords);
+    }
+  });
+  if(allCoords.length>0){
+    const lngs = allCoords.map(c=>c[0]), lats = allCoords.map(c=>c[1]);
+    map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], {padding:{top:80, bottom:320, left:40, right:40}, pitch:0, duration:800});
+  }
+}
+
+function selectRoute(idx){
+  if(!state.alternativeRoutes || !state.alternativeRoutes[idx]) return;
+  state.selectedRouteIndex = idx;
+  drawRoutes(state.alternativeRoutes);
+  renderRouteSelector(state.alternativeRoutes);
+  renderSteps(state.alternativeRoutes[idx]);
+  showToast(`Tuyến ${idx+1} - ${fmtDist(state.alternativeRoutes[idx].distance)}`);
+}
+
+function renderRouteSelector(routes){
+  const sel = $('routeSelector');
+  if(!sel) return;
+  if(!routes || !routes.length){ sel.innerHTML=''; sel.style.display='none'; return; }
+  sel.style.display = 'flex';
+  const colors = ['#00C853','#0d6efd','#f59e0b'];
+  sel.innerHTML = routes.map((r, idx)=>{
+    const isSel = idx === state.selectedRouteIndex;
+    return `<div class="route-option-card ${isSel?'selected':''}" data-idx="${idx}" style="background:${isSel?'#eff6ff':'#fff'};border:2px solid ${isSel?colors[idx]:'#e5e7eb'}"><div style="display:flex;align-items:center;gap:6px"><div style="width:26px;height:26px;background:${colors[idx]};color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px">${idx+1}</div><div style="flex:1;min-width:0"><div style="font-weight:800;font-size:13px">${fmtDist(r.distance)}</div><div style="font-size:10px;color:#6b7280">${fmtTime(r.duration)}</div></div></div><div style="margin-top:6px;font-size:10px;color:#6b7280">${r.steps.length} bước</div><button class="choose-route-btn" data-choose="${idx}" style="margin-top:8px;width:100%;padding:7px;background:${isSel?colors[idx]:'#f3f4f6'};color:${isSel?'#fff':'#374151'};border:0;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer">${isSel?'▶ Dẫn đường':'Chọn'}</button></div>`;
+  }).join('');
+  sel.querySelectorAll('.route-option-card').forEach(el=>{
+    el.addEventListener('click', e=>{ if(e.target.closest('.choose-route-btn')) return; selectRoute(+el.dataset.idx); });
+  });
+  sel.querySelectorAll('.choose-route-btn').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      e.stopPropagation();
+      const idx = +btn.dataset.choose;
+      state.selectedRouteIndex = idx;
+      drawRoutes(state.alternativeRoutes);
+      renderRouteSelector(state.alternativeRoutes);
+      renderSteps(state.alternativeRoutes[idx]);
+      setTimeout(()=>enterNavigationMode(), 150);
+    });
+  });
+}
+
+function stepIcon(text, modifier=''){
+  const t = (text+' '+modifier).toLowerCase();
+  if(t.includes('đến') || t.includes('đích') || t.includes('arrive')) return '🏁';
+  if(t.includes('trái') || t.includes('left') || modifier==='left') return '↩️';
+  if(t.includes('phải') || t.includes('right') || modifier==='right') return '↪️';
+  if(t.includes('vòng xuyến') || t.includes('roundabout')) return '🔄';
+  if(t.includes('rẽ') || modifier) return '➡️';
+  return '⬆️';
+}
+
+function renderSteps(route){
+  if(!route) return;
+  $('routeTitle').textContent = `Tuyến ${state.selectedRouteIndex+1}: ${fmtDist(route.distance)}`;
+  $('routeSubtitle').innerHTML = `${fmtTime(route.duration)} • ${route.steps.length} bước <span class="engine-badge">${route.engine}</span>`;
+  $('stepsList').innerHTML = route.steps.map((s, i)=>`<div class="step-item" data-idx="${i}"><div class="step-icon">${stepIcon(s.text, s.modifier)}</div><div class="step-body"><div class="step-text">${i+1}. ${s.text}</div><div class="step-meta">${fmtDist(s.distance||0)}${s.modifier?' • '+s.modifier:''}</div></div></div>`).join('');
+  $('routePanel').classList.add('show');
+  $('startNavBtn').style.display = 'block';
+  $('stepsList').querySelectorAll('.step-item').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const s = route.steps[+el.dataset.idx];
+      if(s?.location){ map.flyTo({center:s.location, zoom:17, pitch:30}); if(state.voiceEnabled) speakInstruction(s.text); }
+    });
+  });
+}
+
+// Voice
+function speakInstruction(text){
+  if(!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang='vi-VN'; u.rate=1.0;
+  const vi = window.speechSynthesis.getVoices().find(v=>v.lang?.startsWith('vi'));
+  if(vi) u.voice = vi;
+  window.speechSynthesis.speak(u);
+  const vt = $('voiceText'); if(vt) vt.textContent = text;
+  const vb = $('voiceBanner'); if(vb){ vb.classList.add('show'); setTimeout(()=>vb.classList.remove('show'), 3500); }
+}
+
+// Search
+async function fetchTrackAsiaSearch(q){
+  try { const r = await fetch(TRACKASIA.autocomplete(q)); if(!r.ok) throw 0; const d = await r.json(); return (d.predictions||[]).map(p=>({description:p.description, place_id:p.place_id, source:'trackasia'})); } catch { return []; }
+}
+async function fetchMapboxSearch(q){
+  try { if(!CONFIG.MAPBOX_TOKEN) return []; const r = await fetch(TRACKASIA.mapboxGeocode(q)); if(!r.ok) throw 0; const d = await r.json(); return (d.features||[]).map(f=>({description:f.place_name, lat:f.center[1], lng:f.center[0], source:'mapbox'})); } catch { return []; }
+}
+async function fetchTomTomSearch(q){
+  try { const r = await fetch(TRACKASIA.tomtomGeocode(q)); if(!r.ok) throw 0; const d = await r.json(); return (d.results||[]).map(r=>({description:r.address?.freeformAddress||q, lat:r.position?.lat, lng:r.position?.lon, source:'tomtom'})).filter(x=>x.lat!=null); } catch { return []; }
+}
+
+async function doSearch(targetField){
+  const q = $('searchInput').value.trim();
+  if(!q) return showToast('Nhập địa chỉ');
+  state.targetFieldForSearch = targetField;
+  $('searchBtn').textContent = '...';
+  try {
+    const [ta, mb] = await Promise.all([fetchTrackAsiaSearch(q), fetchMapboxSearch(q)]);
+    let combined = [...ta, ...mb];
+    if(!combined.length) combined = await fetchTomTomSearch(q);
+    if(!combined.length) return showToast('Không tìm thấy');
+    renderSuggestions(combined);
+  } finally { $('searchBtn').textContent = 'Tìm'; }
+}
+
+function renderSuggestions(preds){
+  const el = $('suggestions');
+  el.innerHTML = preds.map((p, i)=>{
+    const badge = p.source==='trackasia' ? '<span style="background:#eff6ff;color:#0d6efd;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">TrackAsia</span>'
+                  : p.source==='tomtom' ? '<span style="background:#fef3c7;color:#d97706;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">TomTom</span>'
+                  : '<span style="background:#f0fdf4;color:#16a34a;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">Mapbox</span>';
+    return `<div class="suggestion-item" data-idx="${i}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0d6efd" stroke-width="2" style="flex-shrink:0;margin-top:2px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><div style="flex:1"><div style="font-size:13px">${p.description}</div><div style="margin-top:4px">${badge}</div></div></div>`;
+  }).join('');
+  el.classList.add('show');
+  el.querySelectorAll('.suggestion-item').forEach(item=>{
+    item.addEventListener('click', async ()=>{
+      const p = preds[+item.dataset.idx];
+      el.classList.remove('show');
+      try {
+        let lat, lng;
+        if(p.lat != null){ lat = p.lat; lng = p.lng; }
+        else { const d = await fetch(TRACKASIA.detail(p.place_id)).then(r=>r.json()); const loc = d.result?.geometry?.location || d.result?.location; lat = parseFloat(loc.lat); lng = parseFloat(loc.lng || loc.lon); }
+        if(!state.targetFieldForSearch){
+          if(map) map.flyTo({center:[lng, lat], zoom:16});
+          showToast(`📍 ${p.description?.slice(0,40)||''}`);
+          const tmp = new maplibregl.Marker({element: createMarkerEl('search')}).setLngLat([lng, lat]).addTo(map);
+          setTimeout(()=>tmp.remove(), 5000);
+        } else {
+          const target = state.targetFieldForSearch;
+          setPoint(target, lat, lng);
+          if(map) map.flyTo({center:[lng, lat], zoom:16});
+          showRouteSheet();
+          if(target==='A'){ state.targetFieldForSearch = 'B'; }
+        }
+      } catch(e){ showToast('Lỗi: '+e.message); }
+    });
+  });
+}
+
+// Vehicle
+function applyCostingToUI(){
+  document.querySelectorAll('.vehicle-btn').forEach(b=>{
+    b.classList.toggle('selected', b.dataset.costing === state.costing);
+  });
+  $('truckOptions').classList.toggle('show', state.costing === 'truck');
+}
+on('vehicleSelector','click', e=>{
+  const btn = e.target.closest('.vehicle-btn');
+  if(!btn) return;
+  state.costing = btn.dataset.costing;
+  applyCostingToUI();
+  showToast('Đã chọn: ' + btn.textContent.trim());
 });
-$('poiConfirm').addEventListener('click', e=>{ if(e.target===$('poiConfirm')) cancelPoiReporting(); });
-document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.poiReporting) cancelPoiReporting(); });
+['truckHeight','truckWidth','truckWeight','truckLength','truckAxle'].forEach(id=>{
+  on(id,'input', e=>{
+    const mp = {truckHeight:'height', truckWidth:'width', truckWeight:'weight', truckLength:'length', truckAxle:'axle_load'};
+    truckParams[mp[id]] = parseFloat(e.target.value)||0;
+  });
+});
+on('truckHazmat','change', e=>{ truckParams.hazmat = e.target.value==='true'; });
 
-// Long press to quick report on mobile
-let pressTimer;
-if(map){
-  // will attach after map init via map.on, but also add global
+// Layers
+on('rotateLeftBtn','click', ()=>{ if(map) map.easeTo({bearing: map.getBearing()-30, duration:400}); });
+on('rotateRightBtn','click', ()=>{ if(map) map.easeTo({bearing: map.getBearing()+30, duration:400}); });
+on('tiltBtn','click', ()=>{ if(map) map.easeTo({pitch: map.getPitch()>20?0:60, duration:500}); });
+on('zoomInBtn','click', ()=>{ if(map) map.zoomIn(); });
+on('zoomOutBtn','click', ()=>{ if(map) map.zoomOut(); });
+
+function addMapillaryCoverage(){
+  if(!map || map.getSource('mapillary')) return;
+  map.addSource('mapillary', {type:'vector', tiles:[MAPILLARY.tiles()], minzoom:6, maxzoom:14});
+  map.addLayer({id:'mapillary-coverage', type:'line', source:'mapillary', 'source-layer':'sequence', paint:{'line-color':'#05cb63','line-width':3,'line-opacity':.75}});
+}
+function removeMapillaryCoverage(){
+  if(!map) return;
+  if(map.getLayer('mapillary-coverage')) map.removeLayer('mapillary-coverage');
+  if(map.getSource('mapillary')) map.removeSource('mapillary');
+}
+async function findNearestMapillaryImage(lng, lat){
+  const d = 0.0015, bbox = [lng-d, lat-d, lng+d, lat+d].join(',');
+  try {
+    const res = await fetch(MAPILLARY.imagesInBbox(bbox));
+    const data = await res.json();
+    if(!data.data?.length) return showToast('Không có ảnh');
+    const img = data.data[0];
+    if(!img.thumb_1024_url) return showToast('Không có thumb');
+    $('svImage').src = img.thumb_1024_url;
+    $('streetViewModal').classList.add('show');
+  } catch { showToast('Lỗi Mapillary'); }
+}
+function addTraffic(){
+  if(!map || map.getSource('tomtom-traffic')) return;
+  map.addSource('tomtom-traffic', {type:'raster', tiles:[TOMTOM.trafficFlow()], tileSize:256});
+  map.addLayer({id:'tomtom-traffic-layer', type:'raster', source:'tomtom-traffic', paint:{'raster-opacity':.65}});
+}
+function removeTraffic(){
+  if(!map) return;
+  if(map.getLayer('tomtom-traffic-layer')) map.removeLayer('tomtom-traffic-layer');
+  if(map.getSource('tomtom-traffic')) map.removeSource('tomtom-traffic');
 }
 
-if ('speechSynthesis' in window) window.speechSynthesis.getVoices();
+// Clear
+function clearAll(){
+  if(map){
+    for(let i=0;i<10;i++){
+      ['route-line-'+i,'route-outline-'+i].forEach(l=>{ if(map.getLayer(l)) map.removeLayer(l); });
+      if(map.getSource('route-'+i)) map.removeSource('route-'+i);
+    }
+  }
+  if(state.markerA){ state.markerA.remove(); state.markerA = null; }
+  if(state.markerB){ state.markerB.remove(); state.markerB = null; }
+  if(state.routeNumberMarkers) state.routeNumberMarkers.forEach(m=>m.remove());
+  state.routeNumberMarkers = [];
+  state.pointA = null; state.pointB = null; state.gpsAssignedToA = false;
+  $('routePanel').classList.remove('show');
+  $('pointAInput').value = ''; $('pointBInput').value = '';
+  if('speechSynthesis' in window) window.speechSynthesis.cancel();
+  updateClickHint();
+}
+function loadFromURL(){
+  const aLat = parseFloat(urlParams.get('a_lat')), aLng = parseFloat(urlParams.get('a_lng'));
+  const bLat = parseFloat(urlParams.get('b_lat')), bLng = parseFloat(urlParams.get('b_lng'));
+  if(!isNaN(aLat) && !isNaN(aLng)) setPoint('A', aLat, aLng);
+  if(!isNaN(bLat) && !isNaN(bLng)) setPoint('B', bLat, bLng);
+  if(state.pointA && state.pointB && urlParams.get('autoroute')==='1') calculateRoute();
+  updateClickHint();
+}
 
-// ============ NAVIGATION MODE - FIRST PERSON VIEW ============
-let navWatchId = null;
-let navCurrentStepIndex = 0;
-let lastPos = null;
-let currentHeading = 0;
-let isFollowing = true;
+// Event bindings
+on('searchBtn','click', ()=>doSearch(null));
+on('searchInput','keydown', e=>{ if(e.key==='Enter') doSearch(null); });
+function connectCoordBarToSearch(target){
+  state.targetFieldForSearch = target;
+  if($('searchInput')) $('searchInput').placeholder = target==='A' ? 'Tìm điểm A...' : 'Tìm điểm B...';
+  if(target==='A' && !state.pointA && state.currentPos) setPoint('A', state.currentPos.lat, state.currentPos.lng);
+}
+on('pointAInput','focus', ()=>connectCoordBarToSearch('A'));
+on('pointAInput','click', ()=>connectCoordBarToSearch('A'));
+on('pointAInput','keydown', e=>{ if(e.key==='Enter'){ $('searchInput').value = e.target.value; doSearch('A'); } });
+on('pointBInput','focus', ()=>connectCoordBarToSearch('B'));
+on('pointBInput','click', ()=>connectCoordBarToSearch('B'));
+on('pointBInput','keydown', e=>{ if(e.key==='Enter'){ $('searchInput').value = e.target.value; doSearch('B'); } });
+
+on('gpsABtn','click', ()=>{
+  if(state.currentPos){ setPoint('A', state.currentPos.lat, state.currentPos.lng); showToast('📍 A = GPS'); }
+  else showToast('Chưa có GPS');
+});
+on('locateBtn','click', e=>{ e.stopPropagation(); locateUser(true); });
+on('clearBtn','click', clearAll);
+on('closeRouteBtn','click', ()=>$('routePanel').classList.remove('show'));
+on('settingsBtn','click', ()=>$('settingsModal').classList.add('show'));
+on('closeSettingsBtn','click', ()=>$('settingsModal').classList.remove('show'));
+on('routePanelBtn','click', ()=>{
+  if($('routeInputs').classList.contains('show')) hideRouteSheetAndClear();
+  else { showRouteSheet(); updateClickHint(); }
+});
+on('findRouteBtn','click', ()=>{
+  if(!state.pointA) return showToast('Chưa có A');
+  if(!state.pointB) return showToast('Chưa có B');
+  calculateRoute();
+});
+on('swapBtn','click', ()=>{
+  if(!state.pointA || !state.pointB) return;
+  const tA = state.pointA, tB = state.pointB;
+  setPoint('A', tB.lat, tB.lng);
+  setPoint('B', tA.lat, tA.lng);
+  if(state.pointA && state.pointB) calculateRoute();
+});
+on('voiceBtn','click', ()=>{
+  state.voiceEnabled = !state.voiceEnabled;
+  $('voiceBtn').classList.toggle('success', state.voiceEnabled);
+  $('voiceBtn').classList.toggle('danger', !state.voiceEnabled);
+  showToast(state.voiceEnabled?'🔊 Bật giọng':'🔇 Tắt giọng');
+});
+on('streetViewBtn','click', ()=>{
+  state.streetViewMode = !state.streetViewMode;
+  $('streetViewBtn').classList.toggle('active', state.streetViewMode);
+  if(state.streetViewMode){ addMapillaryCoverage(); updateClickHint(); }
+  else { removeMapillaryCoverage(); updateClickHint(); }
+});
+on('trafficBtn','click', ()=>{
+  state.trafficOn = !state.trafficOn;
+  $('trafficBtn').classList.toggle('active', state.trafficOn);
+  state.trafficOn ? addTraffic() : removeTraffic();
+});
+
+on('valhallaToggle','click', ()=>{ state.useValhalla = !state.useValhalla; $('valhallaToggle').classList.toggle('on', state.useValhalla); });
+on('trafficToggle','click', ()=>{ state.trafficOn = !state.trafficOn; $('trafficToggle').classList.toggle('on', state.trafficOn); $('trafficBtn').classList.toggle('active', state.trafficOn); state.trafficOn ? addTraffic() : removeTraffic(); });
+on('mapillaryToggle','click', ()=>{ state.mapillaryOn = !state.mapillaryOn; $('mapillaryToggle').classList.toggle('on', state.mapillaryOn); state.mapillaryOn ? addMapillaryCoverage() : removeMapillaryCoverage(); });
+on('voiceToggle','click', ()=>{ state.voiceEnabled = !state.voiceEnabled; $('voiceToggle').classList.toggle('on', state.voiceEnabled); });
+on('communityToggle','click', ()=>{ state.showPois = !state.showPois; $('communityToggle').classList.toggle('on', state.showPois); renderPoiMarkers(); });
+
+on('closeSvBtn','click', ()=>$('streetViewModal').classList.remove('show'));
+on('streetViewModal','click', e=>{ if(e.target===$('streetViewModal')) $('streetViewModal').classList.remove('show'); });
+on('settingsModal','click', e=>{ if(e.target===$('settingsModal')) $('settingsModal').classList.remove('show'); });
+on('mapActionBackdrop','click', hideMapActionPopup);
+on('routeBackdrop','click', hideRouteSheetAndClear);
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){
+    if($('mapActionPopup').classList.contains('show')) hideMapActionPopup();
+    else if($('routeInputs').classList.contains('show')) hideRouteSheetAndClear();
+    else if($('poiPicker').classList.contains('show')) closePoiPicker();
+    else if($('layerPickerModal').classList.contains('show')) $('layerPickerModal').classList.remove('show');
+    else if($('settingsModal').classList.contains('show')) $('settingsModal').classList.remove('show');
+  }
+});
+
+on('actionDirections','click', ()=>{
+  if(!lastClickedLatLng) return;
+  const {lat, lng} = lastClickedLatLng;
+  hideMapActionPopup();
+  if(!state.pointA && state.currentPos) setPoint('A', state.currentPos.lat, state.currentPos.lng);
+  else if(!state.pointA){ setPoint('A', lat, lng); showToast('A tạm đặt tại đây'); }
+  setPoint('B', lat, lng);
+  showRouteSheet();
+  showToast('Chọn loại xe rồi bấm Tìm đường');
+});
+on('actionReport','click', ()=>{
+  if(!lastClickedLatLng) return;
+  hideMapActionPopup();
+  state.poiTempLatLng = {lat: lastClickedLatLng.lat, lng: lastClickedLatLng.lng};
+  openPoiPicker();
+});
+on('actionCommunity','click', ()=>{
+  hideMapActionPopup();
+  state.showPois = true; renderPoiMarkers(); openPoiPicker();
+});
+
+on('bottomFeatures','click', ()=>{ $('featureSheet').classList.add('show'); $('featureBackdrop').classList.add('show'); });
+on('featureBackdrop','click', ()=>{ $('featureSheet').classList.remove('show'); $('featureBackdrop').classList.remove('show'); });
+on('featDirections','click', ()=>{ $('featureSheet').classList.remove('show'); $('featureBackdrop').classList.remove('show'); showRouteSheet(); });
+on('featReport','click', ()=>{ $('featureSheet').classList.remove('show'); $('featureBackdrop').classList.remove('show'); openPoiPicker(); });
+on('featLayers','click', ()=>{ $('featureSheet').classList.remove('show'); $('featureBackdrop').classList.remove('show'); openLayerPicker(); });
+on('featTraffic','click', ()=>{ state.trafficOn = !state.trafficOn; $('featTraffic').classList.toggle('active', state.trafficOn); state.trafficOn ? addTraffic() : removeTraffic(); });
+on('featStreetView','click', ()=>{ state.streetViewMode = !state.streetViewMode; $('featStreetView').classList.toggle('active', state.streetViewMode); state.streetViewMode ? addMapillaryCoverage() : removeMapillaryCoverage(); });
+on('featVoice','click', ()=>{ state.voiceEnabled = !state.voiceEnabled; $('featVoice').classList.toggle('active', state.voiceEnabled); });
+on('featLocate','click', ()=>{ $('featureSheet').classList.remove('show'); $('featureBackdrop').classList.remove('show'); setTimeout(()=>locateUser(true), 200); });
+on('featClear','click', ()=>{ $('featureSheet').classList.remove('show'); $('featureBackdrop').classList.remove('show'); clearAll(); });
+on('bottomDirections','click', ()=>{ state.targetFieldForSearch = 'B'; showRouteSheet(); });
+on('bottomReport','click', ()=>openPoiPicker());
+on('bottomLayers','click', ()=>openLayerPicker());
+on('bottomLocate','click', e=>{ e.stopPropagation(); locateUser(true); });
+
+function openLayerPicker(){ $('layerPickerModal').classList.add('show'); document.querySelectorAll('.layer-option').forEach(b=>b.classList.toggle('active', b.dataset.style===state.currentMapStyle)); }
+function closeLayerPicker(){ $('layerPickerModal').classList.remove('show'); }
+on('layerBtn','click', openLayerPicker);
+on('closeLayerPickerBtn','click', closeLayerPicker);
+on('layerPickerModal','click', e=>{ if(e.target===$('layerPickerModal')) closeLayerPicker(); });
+document.querySelectorAll('.layer-option').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const next = btn.dataset.style;
+    state.currentMapStyle = next;
+    try { map.setStyle(MAP_STYLES[next].url()); showToast('🗺️ ' + MAP_STYLES[next].name); } catch(e){}
+    closeLayerPicker();
+  });
+});
+
+on('reportPoiBtn','click', openPoiPicker);
+on('closePoiPickerBtn','click', closePoiPicker);
+on('poiPicker','click', e=>{ if(e.target===$('poiPicker')) closePoiPicker(); });
+on('cancelPoiBtn','click', cancelPoiReporting);
+on('submitPoiBtn','click', submitPoi);
+on('poiDescInput','keydown', e=>{ if(e.key==='Enter') submitPoi(); });
+on('togglePoiLayerBtn','click', ()=>{ state.showPois = !state.showPois; $('communityToggle').classList.toggle('on', state.showPois); renderPoiMarkers(); showToast(state.showPois?'👁️ Hiện POI':'🙈 Ẩn POI'); });
+on('clearOldPoiBtn','click', clearExpiredPois);
+on('myReportsBtn','click', ()=>{
+  const mine = Object.entries(state.communityPois).filter(([id,p])=>p.createdBy===state.user?.uid || p.uid===state.user?.uid);
+  if(!mine.length) return showToast('Chưa có báo cáo nào');
+  const first = mine[0][1];
+  if(map) map.flyTo({center:[first.lng, first.lat], zoom:16});
+});
+on('loading','click', hideLoading);
+
+setTimeout(()=>{
+  const input = $('apiBaseInput'), cur = $('currentApiBase'), btn = $('saveApiBaseBtn');
+  if(cur) cur.textContent = API_BASE;
+  if(input) input.value = API_BASE;
+  if(btn) btn.addEventListener('click', ()=>{
+    const val = input.value.trim().replace(/\/$/,'');
+    if(!val){ showToast('Nhập URL'); return; }
+    localStorage.setItem('vietdriver_api_base', val);
+    showToast('Đã lưu - F5 để áp dụng');
+    setTimeout(()=>location.reload(), 800);
+  });
+}, 1000);
+
+// Navigation mode
+let navWatchId = null, navCurrentStepIndex = 0, lastPos = null, currentHeading = 0, isFollowing = true;
 
 function createArrowElement(){
   const el = document.createElement('div');
@@ -895,26 +1634,19 @@ function createArrowElement(){
   el.style.transform = `rotate(${currentHeading}deg)`;
   return el;
 }
-
 function updateCurrentMarkerFirstPerson(lat, lng, heading){
   if(!map) return;
   if(state.currentMarker){
     state.currentMarker.setLngLat([lng, lat]);
     const el = state.currentMarker.getElement();
-    if(el && el.classList.contains('current-arrow')){
-      el.style.transform = `rotate(${heading}deg)`;
-    }
+    if(el && el.classList.contains('current-arrow')) el.style.transform = `rotate(${heading}deg)`;
   } else {
     const el = createArrowElement();
-    state.currentMarker = new maplibregl.Marker({ element: el, rotationAlignment:'map' }).setLngLat([lng, lat]).addTo(map);
+    state.currentMarker = new maplibregl.Marker({element:el, rotationAlignment:'map'}).setLngLat([lng, lat]).addTo(map);
   }
 }
-
 function enterNavigationMode(){
-  if(!state.alternativeRoutes || !state.alternativeRoutes[state.selectedRouteIndex]){
-    showToast('Chưa có tuyến đường');
-    return;
-  }
+  if(!state.alternativeRoutes || !state.alternativeRoutes[state.selectedRouteIndex]) return showToast('Chưa có tuyến');
   state.isNavigating = true;
   isFollowing = true;
   document.body.classList.add('nav-mode');
@@ -923,73 +1655,36 @@ function enterNavigationMode(){
   const route = state.alternativeRoutes[state.selectedRouteIndex];
   $('navModeRouteInfo').textContent = `Tuyến ${state.selectedRouteIndex+1} • ${fmtDist(route.distance)}`;
   updateNavModeUI();
-  // Ẩn panel
   $('routeInputs').classList.remove('show');
   $('routeBackdrop').classList.remove('show');
   $('routePanel').classList.remove('show');
-  $('suggestions').classList.remove('show');
-  if($('bottomBar')) $('bottomBar').style.display='none';
-  // Chuyển map sang góc nhìn thứ nhất
-  if(map){
-    map.easeTo({ pitch: 60, zoom: 18, duration: 800 });
-  }
-  // Watch GPS
+  if(map) map.easeTo({pitch:60, zoom:18, duration:800});
   if(navigator.geolocation){
     if(navWatchId) navigator.geolocation.clearWatch(navWatchId);
     navWatchId = navigator.geolocation.watchPosition(pos=>{
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
+      const lat = pos.coords.latitude, lng = pos.coords.longitude;
       const heading = pos.coords.heading;
       let calcHeading = currentHeading;
-      if(heading !== null && !isNaN(heading)){
-        calcHeading = heading;
-      } else if(lastPos){
-        // tính heading từ vị trí trước
-        calcHeading = bearingBetween(lastPos.lat, lastPos.lng, lat, lng);
-      }
+      if(heading != null && !isNaN(heading)) calcHeading = heading;
+      else if(lastPos) calcHeading = bearingBetween(lastPos.lat, lastPos.lng, lat, lng);
       if(!isNaN(calcHeading)) currentHeading = calcHeading;
-      state.currentPos = { lat, lng };
-      lastPos = { lat, lng };
+      state.currentPos = {lat, lng};
+      lastPos = {lat, lng};
       updateCurrentMarkerFirstPerson(lat, lng, currentHeading);
-      if(isFollowing && map){
-        map.easeTo({
-          center: [lng, lat],
-          bearing: currentHeading,
-          pitch: 60,
-          zoom: 18,
-          duration: 1000,
-          easing: t=>t
-        });
-      }
+      if(isFollowing && map) map.easeTo({center:[lng, lat], bearing: currentHeading, pitch:60, zoom:18, duration:1000});
       checkNavProgress();
-    }, (err)=>{
-      console.warn('nav GPS error', err);
-    }, { enableHighAccuracy:true, maximumAge:500, timeout:10000 });
+    }, err=>console.warn(err), {enableHighAccuracy:true, maximumAge:500, timeout:10000});
   }
-  showToast('🧭 Đã vào góc nhìn thứ nhất - màn hình xoay theo bạn');
-  renderPoiMarkers();
+  showToast('🧭 Đã vào dẫn đường');
 }
-
 function exitNavigationMode(){
-  state.isNavigating = false;
-  isFollowing = false;
+  state.isNavigating = false; isFollowing = false;
   document.body.classList.remove('nav-mode');
-  if(navWatchId){
-    navigator.geolocation.clearWatch(navWatchId);
-    navWatchId = null;
-  }
-  if(map){
-    map.easeTo({ pitch: 0, bearing: 0, zoom: 15, duration: 600 });
-  }
-  if($('bottomBar')) $('bottomBar').style.display='flex';
-  const fab = document.querySelector('.fab-stack');
-  if(fab) fab.style.display='flex';
-  if(state.alternativeRoutes){
-    $('routePanel').classList.add('show');
-  }
+  if(navWatchId){ navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
+  if(map) map.easeTo({pitch:0, bearing:0, zoom:15, duration:600});
+  if(state.alternativeRoutes) $('routePanel').classList.add('show');
   showToast('Đã thoát dẫn đường');
 }
-
 function updateNavModeUI(){
   if(!state.alternativeRoutes) return;
   const route = state.alternativeRoutes[state.selectedRouteIndex];
@@ -998,20 +1693,9 @@ function updateNavModeUI(){
   if(!step) return;
   $('navModeNext').textContent = step.text;
   $('navModeDist').textContent = `${fmtDist(step.distance||0)} • Bước ${navCurrentStepIndex+1}/${route.steps.length}`;
-  // icon rẽ
-  const iconEl = $('navModeIcon');
-  if(iconEl){
-    // dùng emoji đơn giản cho first person
-    const t = (step.text||'').toLowerCase();
-    if(t.includes('trái')) iconEl.textContent='↩️';
-    else if(t.includes('phải')) iconEl.textContent='↪️';
-    else if(t.includes('vòng xuyến')) iconEl.textContent='🔄';
-    else if(t.includes('đích')||t.includes('đến')) iconEl.textContent='🏁';
-    else iconEl.textContent='⬆️';
-  }
+  $('navModeIcon').textContent = stepIcon(step.text, step.modifier);
   if(state.voiceEnabled) speakInstruction(step.text);
 }
-
 function checkNavProgress(){
   if(!state.isNavigating || !state.currentPos) return;
   const route = state.alternativeRoutes[state.selectedRouteIndex];
@@ -1019,118 +1703,37 @@ function checkNavProgress(){
   const step = route.steps[navCurrentStepIndex];
   if(!step || !step.location) return;
   const d = distanceBetween(state.currentPos.lat, state.currentPos.lng, step.location[1], step.location[0]);
-  if(d < 25 && navCurrentStepIndex < route.steps.length-1){
-    navCurrentStepIndex++;
-    updateNavModeUI();
-  } else {
-    $('navModeDist').textContent = `${Math.round(d)}m tới chỗ rẽ • Bước ${navCurrentStepIndex+1}/${route.steps.length}`;
-  }
-  // Check POI cảnh báo gần
+  if(d < 25 && navCurrentStepIndex < route.steps.length-1){ navCurrentStepIndex++; updateNavModeUI(); }
+  else { $('navModeDist').textContent = `${Math.round(d)}m tới chỗ rẽ • Bước ${navCurrentStepIndex+1}/${route.steps.length}`; }
   checkPoiProximity();
 }
 
-function distanceBetween(lat1, lon1, lat2, lon2){
-  const R=6371000;
-  const dLat = (lat2-lat1)*Math.PI/180;
-  const dLon = (lon2-lon1)*Math.PI/180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-  return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
-function bearingBetween(lat1, lon1, lat2, lon2){
-  const y = Math.sin((lon2-lon1)*Math.PI/180) * Math.cos(lat2*Math.PI/180);
-  const x = Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180) - Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos((lon2-lon1)*Math.PI/180);
-  const brng = Math.atan2(y, x)*180/Math.PI;
-  return (brng+360)%360;
-}
-
-// Gắn sự kiện nav
-document.addEventListener('DOMContentLoaded', ()=>{
-  setTimeout(()=>{
-    const exitBtn = document.getElementById('exitNavBtn');
-    const navReport = document.getElementById('navReportPoiBtn');
-    const navCommunity = document.getElementById('navPoiCommunityBtn');
-    const navVoice = document.getElementById('navVoiceBtn');
-    const recenterBtn = document.getElementById('navRecenterBtn');
-    if(exitBtn) exitBtn.addEventListener('click', exitNavigationMode);
-    if(navReport) navReport.addEventListener('click', ()=>{ openPoiPicker(); });
-    if(navCommunity) navCommunity.addEventListener('click', ()=>{
-      state.showPois = !state.showPois;
-      const toggle = document.getElementById('communityToggle');
-      if(toggle) toggle.classList.toggle('on', state.showPois);
-      renderPoiMarkers();
-      showToast(state.showPois?'👁️ Hiện POI':'🙈 Ẩn POI');
-      navCommunity.classList.toggle('active', state.showPois);
-    });
-    if(navVoice) navVoice.addEventListener('click', ()=>{
-      state.voiceEnabled = !state.voiceEnabled;
-      showToast(state.voiceEnabled?'🔊 Bật voice':'🔇 Tắt voice');
-      navVoice.classList.toggle('active', state.voiceEnabled);
-      if(state.voiceEnabled) updateNavModeUI();
-    });
-    if(recenterBtn) recenterBtn.addEventListener('click', ()=>{
-      isFollowing = true;
-      if(state.currentPos && map){
-        map.easeTo({ center:[state.currentPos.lng, state.currentPos.lat], bearing: currentHeading, pitch:60, zoom:18, duration:500 });
-      }
-      showToast('🎯 Đã khóa tâm theo bạn');
-    });
-    // Kéo bản đồ thì tạm dừng follow
-    setTimeout(()=>{
-      if(map){
-        map.on('dragstart', ()=>{ if(state.isNavigating) isFollowing=false; });
-      }
-    }, 2000);
-    document.addEventListener('keydown', (e)=>{
-      if(e.key==='Escape' && state.isNavigating) exitNavigationMode();
-    });
-  }, 1200);
+on('exitNavBtn','click', exitNavigationMode);
+on('navReportPoiBtn','click', ()=>openPoiPicker());
+on('navPoiCommunityBtn','click', ()=>{
+  state.showPois = !state.showPois;
+  $('communityToggle').classList.toggle('on', state.showPois);
+  renderPoiMarkers();
+  showToast(state.showPois?'👁️ Hiện POI':'🙈 Ẩn POI');
+  $('navPoiCommunityBtn').classList.toggle('active', state.showPois);
 });
+on('navVoiceBtn','click', ()=>{
+  state.voiceEnabled = !state.voiceEnabled;
+  showToast(state.voiceEnabled?'🔊 Bật voice':'🔇 Tắt voice');
+  $('navVoiceBtn').classList.toggle('active', state.voiceEnabled);
+  if(state.voiceEnabled) updateNavModeUI();
+});
+on('navRecenterBtn','click', ()=>{
+  isFollowing = true;
+  if(state.currentPos && map) map.easeTo({center:[state.currentPos.lng, state.currentPos.lat], bearing: currentHeading, pitch:60, zoom:18, duration:500});
+  showToast('🎯 Đã khóa tâm');
+});
+on('startNavBtn','click', enterNavigationMode);
+setTimeout(()=>{ if(map) map.on('dragstart', ()=>{ if(state.isNavigating) isFollowing = false; }); }, 2000);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.isNavigating) exitNavigationMode(); });
 
-
-// Nút BẮT ĐẦU DẪN ĐƯỜNG ở bottom sticky
-setTimeout(()=>{
-  const stickyStart = document.getElementById('startNavBtn');
-  if(stickyStart){
-    stickyStart.addEventListener('click', ()=>{
-      enterNavigationModeWithRoute(state.selectedRouteIndex);
-    });
-  }
-  const closeBtn = document.getElementById('closeRouteBtn');
-  if(closeBtn){
-    closeBtn.addEventListener('click', ()=>{
-      $('routePanel').classList.remove('show');
-      if($('bottomBar')) $('bottomBar').style.display='flex';
-      // Xóa tuyến
-      if(map){
-        for(let i=0;i<10;i++){
-          ['route-outline-'+i,'route-line-'+i].forEach(l=>{ if(map.getLayer(l)) map.removeLayer(l); });
-          if(map.getSource('route-'+i)) map.removeSource('route-'+i);
-        }
-      }
-    });
-  }
-}, 1000);
-
-
-// API Base UI
-setTimeout(()=>{
-  const input = document.getElementById('apiBaseInput');
-  const cur = document.getElementById('currentApiBase');
-  const btn = document.getElementById('saveApiBaseBtn');
-  if(cur) cur.textContent = API_BASE;
-  if(input) input.value = API_BASE;
-  if(btn){
-    btn.addEventListener('click', ()=>{
-      const val = input.value.trim().replace(/\/$/,'');
-      if(!val){ showToast('Nhập URL'); return; }
-      localStorage.setItem('vietdriver_api_base', val);
-      showToast('Đã lưu API Base - F5 để áp dụng');
-      cur.textContent = val;
-      setTimeout(()=>location.reload(), 800);
-    });
-  }
-}, 1000);
-
+if('speechSynthesis' in window) window.speechSynthesis.getVoices();
+console.log('✅ VietDriver Pro loaded');
 </script>
-<script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
+</body>
 </html>
