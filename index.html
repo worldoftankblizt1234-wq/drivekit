@@ -890,12 +890,12 @@ body.nav-mode .nav-mode-panel { display: flex !important; }
   <div class="route-inputs" id="routeInputs">
     <div class="input-row">
       <div class="point-dot a"></div>
-      <input type="text" id="pointAInput" placeholder="A - Điểm đi (mặc định: GPS của bạn)"/>
+      <input type="text" id="pointAInput" placeholder="A - Điểm đi (mặc định: GPS) - bấm để tìm"/>
       <button class="mini-btn gps" id="gpsABtn" title="Dùng GPS">📍</button>
     </div>
     <div class="input-row">
       <div class="point-dot b"></div>
-      <input type="text" id="pointBInput" placeholder="B - Điểm đến"/>
+      <input type="text" id="pointBInput" placeholder="B - Điểm đến - bấm để tìm"/>
       <button class="mini-btn" id="swapBtn" title="Đảo chiều">⇄</button>
     </div>
     <div class="vehicle-selector" id="vehicleSelector">
@@ -2018,7 +2018,7 @@ function hideMapActionPopup(){
 function showRouteSheet(){
   $('routeInputs').classList.add('show');
   $('routeBackdrop').classList.add('show');
-  // Fix UI chồng như ảnh bạn gửi
+  // Fix UI chồng
   if($('bottomBar')) $('bottomBar').style.display='none';
   const fab = document.querySelector('.fab-stack');
   if(fab) fab.style.display='none';
@@ -2026,6 +2026,29 @@ function showRouteSheet(){
   if(zoom) zoom.style.display='none';
   const layer = document.querySelector('.layer-controls');
   if(layer) layer.style.display='none';
+  
+  // Yêu cầu mới: Điểm A mặc định là GPS
+  if(!state.pointA && state.currentPos){
+    setPoint('A', state.currentPos.lat, state.currentPos.lng);
+    state.gpsAssignedToA = true;
+    showToast('📍 A mặc định = GPS của bạn');
+  } else if(!state.pointA){
+    // Nếu chưa có GPS, thử lấy
+    locateUser(false);
+    showToast('📍 Đang lấy GPS cho điểm A...');
+  }
+  // Khi mở sheet, mặc định target là B để search nối vào B
+  if(!state.targetFieldForSearch){
+    state.targetFieldForSearch = 'B';
+  }
+  // Focus vào search trên để nối thanh tọa độ với search
+  setTimeout(()=>{
+    const searchInput = $('searchInput');
+    if(searchInput){
+      searchInput.placeholder = state.targetFieldForSearch==='A' ? 'Tìm điểm A...' : 'Tìm điểm B (điểm đến)...';
+      // Không auto focus để không bật bàn phím ngay, chỉ đổi placeholder
+    }
+  }, 100);
 }
 
 function hideRouteSheetAndClear(){
@@ -2598,7 +2621,6 @@ function renderSuggestions(preds) {
     item.addEventListener('click', async () => {
       const p = preds[+item.dataset.idx];
       el.classList.remove('show');
-      // Bỏ loading khi chọn search
       try {
         let lat, lng;
         if (p.lat != null) { lat = p.lat; lng = p.lng; }
@@ -2607,15 +2629,37 @@ function renderSuggestions(preds) {
           const loc = d.result?.geometry?.location || d.result?.location;
           lat = parseFloat(loc.lat); lng = parseFloat(loc.lng || loc.lon);
         }
-        const target = state.targetFieldForSearch || 'B';
-        setPoint(target, lat, lng);
-        if(map) map.flyTo({ center: [lng, lat], zoom: 16 });
-        showToast(`📍 Đã đặt ${target} [${p.source}] - bấm TÌM ĐƯỜNG để chỉ đường`);
-        // KHÔNG tự gọi direction khi search - theo yêu cầu
-        // if (state.pointA && state.pointB) calculateRoute();
-        showRouteSheet();
+        // PHÂN BIỆT: Search riêng (null) vs search nối với bottom sheet (A/B)
+        if(!state.targetFieldForSearch){
+          // Search riêng ở top bar - KHÔNG được chỉ đường, chỉ bay tới
+          if(map) map.flyTo({ center: [lng, lat], zoom: 16 });
+          showToast(`📍 ${p.description || 'Đã tìm thấy'} - bấm nút Chỉ đường ở dưới nếu muốn dẫn đường`);
+          // Không setPoint, không showRouteSheet
+          // Tạo marker tạm xem vị trí
+          if(state.markerB) { state.markerB.remove(); state.markerB = null; }
+          const tmp = new maplibregl.Marker({ element: createMarkerEl('search') }).setLngLat([lng, lat]).addTo(map);
+          setTimeout(()=>tmp.remove(), 5000);
+        } else {
+          // Search nối với thanh tọa độ trong bottom sheet - A mặc định GPS, B là điểm đến
+          const target = state.targetFieldForSearch;
+          setPoint(target, lat, lng);
+          if(map) map.flyTo({ center: [lng, lat], zoom: 16 });
+          showToast(`📍 Đã đặt ${target} = ${p.description?.slice(0,30)||'điểm'} - bấm TÌM ĐƯỜNG`);
+          showRouteSheet();
+        }
       } catch (e) { showToast('Lỗi tọa độ: ' + e.message); }
-      finally { state.targetFieldForSearch = null; }
+      finally { 
+        // Nếu là search riêng thì reset target, nếu là A/B thì giữ để user tiếp tục tìm B?
+        // Yêu cầu: A mặc định GPS nên sau khi đặt A xong tự chuyển sang B
+        if(state.targetFieldForSearch==='A'){
+          state.targetFieldForSearch='B';
+          $('searchInput').placeholder='Tìm điểm B (điểm đến)...';
+        } else if(state.targetFieldForSearch==='B'){
+          // giữ B để có thể tìm lại
+        } else {
+          state.targetFieldForSearch = null;
+        }
+      }
     });
   });
 }
@@ -2725,12 +2769,38 @@ function loadFromURL() {
 $('searchBtn').addEventListener('click', () => doSearch(null));
 $('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(null); });
 
+// Yêu cầu mới: Bấm vô thanh tọa độ A/B sẽ nối với search, A mặc định GPS
+function connectCoordBarToSearch(target){
+  state.targetFieldForSearch = target;
+  const searchInput = $('searchInput');
+  const coordInput = $(target==='A' ? 'pointAInput' : 'pointBInput');
+  if(searchInput){
+    searchInput.placeholder = target==='A' ? 'Tìm điểm A (mặc định GPS)...' : 'Tìm điểm B (điểm đến)...';
+    // Nếu thanh tọa độ có chữ thì copy lên search
+    if(coordInput && coordInput.value && !coordInput.value.includes(',')){
+      searchInput.value = coordInput.value;
+    }
+    // Nếu A chưa có thì đảm bảo A = GPS
+    if(target==='A' && !state.pointA && state.currentPos){
+      setPoint('A', state.currentPos.lat, state.currentPos.lng);
+    }
+    showToast(target==='A' ? '📍 Nhập để tìm điểm A (mặc định GPS)' : '📍 Nhập để tìm điểm B');
+  }
+}
+
+$('pointAInput').addEventListener('focus', ()=> connectCoordBarToSearch('A'));
+$('pointAInput').addEventListener('click', ()=> connectCoordBarToSearch('A'));
 $('pointAInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') { $('searchInput').value = e.target.value; doSearch('A'); }
 });
+$('pointBInput').addEventListener('focus', ()=> connectCoordBarToSearch('B'));
+$('pointBInput').addEventListener('click', ()=> connectCoordBarToSearch('B'));
 $('pointBInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') { $('searchInput').value = e.target.value; doSearch('B'); }
 });
+
+// Khi bấm bottom sheet Chỉ đường thì mở sheet và A = GPS
+
 
 $('gpsABtn').addEventListener('click', () => {
   if (state.currentPos) {
@@ -2888,7 +2958,7 @@ $('featVoice').addEventListener('click', ()=>{
 $('featLocate')?.addEventListener('click', ()=>{ closeFeatureSheet(); setTimeout(()=>locateUser(true), 200); });
 $('featClear').addEventListener('click', ()=>{ closeFeatureSheet(); clearAll(); });
 // Bottom bar
-$('bottomDirections').addEventListener('click', ()=> showRouteSheet());
+$('bottomDirections').addEventListener('click', ()=>{ state.targetFieldForSearch='B'; showRouteSheet(); });
 $('bottomReport').addEventListener('click', ()=> openPoiPicker());
 $('bottomLayers').addEventListener('click', ()=> openLayerPicker());
 $('bottomLocate')?.addEventListener('click', (e)=>{ e.stopPropagation(); console.log('bottomLocate clicked'); locateUser(true); });
