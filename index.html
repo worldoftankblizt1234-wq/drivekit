@@ -1980,11 +1980,10 @@ function handleMapClick(lat, lng, button) {
     handlePoiPlacement(lat,lng);
     return;
   }
-  // Right click vẫn set B nhanh
+  // Right click vẫn set B nhanh - KHÔNG auto routing
   if (button === 'right') {
     setPoint('B', lat, lng);
-    showToast('📍 Đã đặt B (chuột phải)');
-    if (state.pointA) calculateRoute();
+    showToast('📍 Đã đặt B (chuột phải) - bấm TÌM ĐƯỜNG để tính');
     return;
   }
   // NEW UX: Show 3-button popup
@@ -2642,8 +2641,8 @@ $('vehicleSelector').addEventListener('click', e => {
   if (!btn) return;
   state.costing = btn.dataset.costing;
   applyCostingToUI();
-  showToast('Loại xe: ' + btn.textContent.trim());
-  if (state.pointA && state.pointB) calculateRoute();
+  showToast('Đã chọn loại xe: ' + btn.textContent.trim() + ' - bấm TÌM ĐƯỜNG để tính lại');
+  // KHÔNG tự động routing - để người dùng bấm TÌM ĐƯỜNG mới tính
 });
 
 ['truckHeight','truckWidth','truckWeight','truckLength','truckAxle'].forEach(id => {
@@ -2736,8 +2735,7 @@ $('pointBInput').addEventListener('keydown', e => {
 $('gpsABtn').addEventListener('click', () => {
   if (state.currentPos) {
     setPoint('A', state.currentPos.lat, state.currentPos.lng);
-    showToast('📍 A = GPS hiện tại');
-    if (state.pointB) calculateRoute();
+    showToast('📍 A = GPS hiện tại - bấm TÌM ĐƯỜNG nếu đã có B');
   } else showToast('Chưa có GPS, bấm 📍 góc dưới phải');
 });
 
@@ -3144,12 +3142,10 @@ $('loading').addEventListener('click', ()=> hideLoading());
 // ESC cũng tắt loading
  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && $('loading').classList.contains('show')) hideLoading(); });
 
-// Fix vehicle selector - ensure truck params show
+// Fix vehicle selector - chỉ đổi UI, không auto routing
 document.querySelectorAll('.vehicle-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.vehicle-btn').forEach(b=>b.classList.remove('selected'));
-    btn.classList.add('selected');
-    state.costing=btn.dataset.costing;
+    // applyCostingToUI đã xử lý selected ở listener chính, ở đây chỉ đảm bảo truck options
     const truckOpt=$('truckOptions');
     if(state.costing==='truck') truckOpt.classList.add('show');
     else truckOpt.classList.remove('show');
