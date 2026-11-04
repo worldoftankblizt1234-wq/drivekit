@@ -1,7 +1,7 @@
 /* =====================================================
    DriveKit — app.js
    - Bỏ Worker, gọi API trực tiếp
-   - Fix xoay map 360° (leaflet-rotate + disable maplibre rotation)
+   - Fix xoay map 360°: Dùng leaflet-rotate, tắt xoay MapLibre
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -169,9 +169,6 @@ let arrivalHandled = false;
 const ARRIVAL_RADIUS_M = 20;
 let tempPinLatLng = null;
 let tempPinName = "";
-let lastReverseGeoTime = 0;
-let lastReverseGeoPos = null;
-let lastGeoStepIndex = -1;
 const ROUTE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 let tempPoiLatLng = null;
 let tempPoiTag = null;
@@ -214,7 +211,6 @@ const LIVE_GPS_INTERVAL = 6000;
 const LIVE_ANIM_DURATION = 6000;
 const LIVE_HEARTBEAT_TIMEOUT = 120000;
 let isViewingLiveTrack = false;
-let liveCheckTimeoutInterval = null;
 const POI_TAG_CONFIG = {
   supermarket: { icon: 'fa-shopping-cart', label: 'Siêu thị', color: '#10b981' },
   rest_stop: { icon: 'fa-bed', label: 'Trạm dừng nghỉ', color: '#3b82f6' },
@@ -227,23 +223,49 @@ const POI_TAG_CONFIG = {
   hotel: { icon: 'fa-hotel', label: 'Khách sạn', color: '#dc2626' }
 };
 const ZOOM_CONFIG = { communityPoi: 15, restStop: 13, savedPlace: 14, report: 14, savedPlaceAlwaysShow: ['home', 'company'] };
+
+/* ---------- LOADING & AUTH SCREEN ---------- */
 let loadProgress = 0;
 let loadInterval = null;
 let isUserAuthChecked = false;
 let isAppReadyToShow = false;
 let forceFinishTimer = null;
+let _appUIInitialized = false;
 
-/* ---------- LOADING SCREEN ---------- */
+function applyScreenState() {
+  const loading = document.getElementById('loadingScreen');
+  const authScr = document.getElementById('authScreen');
+  const appUI = document.getElementById('appUI');
+  if (!loading || !authScr || !appUI) return;
+  loading.classList.add('hidden');
+  if (currentUser) {
+    authScr.classList.add('hidden');
+    appUI.classList.remove('hidden');
+    if (!_appUIInitialized) {
+      _appUIInitialized = true;
+      try { initAppUI(); } catch (e) { console.error('[initAppUI] crash:', e); }
+    }
+  } else {
+    appUI.classList.add('hidden');
+    authScr.classList.remove('hidden');
+  }
+}
+
 function updateLoadingProgress(targetPercent, text) {
   if (isAppReadyToShow) return;
   if (targetPercent > loadProgress) loadProgress = targetPercent;
-  document.getElementById('loadingPercent').textContent = `${Math.floor(loadProgress)}%`;
-  if (text) document.getElementById('loadingText').textContent = text;
+  const pctEl = document.getElementById('loadingPercent');
+  if (pctEl) pctEl.textContent = `${Math.floor(loadProgress)}%`;
+  if (text) {
+    const tEl = document.getElementById('loadingText');
+    if (tEl) tEl.textContent = text;
+  }
 }
+
 function checkLoadingComplete() {
   if (isUserAuthChecked && loadProgress >= 90 && !isAppReadyToShow) {
-    if (loadInterval) clearInterval(loadInterval);
-    if (forceFinishTimer) clearTimeout(forceFinishTimer);
+    if (loadInterval) { clearInterval(loadInterval); loadInterval = null; }
+    if (forceFinishTimer) { clearTimeout(forceFinishTimer); forceFinishTimer = null; }
     let finalProgress = loadProgress;
     const finalPhase = setInterval(() => {
       finalProgress += 5;
@@ -251,30 +273,29 @@ function checkLoadingComplete() {
         finalProgress = 100;
         clearInterval(finalPhase);
         isAppReadyToShow = true;
-        document.getElementById('loadingPercent').textContent = `100%`;
-        document.getElementById('loadingText').textContent = "Hoàn tất!";
-        setTimeout(() => {
-          document.getElementById('loadingScreen').classList.add('hidden');
-          if (currentUser) { document.getElementById('appUI').classList.remove('hidden'); initAppUI(); }
-          else { document.getElementById('authScreen').classList.remove('hidden'); }
-        }, 300);
+        const pctEl = document.getElementById('loadingPercent');
+        const tEl = document.getElementById('loadingText');
+        if (pctEl) pctEl.textContent = `100%`;
+        if (tEl) tEl.textContent = "Hoàn tất!";
+        setTimeout(applyScreenState, 300);
+      } else {
+        const pctEl = document.getElementById('loadingPercent');
+        if (pctEl) pctEl.textContent = `${finalProgress}%`;
       }
-      document.getElementById('loadingPercent').textContent = `${finalProgress}%`;
     }, 40);
   }
 }
+
 function startFakeLoading() {
   forceFinishTimer = setTimeout(() => {
     if (!isAppReadyToShow) {
       isAppReadyToShow = true;
-      if (loadInterval) clearInterval(loadInterval);
-      document.getElementById('loadingPercent').textContent = `100%`;
-      document.getElementById('loadingText').textContent = "Đang mở ứng dụng...";
-      setTimeout(() => {
-        document.getElementById('loadingScreen').classList.add('hidden');
-        if (currentUser) { document.getElementById('appUI').classList.remove('hidden'); initAppUI(); }
-        else { document.getElementById('authScreen').classList.remove('hidden'); }
-      }, 300);
+      if (loadInterval) { clearInterval(loadInterval); loadInterval = null; }
+      const pctEl = document.getElementById('loadingPercent');
+      const tEl = document.getElementById('loadingText');
+      if (pctEl) pctEl.textContent = `100%`;
+      if (tEl) tEl.textContent = "Đang mở ứng dụng...";
+      setTimeout(applyScreenState, 300);
     }
   }, 8000);
   loadInterval = setInterval(() => {
@@ -288,17 +309,27 @@ function startFakeLoading() {
     }
   }, 100);
 }
+
 startFakeLoading();
 updateLoadingProgress(5, "Đang kiểm tra kết nối...");
 
-/* ---------- AUTH ---------- */
 onAuthStateChanged(auth, (user) => {
+  const wasLoggedIn = !!currentUser;
+  currentUser = user || null;
   isUserAuthChecked = true;
+
   if (user) {
-    currentUser = user;
-    document.getElementById('profileName').textContent = user.displayName || user.email.split('@')[0];
-    document.getElementById('profileEmail').textContent = user.email;
-    if (user.photoURL) document.getElementById('profileAvatar').innerHTML = `<img src="${user.photoURL}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+    const pn = document.getElementById('profileName');
+    const pe = document.getElementById('profileEmail');
+    const pa = document.getElementById('profileAvatar');
+    if (pn) pn.textContent = user.displayName || user.email.split('@')[0];
+    if (pe) pe.textContent = user.email;
+    if (pa && user.photoURL) pa.innerHTML = `<img src="${user.photoURL}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+
+    if (isAppReadyToShow && !wasLoggedIn) {
+      applyScreenState();
+      return;
+    }
 
     const params = new URLSearchParams(window.location.search);
     if (params.get('fromLat')) {
@@ -320,9 +351,15 @@ onAuthStateChanged(auth, (user) => {
         () => { updateLoadingProgress(95, "Không lấy được GPS, dùng mặc định"); checkLoadingComplete(); },
         { enableHighAccuracy: true, timeout: 3000 }
       );
-    } else { updateLoadingProgress(95, "Thiết bị không hỗ trợ GPS"); checkLoadingComplete(); }
+    } else {
+      updateLoadingProgress(95, "Thiết bị không hỗ trợ GPS");
+      checkLoadingComplete();
+    }
   } else {
-    currentUser = null;
+    if (isAppReadyToShow && wasLoggedIn) {
+      applyScreenState();
+      return;
+    }
     updateLoadingProgress(95, "Chưa đăng nhập...");
     checkLoadingComplete();
   }
@@ -401,41 +438,49 @@ const btnSubmitAuth = document.getElementById('btnSubmitAuth');
 const authToggleText = document.getElementById('authToggleText');
 const authToggleBtn = document.getElementById('authToggleBtn');
 const authError = document.getElementById('authError');
-authToggleBtn.addEventListener('click', (e) => {
-  e.preventDefault();
-  isRegisterMode = !isRegisterMode;
-  authError.style.display = 'none';
-  if (isRegisterMode) {
-    authTitle.textContent = 'Tạo tài khoản 📝';
-    authSubtitle.textContent = 'Đăng ký để bắt đầu hành trình';
-    btnSubmitAuth.textContent = 'Đăng ký tài khoản';
-    authToggleText.textContent = 'Đã có tài khoản?';
-    authToggleBtn.textContent = 'Đăng nhập';
-  } else {
-    authTitle.textContent = 'DriveKit 🚌';
-    authSubtitle.textContent = 'Mọi hành trình, một giải pháp';
-    btnSubmitAuth.textContent = 'Đăng nhập';
-    authToggleText.textContent = 'Chưa có tài khoản?';
-    authToggleBtn.textContent = 'Đăng ký ngay';
-  }
-});
-btnSubmitAuth.addEventListener('click', async () => {
-  const email = document.getElementById('authEmail').value;
-  const pass = document.getElementById('authPassword').value;
-  if (!email || !pass) { authError.textContent = 'Vui lòng nhập đầy đủ Email và Mật khẩu.'; authError.style.display = 'block'; return; }
-  btnSubmitAuth.disabled = true;
-  btnSubmitAuth.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-  authError.style.display = 'none';
-  try {
-    if (isRegisterMode) await createUserWithEmailAndPassword(auth, email, pass);
-    else await signInWithEmailAndPassword(auth, email, pass);
-  } catch (err) { authError.textContent = getAuthErrorMessage(err.code); authError.style.display = 'block'; }
-  finally { btnSubmitAuth.disabled = false; btnSubmitAuth.textContent = isRegisterMode ? 'Đăng ký tài khoản' : 'Đăng nhập'; }
-});
-document.getElementById('btnGoogleAuth').addEventListener('click', async () => {
-  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-  catch (e) { authError.textContent = getAuthErrorMessage(e.code); authError.style.display = 'block'; }
-});
+
+if (authToggleBtn) {
+  authToggleBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    isRegisterMode = !isRegisterMode;
+    authError.style.display = 'none';
+    if (isRegisterMode) {
+      authTitle.textContent = 'Tạo tài khoản 📝';
+      authSubtitle.textContent = 'Đăng ký để bắt đầu hành trình';
+      btnSubmitAuth.textContent = 'Đăng ký tài khoản';
+      authToggleText.textContent = 'Đã có tài khoản?';
+      authToggleBtn.textContent = 'Đăng nhập';
+    } else {
+      authTitle.textContent = 'DriveKit 🚌';
+      authSubtitle.textContent = 'Mọi hành trình, một giải pháp';
+      btnSubmitAuth.textContent = 'Đăng nhập';
+      authToggleText.textContent = 'Chưa có tài khoản?';
+      authToggleBtn.textContent = 'Đăng ký ngay';
+    }
+  });
+}
+if (btnSubmitAuth) {
+  btnSubmitAuth.addEventListener('click', async () => {
+    const email = document.getElementById('authEmail').value;
+    const pass = document.getElementById('authPassword').value;
+    if (!email || !pass) { authError.textContent = 'Vui lòng nhập đầy đủ Email và Mật khẩu.'; authError.style.display = 'block'; return; }
+    btnSubmitAuth.disabled = true;
+    btnSubmitAuth.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    authError.style.display = 'none';
+    try {
+      if (isRegisterMode) await createUserWithEmailAndPassword(auth, email, pass);
+      else await signInWithEmailAndPassword(auth, email, pass);
+    } catch (err) { authError.textContent = getAuthErrorMessage(err.code); authError.style.display = 'block'; }
+    finally { btnSubmitAuth.disabled = false; btnSubmitAuth.textContent = isRegisterMode ? 'Đăng ký tài khoản' : 'Đăng nhập'; }
+  });
+}
+const btnGoogleAuth = document.getElementById('btnGoogleAuth');
+if (btnGoogleAuth) {
+  btnGoogleAuth.addEventListener('click', async () => {
+    try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+    catch (e) { authError.textContent = getAuthErrorMessage(e.code); authError.style.display = 'block'; }
+  });
+}
 function logout() { if (liveEnabled) stopLiveSession(); signOut(auth); closeMenu(); }
 
 /* ---------- DATA SUBSCRIPTIONS ---------- */
@@ -552,7 +597,10 @@ function updateUIState() {
 /* ---------- MAP INIT ---------- */
 function initMap() {
   if (map) return;
+  // Sử dụng leaflet-rotate để xoay, tắt rotate của MapLibre sau khi add layer
   map = L.map('map', { center: initialCenter, zoom: initialZoom, zoomControl: false, rotate: true, bearing: 0, touchRotate: true, rotateControl: false, attributionControl: true });
+  
+  // Cập nhật góc xoay cho nút Compass
   map.on('rotate', function() {
     const b = map.getBearing ? map.getBearing() : 0;
     const comp = document.getElementById('btnCompass');
@@ -562,6 +610,7 @@ function initMap() {
       if(Math.abs(b) < 3) comp.classList.add('north'); else comp.classList.remove('north');
     }
   });
+
   setTimeout(() => { changeLayer('maptiler', document.querySelector('.layer-option.active')); }, 100);
   let pressTimer = null;
   let touchMarker = null;
@@ -1584,7 +1633,14 @@ function changeLayer(type, btn) {
       currentMapLayer = L.tileLayer(`https://api.maptiler.com/maps/streets-v4/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`, { maxZoom: 20, tileSize: 512, zoomOffset: -1, attribution: '© MapTiler' }).addTo(map);
     }
   } else if (type === 'satellite') {
-    currentMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '© Esri' }).addTo(map);
+    // Dùng Vệ tinh dạng Vector (Hybrid) để xoay mượt không bị lỗi
+    try {
+      const satStyle = `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`;
+      currentMapLayer = L.maplibreGL({ style: satStyle, attribution: '© MapTiler © OSM' }).addTo(map);
+      currentMapLayer.on('add', () => setTimeout(() => disableMapLibreRotate(currentMapLayer), 300));
+    } catch(e) {
+      currentMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '© Esri' }).addTo(map);
+    }
   }
 }
 
