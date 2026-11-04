@@ -1,314 +1,394 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hệ thống Biển báo Giao thông - Full Fix</title>
-    
-    <!-- Thư viện MapLibre GL JS -->
-    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
-    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<meta name="theme-color" content="#0f172a" />
+<title>DriveKit — Mọi hành trình, một giải pháp</title>
 
-    <!-- vConsole để debug trên điện thoại (có thể xóa nếu không cần) -->
-    <script src="https://unpkg.com/vconsole@3.15.1/dist/vconsole.min.js"></script>
-    <script>
-        window.vConsole = new window.VConsole({ theme: 'dark' });
-    </script>
+<!-- Fonts & Icons -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&family=Fira+Code:wght@500;600;700&display=swap&subset=vietnamese" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 
-    <style>
-        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        
-        /* Bảng điều khiển Bộ lọc */
-        #filter-panel {
-            position: absolute; top: 15px; left: 15px; background: rgba(255, 255, 255, 0.95);
-            padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
-            z-index: 10; font-size: 14px; backdrop-filter: blur(5px); max-width: 250px;
-        }
-        #filter-panel h3 { margin: 0 0 12px 0; font-size: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;}
-        .filter-group { display: flex; align-items: center; margin-bottom: 10px; cursor: pointer; }
-        .filter-group input { margin-right: 10px; width: 16px; height: 16px; accent-color: #0d6efd; }
-        .filter-group label { cursor: pointer; color: #374151; font-weight: 500; }
-        
-        /* CSS cho Popup MapLibre */
-        .maplibregl-popup-content { padding: 0; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2); font-size: 13px; max-width: 360px; }
-        .popup-header { background: #0d6efd; color: #fff; padding: 10px 15px; font-weight: bold; font-size: 14px; }
-        .popup-body { padding: 12px 15px; background: #fff; }
-        .popup-row { margin-bottom: 6px; font-size: 12px; border-bottom: 1px dashed #e5e7eb; padding-bottom: 4px;}
-        .popup-label { color: #6b7280; font-weight: 600; display: block; margin-bottom: 2px;}
-        .popup-value { color: #111827; font-family: monospace; word-break: break-all; background: #f3f4f6; padding: 2px 4px; border-radius: 4px;}
-        
-        /* CSS cho phần đối chiếu 2 ảnh */
-        .compare-container { display: flex; gap: 8px; margin-top: 10px; }
-        .compare-box { flex: 1; text-align: center; background: #f3f4f6; border-radius: 8px; padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 120px;}
-        .compare-title { font-size: 10px; font-weight: bold; color: #4b5563; margin-bottom: 4px; }
-        .compare-box img { width: 100%; border-radius: 6px; background: #fff; object-fit: contain; max-height: 100px;}
-        .error-text { color: #ef4444; font-size: 11px; padding: 10px; text-align: center;}
-    </style>
+<!-- Map libs -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.21/leaflet-maplibre-gl.js"></script>
+
+<!-- App CSS -->
+<link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
-    <!-- Bộ lọc -->
-    <div id="filter-panel">
-        <h3>🚦 Bộ lọc biển báo</h3>
-        <div class="filter-group"><input type="checkbox" id="filter-warning" checked><label for="filter-warning">⚠️ Cảnh báo</label></div>
-        <div class="filter-group"><input type="checkbox" id="filter-regulatory" checked><label for="filter-regulatory">🛑 Cấm / Hiệu lệnh</label></div>
-        <div class="filter-group"><input type="checkbox" id="filter-mandatory" checked><label for="filter-mandatory">🔵 Bắt buộc</label></div>
-        <div class="filter-group"><input type="checkbox" id="filter-information" checked><label for="filter-information">ℹ️ Chỉ dẫn</label></div>
-        <div class="filter-group"><input type="checkbox" id="filter-other" checked><label for="filter-other">🔹 Loại khác</label></div>
+<!-- ========== LOADING SCREEN ========== -->
+<div class="loading-screen" id="loadingScreen">
+  <div class="spinner"></div>
+  <div style="text-align:center;">
+    <h2 style="color:var(--text); margin-bottom:8px;">DriveKit</h2>
+    <p class="loading-text" id="loadingText">Đang khởi tạo hệ thống...</p>
+    <div class="loading-percent" id="loadingPercent">0%</div>
+  </div>
+</div>
+
+<!-- ========== AUTH SCREEN ========== -->
+<div class="auth-screen hidden" id="authScreen">
+  <div class="auth-box">
+    <h2 id="authTitle">DriveKit 🚌</h2>
+    <p id="authSubtitle">Mọi hành trình, một giải pháp</p>
+    <button class="btn-auth btn-google" id="btnGoogleAuth"><i class="fab fa-google"></i> Đăng nhập bằng Google</button>
+    <div style="text-align:center; color:var(--text-muted); margin: 16px 0; font-size:0.85rem;">hoặc dùng Email</div>
+    <div id="authError" style="color:var(--danger); font-size:0.85rem; margin-bottom:10px; display:none; text-align:center; font-weight:600;"></div>
+    <input type="email" id="authEmail" class="auth-input" placeholder="Email" />
+    <input type="password" id="authPassword" class="auth-input" placeholder="Mật khẩu" />
+    <button class="btn-auth btn-email" id="btnSubmitAuth">Đăng nhập</button>
+    <div style="text-align:center; margin-top:16px; font-size:0.9rem;">
+      <span id="authToggleText" style="color:var(--text-muted);">Chưa có tài khoản?</span>
+      <a href="#" id="authToggleBtn" style="color:var(--primary); font-weight:700; text-decoration:none; margin-left:5px;">Đăng ký ngay</a>
     </div>
+  </div>
+</div>
 
-    <div id="map"></div>
+<!-- ========== MAIN APP UI ========== -->
+<div id="appUI" class="hidden">
+  <div id="map"></div>
 
-    <script>
-        // ==========================================
-        // 1. CẤU HÌNH (TOKEN VÀ ĐƯỜNG DẪN)
-        // ==========================================
-        const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
-        const MAPILLARY_TOKEN = 'MLY|30124595887140717|6f7fa14af38d34316e4f6ba9388e1be4';
-        
-        // Sử dụng Date.now() để chống lưu cache CDN của Github (jsDelivr)
-        // Mỗi lần tải lại trang, nó sẽ tự động lấy file JSON mới nhất
-        const MAPPING_JSON_URL = `https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/mapillary_mapping_270.json?v=${Date.now()}`;
+  <!-- Search -->
+  <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
+    <i class="fas fa-search"></i>
+    <input type="text" id="topSearchInput" placeholder="Tìm địa điểm hoặc dán link Google Maps..." readonly />
+    <i class="fas fa-times search-clear-btn hidden" id="searchClearBtn" onclick="event.stopPropagation(); clearTopSearch()"></i>
+  </div>
 
-        let MAPPING_DATA = {}; // Biến lưu trữ dữ liệu JSON
+  <!-- FABs -->
+  <button class="fab-menu" id="mainMenuBtn" onclick="openMenu()"><i class="fas fa-bars"></i></button>
+  <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
+  <button class="fab-layers" id="btnLayerMenu" onclick="event.stopPropagation(); toggleLayerMenu()" title="Lớp bản đồ">
+    <i class="fas fa-layer-group"></i>
+  </button>
+  <button class="fab-compass" id="btnCompass" onclick="resetMapBearing()" title="Bắc / Reset xoay 360°">
+    <i class="fas fa-compass"></i>
+  </button>
+  <button class="fab-layers" id="btnQuickPin" onclick="event.stopPropagation(); openQuickPin()" style="bottom: calc(140px + var(--safe-bottom)); right: 16px; left: auto; background: var(--success); color: white; border: none; box-shadow: 0 4px 15px rgba(16,185,129,0.4);" title="Ghim nhanh vị trí">
+    <i class="fas fa-map-marker-alt"></i>
+  </button>
+  <button class="fab-rest-stop-filter" id="btnRestStopFilter" onclick="toggleRestStopFilter()" title="Hiện/ẩn trạm dừng nghỉ">
+    <i class="fas fa-bed"></i>
+  </button>
 
-        // ==========================================
-        // 2. KHỞI TẠO BẢN ĐỒ
-        // ==========================================
-        const map = new maplibregl.Map({
-            container: 'map',
-            style: `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`,
-            center: [105.8542, 21.0285], // Hà Nội
-            zoom: 16,
-            minZoom: 3
-        });
+  <!-- Layer menu -->
+  <div class="layer-menu" id="layerMenu">
+    <button class="layer-option" onclick="changeLayer('trackasia-maplibre', this)">
+      <div class="layer-title"><i class="fas fa-map"></i> 1. TrackAsia + MapLibre</div>
+      <div class="layer-desc">Vector TrackAsia</div>
+    </button>
+    <button class="layer-option active" onclick="changeLayer('maptiler', this)">
+      <div class="layer-title"><i class="fas fa-map-marked-alt"></i> 2. MapTiler Streets V4 + MapLibre</div>
+      <div class="layer-desc">Key: aEzMCP0ANRz52vd1RvrW</div>
+    </button>
+    <button class="layer-option" onclick="changeLayer('satellite', this)">
+      <div class="layer-title"><i class="fas fa-satellite"></i> 3. Vệ tinh</div>
+      <div class="layer-desc">Esri World Imagery</div>
+    </button>
+  </div>
 
-        map.addControl(new maplibregl.NavigationControl(), 'top-right');
+  <button class="fab-report" id="btnReport" onclick="openReportMenu()"><i class="fas fa-exclamation-triangle"></i></button>
+  <button class="fab-directions" id="mainDirBtn" onclick="openDirections()"><i class="fas fa-directions"></i></button>
 
-        // ==========================================
-        // 3. CÁC HÀM XỬ LÝ DỮ LIỆU
-        // ==========================================
-        
-        // Tải file JSON Mapping
-        async function fetchMappingData() {
-            try {
-                console.log('Đang tải file JSON...');
-                const response = await fetch(MAPPING_JSON_URL);
-                if (!response.ok) throw new Error('Không thể tải file JSON');
-                MAPPING_DATA = await response.json();
-                console.log('✅ Đã tải xong file Mapping:', Object.keys(MAPPING_DATA).length, 'biển báo');
-            } catch (error) {
-                console.error('❌ Lỗi tải file JSON:', error);
-                alert('Lỗi tải file JSON. Hãy kiểm tra lại đường dẫn hoặc kết nối mạng!');
-            }
-        }
+  <!-- Directions Sheet -->
+  <div class="dir-sheet" id="dirSheet">
+    <div class="dir-handle"></div>
+    <div class="input-group" style="margin-top: 10px;">
+      <div class="dot start"></div>
+      <input type="text" id="dirInputStart" placeholder="Điểm đi (Mặc định GPS)" onclick="activateSearch('start')" />
+      <button class="btn-clear-input hidden" id="btnClearStart" onclick="event.stopPropagation(); clearPoint('start')"><i class="fas fa-times"></i></button>
+      <button onclick="refreshGPS()"><i class="fas fa-location-arrow" style="color:var(--primary); font-size: 1rem;"></i></button>
+    </div>
+    <div class="input-group">
+      <div class="dot end"></div>
+      <input type="text" id="dirInputEnd" placeholder="Điểm đến" onclick="activateSearch('end')" />
+      <button class="btn-clear-input hidden" id="btnClearEnd" onclick="event.stopPropagation(); clearPoint('end')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="vehicle-selector">
+      <button class="vehicle-mode-btn active" data-mode="driving" onclick="setVehicleMode('driving', this)"><i class="fas fa-car"></i> Ô tô</button>
+      <button class="vehicle-mode-btn" data-mode="driving-traffic" onclick="setVehicleMode('driving-traffic', this)"><i class="fas fa-car-side"></i> Kẹt xe</button>
+      <button class="vehicle-mode-btn" data-mode="hd" onclick="setVehicleMode('hd', this)"><i class="fas fa-motorcycle"></i> Xe CN</button>
+      <button class="vehicle-mode-btn" data-mode="truck" onclick="setVehicleMode('truck', this)"><i class="fas fa-truck"></i> Xe tải</button>
+      <button class="vehicle-mode-btn" data-mode="motorcycle" onclick="setVehicleMode('motorcycle', this)"><i class="fas fa-motorcycle"></i> Xe máy</button>
+      <button class="vehicle-mode-btn" data-mode="walking" onclick="setVehicleMode('walking', this)"><i class="fas fa-walking"></i> Đi bộ</button>
+      <button class="vehicle-mode-btn" data-mode="bicycle" onclick="setVehicleMode('bicycle', this)"><i class="fas fa-bicycle"></i> Xe đạp</button>
+    </div>
+    <div id="truckWarning" class="hidden" style="background: rgba(245, 158, 11, 0.15); border: 1px solid var(--warning); border-radius: 8px; padding: 10px; margin-bottom: 10px; display: flex; gap: 8px; align-items: flex-start;">
+      <i class="fas fa-exclamation-triangle" style="color: var(--warning); font-size: 1.1rem; margin-top: 2px;"></i>
+      <div style="font-size: 0.75rem; color: var(--text); line-height: 1.4;">
+        <b style="color: var(--warning);">Lưu ý cho Xe tải:</b> Bản đồ sử dụng dữ liệu OpenStreetMap. Vui lòng <b>tự quan sát biển báo cấm tải, giới hạn chiều cao và tải trọng</b> trên thực tế!
+      </div>
+    </div>
+    <button class="btn-auth btn-email" style="margin-top:6px; margin-bottom:0;" onclick="fetchAndShowRouteOptions()">
+      <i class="fas fa-search-location"></i> Xem tất cả tuyến đường
+    </button>
+  </div>
 
-        // Tải ảnh PNG từ Github CDN vào MapLibre
-        async function loadImagesFromCDN() {
-            const uniqueFiles = {};
-            // Lọc ra các file ảnh duy nhất để tránh tải trùng
-            Object.values(MAPPING_DATA).forEach(item => {
-                uniqueFiles[item.file] = item.url;
-            });
+  <div class="suggestions-box" id="suggestionsBox"></div>
 
-            const fileEntries = Object.entries(uniqueFiles);
-            let loadedCount = 0;
+  <!-- HUD (navigation) -->
+  <div class="hidden" id="hud">
+    <div class="hud-top">
+      <div class="hud-stat"><span class="label">Còn lại</span><span class="value" id="hudRemainDist">—</span></div>
+      <div class="hud-stat"><span class="label">Đến nơi</span><span class="value" id="hudRemainTime">—</span></div>
+      <div class="hud-stat speed"><span class="label">Tốc độ</span><span class="value" id="hudSpeed">0 km/h</span></div>
+      <button class="hud-end-btn-top" onclick="openEndTripModal()">
+        <i class="fas fa-flag-checkered"></i>
+        <span>Kết thúc</span>
+      </button>
+    </div>
+    <div class="hud-next">
+      <div class="arrow" id="hudNextArrow">↑</div>
+      <div class="info"><div class="dist" id="hudNextDist">—</div><div class="instr" id="hudNextInstr">Đang tải...</div></div>
+    </div>
+    <div class="hud-bottom">
+      <div class="hud-next-stop">
+        <div class="name" id="hudNextStopName">—</div>
+        <div class="dist" id="hudNextStopDist">—</div>
+      </div>
+      <div class="hud-btn-group">
+        <button class="hud-btn swap" onclick="openAlternativeRoutes()" title="Đổi đường"><i class="fas fa-random"></i></button>
+        <button class="hud-btn" id="hudBtnVoice"><i class="fas fa-volume-up"></i></button>
+      </div>
+    </div>
+  </div>
+</div>
 
-            return new Promise((resolve) => {
-                if (fileEntries.length === 0) resolve();
-                
-                fileEntries.forEach(([fileName, url]) => {
-                    const img = new Image();
-                    img.crossOrigin = 'anonymous'; 
-                    
-                    img.onload = () => {
-                        // pixelRatio: 4 giúp ảnh 512x512 hiển thị nhỏ và sắc nét
-                        if (!map.hasImage(fileName)) map.addImage(fileName, img, { pixelRatio: 4 }); 
-                        loadedCount++;
-                        if (loadedCount === fileEntries.length) resolve();
-                    };
-                    
-                    img.onerror = () => {
-                        console.warn(`Lỗi tải ảnh: ${fileName}`);
-                        loadedCount++;
-                        if (loadedCount === fileEntries.length) resolve();
-                    };
-                    img.src = url;
-                });
-            });
-        }
+<!-- ========== ROUTE OPTIONS MODAL ========== -->
+<div class="route-options-modal" id="routeOptionsModal">
+  <div class="route-options-header">
+    <h2><i class="fas fa-route"></i> Các tuyến đường gợi ý</h2>
+    <button class="report-close" onclick="closeRouteOptions()" style="background:var(--bg-2);color:var(--text);"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="route-options-body" id="routeOptionsBody"></div>
+</div>
 
-        // Tạo biểu thức MapLibre Expression tự động từ JSON
-        function buildIconExpression() {
-            let expression = ['case'];
-            // Sắp xếp mã dài lên trước để tránh nhận diện nhầm (VD: limit-100 trước limit-10)
-            const sortedKeys = Object.keys(MAPPING_DATA).sort((a, b) => b.length - a.length);
-            
-            for (const mapillaryCode of sortedKeys) {
-                const data = MAPPING_DATA[mapillaryCode];
-                expression.push(
-                    ['in', mapillaryCode, ['get', 'value']], 
-                    data.file
-                );
-            }
-            expression.push(''); // Nếu không khớp thì ẩn đi
-            return expression;
-        }
+<!-- ========== REPORT MODAL ========== -->
+<div class="report-modal" id="reportModal">
+  <div class="report-header">
+    <h2>Báo cáo sự cố</h2>
+    <button class="report-close" onclick="closeReportMenu()"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="report-body">
+    <button class="report-btn police" onclick="submitReport('police')"><i class="fas fa-shield-alt"></i> CSGT</button>
+    <button class="report-btn accident" onclick="submitReport('accident')"><i class="fas fa-car-crash"></i> Tai nạn</button>
+    <button class="report-btn traffic" onclick="submitReport('traffic')"><i class="fas fa-traffic-light"></i> Kẹt xe</button>
+    <button class="report-btn pothole" onclick="submitReport('pothole')"><i class="fas fa-exclamation-circle"></i> Ổ gà</button>
+    <button class="report-btn" onclick="submitReport('flood')"><i class="fas fa-water"></i> Ngập nước</button>
+    <button class="report-btn" onclick="submitReport('bridge_collapse')"><i class="fas fa-road-circle-xmark"></i> Sập cầu</button>
+    <button class="report-btn" onclick="submitReport('road_collapse')"><i class="fas fa-triangle-exclamation"></i> Sập đường</button>
+  </div>
+</div>
 
-        // ==========================================
-        // 4. KHỞI TẠO BẢN ĐỒ KHI LOAD
-        // ==========================================
-        map.on('load', async () => {
-            // Tải JSON và ảnh
-            await fetchMappingData();
-            await loadImagesFromCDN();
+<!-- ========== PROFILE MODAL ========== -->
+<div class="profile-modal" id="profileModal">
+  <div class="profile-header">
+    <button class="profile-close" onclick="closeMenu()"><i class="fas fa-times"></i></button>
+    <div class="profile-avatar" id="profileAvatar"><i class="fas fa-user"></i></div>
+    <div class="profile-name" id="profileName">Đang tải...</div>
+    <div class="profile-email" id="profileEmail">...</div>
+    <div class="profile-time" id="profileTime">00:00:00</div>
+  </div>
+  <div class="profile-body">
+    <div class="profile-card" id="liveRoomCard">
+      <h3>
+        <span><i class="fas fa-satellite-dish" style="color:#10b981;"></i> Live Room</span>
+        <span class="live-badge-status" id="liveStatusBadge" style="display:none;">OFF</span>
+      </h3>
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:var(--bg-2); border-radius:10px; margin-bottom:12px;">
+        <div>
+          <div style="font-weight:800; font-size:0.9rem;">Chế độ Live</div>
+          <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">Chia sẻ vị trí 6s/lần</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="liveToggleSwitch" onchange="toggleLiveRoom()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div id="liveFeatures" style="opacity:0.4; pointer-events:none; display:flex; flex-direction:column; gap:12px; position:relative;">
+        <div id="liveDisabledOverlay" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(15,23,42,0.85); border-radius:8px; z-index:5; font-size:0.75rem; font-weight:700; color:var(--warning);">
+          🔒 Bật Live để sử dụng
+        </div>
+        <div id="liveRoomCodeBox" style="display:none; flex-direction:column; gap:6px;">
+          <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted);">Mã phòng của bạn</label>
+          <div style="display:flex; align-items:center; gap:8px; padding:12px; background:var(--bg); border:2px dashed #10b981; border-radius:10px;">
+            <span id="liveRoomCodeText" style="flex:1; text-align:center; font-family:var(--font-mono); font-size:1.3rem; font-weight:900; letter-spacing:4px; color:#10b981;">------</span>
+            <button onclick="copyLiveRoomCode()" style="background:#10b981; color:white; border:none; padding:8px 12px; border-radius:6px; font-size:0.75rem; font-weight:700; cursor:pointer;"><i class="fas fa-copy"></i> Copy</button>
+          </div>
+          <div style="font-size:0.7rem; color:var(--text-muted); text-align:center;">Chia sẻ mã này để người khác vào xem vị trí</div>
+        </div>
+        <div id="liveRoomActions" style="display:flex; flex-direction:column; gap:8px;">
+          <button class="profile-btn" onclick="createLiveRoom()" style="background:var(--primary); color:white; border:none; justify-content:center;">
+            <span><i class="fas fa-plus-circle"></i> Tạo phòng mới</span>
+          </button>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="liveJoinCodeInput" placeholder="Nhập mã phòng..." maxlength="6" style="flex:1; padding:10px; background:var(--bg-2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:var(--font-mono); font-weight:800; letter-spacing:2px; text-align:center; text-transform:uppercase;">
+            <button onclick="joinLiveRoom()" style="background:var(--success); color:white; border:none; padding:0 16px; border-radius:8px; font-weight:700; cursor:pointer;"><i class="fas fa-sign-in-alt"></i> Vào</button>
+          </div>
+        </div>
+        <div id="livePublicBox" style="display:none; padding:12px; background:var(--bg-2); border-radius:10px; border-left:3px solid var(--warning);">
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div>
+              <div style="font-weight:800; font-size:0.85rem;"><i class="fas fa-globe" style="color:var(--warning);"></i> Chế độ Public</div>
+              <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">Người trong 10km thấy bạn</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="livePublicSwitch" onchange="toggleLivePublic()">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+        <div id="liveMembersBox" style="display:none;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted);">Người đang live</label>
+            <span id="liveMemberCount" style="font-size:0.75rem; color:var(--text-muted);">0</span>
+          </div>
+          <div id="liveMemberList" style="display:flex; flex-direction:column; gap:6px; max-height:200px; overflow-y:auto;">
+            <div style="text-align:center; padding:16px; color:var(--text-muted); font-size:0.75rem;">
+              <i class="fas fa-users" style="font-size:1.5rem; opacity:0.3; display:block; margin-bottom:6px;"></i>
+              Chưa có ai
+            </div>
+          </div>
+        </div>
+        <button id="liveLeaveBtn" onclick="leaveLiveRoom()" style="display:none; width:100%; padding:12px; background:var(--danger); color:white; border:none; border-radius:10px; font-weight:800; cursor:pointer;">
+          <i class="fas fa-sign-out-alt"></i> Rời phòng
+        </button>
+      </div>
+    </div>
+    <button class="profile-btn" onclick="shareRoute()">
+      <span><i class="fas fa-share-alt"></i> Chia sẻ lộ trình hiện tại</span>
+      <i class="fas fa-chevron-right"></i>
+    </button>
+    <div class="profile-btn" style="cursor: default;">
+      <span><i class="fas fa-moon"></i> Chế độ Sáng / Tối</span>
+      <label class="switch">
+        <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="profile-card">
+      <h3><i class="fas fa-bookmark"></i> Lộ trình đã lưu
+        <button onclick="clearAllSavedRoutes()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button>
+      </h3>
+      <div class="history-list" id="savedRoutesList">
+        <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có lộ trình nào được lưu</div>
+      </div>
+    </div>
+    <div class="profile-card">
+      <h3><i class="fas fa-history"></i> Lịch sử chuyến đi
+        <button onclick="clearAllHistory()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button>
+      </h3>
+      <div class="history-list" id="historyList">
+        <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có chuyến đi nào</div>
+      </div>
+    </div>
+    <div class="profile-card">
+      <h3><i class="fas fa-link"></i> Link đã chia sẻ
+        <button onclick="clearAllSharedLinks()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button>
+      </h3>
+      <div class="history-list" id="sharedLinksList">
+        <div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có link nào</div>
+      </div>
+    </div>
+    <button class="profile-btn logout" onclick="logout()">
+      <span><i class="fas fa-sign-out-alt"></i> Đăng xuất</span>
+    </button>
+  </div>
+</div>
 
-            // Thêm Source Vector Tile của Mapillary
-            map.addSource('mapillary-signs', {
-                type: 'vector',
-                tiles: [`https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`],
-                minzoom: 14, maxzoom: 14
-            });
+<!-- ========== END TRIP MODAL ========== -->
+<div class="end-trip-modal" id="endTripModal">
+  <div class="end-trip-box">
+    <h2>🏁 Hoàn thành chuyến đi</h2>
+    <div class="end-trip-stats">
+      <div class="row"><span><i class="fas fa-road"></i> Quãng đường</span><b id="endTripDist">—</b></div>
+      <div class="row"><span><i class="fas fa-clock"></i> Thời gian</span><b id="endTripTime">—</b></div>
+      <div class="row"><span><i class="fas fa-tachometer-alt"></i> Tốc độ TB</span><b id="endTripAvgSpeed">—</b></div>
+      <div class="row"><span><i class="fas fa-map-marker-alt"></i> Điểm đến</span><b id="endTripDest" style="font-size:0.85rem; font-family:var(--font-main); max-width:160px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">—</b></div>
+    </div>
+    <button class="end-trip-btn save" onclick="endTrip(true)"><i class="fas fa-save"></i> Lưu & Kết thúc</button>
+    <button class="end-trip-btn discard" onclick="endTrip(false)"><i class="fas fa-flag-checkered"></i> Kết thúc không lưu</button>
+    <button class="end-trip-btn cancel" onclick="closeEndTripModal()"><i class="fas fa-arrow-left"></i> Tiếp tục chuyến đi</button>
+  </div>
+</div>
 
-            // Thêm Layer hiển thị Icon
-            map.addLayer({
-                id: 'traffic-signs-layer',
-                type: 'symbol',
-                source: 'mapillary-signs',
-                'source-layer': 'traffic_sign',
-                minzoom: 14,
-                layout: {
-                    'icon-image': buildIconExpression(),
-                    // Kích thước nhỏ gọn, giãn dần khi zoom
-                    'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.15, 18, 0.3],
-                    'icon-allow-overlap': false,
-                    'icon-ignore-placement': false,
-                    'icon-padding': 2,
-                    // Ưu tiên hiển thị biển STOP và Tốc độ
-                    'symbol-sort-key': [
-                        'case',
-                        ['in', 'stop', ['get', 'value']], 1,
-                        ['in', 'maximum-speed-limit', ['get', 'value']], 2,
-                        3
-                    ]
-                }
-            });
+<!-- ========== SAVE PLACE MODAL ========== -->
+<div class="end-trip-modal" id="savePlaceModal">
+  <div class="end-trip-box">
+    <h2>📍 Lưu địa điểm</h2>
+    <p style="text-align: center; color: var(--text-muted); margin-bottom: 16px; font-size: 0.9rem;" id="savePlaceAddress">Đang lấy địa chỉ...</p>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+      <button class="report-btn" onclick="submitSavePlace('home')"><i class="fas fa-home" style="color:#10b981;"></i> Nhà riêng</button>
+      <button class="report-btn" onclick="submitSavePlace('cafe')"><i class="fas fa-coffee" style="color:#f59e0b;"></i> Quán Cafe</button>
+      <button class="report-btn" onclick="submitSavePlace('restaurant')"><i class="fas fa-utensils" style="color:#ef4444;"></i> Nhà hàng</button>
+      <button class="report-btn" onclick="submitSavePlace('company')"><i class="fas fa-building" style="color:#3b82f6;"></i> Công ty</button>
+      <button class="report-btn" onclick="submitSavePlace('school')"><i class="fas fa-school" style="color:#8b5cf6;"></i> Trường học</button>
+      <button class="report-btn" onclick="submitSavePlace('other')"><i class="fas fa-map-marker-alt" style="color:#64748b;"></i> Khác</button>
+    </div>
+    <button class="end-trip-btn cancel" onclick="closeSavePlaceModal()"><i class="fas fa-times"></i> Huỷ</button>
+  </div>
+</div>
 
-            // ==========================================
-            // 5. TƯƠNG TÁC (HOVER & CLICK)
-            // ==========================================
-            map.on('mouseenter', 'traffic-signs-layer', () => map.getCanvas().style.cursor = 'pointer');
-            map.on('mouseleave', 'traffic-signs-layer', () => map.getCanvas().style.cursor = '');
+<!-- ========== POI DETAIL SHEET ========== -->
+<div class="poi-detail-sheet" id="poiDetailSheet">
+  <div class="sheet-swipe-hint" id="poiDetailSwipeHandle">
+    <div class="sheet-swipe-bar"></div>
+    <div class="sheet-swipe-text"><span>Vuốt xuống để đóng</span><i class="fas fa-chevron-down"></i></div>
+  </div>
+  <div id="poiDetailContent"></div>
+</div>
 
-            map.on('click', 'traffic-signs-layer', async (e) => {
-                const feature = e.features[0];
-                const props = feature.properties;
-                const rawValue = props.value || '';
-                
-                // Tìm thông tin trong MAPPING_DATA
-                let displayData = null;
-                for (const [key, data] of Object.entries(MAPPING_DATA)) {
-                    if (rawValue.includes(key)) {
-                        displayData = data;
-                        break;
-                    }
-                }
+<!-- ========== POI SHEET (thêm địa điểm) ========== -->
+<div class="poi-sheet" id="poiSheet">
+  <div class="sheet-swipe-hint" id="poiSheetSwipeHandle">
+    <div class="sheet-swipe-bar"></div>
+    <div class="sheet-swipe-text"><span>Vuốt xuống để đóng</span><i class="fas fa-chevron-down"></i></div>
+  </div>
+  <h3><i class="fas fa-map-marker-alt" style="color:var(--success);"></i> Thêm địa điểm cộng đồng</h3>
+  <div class="poi-coords" id="poiCoords">—</div>
+  <div class="poi-tag-grid" id="poiTagGrid">
+    <button class="poi-tag-btn" data-tag="supermarket" onclick="selectPoiTag('supermarket', this)"><i class="fas fa-shopping-cart"></i> Siêu thị</button>
+    <button class="poi-tag-btn" data-tag="rest_stop" onclick="selectPoiTag('rest_stop', this)" style="border-color: #3b82f6; color: #3b82f6; position: relative;"><i class="fas fa-bed"></i> Trạm dừng nghỉ<span style="position:absolute; top:-6px; right:-6px; background:#3b82f6; color:white; font-size:0.55rem; padding:2px 6px; border-radius:8px; font-weight:800;">HOT</span></button>
+    <button class="poi-tag-btn" data-tag="gas_station" onclick="selectPoiTag('gas_station', this)"><i class="fas fa-gas-pump"></i> Cây xăng</button>
+    <button class="poi-tag-btn" data-tag="cafe" onclick="selectPoiTag('cafe', this)"><i class="fas fa-coffee"></i> Cafe</button>
+    <button class="poi-tag-btn" data-tag="restaurant" onclick="selectPoiTag('restaurant', this)"><i class="fas fa-utensils"></i> Nhà hàng</button>
+    <button class="poi-tag-btn" data-tag="pharmacy" onclick="selectPoiTag('pharmacy', this)"><i class="fas fa-prescription-bottle-medical"></i> Nhà thuốc</button>
+    <button class="poi-tag-btn" data-tag="atm" onclick="selectPoiTag('atm', this)"><i class="fas fa-money-bill-wave"></i> ATM</button>
+    <button class="poi-tag-btn" data-tag="repair" onclick="selectPoiTag('repair', this)"><i class="fas fa-wrench"></i> Sửa xe</button>
+    <button class="poi-tag-btn" data-tag="hotel" onclick="selectPoiTag('hotel', this)"><i class="fas fa-hotel"></i> Khách sạn</button>
+  </div>
+  <input type="text" class="poi-input-name" id="poiNameInput" placeholder="Nhập tên địa điểm..." maxlength="80" />
+  <div class="poi-actions">
+    <button class="poi-btn cancel" onclick="closePoiSheet()"><i class="fas fa-times"></i> Huỷ</button>
+    <button class="poi-btn save" id="poiSaveBtn" onclick="submitCommunityPoi()" disabled><i class="fas fa-check"></i> Lưu địa điểm</button>
+  </div>
+</div>
 
-                let htmlContent = '';
-                if (displayData) {
-                    htmlContent = `
-                        <div class="popup-row">
-                            <span class="popup-label">Mã QCVN (trong JSON):</span>
-                            <span style="font-weight:bold; color:#0d6efd">${displayData.ma} - ${displayData.ten}</span>
-                        </div>
-                        <div class="popup-row">
-                            <span class="popup-label">File ảnh đang gọi:</span>
-                            <span class="popup-value">${displayData.file}</span>
-                        </div>
-                        <div class="compare-container">
-                            <div class="compare-box">
-                                <div class="compare-title">Ảnh Github của bạn</div>
-                                <img src="${displayData.url}" />
-                            </div>
-                            <div class="compare-box" id="mly-img-container">
-                                <div class="compare-title">Ảnh Mapillary</div>
-                                <span style="font-size:10px; color:#9ca3af; margin-top:20px;">Đang tải...</span>
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    htmlContent = `<div class="error-text">⚠️ Mã này chưa có trong file JSON!</div>`;
-                }
+<!-- ========== SCRIPTS ========== -->
+<script>
+  window.addEventListener('error', function (e) {
+    var t = document.getElementById('loadingText');
+    if (t) t.textContent = 'Lỗi tải: ' + (e.message || 'không rõ') + ' — mở F12 → Console';
+  });
+  setTimeout(function () {
+    var el = document.getElementById('loadingPercent');
+    if (el && el.textContent === '0%') {
+      var t = document.getElementById('loadingText');
+      if (t) t.textContent = 'Không tải được ứng dụng. Mở F12 → Console để xem lỗi.';
+    }
+  }, 3500);
+</script>
 
-                const popupHTML = `
-                    <div class="popup-header">Đối chiếu dữ liệu</div>
-                    <div class="popup-body">
-                        <div class="popup-row" style="margin-bottom:10px;">
-                            <span class="popup-label">Mã gốc Mapillary:</span>
-                            <span class="popup-value" style="color:#dc2626; font-size:13px; font-weight:bold;">${rawValue}</span>
-                        </div>
-                        ${htmlContent}
-                    </div>
-                `;
+<script type="module" src="app.js"></script>
 
-                new maplibregl.Popup({ offset: 15, maxWidth: '360px' }).setLngLat(e.lngLat).setHTML(popupHTML).addTo(map);
-
-                // Tải ảnh thực tế từ Mapillary Graph API để đối chiếu
-                if (displayData) {
-                    try {
-                        const featureId = props.id;
-                        const res1 = await fetch(`https://graph.mapillary.com/${featureId}?access_token=${MAPILLARY_TOKEN}&fields=images`);
-                        const data1 = await res1.json();
-                        const imageId = data1.images?.[0];
-
-                        if (imageId) {
-                            const res2 = await fetch(`https://graph.mapillary.com/${imageId}?access_token=${MAPILLARY_TOKEN}&fields=thumb_512_url`);
-                            const data2 = await res2.json();
-                            const box = document.getElementById('mly-img-container');
-                            if (data2.thumb_512_url && box) {
-                                box.innerHTML = `<div class="compare-title">Ảnh Mapillary</div><img src="${data2.thumb_512_url}" />`;
-                            } else if (box) {
-                                box.innerHTML = `<div class="compare-title">Ảnh Mapillary</div><span class="error-text">Không có ảnh</span>`;
-                            }
-                        }
-                    } catch (err) {
-                        const box = document.getElementById('mly-img-container');
-                        if (box) box.innerHTML = `<div class="compare-title">Ảnh Mapillary</div><span class="error-text">Lỗi tải ảnh</span>`;
-                    }
-                }
-            });
-
-            // ==========================================
-            // 6. CHỨC NĂNG BỘ LỌC
-            // ==========================================
-            function applyFilter() {
-                const isWarning = document.getElementById('filter-warning').checked;
-                const isRegulatory = document.getElementById('filter-regulatory').checked;
-                const isMandatory = document.getElementById('filter-mandatory').checked;
-                const isInfo = document.getElementById('filter-information').checked;
-                const isOther = document.getElementById('filter-other').checked;
-
-                let conditions = ['any'];
-                if (isWarning) conditions.push(['in', 'warning--', ['get', 'value']]);
-                if (isRegulatory) conditions.push(['in', 'regulatory--', ['get', 'value']]);
-                if (isMandatory) conditions.push(['in', 'mandatory--', ['get', 'value']]);
-                if (isInfo) conditions.push(['in', 'information--', ['get', 'value']]);
-                if (isOther) {
-                    conditions.push(['all', 
-                        ['!', ['in', 'warning--', ['get', 'value']]], 
-                        ['!', ['in', 'regulatory--', ['get', 'value']]],
-                        ['!', ['in', 'mandatory--', ['get', 'value']]],
-                        ['!', ['in', 'information--', ['get', 'value']]]
-                    ]);
-                }
-
-                map.setFilter('traffic-signs-layer', conditions);
-            }
-
-            // Gắn sự kiện cho các Checkbox
-            document.querySelectorAll('#filter-panel input').forEach(el => el.addEventListener('change', applyFilter));
-        });
-    </script>
 </body>
 </html>
