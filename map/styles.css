@@ -84,10 +84,13 @@ body.light-mode .leaflet-container { background: #f1f5f9 !important; }
 }
 .leaflet-control-attribution a { color: #60a5fa !important; }
 
-/* ✅ FIX: MapLibre canvas không chặn leaflet-rotate xoay */
+/* ✅ FIX: MapLibre canvas không chặn leaflet-rotate xoay & chống crash */
 #map .maplibregl-canvas,
 #map .maplibregl-canvas-container,
-#map .leaflet-container { touch-action: none !important; }
+#map .leaflet-container {
+  touch-action: none !important;
+  will-change: transform;
+}
 .maplibregl-ctrl-compass { display: none !important; }
 .leaflet-map-pane { transition: none !important; }
 
