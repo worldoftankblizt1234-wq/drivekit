@@ -1,9 +1,7 @@
 /* =====================================================
-   DriveKit — styles.css (MapLibre Native + Search Labels)
-   ===================================================== */
-
+DriveKit — styles.css (Improved UI + Compass + Ripple)
+===================================================== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
-
 :root {
   --bg: #0f172a; --bg-2: #1e293b; --card: #1e293b; --card-2: #334155;
   --border: #334155; --text: #f1f5f9; --text-muted: #94a3b8;
@@ -11,19 +9,16 @@
   --font-main: 'Be Vietnam Pro', sans-serif; --font-mono: 'Fira Code', monospace;
   --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
-
 body.light-mode {
   --bg: #f8fafc; --bg-2: #e2e8f0; --card: #ffffff; --card-2: #f1f5f9;
   --border: #cbd5e1; --text: #0f172a; --text-muted: #64748b;
 }
-
 html, body {
   width: 100%; height: 100%; overflow: hidden;
   font-family: var(--font-main); background: var(--bg); color: var(--text);
   -webkit-font-smoothing: antialiased; user-select: none;
   transition: background 0.3s, color 0.3s;
 }
-
 button, input { font-family: inherit; outline: none; border: none; }
 button { cursor: pointer; }
 .hidden { display: none !important; }
@@ -77,7 +72,7 @@ button { cursor: pointer; }
 }
 body.light-mode #map { background: #f1f5f9; }
 
-/* MapLibre Popup (Dark Mode) */
+/* MapLibre Popup */
 .maplibregl-popup-content {
   background: var(--card) !important; color: var(--text) !important;
   border-radius: 12px !important; border: 1px solid var(--border) !important;
@@ -184,38 +179,68 @@ body.light-mode #map { background: #f1f5f9; }
   color: var(--text-muted); font-size: 1rem; padding: 4px 8px; cursor: pointer;
 }
 
-/* ---------- SEARCH RESULT LABELS (THẺ TRÊN BẢN ĐỒ) ---------- */
+/* ---------- SEARCH RESULT LABELS (CẢI TIẾN) ---------- */
 .search-result-pin {
   display: flex;
   flex-direction: column;
   align-items: center;
   cursor: pointer;
   transition: transform 0.2s, z-index 0.2s;
+  animation: markerPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .search-result-pin:hover {
-  transform: scale(1.05);
+  transform: scale(1.08);
   z-index: 100 !important;
+}
+@keyframes markerPopIn {
+  0% { transform: scale(0) translateY(20px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
 }
 .search-result-label {
   background: var(--card);
   color: var(--text);
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 0.75rem;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 0.72rem;
   font-weight: 700;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.5);
   white-space: nowrap;
-  max-width: 150px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   margin-bottom: 4px;
   border: 1px solid var(--border);
   transition: all 0.2s;
+  position: relative;
+}
+.search-result-label::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid var(--card);
+}
+.search-result-label .original-name {
+  display: block;
+  font-size: 0.6rem;
+  color: var(--warning);
+  font-weight: 800;
+  margin-top: 2px;
+  padding-top: 2px;
+  border-top: 1px dashed var(--border);
 }
 .search-result-pin:hover .search-result-label {
   background: var(--primary);
   color: white;
   border-color: var(--primary);
+}
+.search-result-pin:hover .search-result-label::after {
+  border-top-color: var(--primary);
 }
 .search-result-dot {
   width: 14px;
@@ -267,47 +292,89 @@ body.navigating #btnReport {
   bottom: calc(90px + var(--safe-bottom)); opacity: 0.85; z-index: 600;
 }
 
-/* ---------- NÚT LA BÀN TỰ CHẾ ---------- */
+/* ---------- NÚT LA BÀN (REDESIGN - ĐẸP HƠN) ---------- */
 .fab-compass {
   position: fixed; bottom: calc(140px + var(--safe-bottom)); left: 16px;
-  z-index: 1000; width: 50px; height: 50px; border-radius: 50%;
-  background: var(--card); border: 1px solid var(--border); color: var(--text);
+  z-index: 1000; width: 52px; height: 52px; border-radius: 50%;
+  background: linear-gradient(145deg, var(--card), var(--card-2));
+  border: 2px solid var(--border);
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.3rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.05);
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  overflow: hidden;
 }
 .fab-compass:active { transform: scale(0.92); }
-.compass-needle {
-  display: flex; align-items: center; justify-content: center;
-  transition: transform 0.15s linear; will-change: transform;
-}
-.compass-needle i {
-  background: linear-gradient(180deg, #ef4444 50%, #e2e8f0 50%);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent; color: transparent;
-  font-size: 1.35rem;
-}
-body.light-mode .compass-needle i {
-  background: linear-gradient(180deg, #ef4444 50%, #64748b 50%);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
 .fab-compass.off-north {
   border-color: var(--primary);
-  box-shadow: 0 4px 18px rgba(59,130,246,0.45);
+  box-shadow: 0 4px 18px rgba(59,130,246,0.5), inset 0 1px 2px rgba(255,255,255,0.05);
 }
 .fab-compass.off-north::after {
   content: ''; position: absolute; top: 3px; right: 3px;
   width: 9px; height: 9px; border-radius: 50%;
   background: var(--primary); border: 2px solid var(--card);
+  animation: compassDotPulse 1.5s infinite;
+}
+@keyframes compassDotPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.5); }
+  50% { box-shadow: 0 0 0 4px rgba(59,130,246,0); }
+}
+.compass-svg {
+  width: 36px; height: 36px;
+  transition: transform 0.15s linear;
+  will-change: transform;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+}
+.compass-n-label {
+  font-size: 0.55rem;
+  font-weight: 900;
+  fill: var(--text);
+  font-family: var(--font-mono);
 }
 
-/* ---------- PINS (DOM Markers) ---------- */
+/* ---------- MAP RIPPLE EFFECT (TƯƠNG TÁC TỰ NHIÊN) ---------- */
+.map-ripple {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(59,130,246,0.4) 0%, rgba(59,130,246,0) 70%);
+  pointer-events: none;
+  z-index: 999;
+  transform: translate(-50%, -50%) scale(0);
+  animation: rippleExpand 0.8s ease-out forwards;
+}
+@keyframes rippleExpand {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+}
+.map-touch-marker {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 3px solid white;
+  box-shadow: 0 0 0 4px rgba(59,130,246,0.3), 0 2px 8px rgba(0,0,0,0.4);
+  pointer-events: none;
+  z-index: 1000;
+  transform: translate(-50%, -50%) scale(0);
+  animation: touchMarkerBounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes touchMarkerBounce {
+  0% { transform: translate(-50%, -50%) scale(0); }
+  60% { transform: translate(-50%, -50%) scale(1.2); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+/* ---------- PINS (DOM Markers - CẢI TIẾN) ---------- */
 .custom-pin {
   background: white; border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg); display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.3); border: 2px solid white;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.35), 0 0 0 3px rgba(255,255,255,0.3);
+  border: 2px solid white;
+  transition: transform 0.2s;
 }
+.custom-pin:hover { transform: rotate(-45deg) scale(1.1); }
 .custom-pin i { transform: rotate(45deg); font-size: 0.8rem; }
 .custom-pin-close {
   position: absolute; top: -6px; right: -6px;
@@ -332,7 +399,6 @@ body.light-mode .compass-needle i {
 .end-trip-modal.open { display: flex; }
 .profile-modal { transform: translateX(100%); }
 .route-options-modal.open, .report-modal.open, .profile-modal.open { transform: translate(0); }
-
 .route-options-header, .report-header {
   padding: calc(20px + var(--safe-top)) 24px 20px;
   display: flex; justify-content: space-between; align-items: center;
@@ -358,9 +424,11 @@ body.light-mode .compass-needle i {
   border-radius: 16px; padding: 20px 10px;
   display: flex; flex-direction: column; align-items: center; gap: 10px;
   color: var(--text); font-weight: 700; font-size: 0.9rem;
+  transition: all 0.2s;
 }
+.report-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+.report-btn:active { transform: scale(0.95); }
 .report-btn i { font-size: 2rem; }
-
 .route-card {
   background: var(--card); border: 2px solid var(--border);
   border-radius: 16px; padding: 16px; cursor: pointer;
@@ -615,18 +683,25 @@ input:checked + .slider:before { transform: translateX(20px); }
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   color: var(--text-muted); font-weight: 700; font-size: 0.72rem;
   cursor: pointer; transition: all 0.2s; text-align: center;
+  position: relative;
 }
 .poi-tag-btn i { font-size: 1.4rem; }
 .poi-tag-btn.active {
   background: rgba(16,185,129,0.15); border-color: var(--success);
   color: var(--success); box-shadow: 0 3px 12px rgba(16,185,129,0.3);
 }
-.poi-input-name {
+.poi-tag-btn .new-badge {
+  position: absolute; top: -4px; right: -4px;
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  color: white; font-size: 0.5rem; padding: 1px 4px;
+  border-radius: 6px; font-weight: 800;
+}
+.poi-input-name, .poi-input-speed {
   width: 100%; padding: 14px 16px; background: var(--bg-2);
   border: 1px solid var(--border); border-radius: 12px;
   color: var(--text); font-size: 0.95rem; font-weight: 600; margin-bottom: 16px;
 }
-.poi-input-name:focus { border-color: var(--primary); }
+.poi-input-name:focus, .poi-input-speed:focus { border-color: var(--primary); }
 .poi-actions { display: flex; gap: 10px; }
 .poi-btn {
   flex: 1; padding: 14px; border-radius: 12px;
@@ -639,14 +714,22 @@ input:checked + .slider:before { transform: translateX(20px); }
 .poi-btn.save { background: var(--success); color: white; }
 .poi-btn.save:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ---------- COMMUNITY POI PIN ---------- */
+/* ---------- COMMUNITY POI PIN (CẢI TIẾN) ---------- */
 .community-poi-pin {
-  position: relative; width: 32px; height: 32px;
+  position: relative; width: 34px; height: 34px;
   background: var(--success); border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg);
   display: flex; align-items: center; justify-content: center;
-  border: 2px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+  border: 2px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.35), 0 0 0 2px rgba(255,255,255,0.2);
+  transition: transform 0.2s;
+  animation: poiBounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+@keyframes poiBounceIn {
+  0% { transform: rotate(-45deg) scale(0); }
+  60% { transform: rotate(-45deg) scale(1.15); }
+  100% { transform: rotate(-45deg) scale(1); }
+}
+.community-poi-pin:hover { transform: rotate(-45deg) scale(1.1); }
 .community-poi-pin i { transform: rotate(45deg); color: white; font-size: 0.85rem; }
 .community-poi-pin .verified-badge {
   position: absolute; top: -4px; right: -4px;
@@ -656,16 +739,41 @@ input:checked + .slider:before { transform: translateX(20px); }
 }
 .community-poi-pin .verified-badge i { font-size: 0.5rem; transform: rotate(0); }
 .community-poi-pin.rest-stop-pin {
-  width: 40px; height: 40px;
+  width: 42px; height: 42px;
   background: linear-gradient(135deg, #3b82f6, #1d4ed8);
   border: 3px solid white;
   box-shadow: 0 4px 12px rgba(59,130,246,0.6), 0 0 0 4px rgba(59,130,246,0.2);
-  animation: restStopPulse 2s ease-in-out infinite;
+  animation: restStopPulse 2s ease-in-out infinite, poiBounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .community-poi-pin.rest-stop-pin i { font-size: 1.1rem; }
 @keyframes restStopPulse {
   0%, 100% { box-shadow: 0 4px 12px rgba(59,130,246,0.6), 0 0 0 4px rgba(59,130,246,0.2); }
   50% { box-shadow: 0 4px 12px rgba(59,130,246,0.8), 0 0 0 8px rgba(59,130,246,0.1); }
+}
+
+/* Speed limit pin - special design */
+.community-poi-pin.speed-limit-pin {
+  background: white;
+  border: 3px solid #dc2626;
+  border-radius: 50%;
+  transform: rotate(0deg);
+  width: 38px; height: 38px;
+  box-shadow: 0 4px 12px rgba(220,38,38,0.5);
+}
+.community-poi-pin.speed-limit-pin i {
+  transform: rotate(0deg);
+  color: #dc2626;
+  font-size: 0.7rem;
+  font-weight: 900;
+  font-family: var(--font-mono);
+}
+.community-poi-pin.speed-limit-pin .speed-value {
+  position: absolute;
+  font-size: 0.65rem;
+  font-weight: 900;
+  color: #dc2626;
+  font-family: var(--font-mono);
+  transform: rotate(0deg);
 }
 
 /* ---------- REST STOP FILTER FAB ---------- */
@@ -720,7 +828,6 @@ body.navigating .fab-rest-stop-filter { display: none; }
 }
 .sheet-swipe-text i { font-size: 0.7rem; animation: swipeHintBounce 1.5s ease-in-out infinite; }
 @keyframes swipeHintBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
-
 .poi-detail-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; margin-top: 4px; }
 .poi-detail-icon {
   width: 48px; height: 48px; border-radius: 14px;
@@ -800,7 +907,6 @@ body.navigating .fab-rest-stop-filter { display: none; }
 }
 .live-member-item .lm-meta { font-size: 0.65rem; color: var(--text-muted); }
 .live-member-item .lm-dist { font-size: 0.7rem; color: var(--text-muted); font-weight: 700; flex-shrink: 0; }
-
 .live-me-pin {
   width: 40px; height: 40px; background: #10b981;
   border-radius: 50%; border: 3px solid white;
@@ -831,6 +937,37 @@ body.navigating .fab-rest-stop-filter { display: none; }
   display: flex; align-items: center; justify-content: center;
 }
 .avoid-zone-pin i { color: white; font-size: 0.9rem; }
+
+/* ---------- REPORT PIN (CẢI TIẾN - ĐA DẠNG HƠN) ---------- */
+.report-pin {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid white;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+  color: white;
+  font-size: 0.95rem;
+  animation: reportPulse 2s ease-in-out infinite;
+  transition: transform 0.2s;
+}
+.report-pin:hover { transform: scale(1.15); }
+.report-pin.police { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.report-pin.accident { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+.report-pin.traffic { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.report-pin.pothole { background: linear-gradient(135deg, #f97316, #ea580c); }
+.report-pin.flood { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+.report-pin.bridge_collapse, .report-pin.road_collapse { background: linear-gradient(135deg, #dc2626, #991b1b); }
+.report-pin.construction { background: linear-gradient(135deg, #eab308, #ca8a04); }
+.report-pin.animal { background: linear-gradient(135deg, #84cc16, #65a30d); }
+.report-pin.slippery { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+.report-pin.school_zone { background: linear-gradient(135deg, #facc15, #eab308); }
+.report-pin.speed_trap { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+.report-pin.debris { background: linear-gradient(135deg, #78716c, #57534e); }
+.report-pin.closed { background: linear-gradient(135deg, #991b1b, #7f1d1d); }
+@keyframes reportPulse {
+  0%, 100% { box-shadow: 0 3px 10px rgba(0,0,0,0.4); }
+  50% { box-shadow: 0 3px 15px rgba(0,0,0,0.6), 0 0 0 4px rgba(255,255,255,0.1); }
+}
 
 /* ---------- BADGE "MỚI" CHO POI MỚI ---------- */
 .poi-new-badge {
