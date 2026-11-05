@@ -12,13 +12,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&family=Fira+Code:wght@500;600;700&display=swap&subset=vietnamese" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 
-<!-- Map libs -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+<!-- MapLibre CSS & JS (Thay thế hoàn toàn Leaflet) -->
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.21/leaflet-maplibre-gl.js"></script>
 
 <!-- App CSS -->
 <link rel="stylesheet" href="styles.css" />
@@ -55,6 +51,7 @@
 
 <!-- ========== MAIN APP UI ========== -->
 <div id="appUI" class="hidden">
+  <!-- MapLibre Container -->
   <div id="map"></div>
 
   <!-- Search -->
@@ -92,7 +89,7 @@
     </button>
     <button class="layer-option" onclick="changeLayer('satellite', this)">
       <div class="layer-title"><i class="fas fa-satellite"></i> 3. Vệ tinh</div>
-      <div class="layer-desc">Esri World Imagery</div>
+      <div class="layer-desc">MapTiler Hybrid</div>
     </button>
   </div>
 
