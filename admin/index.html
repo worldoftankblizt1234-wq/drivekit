@@ -8,8 +8,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-
-<!-- MapLibre CSS & JS -->
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 
@@ -21,22 +19,18 @@
   }
   body { font-family: 'Be Vietnam Pro', sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
   
-  /* Sidebar Chung */
   .sidebar { width: 420px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 10; box-shadow: 4px 0 15px rgba(0,0,0,0.2); overflow: hidden; }
   .header { padding: 20px; border-bottom: 1px solid var(--border); }
   .header h1 { font-size: 1.2rem; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 8px; }
   
-  /* Thanh đổi Mode (Edit / Manage) */
   .mode-switch { display: flex; background: var(--bg-2); border-bottom: 1px solid var(--border); }
   .mode-btn { flex: 1; padding: 15px; border: none; background: transparent; color: var(--text-muted); font-weight: 800; font-size: 0.95rem; cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center; gap: 8px; }
   .mode-btn:hover { color: white; background: var(--border); }
   .mode-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); background: var(--card); }
 
-  /* Wrapper cho từng Mode */
   .mode-content { display: none; flex-direction: column; flex: 1; overflow-y: auto; }
   .mode-content.active { display: flex; }
 
-  /* ========== MODE EDIT ========== */
   .tabs { display: flex; border-bottom: 1px solid var(--border); }
   .tab { flex: 1; padding: 15px; text-align: center; font-weight: 700; font-size: 0.9rem; cursor: pointer; color: var(--text-muted); background: var(--bg-2); transition: 0.2s; display: flex; flex-direction: column; align-items: center; gap: 5px; }
   .tab:hover { background: var(--border); }
@@ -78,16 +72,12 @@
   .vehicle-chip:has(input:checked) { border-color: var(--primary); background: rgba(59,130,246,0.15); color: var(--primary); }
   .vehicle-chip i { font-size: 1rem; }
 
-  /* ========== MODE MANAGE (Table) ========== */
   .manage-tabs { padding: 20px; display: flex; flex-direction: column; gap: 8px; }
   .manage-tab-btn { text-align: left; padding: 12px 16px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-weight: 600; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 10px; }
   .manage-tab-btn:hover { background: var(--border); }
   .manage-tab-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 
-  /* ========== KHU VỰC BÊN PHẢI ========== */
   .main-area { flex: 1; display: flex; flex-direction: column; position: relative; }
-  
-  /* View Edit (Map) */
   #view-edit { width: 100%; height: 100%; display: none; }
   #view-edit.active { display: block; }
   #map { width: 100%; height: 100%; background: #e5e5e5; z-index: 1; cursor: crosshair; }
@@ -95,16 +85,14 @@
   #map.freehand { cursor: crosshair !important; }
   #map .maplibregl-canvas-container, #map .maplibregl-canvas { touch-action: none !important; }
 
-  /* View Manage (Table) */
-  #view-manage { width: 100%; height: 100%; display: none; padding: 20px; overflow-y: auto; }
-  #view-manage.active { display: block; }
+  #view-manage { width: 100%; height: 100%; display: none; padding: 20px; overflow-y: auto; flex-direction: column; }
+  #view-manage.active { display: flex; }
   
   table { width: 100%; border-collapse: collapse; text-align: left; }
   th { background: var(--bg-2); color: var(--text-muted); padding: 12px; font-size: 0.85rem; text-transform: uppercase; border-bottom: 2px solid var(--border); }
   td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
   tr:hover { background: rgba(255,255,255,0.02); }
   
-  /* Modal JSON Editor */
   .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 20px; }
   .modal.active { display: flex; }
   .modal-content { background: var(--card); width: 100%; max-width: 700px; border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; max-height: 90vh; }
@@ -113,7 +101,6 @@
   .modal-footer { padding: 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
   textarea.json-editor { width: 100%; height: 300px; background: var(--bg); color: #10b981; font-family: monospace; padding: 15px; border: 1px solid var(--border); border-radius: 8px; resize: vertical; font-size: 0.9rem; }
 
-  /* Auth */
   .auth-screen { position: fixed; inset: 0; z-index: 10000; background: var(--bg); display: flex; align-items: center; justify-content: center; }
   .auth-box { background: var(--card); padding: 32px; border-radius: 16px; width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 1px solid var(--border); }
   .auth-box h2 { font-size: 1.4rem; margin-bottom: 8px; text-align: center; }
@@ -123,7 +110,6 @@
 </head>
 <body>
 
-<!-- MÀN HÌNH ĐĂNG NHẬP -->
 <div class="auth-screen" id="authScreen">
   <div class="auth-box">
     <h2><i class="fas fa-shield-alt" style="color:var(--primary);"></i> Admin Login</h2>
@@ -141,13 +127,11 @@
   </div>
 </div>
 
-<!-- SIDEBAR TRÁI -->
 <div class="sidebar">
   <div class="header">
     <h1><i class="fas fa-shield-alt" style="color: var(--primary);"></i> DriveKit Admin</h1>
   </div>
   
-  <!-- Chuyển đổi Mode -->
   <div class="mode-switch">
     <button class="mode-btn active" id="btn-mode-edit" onclick="switchMode('edit')">
       <i class="fas fa-map-marked-alt"></i> Bản đồ (Edit)
@@ -168,7 +152,6 @@
       </div>
     </div>
 
-    <!-- Form: Trạm dừng nghỉ -->
     <div class="tab-content active" id="tab-reststop">
       <div class="form-group">
         <label>Dán link Google Maps</label>
@@ -177,28 +160,23 @@
           <button class="btn btn-primary" id="btnResolvePoi" onclick="resolveRestStopUrl()" style="padding: 0 16px;"><i class="fas fa-search-location"></i></button>
         </div>
       </div>
-
       <div class="form-group">
         <label>Tên Trạm dừng nghỉ</label>
         <input type="text" id="poiName" class="form-control" placeholder="VD: Trạm dừng nghỉ Hải Vân">
       </div>
-
       <div class="form-group">
         <label>Tọa độ (Vĩ độ / Kinh độ)</label>
         <div style="display: flex; gap: 8px;">
           <input type="text" id="poiLat" class="form-control" placeholder="Vĩ độ (Lat)" oninput="updateRestStopMapFromInputs()">
           <input type="text" id="poiLng" class="form-control" placeholder="Kinh độ (Lng)" oninput="updateRestStopMapFromInputs()">
         </div>
-        <div class="help-text">Hoặc <b>click lên bản đồ</b> để lấy tọa độ.</div>
       </div>
-
       <button class="btn btn-success" id="btnSaveRestStop" onclick="submitRestStop()">
         <i class="fas fa-cloud-upload-alt"></i> Lưu Trạm Dừng Nghỉ
       </button>
       <div id="statusRestStop" class="status-box"></div>
     </div>
 
-    <!-- Form: Tuyến đường cấm -->
     <div class="tab-content" id="tab-avoid">
       <div style="display: flex; gap: 8px; margin-bottom: 8px;">
         <button class="btn btn-outline" id="btnToggleDraw" onclick="toggleDrawMode()" style="flex:1;">
@@ -267,15 +245,9 @@
       </button>
 
       <div style="display: flex; gap: 8px; margin-top: 4px;">
-        <button class="btn btn-outline btn-sm" onclick="undoDraw()" id="btnUndo" disabled style="flex:1;">
-          <i class="fas fa-undo"></i> Hoàn tác
-        </button>
-        <button class="btn btn-outline btn-sm" onclick="redoDraw()" id="btnRedo" disabled style="flex:1;">
-          <i class="fas fa-redo"></i> Làm lại
-        </button>
-        <button class="btn btn-outline btn-sm" onclick="resetZoneDrawing()" style="flex:1;">
-          <i class="fas fa-trash"></i> Xóa hết
-        </button>
+        <button class="btn btn-outline btn-sm" onclick="undoDraw()" id="btnUndo" disabled style="flex:1;"><i class="fas fa-undo"></i> Hoàn tác</button>
+        <button class="btn btn-outline btn-sm" onclick="redoDraw()" id="btnRedo" disabled style="flex:1;"><i class="fas fa-redo"></i> Làm lại</button>
+        <button class="btn btn-outline btn-sm" onclick="resetZoneDrawing()" style="flex:1;"><i class="fas fa-trash"></i> Xóa hết</button>
       </div>
       <div id="statusAvoid" class="status-box"></div>
     </div>
@@ -295,27 +267,30 @@
 
 <!-- KHU VỰC HIỂN THỊ CHÍNH -->
 <div class="main-area">
-  <!-- Bản đồ (Edit) -->
   <div id="view-edit" class="active">
     <div id="map" class="no-draw"></div>
   </div>
 
-  <!-- Bảng dữ liệu (Manage) -->
   <div id="view-manage">
-    <h2 id="manage-title" style="margin-bottom: 20px; color: var(--text);">Chọn một bảng dữ liệu</h2>
-    <table>
-      <thead>
-        <tr>
-          <th width="50">STT</th>
-          <th width="200">ID (Doc)</th>
-          <th>Thông tin tóm tắt</th>
-          <th width="150" style="text-align: center;">Hành động</th>
-        </tr>
-      </thead>
-      <tbody id="manage-tbody">
-        <tr><td colspan="4" style="text-align:center; padding: 20px; color: var(--text-muted);">Vui lòng chọn một bảng bên trái để xem dữ liệu</td></tr>
-      </tbody>
-    </table>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2 id="manage-title" style="color: var(--text);">Chọn một bảng dữ liệu</h2>
+      <span id="manage-count" style="font-weight: 700; color: var(--primary); display: none;"></span>
+    </div>
+    <div style="flex: 1; overflow-y: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th width="50">STT</th>
+            <th width="220">ID (Doc)</th>
+            <th>Thông tin tóm tắt</th>
+            <th width="150" style="text-align: center;">Hành động</th>
+          </tr>
+        </thead>
+        <tbody id="manage-tbody">
+          <tr><td colspan="4" style="text-align:center; padding: 20px; color: var(--text-muted);">Vui lòng chọn một bảng bên trái để xem dữ liệu</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -327,7 +302,7 @@
       <button onclick="closeEditModal()" style="background:none; border:none; color:var(--text-muted); font-size:1.2rem; cursor:pointer;"><i class="fas fa-times"></i></button>
     </div>
     <div class="modal-body">
-      <p style="font-size:0.8rem; color:var(--warning); margin-bottom:10px;"><i class="fas fa-info-circle"></i> Hãy sửa dữ liệu dưới dạng JSON. Không sửa trường <code>id</code> (đã được ẩn đi).</p>
+      <p style="font-size:0.8rem; color:var(--warning); margin-bottom:10px;"><i class="fas fa-info-circle"></i> Hãy sửa dữ liệu dưới dạng JSON. Không sửa trường <code>id</code> và <code>source</code>.</p>
       <textarea id="jsonEditor" class="json-editor"></textarea>
     </div>
     <div class="modal-footer">
@@ -365,12 +340,11 @@ let currentUser = null;
 let map = null;
 let currentRestStopMarker = null;
 
-// Biến cho Mode Manage
 let currentManageCollection = '';
+let currentEditSource = '';
 let currentEditId = '';
 let currentEditData = {};
 
-// Các biến cho Edit Mode
 let pointA = null, pointB = null, tempMarkerA = null, tempMarkerB = null;
 let isDrawMode = false, isFreehandMode = false;
 let currentRouteWaypoints = null; 
@@ -379,7 +353,14 @@ let isFreehandDrawing = false, activeFreehandCoords = [];
 let startLatLng = null, isFreehandCut = false, longPressTimer = null;
 const emptyGeoJSON = { type: 'FeatureCollection', features: [] };
 
-// ================= ĐĂNG NHẬP =================
+// Cấu hình ánh xạ giữa App chính và Cơ sở dữ liệu
+const COLLECTION_MAP = {
+  'rest_stops': { fs: 'rest_stops', rtdb: 'communityPois', filter: p => p.tag === 'rest_stop' },
+  'community_pois': { fs: 'community_pois', rtdb: 'communityPois', filter: p => p.tag !== 'rest_stop' },
+  'avoid_zones': { fs: 'avoid_zones', rtdb: 'avoid_zones', filter: p => true },
+  'reports': { fs: 'reports', rtdb: 'reports', filter: p => true }
+};
+
 window.doLogin = async function() {
   const email = document.getElementById('authEmail').value.trim();
   const pass = document.getElementById('authPassword').value;
@@ -405,7 +386,6 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
-// ================= CHUYỂN MODE =================
 window.switchMode = function(mode) {
   document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.mode-content').forEach(c => c.classList.remove('active'));
@@ -420,7 +400,6 @@ window.switchMode = function(mode) {
   }
 };
 
-// ================= MODE EDIT =================
 window.switchTab = function(tabId) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -454,12 +433,8 @@ window.toggleDrawMode = function() {
   if (isFreehandMode) toggleFreehandMode();
   isDrawMode = !isDrawMode;
   const btn = document.getElementById('btnToggleDraw');
-  if (isDrawMode) {
-    btn.classList.add('active'); btn.innerHTML = '<i class="fas fa-mouse-pointer"></i> Đang click 2 điểm...';
-    resetZoneDrawing();
-  } else {
-    btn.classList.remove('active'); btn.innerHTML = '<i class="fas fa-pen"></i> Click 2 điểm';
-  }
+  if (isDrawMode) { btn.classList.add('active'); btn.innerHTML = '<i class="fas fa-mouse-pointer"></i> Đang click 2 điểm...'; resetZoneDrawing(); } 
+  else { btn.classList.remove('active'); btn.innerHTML = '<i class="fas fa-pen"></i> Click 2 điểm'; }
   updateMapCursorClass();
 };
 
@@ -467,14 +442,8 @@ window.toggleFreehandMode = function() {
   if (isDrawMode) toggleDrawMode();
   isFreehandMode = !isFreehandMode;
   const btn = document.getElementById('btnToggleFreehand');
-  if (isFreehandMode) {
-    btn.classList.add('active'); btn.innerHTML = '<i class="fas fa-paint-brush"></i> Đang vẽ...';
-    resetZoneDrawing();
-    showStatus('statusAvoid', '💡 Giữ Shift (PC) hoặc Nhấn giữ (Mobile) để vẽ.\n- Phím U: Cắt nét\n- Phím C: Tạo nhóm mới', 'loading');
-  } else {
-    btn.classList.remove('active'); btn.innerHTML = '<i class="fas fa-paint-brush"></i> Vẽ tự do';
-    showStatus('statusAvoid', 'Đã tắt chế độ vẽ', 'loading');
-  }
+  if (isFreehandMode) { btn.classList.add('active'); btn.innerHTML = '<i class="fas fa-paint-brush"></i> Đang vẽ...'; resetZoneDrawing(); showStatus('statusAvoid', '💡 Giữ Shift (PC) hoặc Nhấn giữ (Mobile) để vẽ.\n- Phím U: Cắt nét\n- Phím C: Tạo nhóm mới', 'loading'); } 
+  else { btn.classList.remove('active'); btn.innerHTML = '<i class="fas fa-paint-brush"></i> Vẽ tự do'; showStatus('statusAvoid', 'Đã tắt chế độ vẽ', 'loading'); }
   updateMapCursorClass();
 };
 
@@ -535,25 +504,18 @@ window.updateZoneMapFromInputs = function() {
   const lng1 = parseFloat(document.getElementById('zoneLng1').value.replace(/,/g, '.'));
   const lat2 = parseFloat(document.getElementById('zoneLat2').value.replace(/,/g, '.'));
   const lng2 = parseFloat(document.getElementById('zoneLng2').value.replace(/,/g, '.'));
+
   if (!isNaN(lat1) && !isNaN(lng1)) {
     pointA = { lat: lat1, lng: lng1 };
     if (tempMarkerA) tempMarkerA.setLngLat([lng1, lat1]);
-    else {
-      const el = document.createElement('div'); el.className = 'custom-pin pin-avoid-start';
-      el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
-      tempMarkerA = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng1, lat1]).addTo(map);
-    }
+    else { const el = document.createElement('div'); el.className = 'custom-pin pin-avoid-start'; el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-map-marker-alt"></i>'; tempMarkerA = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng1, lat1]).addTo(map); }
     if (isNaN(lat2) || isNaN(lng2)) map.flyTo({ center: [lng1, lat1], zoom: 15 });
   } else { pointA = null; if (tempMarkerA) { tempMarkerA.remove(); tempMarkerA = null; } }
 
   if (!isNaN(lat2) && !isNaN(lng2)) {
     pointB = { lat: lat2, lng: lng2 };
     if (tempMarkerB) tempMarkerB.setLngLat([lng2, lat2]);
-    else {
-      const el = document.createElement('div'); el.className = 'custom-pin pin-avoid-end';
-      el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-flag-checkered"></i>';
-      tempMarkerB = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng2, lat2]).addTo(map);
-    }
+    else { const el = document.createElement('div'); el.className = 'custom-pin pin-avoid-end'; el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-flag-checkered"></i>'; tempMarkerB = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng2, lat2]).addTo(map); }
   } else { pointB = null; if (tempMarkerB) { tempMarkerB.remove(); tempMarkerB = null; } }
 
   if (pointA && pointB) {
@@ -581,11 +543,7 @@ window.updateRestStopMapFromInputs = function() {
   const lng = parseFloat(document.getElementById('poiLng').value.replace(/,/g, '.'));
   if (isNaN(lat) || isNaN(lng)) return;
   if (currentRestStopMarker) currentRestStopMarker.setLngLat([lng, lat]);
-  else {
-    const el = document.createElement('div'); el.className = 'custom-pin pin-rest-stop';
-    el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-bed"></i>';
-    currentRestStopMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map);
-  }
+  else { const el = document.createElement('div'); el.className = 'custom-pin pin-rest-stop'; el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-bed"></i>'; currentRestStopMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map); }
   map.flyTo({ center: [lng, lat], zoom: 16 });
 };
 
@@ -624,10 +582,7 @@ function initMap() {
     if (activeTab === 'tab-btn-reststop') {
       document.getElementById('poiLat').value = lat.toFixed(6); document.getElementById('poiLng').value = lng.toFixed(6);
       if (currentRestStopMarker) currentRestStopMarker.setLngLat([lng, lat]);
-      else {
-        const el = document.createElement('div'); el.className = 'custom-pin pin-rest-stop'; el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-bed"></i>';
-        currentRestStopMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map);
-      }
+      else { const el = document.createElement('div'); el.className = 'custom-pin pin-rest-stop'; el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-bed"></i>'; currentRestStopMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map); }
     } else if (activeTab === 'tab-btn-avoid' && isDrawMode) {
       if (!pointA) {
         pointA = { lat, lng }; document.getElementById('zoneLat1').value = lat.toFixed(6); document.getElementById('zoneLng1').value = lng.toFixed(6);
@@ -802,7 +757,7 @@ function showStatus(id, msg, type) {
   if (type !== 'loading') setTimeout(() => { if (box.textContent === msg) box.style.display = 'none'; }, 3000);
 }
 
-// ================= MODE MANAGE (BẢNG DỮ LIỆU) =================
+// ================= MODE MANAGE (SỬA LỖI ĐỌC DATA) =================
 window.loadManageData = async function(collectionName, btn) {
   document.querySelectorAll('.manage-tab-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
@@ -811,68 +766,88 @@ window.loadManageData = async function(collectionName, btn) {
   document.getElementById('manage-title').innerHTML = `<i class="fas fa-table" style="color:var(--primary);"></i> Dữ liệu: ${collectionName}`;
   const tbody = document.getElementById('manage-tbody');
   tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin" style="color:var(--primary); font-size:1.5rem;"></i></td></tr>';
+  
+  const mapConf = COLLECTION_MAP[collectionName];
+  let items = [];
 
+  // 1. Đọc từ Firestore
   try {
-    let items = [];
-    // Gộp cả 2 nguồn (Firestore + RTDB) để quản lý
-    try {
-      const fsSnap = await getDocs(collection(db, collectionName));
-      fsSnap.forEach(d => items.push({ id: d.id, source: 'firestore', ...d.data() }));
-    } catch(e) { console.warn('Lỗi đọc Firestore', e); }
+    const fsSnap = await getDocs(collection(db, mapConf.fs));
+    fsSnap.forEach(d => items.push({ id: d.id, source: 'firestore', ...d.data() }));
+  } catch(e) { console.warn('Lỗi đọc Firestore', e); }
 
-    try {
-      const snap = await get(ref(rtdb, collectionName));
-      if (snap.exists()) {
-        const data = snap.val();
-        for (const key in data) {
-          // Nếu đã có trong Firestore thì bỏ qua, ưu tiên bản ghi Firestore
-          if (!items.find(i => i.id === key)) {
-            items.push({ id: key, source: 'rtdb', ...data[key] });
-          }
+  // 2. Đọc từ RTDB (Dùng đúng tên bảng của RTDB, có lọc theo điều kiện)
+  try {
+    const snap = await get(ref(rtdb, mapConf.rtdb));
+    if (snap.exists()) {
+      const data = snap.val();
+      for (const key in data) {
+        const item = data[key];
+        // Nếu thỏa mãn điều kiện lọc (ví dụ: chỉ lấy tag === 'rest_stop') và chưa có trong Firestore
+        if (mapConf.filter(item) && !items.find(i => i.id === key)) {
+          items.push({ id: key, source: 'rtdb', ...item });
         }
       }
-    } catch(e) { console.warn('Lỗi đọc RTDB', e); }
-
-    tbody.innerHTML = '';
-    if (items.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">Không có dữ liệu</td></tr>';
-      return;
     }
+  } catch(e) { console.warn('Lỗi đọc RTDB', e); }
 
-    items.forEach((item, index) => {
-      let summary = '';
-      if (item.name) summary += `<b>${item.name}</b> - `;
-      if (item.tag) summary += `Tag: ${item.tag} - `;
-      if (item.type) summary += `Loại: ${item.type} - `;
-      if (item.lat && item.lng) summary += `Toạ độ: ${parseFloat(item.lat).toFixed(4)}, ${parseFloat(item.lng).toFixed(4)}`;
-      if (!summary) summary = JSON.stringify(item).substring(0, 50) + '...';
+  document.getElementById('manage-count').textContent = `Tổng cộng: ${items.length} bản ghi`;
+  document.getElementById('manage-count').style.display = 'block';
 
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="color:var(--text-muted);">${index + 1}</td>
-        <td style="font-family:monospace; color:var(--primary); font-size:0.8rem;">${item.id}</td>
-        <td>${summary}</td>
-        <td style="text-align:center;">
-          <button onclick='openEditModal(${JSON.stringify(item).replace(/'/g, "&#39;")})' class="btn btn-outline btn-sm" style="color:var(--warning); border-color:var(--warning); display:inline-flex; margin-right:4px;"><i class="fas fa-edit"></i> Sửa</button>
-          <button onclick="deleteManageData('${item.source}', '${item.id}')" class="btn btn-outline btn-sm" style="color:var(--danger); border-color:var(--danger); display:inline-flex;"><i class="fas fa-trash"></i> Xoá</button>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
-
-  } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger);">Lỗi: ${e.message}</td></tr>`;
+  tbody.innerHTML = '';
+  if (items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">Không có dữ liệu</td></tr>';
+    return;
   }
+
+  // Render an toàn bằng DOM (Tránh lỗi dấu nháy)
+  items.forEach((item, index) => {
+    let summary = '';
+    if (item.name) summary += `<b>${item.name}</b> - `;
+    if (item.tag) summary += `Tag: ${item.tag} - `;
+    if (item.type) summary += `Loại: ${item.type} - `;
+    if (item.lat && item.lng) summary += `Toạ độ: ${parseFloat(item.lat).toFixed(4)}, ${parseFloat(item.lng).toFixed(4)}`;
+    if (!summary) summary = JSON.stringify(item).substring(0, 50) + '...';
+
+    const tr = document.createElement('tr');
+    
+    const td1 = document.createElement('td'); td1.style.color = 'var(--text-muted)'; td1.textContent = index + 1;
+    
+    const td2 = document.createElement('td'); td2.style.fontFamily = 'monospace'; td2.style.color = 'var(--primary)'; td2.style.fontSize = '0.8rem'; td2.textContent = item.id;
+    
+    const td3 = document.createElement('td'); td3.innerHTML = summary;
+    
+    const td4 = document.createElement('td'); td4.style.textAlign = 'center';
+    
+    const btnEdit = document.createElement('button');
+    btnEdit.className = 'btn btn-outline btn-sm';
+    btnEdit.style.cssText = 'color:var(--warning); border-color:var(--warning); display:inline-flex; margin-right:4px;';
+    btnEdit.innerHTML = '<i class="fas fa-edit"></i> Sửa';
+    btnEdit.onclick = () => openEditModal(item);
+    
+    const btnDel = document.createElement('button');
+    btnDel.className = 'btn btn-outline btn-sm';
+    btnDel.style.cssText = 'color:var(--danger); border-color:var(--danger); display:inline-flex;';
+    btnDel.innerHTML = '<i class="fas fa-trash"></i> Xoá';
+    btnDel.onclick = () => deleteManageData(item.source, item.id);
+    
+    td4.appendChild(btnEdit);
+    td4.appendChild(btnDel);
+
+    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
+    tbody.appendChild(tr);
+  });
 };
 
 window.openEditModal = function(item) {
+  currentEditSource = item.source;
   currentEditId = item.id;
-  currentEditData = { ...item };
-  const source = currentEditData.source;
-  delete currentEditData.source;
-  delete currentEditData.id;
   
-  document.getElementById('jsonEditor').value = JSON.stringify(currentEditData, null, 4);
+  const dataToEdit = { ...item };
+  delete dataToEdit.source;
+  delete dataToEdit.id;
+  
+  document.getElementById('jsonEditor').value = JSON.stringify(dataToEdit, null, 4);
   document.getElementById('editModal').classList.add('active');
 };
 
@@ -889,12 +864,16 @@ window.saveEditedData = async function() {
   btn.disabled = true; btn.innerHTML = 'Đang lưu...';
 
   try {
-    // Ghi đè lên cả 2 nguồn (nếu có)
-    if (currentEditData.source === 'firestore' || true) {
-      await setDoc(doc(db, currentManageCollection, currentEditId), parsed, { merge: true });
+    const mapConf = COLLECTION_MAP[currentManageCollection];
+    
+    // Ghi vào Firestore
+    if (currentEditSource === 'firestore') {
+      await setDoc(doc(db, mapConf.fs, currentEditId), parsed, { merge: true });
+    } 
+    // Ghi vào RTDB
+    else if (currentEditSource === 'rtdb') {
+      await set(ref(rtdb, `${mapConf.rtdb}/${currentEditId}`), parsed);
     }
-    // Ghi lên RTDB luôn (vì app có thể đọc từ RTDB)
-    await set(ref(rtdb, `${currentManageCollection}/${currentEditId}`), parsed);
     
     await updateVersion(currentManageCollection);
     closeEditModal();
@@ -909,9 +888,12 @@ window.saveEditedData = async function() {
 window.deleteManageData = async function(source, id) {
   if (!confirm('Bạn có chắc chắn muốn xoá bản ghi này vĩnh viễn?')) return;
   try {
-    // Xoá cả 2 nguồn cho đồng bộ
-    await deleteDoc(doc(db, currentManageCollection, id)).catch(()=>{});
-    await remove(ref(rtdb, `${currentManageCollection}/${id}`)).catch(()=>{});
+    const mapConf = COLLECTION_MAP[currentManageCollection];
+    if (source === 'firestore') {
+      await deleteDoc(doc(db, mapConf.fs, id)).catch(()=>{});
+    } else {
+      await remove(ref(rtdb, `${mapConf.rtdb}/${id}`)).catch(()=>{});
+    }
     await updateVersion(currentManageCollection);
     loadManageData(currentManageCollection, document.querySelector('.manage-tab-btn.active'));
   } catch(e) {
