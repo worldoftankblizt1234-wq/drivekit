@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (MapLibre Native + Siêu Tìm Kiếm)
+   DriveKit — app.js (MapLibre Native + Cache + Traffic)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -26,6 +26,7 @@ const fsdb = getFirestore(app);
 const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
 const MAPTILER_STYLE = `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`;
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
+const TRACKASIA_STYLE = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
 const MAPBOX_KEY = 'pk.eyJ1IjoibWluaGFkb2YyIiwiYSI6ImNtdnMwNDBhdzAwbnozNXExaHczb3Znd2MifQ.iVKGNbnj_pUxT6B_gqazEw';
 const TOMTOM_KEY = 'tG84Z1Yh4rauGWjz6pRn98rrWymLjTru';
 
@@ -46,7 +47,6 @@ async function apiReverseGeocode(lat, lng) {
 async function apiSearch(query) {
   let finalResults = [];
   
-  // Hàm phụ để xoá các kết quả bị trùng tên hoặc trùng toạ độ
   const addUniqueResults = (newResults) => {
     newResults.forEach(nr => {
       if (!finalResults.some(fr => fr.name === nr.name || (Math.abs(fr.lat - nr.lat) < 0.0001 && Math.abs(fr.lng - nr.lng) < 0.0001))) {
@@ -55,35 +55,35 @@ async function apiSearch(query) {
     });
   };
 
-  // Lớp 1: MapTiler (Ưu tiên số 1, chuẩn tiếng Việt)
+  // 1. Ưu tiên Mapbox (Tìm kiếm POI, địa danh, danh lam thắng cảnh VN tốt nhất)
   try {
-    const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=vi&limit=20&autocomplete=true&boundary.country=vn`;
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_KEY}&language=vi&country=vn&limit=20&autocomplete=true&types=poi,address,place`;
     const res = await fetch(url);
     const data = await res.json();
     if (data.features && data.features.length > 0) {
       addUniqueResults(data.features.map(f => ({ 
-        name: f.place_name_vi || f.place_name || f.text, 
+        name: f.place_name, 
         lat: f.center[1], lng: f.center[0] 
       })));
     }
-  } catch (e) { console.warn('MapTiler search error:', e); }
+  } catch (e) { console.warn('Mapbox search error:', e); }
 
-  // Lớp 2: Mapbox (Fallback nếu MapTiler bị lỗi)
+  // 2. Fallback: MapTiler
   if (finalResults.length === 0) {
     try {
-      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_KEY}&language=vi&country=vn&limit=20&autocomplete=true`;
+      const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=vi&limit=20&autocomplete=true&boundary.country=vn`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.features && data.features.length > 0) {
         addUniqueResults(data.features.map(f => ({ 
-          name: f.place_name, 
+          name: f.place_name_vi || f.place_name || f.text, 
           lat: f.center[1], lng: f.center[0] 
         })));
       }
-    } catch (e) { console.warn('Mapbox search error:', e); }
+    } catch (e) { console.warn('MapTiler search error:', e); }
   }
 
-  // Lớp 3: TomTom (Fallback cuối cùng)
+  // 3. Fallback: TomTom
   if (finalResults.length === 0) {
     try {
       const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&countrySet=VN&language=vi-VN&limit=20`;
@@ -722,12 +722,45 @@ window.resetNorth = function() {
   map.easeTo({ bearing: 0, pitch: 0, duration: 600 });
 };
 
+// Xử lý bật tắt giao thông TomTom
+window.toggleTraffic = function(isChecked) {
+  if (!map) return;
+  if (isChecked) {
+    if (!map.getSource('tomtom-traffic')) {
+      map.addSource('tomtom-traffic', {
+        type: 'raster',
+        tiles: [`https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`],
+        tileSize: 256
+      });
+    }
+    if (!map.getLayer('tomtom-traffic-layer')) {
+      // Tìm layer đường phố để chèn traffic lên trên nhưng dưới nhãn chữ
+      let beforeId = undefined;
+      const layers = map.getStyle().layers;
+      for (let i = 0; i < layers.length; i++) {
+        if (layers[i].id.includes('label') || layers[i].id.includes('text')) {
+          beforeId = layers[i].id;
+          break;
+        }
+      }
+      map.addLayer({
+        id: 'tomtom-traffic-layer',
+        type: 'raster',
+        source: 'tomtom-traffic',
+        paint: { 'raster-opacity': 0.8 }
+      }, beforeId);
+    }
+  } else {
+    if (map.getLayer('tomtom-traffic-layer')) map.removeLayer('tomtom-traffic-layer');
+  }
+};
+
 function initMap() {
   if (map) return;
   
   map = new maplibregl.Map({
     container: 'map',
-    style: MAPTILER_STYLE,
+    style: TRACKASIA_STYLE, // Đặt mặc định là TrackAsia
     center: [initialCenter[1], initialCenter[0]], // MapLibre dùng [lng, lat]
     zoom: initialZoom,
     pitch: 0,
@@ -737,7 +770,6 @@ function initMap() {
     dragRotate: true
   });
 
-  // Nút La bàn tự chế: kim xoay theo bearing của bản đồ
   map.on('rotate', updateCompassNeedle);
   map.on('load', updateCompassNeedle);
 
@@ -749,9 +781,11 @@ function initMap() {
     renderSavedPlacesOnMap();
     renderReportsOnMap();
     renderAvoidZonesOnMap();
+    
+    // Nếu checkbox giao thông đang bật thì add vào
+    if (document.getElementById('trafficToggle').checked) toggleTraffic(true);
   });
 
-  // Sự kiện khi bấm chuột phải hoặc nhấn giữ (long press) trên mobile
   map.on('contextmenu', (e) => {
     if (document.getElementById('dirSheet').classList.contains('open')) return;
     if (document.getElementById('suggestionsBox').classList.contains('show')) closeSearch();
@@ -1875,7 +1909,7 @@ function changeLayer(type, btn) {
 
   let styleUrl = MAPTILER_STYLE;
   if (type === 'trackasia-maplibre' || type === 'trackasia') {
-    styleUrl = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
+    styleUrl = TRACKASIA_STYLE;
   } else if (type === 'satellite') {
     styleUrl = `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`;
   }
@@ -1886,6 +1920,11 @@ function changeLayer(type, btn) {
     setTimeout(() => {
       initGpsCircleLayer();
       if (currentRouteCoords.length > 0) drawCurrentRoute();
+      
+      // Nếu traffic đang bật, phải add lại sau khi đổi style
+      if (document.getElementById('trafficToggle').checked) {
+        toggleTraffic(true);
+      }
     }, 100);
   });
 }
