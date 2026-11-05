@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (MapLibre Native + Cache + Traffic)
+   DriveKit — app.js (MapLibre Native + Search Labels)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -55,7 +55,7 @@ async function apiSearch(query) {
     });
   };
 
-  // 1. Ưu tiên Mapbox (Tìm kiếm POI, địa danh, danh lam thắng cảnh VN tốt nhất)
+  // 1. Ưu tiên Mapbox
   try {
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_KEY}&language=vi&country=vn&limit=20&autocomplete=true&types=poi,address,place`;
     const res = await fetch(url);
@@ -241,6 +241,7 @@ let restStopMarkers = [];
 let reportMarkers = [];
 let savedPlacesMarkers = [];
 let avoidZoneMarkers = [];
+let searchResultMarkers = []; // Biến lưu trữ marker thẻ tên tìm kiếm
 let _unsub = { fsRest:null, rtdbCommunity:null, fsPoi:null, fsReports:null, rtdbReports:null, fsAvoid:null, rtdbAvoid:null, fsSaved:null, rtdbSaved:null, fsHistory:null, rtdbHistory:null, fsRoutes:null, rtdbRoutes:null };
 let liveEnabled = false;
 let liveRoomCode = null;
@@ -734,7 +735,6 @@ window.toggleTraffic = function(isChecked) {
       });
     }
     if (!map.getLayer('tomtom-traffic-layer')) {
-      // Tìm layer đường phố để chèn traffic lên trên nhưng dưới nhãn chữ
       let beforeId = undefined;
       const layers = map.getStyle().layers;
       for (let i = 0; i < layers.length; i++) {
@@ -782,8 +782,7 @@ function initMap() {
     renderReportsOnMap();
     renderAvoidZonesOnMap();
     
-    // Nếu checkbox giao thông đang bật thì add vào
-    if (document.getElementById('trafficToggle').checked) toggleTraffic(true);
+    if (document.getElementById('trafficToggle') && document.getElementById('trafficToggle').checked) toggleTraffic(true);
   });
 
   map.on('contextmenu', (e) => {
@@ -1579,12 +1578,57 @@ function closeSearch() {
   updateUIState();
 }
 window.clearTopSearch = function() {
+  searchResultMarkers.forEach(m => m.remove());
+  searchResultMarkers = [];
+
   document.getElementById('topSearchInput').value = '';
   document.getElementById('searchClearBtn').classList.add('hidden');
   clearPoint('end');
   if (touchMarker) touchMarker.remove();
   closeSearch();
 };
+
+// Hàm vẽ các thẻ tên địa điểm lên bản đồ khi tìm kiếm
+function renderSearchResultMarkers(results, originalQuery) {
+  searchResultMarkers.forEach(m => m.remove());
+  searchResultMarkers = [];
+  if (!results || results.length === 0) return;
+
+  const center = results[0]; 
+  const MAX_DIST = 500; // Bán kính 500 mét
+
+  results.forEach((r) => {
+    const dist = calcDist(center.lat, center.lng, r.lat, r.lng);
+    if (dist <= MAX_DIST) {
+      const el = document.createElement('div');
+      el.className = 'search-result-pin';
+      
+      let displayName = r.name.split(',')[0]; 
+      if (displayName.length > 25) displayName = displayName.substring(0, 25) + '...';
+      
+      let labelHtml = `<div style="font-weight:800; font-size:0.75rem; color:var(--text);">${escapeHtml(displayName)}</div>`;
+      
+      if (originalQuery && !displayName.toLowerCase().includes(originalQuery.toLowerCase())) {
+        labelHtml += `<div style="font-size:0.6rem; color:var(--warning); font-weight:700; margin-top:2px;"><i class="fas fa-location-dot"></i> ${escapeHtml(originalQuery)}</div>`;
+      }
+      
+      el.innerHTML = `
+        <div class="search-result-label" style="padding:6px 10px; text-align:center;">${labelHtml}</div>
+        <div class="search-result-dot"></div>
+      `;
+      
+      const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat([r.lng, r.lat])
+        .addTo(map);
+        
+      el.addEventListener('click', () => {
+        selectLocation(r.lat, r.lng, r.name);
+      });
+
+      searchResultMarkers.push(marker);
+    }
+  });
+}
 
 async function doSearch(query) {
   const box = document.getElementById('suggestionsBox');
@@ -1647,7 +1691,6 @@ async function doSearch(query) {
     const results = await apiSearch(query);
     loadingDiv.remove();
     
-    // Tính toán số lượng kết quả còn lại được phép hiển thị (tối đa 20)
     const currentCount = restStopMatches.length + poiMatches.length;
     const remainingSlots = Math.max(0, 20 - currentCount);
     const displayResults = results.slice(0, remainingSlots);
@@ -1665,6 +1708,9 @@ async function doSearch(query) {
         div.onclick = () => selectLocation(r.lat, r.lng, r.name);
         box.appendChild(div);
       });
+
+      renderSearchResultMarkers(displayResults, query);
+
     } else if (restStopMatches.length === 0 && poiMatches.length === 0) {
       box.innerHTML = '<div class="sug-item">Không tìm thấy kết quả</div>';
     }
@@ -1677,6 +1723,9 @@ async function doSearch(query) {
 }
 
 async function selectLocation(lat, lng, name) {
+  searchResultMarkers.forEach(m => m.remove());
+  searchResultMarkers = [];
+
   document.getElementById('topSearchInput').value = name;
   document.getElementById('topSearchInput').readOnly = true;
   document.getElementById('searchClearBtn').classList.remove('hidden');
@@ -1921,8 +1970,7 @@ function changeLayer(type, btn) {
       initGpsCircleLayer();
       if (currentRouteCoords.length > 0) drawCurrentRoute();
       
-      // Nếu traffic đang bật, phải add lại sau khi đổi style
-      if (document.getElementById('trafficToggle').checked) {
+      if (document.getElementById('trafficToggle') && document.getElementById('trafficToggle').checked) {
         toggleTraffic(true);
       }
     }, 100);
