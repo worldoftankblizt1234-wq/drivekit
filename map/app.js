@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (MapLibre GL Native + Native Controls)
+   DriveKit — app.js (MapLibre GL Native + MapTiler Geocoding)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -26,26 +26,36 @@ const fsdb = getFirestore(app);
 const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
 const MAPTILER_STYLE = `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`;
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
-const MAPBOX_KEY = 'pk.eyJ1IjoibWluaGFkb2YyIiwiYSI6ImNtdnMwNDBhdzAwbnozNXExaHczb3Znd2MifQ.iVKGNbnj_pUxT6B_gqazEw';
 const TOMTOM_KEY = 'tG84Z1Yh4rauGWjz6pRn98rrWymLjTru';
 
-/* ---------- API HELPERS ---------- */
+/* ---------- API HELPERS (Chuyển sang dùng MapTiler) ---------- */
 async function apiReverseGeocode(lat, lng) {
   try {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_KEY}&language=vi&limit=1`;
+    const url = `https://api.maptiler.com/geocoding/${lng},${lat}.json?key=${MAPTILER_KEY}&language=vi&limit=1`;
     const res = await fetch(url);
     const data = await res.json();
-    return data.features?.[0]?.place_name || '';
-  } catch (e) { console.warn('reverse-geocode', e); return ''; }
+    const f = data.features?.[0];
+    return f?.place_name_vi || f?.place_name || '';
+  } catch (e) { 
+    console.warn('reverse-geocode error:', e); 
+    return ''; 
+  }
 }
 
 async function apiSearch(query) {
   try {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_KEY}&language=vi&country=vn&limit=10&autocomplete=true`;
+    const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=vi&limit=10&autocomplete=true`;
     const res = await fetch(url);
     const data = await res.json();
-    return (data.features || []).map(f => ({ name: f.place_name, lat: f.center[1], lng: f.center[0] }));
-  } catch (e) { console.warn('search', e); return []; }
+    return (data.features || []).map(f => ({ 
+      name: f.place_name_vi || f.place_name || f.text, 
+      lat: f.center[1], 
+      lng: f.center[0] 
+    }));
+  } catch (e) { 
+    console.warn('search error:', e); 
+    return []; 
+  }
 }
 
 function mapTomTomManeuver(m) {
