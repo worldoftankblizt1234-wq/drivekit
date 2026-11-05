@@ -216,7 +216,13 @@ const POI_TAG_CONFIG = {
   pharmacy: { icon: 'fa-prescription-bottle-medical', label: 'Nhà thuốc', color: '#06b6d4' },
   atm: { icon: 'fa-money-bill-wave', label: 'ATM', color: '#ec4899' },
   repair: { icon: 'fa-wrench', label: 'Sửa xe', color: '#64748b' },
-  hotel: { icon: 'fa-hotel', label: 'Khách sạn', color: '#dc2626' }
+  hotel: { icon: 'fa-hotel', label: 'Khách sạn', color: '#dc2626' },
+  hospital: { icon: 'fa-hospital', label: 'Bệnh viện', color: '#e11d48' },
+  parking: { icon: 'fa-square-parking', label: 'Bãi đỗ xe', color: '#0ea5e9' },
+  ev_charging: { icon: 'fa-charging-station', label: 'Trạm sạc EV', color: '#84cc16' },
+  market: { icon: 'fa-store', label: 'Chợ / Cửa hàng', color: '#f97316' },
+  wc: { icon: 'fa-restroom', label: 'Nhà vệ sinh', color: '#14b8a6' },
+  car_wash: { icon: 'fa-soap', label: 'Rửa xe', color: '#a855f7' }
 };
 const ZOOM_CONFIG = { communityPoi: 15, restStop: 13, savedPlace: 14, report: 14, savedPlaceAlwaysShow: ['home', 'company'] };
 
@@ -645,6 +651,24 @@ function drawCurrentRoute() {
   });
 }
 
+function updateCompassNeedle() {
+  if (!map) return;
+  const needle = document.getElementById('compassNeedle');
+  const btn = document.getElementById('btnCompass');
+  if (!needle || !btn) return;
+  const bearing = map.getBearing() || 0;
+  needle.style.transform = `rotate(${-bearing}deg)`;
+  btn.classList.toggle('off-north', Math.abs(bearing) > 1);
+}
+window.resetNorth = function() {
+  if (!map) return;
+  if (Math.abs(map.getBearing() || 0) < 1 && Math.abs(map.getPitch() || 0) < 1) {
+    map.easeTo({ bearing: 0, pitch: 0, duration: 300 });
+    return;
+  }
+  map.easeTo({ bearing: 0, pitch: 0, duration: 600 });
+};
+
 function initMap() {
   if (map) return;
   
@@ -660,12 +684,9 @@ function initMap() {
     dragRotate: true
   });
 
-  // Thêm bộ điều khiển Zoom (+/-) và La bàn
-  map.addControl(new maplibregl.NavigationControl({
-    showCompass: true,
-    showZoom: true,
-    visualizePitch: true
-  }), 'top-right');
+  // Nút La bàn tự chế: kim xoay theo bearing của bản đồ
+  map.on('rotate', updateCompassNeedle);
+  map.on('load', updateCompassNeedle);
 
   map.on('load', () => {
     initGpsCircleLayer();
