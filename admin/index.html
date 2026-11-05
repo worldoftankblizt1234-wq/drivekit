@@ -21,10 +21,22 @@
   }
   body { font-family: 'Be Vietnam Pro', sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
   
-  .sidebar { width: 420px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 10; box-shadow: 4px 0 15px rgba(0,0,0,0.2); overflow-y: auto; }
+  /* Sidebar Chung */
+  .sidebar { width: 420px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 10; box-shadow: 4px 0 15px rgba(0,0,0,0.2); overflow: hidden; }
   .header { padding: 20px; border-bottom: 1px solid var(--border); }
   .header h1 { font-size: 1.2rem; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 8px; }
   
+  /* Thanh đổi Mode (Edit / Manage) */
+  .mode-switch { display: flex; background: var(--bg-2); border-bottom: 1px solid var(--border); }
+  .mode-btn { flex: 1; padding: 15px; border: none; background: transparent; color: var(--text-muted); font-weight: 800; font-size: 0.95rem; cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center; gap: 8px; }
+  .mode-btn:hover { color: white; background: var(--border); }
+  .mode-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); background: var(--card); }
+
+  /* Wrapper cho từng Mode */
+  .mode-content { display: none; flex-direction: column; flex: 1; overflow-y: auto; }
+  .mode-content.active { display: flex; }
+
+  /* ========== MODE EDIT ========== */
   .tabs { display: flex; border-bottom: 1px solid var(--border); }
   .tab { flex: 1; padding: 15px; text-align: center; font-weight: 700; font-size: 0.9rem; cursor: pointer; color: var(--text-muted); background: var(--bg-2); transition: 0.2s; display: flex; flex-direction: column; align-items: center; gap: 5px; }
   .tab:hover { background: var(--border); }
@@ -36,7 +48,6 @@
   .form-group label { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); }
   .form-control { width: 100%; padding: 12px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; transition: border 0.2s; }
   .form-control:focus { border-color: var(--primary); outline: none; }
-  .form-control:disabled { opacity: 0.5; cursor: not-allowed; }
   
   .btn { padding: 14px; border-radius: 8px; font-weight: 800; font-size: 0.95rem; cursor: pointer; border: none; display: flex; justify-content: center; align-items: center; gap: 8px; transition: opacity 0.2s; }
   .btn:active { opacity: 0.7; }
@@ -50,10 +61,6 @@
   
   .help-text { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; margin-top: 4px; }
   
-  #map { flex: 1; background: #e5e5e5; z-index: 1; cursor: crosshair; }
-  #map.no-draw { cursor: grab; }
-  #map.freehand { cursor: crosshair !important; }
-
   .status-box { padding: 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; display: none; margin-top: 10px; text-align: center; white-space: pre-wrap; line-height: 1.4; }
   .status-success { background: rgba(16,185,129,0.15); border: 1px solid var(--success); color: var(--success); display: block; }
   .status-error { background: rgba(239,68,68,0.15); border: 1px solid var(--danger); color: var(--danger); display: block; }
@@ -71,18 +78,52 @@
   .vehicle-chip:has(input:checked) { border-color: var(--primary); background: rgba(59,130,246,0.15); color: var(--primary); }
   .vehicle-chip i { font-size: 1rem; }
 
-  .auth-screen { position: fixed; inset: 0; z-index: 9999; background: var(--bg); display: flex; align-items: center; justify-content: center; }
+  /* ========== MODE MANAGE (Table) ========== */
+  .manage-tabs { padding: 20px; display: flex; flex-direction: column; gap: 8px; }
+  .manage-tab-btn { text-align: left; padding: 12px 16px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-weight: 600; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 10px; }
+  .manage-tab-btn:hover { background: var(--border); }
+  .manage-tab-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+  /* ========== KHU VỰC BÊN PHẢI ========== */
+  .main-area { flex: 1; display: flex; flex-direction: column; position: relative; }
+  
+  /* View Edit (Map) */
+  #view-edit { width: 100%; height: 100%; display: none; }
+  #view-edit.active { display: block; }
+  #map { width: 100%; height: 100%; background: #e5e5e5; z-index: 1; cursor: crosshair; }
+  #map.no-draw { cursor: grab; }
+  #map.freehand { cursor: crosshair !important; }
+  #map .maplibregl-canvas-container, #map .maplibregl-canvas { touch-action: none !important; }
+
+  /* View Manage (Table) */
+  #view-manage { width: 100%; height: 100%; display: none; padding: 20px; overflow-y: auto; }
+  #view-manage.active { display: block; }
+  
+  table { width: 100%; border-collapse: collapse; text-align: left; }
+  th { background: var(--bg-2); color: var(--text-muted); padding: 12px; font-size: 0.85rem; text-transform: uppercase; border-bottom: 2px solid var(--border); }
+  td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+  tr:hover { background: rgba(255,255,255,0.02); }
+  
+  /* Modal JSON Editor */
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 20px; }
+  .modal.active { display: flex; }
+  .modal-content { background: var(--card); width: 100%; max-width: 700px; border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; max-height: 90vh; }
+  .modal-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .modal-body { padding: 20px; flex: 1; overflow-y: auto; }
+  .modal-footer { padding: 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+  textarea.json-editor { width: 100%; height: 300px; background: var(--bg); color: #10b981; font-family: monospace; padding: 15px; border: 1px solid var(--border); border-radius: 8px; resize: vertical; font-size: 0.9rem; }
+
+  /* Auth */
+  .auth-screen { position: fixed; inset: 0; z-index: 10000; background: var(--bg); display: flex; align-items: center; justify-content: center; }
   .auth-box { background: var(--card); padding: 32px; border-radius: 16px; width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 1px solid var(--border); }
   .auth-box h2 { font-size: 1.4rem; margin-bottom: 8px; text-align: center; }
   .auth-box p { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; text-align: center; }
   .hidden { display: none !important; }
-
-  /* MapLibre canvas ko chặn sự kiện cảm ứng */
-  #map .maplibregl-canvas-container, #map .maplibregl-canvas { touch-action: none !important; }
 </style>
 </head>
 <body>
 
+<!-- MÀN HÌNH ĐĂNG NHẬP -->
 <div class="auth-screen" id="authScreen">
   <div class="auth-box">
     <h2><i class="fas fa-shield-alt" style="color:var(--primary);"></i> Admin Login</h2>
@@ -100,142 +141,207 @@
   </div>
 </div>
 
+<!-- SIDEBAR TRÁI -->
 <div class="sidebar">
   <div class="header">
     <h1><i class="fas fa-shield-alt" style="color: var(--primary);"></i> DriveKit Admin</h1>
-    <p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">MapLibre Native • Dữ liệu lưu vào Firestore & RTDB</p>
   </div>
   
-  <div class="tabs">
-    <div class="tab active" onclick="switchTab('tab-reststop')" id="tab-btn-reststop">
-      <i class="fas fa-bed"></i> Trạm dừng nghỉ
-    </div>
-    <div class="tab" onclick="switchTab('tab-avoid')" id="tab-btn-avoid">
-      <i class="fas fa-ban"></i> Tuyến đường cấm
-    </div>
-  </div>
-
-  <div class="tab-content active" id="tab-reststop">
-    <div class="form-group">
-      <label>Dán link Google Maps</label>
-      <div style="display: flex; gap: 8px;">
-        <input type="text" id="poiGmapsUrl" class="form-control" placeholder="https://maps.app.goo.gl/...">
-        <button class="btn btn-primary" id="btnResolvePoi" onclick="resolveRestStopUrl()" style="padding: 0 16px;"><i class="fas fa-search-location"></i></button>
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label>Tên Trạm dừng nghỉ</label>
-      <input type="text" id="poiName" class="form-control" placeholder="VD: Trạm dừng nghỉ Hải Vân">
-    </div>
-
-    <div class="form-group">
-      <label>Tọa độ (Vĩ độ / Kinh độ)</label>
-      <div style="display: flex; gap: 8px;">
-        <input type="text" id="poiLat" class="form-control" placeholder="Vĩ độ (Lat)" oninput="updateRestStopMapFromInputs()">
-        <input type="text" id="poiLng" class="form-control" placeholder="Kinh độ (Lng)" oninput="updateRestStopMapFromInputs()">
-      </div>
-      <div class="help-text">Hoặc <b>click lên bản đồ</b> để lấy tọa độ.</div>
-    </div>
-
-    <button class="btn btn-success" id="btnSaveRestStop" onclick="submitRestStop()">
-      <i class="fas fa-cloud-upload-alt"></i> Lưu Trạm Dừng Nghỉ
+  <!-- Chuyển đổi Mode -->
+  <div class="mode-switch">
+    <button class="mode-btn active" id="btn-mode-edit" onclick="switchMode('edit')">
+      <i class="fas fa-map-marked-alt"></i> Bản đồ (Edit)
     </button>
-    <div id="statusRestStop" class="status-box"></div>
+    <button class="mode-btn" id="btn-mode-manage" onclick="switchMode('manage')">
+      <i class="fas fa-database"></i> Dữ liệu (Manage)
+    </button>
   </div>
 
-  <div class="tab-content" id="tab-avoid">
-    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-      <button class="btn btn-outline" id="btnToggleDraw" onclick="toggleDrawMode()" style="flex:1;">
-        <i class="fas fa-pen"></i> Click 2 điểm
-      </button>
-      <button class="btn btn-outline" id="btnToggleFreehand" onclick="toggleFreehandMode()" style="flex:1;">
-        <i class="fas fa-paint-brush"></i> Vẽ tự do
-      </button>
+  <!-- NỘI DUNG: MODE EDIT -->
+  <div class="mode-content active" id="mode-edit">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('tab-reststop')" id="tab-btn-reststop">
+        <i class="fas fa-bed"></i> Trạm dừng nghỉ
+      </div>
+      <div class="tab" onclick="switchTab('tab-avoid')" id="tab-btn-avoid">
+        <i class="fas fa-ban"></i> Tuyến đường cấm
+      </div>
     </div>
 
-    <div class="form-group">
-      <label>Tên đoạn cấm / Vùng cấm</label>
-      <input type="text" id="zoneName" class="form-control" placeholder="VD: Cấm tải đường Nguyễn Trãi">
+    <!-- Form: Trạm dừng nghỉ -->
+    <div class="tab-content active" id="tab-reststop">
+      <div class="form-group">
+        <label>Dán link Google Maps</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="poiGmapsUrl" class="form-control" placeholder="https://maps.app.goo.gl/...">
+          <button class="btn btn-primary" id="btnResolvePoi" onclick="resolveRestStopUrl()" style="padding: 0 16px;"><i class="fas fa-search-location"></i></button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Tên Trạm dừng nghỉ</label>
+        <input type="text" id="poiName" class="form-control" placeholder="VD: Trạm dừng nghỉ Hải Vân">
+      </div>
+
+      <div class="form-group">
+        <label>Tọa độ (Vĩ độ / Kinh độ)</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="poiLat" class="form-control" placeholder="Vĩ độ (Lat)" oninput="updateRestStopMapFromInputs()">
+          <input type="text" id="poiLng" class="form-control" placeholder="Kinh độ (Lng)" oninput="updateRestStopMapFromInputs()">
+        </div>
+        <div class="help-text">Hoặc <b>click lên bản đồ</b> để lấy tọa độ.</div>
+      </div>
+
+      <button class="btn btn-success" id="btnSaveRestStop" onclick="submitRestStop()">
+        <i class="fas fa-cloud-upload-alt"></i> Lưu Trạm Dừng Nghỉ
+      </button>
+      <div id="statusRestStop" class="status-box"></div>
     </div>
 
-    <!-- CHẶN ĐÊM MỞ NGÀY -->
-    <div class="form-group" style="background: rgba(16,185,129,0.1); padding: 12px; border-radius: 8px; border: 1px dashed var(--success);">
-      <label style="color: var(--success); display: flex; align-items: center; justify-content: space-between;">
-        <span><i class="fas fa-clock"></i> Thời gian cấm</span>
-        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: white; font-size: 0.85rem;">
-          <input type="checkbox" id="zoneNightClosure" onchange="toggleNightClosure()" style="width: 16px; height: 16px; accent-color: var(--success);"> 
-          Chặn đêm (17h - 5h)
+    <!-- Form: Tuyến đường cấm -->
+    <div class="tab-content" id="tab-avoid">
+      <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+        <button class="btn btn-outline" id="btnToggleDraw" onclick="toggleDrawMode()" style="flex:1;">
+          <i class="fas fa-pen"></i> Click 2 điểm
+        </button>
+        <button class="btn btn-outline" id="btnToggleFreehand" onclick="toggleFreehandMode()" style="flex:1;">
+          <i class="fas fa-paint-brush"></i> Vẽ tự do
+        </button>
+      </div>
+
+      <div class="form-group">
+        <label>Tên đoạn cấm / Vùng cấm</label>
+        <input type="text" id="zoneName" class="form-control" placeholder="VD: Cấm tải đường Nguyễn Trãi">
+      </div>
+
+      <div class="form-group" style="background: rgba(16,185,129,0.1); padding: 12px; border-radius: 8px; border: 1px dashed var(--success);">
+        <label style="color: var(--success); display: flex; align-items: center; justify-content: space-between;">
+          <span><i class="fas fa-clock"></i> Thời gian cấm</span>
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: white; font-size: 0.85rem;">
+            <input type="checkbox" id="zoneNightClosure" onchange="toggleNightClosure()" style="width: 16px; height: 16px; accent-color: var(--success);"> 
+            Chặn đêm (17h - 5h)
+          </label>
         </label>
-      </label>
-      <div style="display: flex; gap: 8px; margin-top: 10px;" id="timeInputsContainer">
-        <div style="flex:1;">
-          <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Từ lúc:</div>
-          <input type="datetime-local" id="zoneStartTime" class="form-control">
+        <div style="display: flex; gap: 8px; margin-top: 10px;" id="timeInputsContainer">
+          <div style="flex:1;">
+            <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Từ lúc:</div>
+            <input type="datetime-local" id="zoneStartTime" class="form-control">
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Đến lúc:</div>
+            <input type="datetime-local" id="zoneEndTime" class="form-control">
+          </div>
         </div>
-        <div style="flex:1;">
-          <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Đến lúc:</div>
-          <input type="datetime-local" id="zoneEndTime" class="form-control">
+      </div>
+
+      <div class="form-group" style="background: rgba(239,68,68,0.1); padding: 12px; border-radius: 8px; border: 1px dashed var(--danger);">
+        <label style="color: var(--danger);"><i class="fas fa-car-crash"></i> Loại xe bị cấm (Bỏ trống = Cấm tất cả)</label>
+        <div class="vehicle-checkbox-group">
+          <label class="vehicle-chip"><input type="checkbox" value="car" class="zone-vehicle"><i class="fas fa-car"></i> Ô tô</label>
+          <label class="vehicle-chip"><input type="checkbox" value="motorcycle" class="zone-vehicle"><i class="fas fa-motorcycle"></i> Xe máy</label>
+          <label class="vehicle-chip"><input type="checkbox" value="truck" class="zone-vehicle"><i class="fas fa-truck"></i> Xe tải</label>
+          <label class="vehicle-chip"><input type="checkbox" value="hd" class="zone-vehicle"><i class="fas fa-motorcycle"></i> Xe CN</label>
+          <label class="vehicle-chip"><input type="checkbox" value="bicycle" class="zone-vehicle"><i class="fas fa-bicycle"></i> Xe đạp</label>
+          <label class="vehicle-chip"><input type="checkbox" value="walking" class="zone-vehicle"><i class="fas fa-walking"></i> Đi bộ</label>
         </div>
       </div>
-    </div>
 
-    <div class="form-group" style="background: rgba(239,68,68,0.1); padding: 12px; border-radius: 8px; border: 1px dashed var(--danger);">
-      <label style="color: var(--danger);"><i class="fas fa-car-crash"></i> Loại xe bị cấm (Bỏ trống = Cấm tất cả)</label>
-      <div class="vehicle-checkbox-group">
-        <label class="vehicle-chip"><input type="checkbox" value="car" class="zone-vehicle"><i class="fas fa-car"></i> Ô tô</label>
-        <label class="vehicle-chip"><input type="checkbox" value="motorcycle" class="zone-vehicle"><i class="fas fa-motorcycle"></i> Xe máy</label>
-        <label class="vehicle-chip"><input type="checkbox" value="truck" class="zone-vehicle"><i class="fas fa-truck"></i> Xe tải</label>
-        <label class="vehicle-chip"><input type="checkbox" value="hd" class="zone-vehicle"><i class="fas fa-motorcycle"></i> Xe CN</label>
-        <label class="vehicle-chip"><input type="checkbox" value="bicycle" class="zone-vehicle"><i class="fas fa-bicycle"></i> Xe đạp</label>
-        <label class="vehicle-chip"><input type="checkbox" value="walking" class="zone-vehicle"><i class="fas fa-walking"></i> Đi bộ</label>
+      <div class="form-group">
+        <label>Điểm đầu</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="zoneLat1" class="form-control" placeholder="Vĩ độ đầu" oninput="updateZoneMapFromInputs()">
+          <input type="text" id="zoneLng1" class="form-control" placeholder="Kinh độ đầu" oninput="updateZoneMapFromInputs()">
+        </div>
       </div>
-    </div>
-
-    <div class="form-group">
-      <label>Điểm đầu (Nếu dùng Click 2 điểm)</label>
-      <div style="display: flex; gap: 8px;">
-        <input type="text" id="zoneLat1" class="form-control" placeholder="Vĩ độ đầu" oninput="updateZoneMapFromInputs()">
-        <input type="text" id="zoneLng1" class="form-control" placeholder="Kinh độ đầu" oninput="updateZoneMapFromInputs()">
+      
+      <div class="form-group">
+        <label>Điểm cuối</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="zoneLat2" class="form-control" placeholder="Vĩ độ cuối" oninput="updateZoneMapFromInputs()">
+          <input type="text" id="zoneLng2" class="form-control" placeholder="Kinh độ cuối" oninput="updateZoneMapFromInputs()">
+        </div>
       </div>
-    </div>
-    
-    <div class="form-group">
-      <label>Điểm cuối (Hoặc điểm chỉ hướng)</label>
-      <div style="display: flex; gap: 8px;">
-        <input type="text" id="zoneLat2" class="form-control" placeholder="Vĩ độ cuối" oninput="updateZoneMapFromInputs()">
-        <input type="text" id="zoneLng2" class="form-control" placeholder="Kinh độ cuối" oninput="updateZoneMapFromInputs()">
+
+      <button class="btn btn-danger" onclick="saveAvoidZone()" style="margin-top: 10px;">
+        <i class="fas fa-save"></i> Lưu Tuyến Đường Cấm
+      </button>
+
+      <div style="display: flex; gap: 8px; margin-top: 4px;">
+        <button class="btn btn-outline btn-sm" onclick="undoDraw()" id="btnUndo" disabled style="flex:1;">
+          <i class="fas fa-undo"></i> Hoàn tác
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="redoDraw()" id="btnRedo" disabled style="flex:1;">
+          <i class="fas fa-redo"></i> Làm lại
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="resetZoneDrawing()" style="flex:1;">
+          <i class="fas fa-trash"></i> Xóa hết
+        </button>
       </div>
+      <div id="statusAvoid" class="status-box"></div>
     </div>
+  </div>
 
-    <button class="btn btn-danger" onclick="saveAvoidZone()" style="margin-top: 10px;">
-      <i class="fas fa-save"></i> Lưu Tuyến Đường Cấm
-    </button>
-
-    <!-- UNDO / REDO / XÓA -->
-    <div style="display: flex; gap: 8px; margin-top: 4px;">
-      <button class="btn btn-outline btn-sm" onclick="undoDraw()" id="btnUndo" disabled style="flex:1;">
-        <i class="fas fa-undo"></i> Hoàn tác
-      </button>
-      <button class="btn btn-outline btn-sm" onclick="redoDraw()" id="btnRedo" disabled style="flex:1;">
-        <i class="fas fa-redo"></i> Làm lại
-      </button>
-      <button class="btn btn-outline btn-sm" onclick="resetZoneDrawing()" style="flex:1;">
-        <i class="fas fa-trash"></i> Xóa hết
-      </button>
+  <!-- NỘI DUNG: MODE MANAGE -->
+  <div class="mode-content" id="mode-manage">
+    <div class="manage-tabs">
+      <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase; font-weight:700;">Firestore & Realtime Database</p>
+      <button class="manage-tab-btn" onclick="loadManageData('rest_stops', this)"><i class="fas fa-bed"></i> Bảng Trạm Dừng Nghỉ</button>
+      <button class="manage-tab-btn" onclick="loadManageData('community_pois', this)"><i class="fas fa-map-marker-alt"></i> Bảng Địa Điểm</button>
+      <button class="manage-tab-btn" onclick="loadManageData('avoid_zones', this)"><i class="fas fa-ban"></i> Bảng Tuyến Đường Cấm</button>
+      <button class="manage-tab-btn" onclick="loadManageData('reports', this)"><i class="fas fa-exclamation-triangle"></i> Bảng Báo Cáo Sự Cố</button>
     </div>
-
-    <div id="statusAvoid" class="status-box"></div>
   </div>
 </div>
 
-<div id="map" class="no-draw"></div>
+<!-- KHU VỰC HIỂN THỊ CHÍNH -->
+<div class="main-area">
+  <!-- Bản đồ (Edit) -->
+  <div id="view-edit" class="active">
+    <div id="map" class="no-draw"></div>
+  </div>
+
+  <!-- Bảng dữ liệu (Manage) -->
+  <div id="view-manage">
+    <h2 id="manage-title" style="margin-bottom: 20px; color: var(--text);">Chọn một bảng dữ liệu</h2>
+    <table>
+      <thead>
+        <tr>
+          <th width="50">STT</th>
+          <th width="200">ID (Doc)</th>
+          <th>Thông tin tóm tắt</th>
+          <th width="150" style="text-align: center;">Hành động</th>
+        </tr>
+      </thead>
+      <tbody id="manage-tbody">
+        <tr><td colspan="4" style="text-align:center; padding: 20px; color: var(--text-muted);">Vui lòng chọn một bảng bên trái để xem dữ liệu</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL SỬA JSON -->
+<div class="modal" id="editModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 style="font-size: 1.2rem; font-weight: 800;"><i class="fas fa-edit" style="color:var(--warning);"></i> Sửa Dữ Liệu</h3>
+      <button onclick="closeEditModal()" style="background:none; border:none; color:var(--text-muted); font-size:1.2rem; cursor:pointer;"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.8rem; color:var(--warning); margin-bottom:10px;"><i class="fas fa-info-circle"></i> Hãy sửa dữ liệu dưới dạng JSON. Không sửa trường <code>id</code> (đã được ẩn đi).</p>
+      <textarea id="jsonEditor" class="json-editor"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeEditModal()">Huỷ</button>
+      <button class="btn btn-primary" onclick="saveEditedData()"><i class="fas fa-save"></i> Lưu thay đổi</button>
+    </div>
+  </div>
+</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getFirestore, collection, addDoc, doc, setDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getDatabase, ref, set, get, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
@@ -252,7 +358,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const rtdb = getDatabase(app);
 
-// Đổi WORKER_URL nếu cần, giữ nguyên như cũ
 const GMAPS_WORKER_URL = 'https://gmaps-resolver.anhminhadof123.workers.dev';
 const MAIN_WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 
@@ -260,123 +365,32 @@ let currentUser = null;
 let map = null;
 let currentRestStopMarker = null;
 
-let pointA = null;
-let pointB = null;
-let tempMarkerA = null;
-let tempMarkerB = null;
-let isDrawMode = false;
-let isFreehandMode = false;
-let currentRouteWaypoints = null; // Mảng [lat, lng] hoặc mảng của các mảng
+// Biến cho Mode Manage
+let currentManageCollection = '';
+let currentEditId = '';
+let currentEditData = {};
 
-// Biến cho Undo/Redo
-let drawHistory = [];
-let historyIndex = -1;
-
-// Biến cho Vẽ tự do (Freehand)
-let isFreehandDrawing = false;
-let activeFreehandCoords = []; 
-let startLatLng = null; 
-let isFreehandCut = false;
-let longPressTimer = null;
-
-// Khởi tạo dữ liệu rỗng cho MapLibre
+// Các biến cho Edit Mode
+let pointA = null, pointB = null, tempMarkerA = null, tempMarkerB = null;
+let isDrawMode = false, isFreehandMode = false;
+let currentRouteWaypoints = null; 
+let drawHistory = [], historyIndex = -1;
+let isFreehandDrawing = false, activeFreehandCoords = []; 
+let startLatLng = null, isFreehandCut = false, longPressTimer = null;
 const emptyGeoJSON = { type: 'FeatureCollection', features: [] };
 
-async function updateVersion(collectionName) {
-  try {
-    const metaRef = doc(db, "system_meta", "version");
-    await setDoc(metaRef, { [collectionName]: Date.now() }, { merge: true });
-  } catch(e) { console.warn("Lỗi cập nhật version:", e); }
-}
-
-// ================== UNDO / REDO LOGIC ==================
-function saveHistory() {
-  if (historyIndex < drawHistory.length - 1) {
-    drawHistory = drawHistory.slice(0, historyIndex + 1);
-  }
-  const stateCopy = currentRouteWaypoints ? JSON.parse(JSON.stringify(currentRouteWaypoints)) : null;
-  drawHistory.push(stateCopy);
-  historyIndex++;
-  updateUndoRedoButtons();
-}
-
-window.undoDraw = function() {
-  if (historyIndex > 0) {
-    historyIndex--;
-    const prevState = drawHistory[historyIndex];
-    currentRouteWaypoints = prevState ? JSON.parse(JSON.stringify(prevState)) : null;
-    
-    updateDrawnPolylines();
-    if (currentRouteWaypoints) {
-      const bounds = new maplibregl.LngLatBounds();
-      currentRouteWaypoints.forEach(seg => {
-        if(Array.isArray(seg[0])) seg.forEach(p => bounds.extend([p[1], p[0]]));
-        else bounds.extend([seg[1], seg[0]]);
-      });
-      map.fitBounds(bounds, { padding: 50 });
-    }
-    updateUndoRedoButtons();
-    showStatus('statusAvoid', '↩️ Đã hoàn tác', 'loading');
-  }
-};
-
-window.redoDraw = function() {
-  if (historyIndex < drawHistory.length - 1) {
-    historyIndex++;
-    const nextState = drawHistory[historyIndex];
-    currentRouteWaypoints = nextState ? JSON.parse(JSON.stringify(nextState)) : null;
-    
-    updateDrawnPolylines();
-    if (currentRouteWaypoints) {
-      const bounds = new maplibregl.LngLatBounds();
-      currentRouteWaypoints.forEach(seg => {
-        if(Array.isArray(seg[0])) seg.forEach(p => bounds.extend([p[1], p[0]]));
-        else bounds.extend([seg[1], seg[0]]);
-      });
-      map.fitBounds(bounds, { padding: 50 });
-    }
-    updateUndoRedoButtons();
-    showStatus('statusAvoid', '↪️ Đã làm lại', 'loading');
-  }
-};
-
-function updateUndoRedoButtons() {
-  document.getElementById('btnUndo').disabled = (historyIndex <= 0);
-  document.getElementById('btnRedo').disabled = (historyIndex >= drawHistory.length - 1);
-}
-// ========================================================
-
-window.toggleNightClosure = function() {
-  const isNight = document.getElementById('zoneNightClosure').checked;
-  const startInput = document.getElementById('zoneStartTime');
-  const endInput = document.getElementById('zoneEndTime');
-  
-  if (isNight) {
-    startInput.disabled = true;
-    endInput.disabled = true;
-    startInput.value = '';
-    endInput.value = '';
-  } else {
-    startInput.disabled = false;
-    endInput.disabled = false;
-  }
-};
-
+// ================= ĐĂNG NHẬP =================
 window.doLogin = async function() {
   const email = document.getElementById('authEmail').value.trim();
   const pass = document.getElementById('authPassword').value;
-  if (!email || !pass) return showStatus('authError', 'Nhập đủ email và mật khẩu!', 'error');
-
+  if (!email || !pass) return;
   const btn = document.getElementById('btnLogin');
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang đăng nhập...';
-  document.getElementById('authError').style.display = 'none';
-
-  try {
-    await signInWithEmailAndPassword(auth, email, pass);
-  } catch (error) {
-    document.getElementById('authError').style.display = 'block';
-    document.getElementById('authError').textContent = 'Lỗi: ' + (error.code || error.message);
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Đăng nhập';
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  try { await signInWithEmailAndPassword(auth, email, pass); } 
+  catch (e) { 
+    document.getElementById('authError').textContent = 'Lỗi: ' + e.message; 
+    document.getElementById('authError').style.display = 'block'; 
+    btn.disabled = false; btn.innerHTML = 'Đăng nhập';
   }
 };
 
@@ -391,21 +405,41 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
+// ================= CHUYỂN MODE =================
+window.switchMode = function(mode) {
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.mode-content').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.main-area > div').forEach(v => v.classList.remove('active'));
+
+  document.getElementById(`btn-mode-${mode}`).classList.add('active');
+  document.getElementById(`mode-${mode}`).classList.add('active');
+  document.getElementById(`view-${mode}`).classList.add('active');
+
+  if (mode === 'edit') {
+    setTimeout(() => { if (map) map.resize(); }, 100);
+  }
+};
+
+// ================= MODE EDIT =================
 window.switchTab = function(tabId) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  
   document.getElementById('tab-btn-' + tabId.replace('tab-', '')).classList.add('active');
   document.getElementById(tabId).classList.add('active');
-
   if (tabId !== 'tab-avoid') {
-    isDrawMode = false;
-    isFreehandMode = false;
+    isDrawMode = false; isFreehandMode = false;
     document.getElementById('btnToggleDraw').classList.remove('active');
     document.getElementById('btnToggleFreehand').classList.remove('active');
     document.getElementById('map').className = 'no-draw';
     resetZoneDrawing();
   }
+};
+
+window.toggleNightClosure = function() {
+  const isNight = document.getElementById('zoneNightClosure').checked;
+  document.getElementById('zoneStartTime').disabled = isNight;
+  document.getElementById('zoneEndTime').disabled = isNight;
+  if (isNight) { document.getElementById('zoneStartTime').value = ''; document.getElementById('zoneEndTime').value = ''; }
 };
 
 function updateMapCursorClass() {
@@ -420,14 +454,11 @@ window.toggleDrawMode = function() {
   if (isFreehandMode) toggleFreehandMode();
   isDrawMode = !isDrawMode;
   const btn = document.getElementById('btnToggleDraw');
-  
   if (isDrawMode) {
-    btn.classList.add('active');
-    btn.innerHTML = '<i class="fas fa-mouse-pointer"></i> Đang click 2 điểm...';
+    btn.classList.add('active'); btn.innerHTML = '<i class="fas fa-mouse-pointer"></i> Đang click 2 điểm...';
     resetZoneDrawing();
   } else {
-    btn.classList.remove('active');
-    btn.innerHTML = '<i class="fas fa-pen"></i> Click 2 điểm';
+    btn.classList.remove('active'); btn.innerHTML = '<i class="fas fa-pen"></i> Click 2 điểm';
   }
   updateMapCursorClass();
 };
@@ -436,146 +467,111 @@ window.toggleFreehandMode = function() {
   if (isDrawMode) toggleDrawMode();
   isFreehandMode = !isFreehandMode;
   const btn = document.getElementById('btnToggleFreehand');
-  
   if (isFreehandMode) {
-    btn.classList.add('active');
-    btn.innerHTML = '<i class="fas fa-paint-brush"></i> Đang vẽ tự do...';
+    btn.classList.add('active'); btn.innerHTML = '<i class="fas fa-paint-brush"></i> Đang vẽ...';
     resetZoneDrawing();
-    showStatus('statusAvoid', '💡 Giữ Shift (PC) hoặc Nhấn giữ (Mobile) để vẽ.\n- Phím U: Cắt nét (vẫn cùng nhóm)\n- Phím C: Tách nhóm mới', 'loading');
+    showStatus('statusAvoid', '💡 Giữ Shift (PC) hoặc Nhấn giữ (Mobile) để vẽ.\n- Phím U: Cắt nét\n- Phím C: Tạo nhóm mới', 'loading');
   } else {
-    btn.classList.remove('active');
-    btn.innerHTML = '<i class="fas fa-paint-brush"></i> Vẽ tự do';
-    showStatus('statusAvoid', 'Đã tắt chế độ vẽ tự do', 'loading');
+    btn.classList.remove('active'); btn.innerHTML = '<i class="fas fa-paint-brush"></i> Vẽ tự do';
+    showStatus('statusAvoid', 'Đã tắt chế độ vẽ', 'loading');
   }
   updateMapCursorClass();
 };
 
 window.resetZoneDrawing = function() {
-  pointA = null; pointB = null;
-  currentRouteWaypoints = null;
-  isFreehandCut = false;
-  
+  pointA = null; pointB = null; currentRouteWaypoints = null; isFreehandCut = false;
   if (tempMarkerA) { tempMarkerA.remove(); tempMarkerA = null; }
   if (tempMarkerB) { tempMarkerB.remove(); tempMarkerB = null; }
-  
   if (map) {
-    if (map.getSource('avoid-zones-source')) {
-      map.getSource('avoid-zones-source').setData(emptyGeoJSON);
-    }
-    if (map.getSource('active-freehand-source')) {
-      map.getSource('active-freehand-source').setData(emptyGeoJSON);
-    }
+    if (map.getSource('avoid-zones-source')) map.getSource('avoid-zones-source').setData(emptyGeoJSON);
+    if (map.getSource('active-freehand-source')) map.getSource('active-freehand-source').setData(emptyGeoJSON);
   }
-  
-  document.getElementById('zoneLat1').value = '';
-  document.getElementById('zoneLng1').value = '';
-  document.getElementById('zoneLat2').value = '';
-  document.getElementById('zoneLng2').value = '';
-  document.getElementById('zoneStartTime').value = '';
-  document.getElementById('zoneEndTime').value = '';
+  ['zoneLat1','zoneLng1','zoneLat2','zoneLng2','zoneStartTime','zoneEndTime'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('zoneNightClosure').checked = false;
   toggleNightClosure();
   document.querySelectorAll('.zone-vehicle').forEach(cb => cb.checked = false);
-  
-  drawHistory = [];
-  historyIndex = -1;
-  saveHistory();
+  drawHistory = []; historyIndex = -1; saveHistory();
 };
 
 function updateDrawnPolylines() {
   if (!map || !map.getSource('avoid-zones-source')) return;
-  
   const features = [];
   if (currentRouteWaypoints && currentRouteWaypoints.length > 0) {
     const isMulti = Array.isArray(currentRouteWaypoints[0][0]);
     if (isMulti) {
       currentRouteWaypoints.forEach(seg => {
-        if (seg && seg.length > 0) {
-          features.push({
-            type: 'Feature',
-            geometry: { type: 'LineString', coordinates: seg.map(p => [p[1], p[0]]) } // [lng, lat]
-          });
-        }
+        if (seg && seg.length > 0) features.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: seg.map(p => [p[1], p[0]]) } });
       });
     } else {
-      features.push({
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: currentRouteWaypoints.map(p => [p[1], p[0]]) }
-      });
+      features.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: currentRouteWaypoints.map(p => [p[1], p[0]]) } });
     }
   }
-  
   map.getSource('avoid-zones-source').setData({ type: 'FeatureCollection', features });
 }
+
+function saveHistory() {
+  if (historyIndex < drawHistory.length - 1) drawHistory = drawHistory.slice(0, historyIndex + 1);
+  drawHistory.push(currentRouteWaypoints ? JSON.parse(JSON.stringify(currentRouteWaypoints)) : null);
+  historyIndex++;
+  document.getElementById('btnUndo').disabled = (historyIndex <= 0);
+  document.getElementById('btnRedo').disabled = (historyIndex >= drawHistory.length - 1);
+}
+
+window.undoDraw = function() {
+  if (historyIndex > 0) {
+    historyIndex--; currentRouteWaypoints = drawHistory[historyIndex] ? JSON.parse(JSON.stringify(drawHistory[historyIndex])) : null;
+    updateDrawnPolylines(); saveHistory(); showStatus('statusAvoid', '↩️ Đã hoàn tác', 'loading');
+  }
+};
+window.redoDraw = function() {
+  if (historyIndex < drawHistory.length - 1) {
+    historyIndex++; currentRouteWaypoints = drawHistory[historyIndex] ? JSON.parse(JSON.stringify(drawHistory[historyIndex])) : null;
+    updateDrawnPolylines(); saveHistory(); showStatus('statusAvoid', '↪️ Đã làm lại', 'loading');
+  }
+};
 
 window.updateZoneMapFromInputs = function() {
   const lat1 = parseFloat(document.getElementById('zoneLat1').value.replace(/,/g, '.'));
   const lng1 = parseFloat(document.getElementById('zoneLng1').value.replace(/,/g, '.'));
   const lat2 = parseFloat(document.getElementById('zoneLat2').value.replace(/,/g, '.'));
   const lng2 = parseFloat(document.getElementById('zoneLng2').value.replace(/,/g, '.'));
-
   if (!isNaN(lat1) && !isNaN(lng1)) {
     pointA = { lat: lat1, lng: lng1 };
     if (tempMarkerA) tempMarkerA.setLngLat([lng1, lat1]);
     else {
-      const el = document.createElement('div');
-      el.className = 'custom-pin pin-avoid-start';
-      el.style.cssText = 'width: 30px; height: 30px;';
-      el.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
+      const el = document.createElement('div'); el.className = 'custom-pin pin-avoid-start';
+      el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
       tempMarkerA = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng1, lat1]).addTo(map);
     }
     if (isNaN(lat2) || isNaN(lng2)) map.flyTo({ center: [lng1, lat1], zoom: 15 });
-  } else {
-    pointA = null;
-    if (tempMarkerA) { tempMarkerA.remove(); tempMarkerA = null; }
-  }
+  } else { pointA = null; if (tempMarkerA) { tempMarkerA.remove(); tempMarkerA = null; } }
 
   if (!isNaN(lat2) && !isNaN(lng2)) {
     pointB = { lat: lat2, lng: lng2 };
     if (tempMarkerB) tempMarkerB.setLngLat([lng2, lat2]);
     else {
-      const el = document.createElement('div');
-      el.className = 'custom-pin pin-avoid-end';
-      el.style.cssText = 'width: 30px; height: 30px;';
-      el.innerHTML = '<i class="fas fa-flag-checkered"></i>';
+      const el = document.createElement('div'); el.className = 'custom-pin pin-avoid-end';
+      el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-flag-checkered"></i>';
       tempMarkerB = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng2, lat2]).addTo(map);
     }
-  } else {
-    pointB = null;
-    if (tempMarkerB) { tempMarkerB.remove(); tempMarkerB = null; }
-  }
+  } else { pointB = null; if (tempMarkerB) { tempMarkerB.remove(); tempMarkerB = null; } }
 
   if (pointA && pointB) {
     clearTimeout(window._zoneDrawTimer);
     window._zoneDrawTimer = setTimeout(async () => {
       showStatus('statusAvoid', 'Đang tìm đường...', 'loading');
       const snappedCoords = await fetchSnappedRoute(pointA.lat, pointA.lng, pointB.lat, pointB.lng);
-      
-      let newSegment = [];
-      if (snappedCoords && snappedCoords.length > 0) {
-        newSegment = snappedCoords;
-        showStatus('statusAvoid', '✅ Đã bám đường thành công!', 'success');
-      } else {
-        newSegment = [[pointA.lat, pointA.lng], [pointB.lat, pointB.lng]];
-        showStatus('statusAvoid', '⚠️ Không thể bám đường, vẽ đường chim bay!', 'error');
-      }
-
+      let newSegment = snappedCoords && snappedCoords.length > 0 ? snappedCoords : [[pointA.lat, pointA.lng], [pointB.lat, pointB.lng]];
       if (!currentRouteWaypoints) currentRouteWaypoints = [];
-      if (currentRouteWaypoints.length > 0 && !Array.isArray(currentRouteWaypoints[0][0])) {
-        currentRouteWaypoints = [currentRouteWaypoints];
-      }
+      if (currentRouteWaypoints.length > 0 && !Array.isArray(currentRouteWaypoints[0][0])) currentRouteWaypoints = [currentRouteWaypoints];
       currentRouteWaypoints.push(newSegment);
-      
-      updateDrawnPolylines();
-      saveHistory();
-      
+      updateDrawnPolylines(); saveHistory();
       pointA = null; pointB = null;
       if (tempMarkerA) { tempMarkerA.remove(); tempMarkerA = null; }
       if (tempMarkerB) { tempMarkerB.remove(); tempMarkerB = null; }
-      document.getElementById('zoneLat1').value = '';
-      document.getElementById('zoneLng1').value = '';
-      document.getElementById('zoneLat2').value = '';
-      document.getElementById('zoneLng2').value = '';
+      document.getElementById('zoneLat1').value = ''; document.getElementById('zoneLng1').value = '';
+      document.getElementById('zoneLat2').value = ''; document.getElementById('zoneLng2').value = '';
+      showStatus('statusAvoid', '✅ Đã bám đường!', 'success');
     }, 800);
   }
 };
@@ -583,14 +579,11 @@ window.updateZoneMapFromInputs = function() {
 window.updateRestStopMapFromInputs = function() {
   const lat = parseFloat(document.getElementById('poiLat').value.replace(/,/g, '.'));
   const lng = parseFloat(document.getElementById('poiLng').value.replace(/,/g, '.'));
-  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
-
+  if (isNaN(lat) || isNaN(lng)) return;
   if (currentRestStopMarker) currentRestStopMarker.setLngLat([lng, lat]);
   else {
-    const el = document.createElement('div');
-    el.className = 'custom-pin pin-rest-stop';
-    el.style.cssText = 'width: 30px; height: 30px;';
-    el.innerHTML = '<i class="fas fa-bed"></i>';
+    const el = document.createElement('div'); el.className = 'custom-pin pin-rest-stop';
+    el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-bed"></i>';
     currentRestStopMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map);
   }
   map.flyTo({ center: [lng, lat], zoom: 16 });
@@ -607,291 +600,115 @@ async function fetchSnappedRoute(lat1, lng1, lat2, lng2) {
         if (c0[0] > 90 || c0[1] > 90) coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
         else coords = data.routes[0].geometry.coordinates.map(c => [c[0], c[1]]);
       }
-      return coords; // Trả về [lat, lng]
+      return coords;
     }
     return null;
   } catch (e) { return null; }
 }
 
 function initMap() {
-  // Dùng OSM raster cho Admin cho nhẹ
-  const osmStyle = {
-    version: 8,
-    sources: {
-      osm: {
-        type: 'raster',
-        tiles: ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'],
-        tileSize: 256,
-        attribution: '© OpenStreetMap'
-      }
-    },
-    layers: [
-      { id: 'osm-layer', type: 'raster', source: 'osm' }
-    ]
-  };
-
-  map = new maplibregl.Map({
-    container: 'map',
-    style: osmStyle,
-    center: [105.8542, 21.0285], // Lng, Lat
-    zoom: 6,
-    maxPitch: 0,
-    dragRotate: false
-  });
-
+  const osmStyle = { version: 8, sources: { osm: { type: 'raster', tiles: ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OSM' } }, layers: [{ id: 'osm-layer', type: 'raster', source: 'osm' }] };
+  map = new maplibregl.Map({ container: 'map', style: osmStyle, center: [105.8542, 21.0285], zoom: 6, maxPitch: 0, dragRotate: false });
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
   map.on('load', () => {
-    // Source để chứa toàn bộ các tuyến đường cấm
-    map.addSource('avoid-zones-source', {
-      type: 'geojson',
-      data: emptyGeoJSON
-    });
-    map.addLayer({
-      id: 'avoid-zones-layer',
-      type: 'line',
-      source: 'avoid-zones-source',
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: { 'line-color': '#ef4444', 'line-width': 8, 'line-opacity': 0.8, 'line-dasharray': [2, 2] }
-    });
-
-    // Source để vẽ nét đang vẽ dở (freehand)
-    map.addSource('active-freehand-source', {
-      type: 'geojson',
-      data: emptyGeoJSON
-    });
-    map.addLayer({
-      id: 'active-freehand-layer',
-      type: 'line',
-      source: 'active-freehand-source',
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: { 'line-color': '#3b82f6', 'line-width': 8, 'line-opacity': 0.8, 'line-dasharray': [2, 2] }
-    });
+    map.addSource('avoid-zones-source', { type: 'geojson', data: emptyGeoJSON });
+    map.addLayer({ id: 'avoid-zones-layer', type: 'line', source: 'avoid-zones-source', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#ef4444', 'line-width': 8, 'line-opacity': 0.8, 'line-dasharray': [2, 2] } });
+    map.addSource('active-freehand-source', { type: 'geojson', data: emptyGeoJSON });
+    map.addLayer({ id: 'active-freehand-layer', type: 'line', source: 'active-freehand-source', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#3b82f6', 'line-width': 8, 'line-opacity': 0.8, 'line-dasharray': [2, 2] } });
   });
 
   map.on('click', async (e) => {
     const activeTab = document.querySelector('.tab.active').id;
-    const lat = e.lngLat.lat;
-    const lng = e.lngLat.lng;
-    
+    const lat = e.lngLat.lat, lng = e.lngLat.lng;
     if (activeTab === 'tab-btn-reststop') {
-      document.getElementById('poiLat').value = lat.toFixed(6);
-      document.getElementById('poiLng').value = lng.toFixed(6);
-      
+      document.getElementById('poiLat').value = lat.toFixed(6); document.getElementById('poiLng').value = lng.toFixed(6);
       if (currentRestStopMarker) currentRestStopMarker.setLngLat([lng, lat]);
       else {
-        const el = document.createElement('div');
-        el.className = 'custom-pin pin-rest-stop';
-        el.style.cssText = 'width: 30px; height: 30px;';
-        el.innerHTML = '<i class="fas fa-bed"></i>';
+        const el = document.createElement('div'); el.className = 'custom-pin pin-rest-stop'; el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-bed"></i>';
         currentRestStopMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map);
       }
-    } 
-    else if (activeTab === 'tab-btn-avoid' && isDrawMode) {
+    } else if (activeTab === 'tab-btn-avoid' && isDrawMode) {
       if (!pointA) {
-        pointA = { lat, lng };
-        document.getElementById('zoneLat1').value = lat.toFixed(6);
-        document.getElementById('zoneLng1').value = lng.toFixed(6);
-        
+        pointA = { lat, lng }; document.getElementById('zoneLat1').value = lat.toFixed(6); document.getElementById('zoneLng1').value = lng.toFixed(6);
         if (tempMarkerA) tempMarkerA.setLngLat([lng, lat]);
-        else {
-          const el = document.createElement('div');
-          el.className = 'custom-pin pin-avoid-start';
-          el.style.cssText = 'width: 30px; height: 30px;';
-          el.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
-          tempMarkerA = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map);
-        }
+        else { const el = document.createElement('div'); el.className = 'custom-pin pin-avoid-start'; el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-map-marker-alt"></i>'; tempMarkerA = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map); }
       } else {
-        pointB = { lat, lng };
-        document.getElementById('zoneLat2').value = lat.toFixed(6);
-        document.getElementById('zoneLng2').value = lng.toFixed(6);
-        
+        pointB = { lat, lng }; document.getElementById('zoneLat2').value = lat.toFixed(6); document.getElementById('zoneLng2').value = lng.toFixed(6);
         if (tempMarkerB) tempMarkerB.setLngLat([lng, lat]);
-        else {
-          const el = document.createElement('div');
-          el.className = 'custom-pin pin-avoid-end';
-          el.style.cssText = 'width: 30px; height: 30px;';
-          el.innerHTML = '<i class="fas fa-flag-checkered"></i>';
-          tempMarkerB = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map);
-        }
-
+        else { const el = document.createElement('div'); el.className = 'custom-pin pin-avoid-end'; el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-flag-checkered"></i>'; tempMarkerB = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map); }
+        
         showStatus('statusAvoid', 'Đang tìm đường...', 'loading');
         const snappedCoords = await fetchSnappedRoute(pointA.lat, pointA.lng, pointB.lat, pointB.lng);
-        
-        let newSegment = [];
-        if (snappedCoords && snappedCoords.length > 0) {
-          newSegment = snappedCoords;
-          showStatus('statusAvoid', '✅ Đã bám đường thành công!', 'success');
-        } else {
-          newSegment = [[pointA.lat, pointA.lng], [pointB.lat, pointB.lng]];
-          showStatus('statusAvoid', '⚠️ Không thể bám đường, vẽ đường chim bay!', 'error');
-        }
-
+        let newSegment = snappedCoords && snappedCoords.length > 0 ? snappedCoords : [[pointA.lat, pointA.lng], [pointB.lat, pointB.lng]];
         if (!currentRouteWaypoints) currentRouteWaypoints = [];
-        if (currentRouteWaypoints.length > 0 && !Array.isArray(currentRouteWaypoints[0][0])) {
-          currentRouteWaypoints = [currentRouteWaypoints];
-        }
+        if (currentRouteWaypoints.length > 0 && !Array.isArray(currentRouteWaypoints[0][0])) currentRouteWaypoints = [currentRouteWaypoints];
         currentRouteWaypoints.push(newSegment);
-        
-        updateDrawnPolylines();
-        saveHistory();
-
+        updateDrawnPolylines(); saveHistory();
         pointA = null; pointB = null;
         if (tempMarkerA) { tempMarkerA.remove(); tempMarkerA = null; }
         if (tempMarkerB) { tempMarkerB.remove(); tempMarkerB = null; }
-        document.getElementById('zoneLat1').value = '';
-        document.getElementById('zoneLng1').value = '';
-        document.getElementById('zoneLat2').value = '';
-        document.getElementById('zoneLng2').value = '';
+        document.getElementById('zoneLat1').value = ''; document.getElementById('zoneLng1').value = '';
+        document.getElementById('zoneLat2').value = ''; document.getElementById('zoneLng2').value = '';
+        showStatus('statusAvoid', '✅ Đã bám đường!', 'success');
       }
     }
   });
 
-  // ================= LOGIC VẼ TỰ DO (FREEEHAND) =================
   function startFreehandDrawing(latlng) {
-    isFreehandDrawing = true;
-    map.dragPan.disable();
-    
+    isFreehandDrawing = true; map.dragPan.disable();
     let startPt = latlng;
     if (!isFreehandCut && currentRouteWaypoints && currentRouteWaypoints.length > 0) {
        const lastSeg = currentRouteWaypoints[currentRouteWaypoints.length - 1];
-       if (lastSeg && lastSeg.length > 0) {
-          const lastPt = lastSeg[lastSeg.length - 1];
-          startPt = { lng: lastPt[1], lat: lastPt[0] }; // Khớp toạ độ
-       }
+       if (lastSeg && lastSeg.length > 0) { const lastPt = lastSeg[lastSeg.length - 1]; startPt = { lng: lastPt[1], lat: lastPt[0] }; }
     }
-
     activeFreehandCoords = [startPt, latlng];
-    map.getSource('active-freehand-source').setData({
-      type: 'Feature',
-      geometry: { type: 'LineString', coordinates: activeFreehandCoords.map(p => [p.lng, p.lat]) }
-    });
+    map.getSource('active-freehand-source').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: activeFreehandCoords.map(p => [p.lng, p.lat]) } });
   }
 
   function finishFreehandDrawing() {
     if (!isFreehandDrawing) return;
-    isFreehandDrawing = false;
-    map.dragPan.enable();
-    
+    isFreehandDrawing = false; map.dragPan.enable();
     map.getSource('active-freehand-source').setData(emptyGeoJSON);
-    
     if (activeFreehandCoords.length > 1) {
       if (!currentRouteWaypoints) currentRouteWaypoints = [];
-      if (currentRouteWaypoints.length > 0 && !Array.isArray(currentRouteWaypoints[0][0])) {
-        currentRouteWaypoints = [currentRouteWaypoints];
-      }
-      
+      if (currentRouteWaypoints.length > 0 && !Array.isArray(currentRouteWaypoints[0][0])) currentRouteWaypoints = [currentRouteWaypoints];
       const strokeLatLngs = activeFreehandCoords.map(p => [p.lat, p.lng]);
-      
       if (!isFreehandCut && currentRouteWaypoints.length > 0) {
         const lastSeg = currentRouteWaypoints[currentRouteWaypoints.length - 1];
-        const newPts = strokeLatLngs.slice(1); 
-        currentRouteWaypoints[currentRouteWaypoints.length - 1] = lastSeg.concat(newPts);
-      } else {
-        currentRouteWaypoints.push(strokeLatLngs);
-      }
-      
-      updateDrawnPolylines();
-      saveHistory();
-      
+        currentRouteWaypoints[currentRouteWaypoints.length - 1] = lastSeg.concat(strokeLatLngs.slice(1));
+      } else { currentRouteWaypoints.push(strokeLatLngs); }
+      updateDrawnPolylines(); saveHistory();
       const firstPt = currentRouteWaypoints[0][0];
       const lastSeg = currentRouteWaypoints[currentRouteWaypoints.length - 1];
       const lastPt = lastSeg[lastSeg.length - 1];
-      
-      document.getElementById('zoneLat1').value = firstPt[0].toFixed(6);
-      document.getElementById('zoneLng1').value = firstPt[1].toFixed(6);
-      document.getElementById('zoneLat2').value = lastPt[0].toFixed(6);
-      document.getElementById('zoneLng2').value = lastPt[1].toFixed(6);
+      document.getElementById('zoneLat1').value = firstPt[0].toFixed(6); document.getElementById('zoneLng1').value = firstPt[1].toFixed(6);
+      document.getElementById('zoneLat2').value = lastPt[0].toFixed(6); document.getElementById('zoneLng2').value = lastPt[1].toFixed(6);
     }
-    
-    activeFreehandCoords = [];
-    isFreehandCut = false;
+    activeFreehandCoords = []; isFreehandCut = false;
   }
 
-  map.on('mousedown', (e) => {
-    if (!isFreehandMode) return;
-    startLatLng = e.lngLat;
-    if (e.originalEvent.shiftKey || e.originalEvent.altKey) {
-      startFreehandDrawing(e.lngLat);
-      return;
-    }
-    longPressTimer = setTimeout(() => {
-      if (startLatLng) startFreehandDrawing(startLatLng);
-    }, 300);
-  });
-
+  map.on('mousedown', (e) => { if (!isFreehandMode) return; startLatLng = e.lngLat; if (e.originalEvent.shiftKey || e.originalEvent.altKey) { startFreehandDrawing(e.lngLat); return; } longPressTimer = setTimeout(() => { if (startLatLng) startFreehandDrawing(startLatLng); }, 300); });
   map.on('mousemove', (e) => {
     if (!isFreehandMode) return;
-    if (longPressTimer && !isFreehandDrawing) {
-      if (startLatLng && e.lngLat.dist(startLatLng) > 10) {
-        clearTimeout(longPressTimer); longPressTimer = null; startLatLng = null;
-      }
-    }
-    if (isFreehandDrawing) {
-      const last = activeFreehandCoords[activeFreehandCoords.length - 1];
-      if (e.lngLat.dist(last) > 0.00005) { // Khoảng cách tối thiểu
-        activeFreehandCoords.push(e.lngLat);
-        map.getSource('active-freehand-source').setData({
-          type: 'Feature',
-          geometry: { type: 'LineString', coordinates: activeFreehandCoords.map(p => [p.lng, p.lat]) }
-        });
-      }
-    }
+    if (longPressTimer && !isFreehandDrawing) { if (startLatLng && e.lngLat.dist(startLatLng) > 10) { clearTimeout(longPressTimer); longPressTimer = null; startLatLng = null; } }
+    if (isFreehandDrawing) { const last = activeFreehandCoords[activeFreehandCoords.length - 1]; if (e.lngLat.dist(last) > 0.00005) { activeFreehandCoords.push(e.lngLat); map.getSource('active-freehand-source').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: activeFreehandCoords.map(p => [p.lng, p.lat]) } }); } }
   });
-
-  map.on('mouseup', () => {
-    if (!isFreehandMode) return;
-    clearTimeout(longPressTimer); longPressTimer = null; startLatLng = null;
-    if (isFreehandDrawing) finishFreehandDrawing();
-  });
-
-  map.on('touchstart', (e) => {
-    if (!isFreehandMode) return;
-    startLatLng = e.lngLat;
-    longPressTimer = setTimeout(() => {
-      if (startLatLng) startFreehandDrawing(startLatLng);
-    }, 300);
-  });
-
+  map.on('mouseup', () => { if (!isFreehandMode) return; clearTimeout(longPressTimer); longPressTimer = null; startLatLng = null; if (isFreehandDrawing) finishFreehandDrawing(); });
+  map.on('touchstart', (e) => { if (!isFreehandMode) return; startLatLng = e.lngLat; longPressTimer = setTimeout(() => { if (startLatLng) startFreehandDrawing(startLatLng); }, 300); });
   map.on('touchmove', (e) => {
     if (!isFreehandMode) return;
-    if (longPressTimer && !isFreehandDrawing) {
-      if (startLatLng && e.lngLat.dist(startLatLng) > 10) {
-        clearTimeout(longPressTimer); longPressTimer = null; startLatLng = null;
-      }
-    }
-    if (isFreehandDrawing) {
-      const last = activeFreehandCoords[activeFreehandCoords.length - 1];
-      if (e.lngLat.dist(last) > 0.00005) {
-        activeFreehandCoords.push(e.lngLat);
-        map.getSource('active-freehand-source').setData({
-          type: 'Feature',
-          geometry: { type: 'LineString', coordinates: activeFreehandCoords.map(p => [p.lng, p.lat]) }
-        });
-      }
-    }
+    if (longPressTimer && !isFreehandDrawing) { if (startLatLng && e.lngLat.dist(startLatLng) > 10) { clearTimeout(longPressTimer); longPressTimer = null; startLatLng = null; } }
+    if (isFreehandDrawing) { const last = activeFreehandCoords[activeFreehandCoords.length - 1]; if (e.lngLat.dist(last) > 0.00005) { activeFreehandCoords.push(e.lngLat); map.getSource('active-freehand-source').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: activeFreehandCoords.map(p => [p.lng, p.lat]) } }); } }
   });
-
-  map.on('touchend', () => {
-    if (!isFreehandMode) return;
-    clearTimeout(longPressTimer); longPressTimer = null; startLatLng = null;
-    if (isFreehandDrawing) finishFreehandDrawing();
-  });
+  map.on('touchend', () => { if (!isFreehandMode) return; clearTimeout(longPressTimer); longPressTimer = null; startLatLng = null; if (isFreehandDrawing) finishFreehandDrawing(); });
 }
 
 document.addEventListener('keydown', (e) => {
   if (!isFreehandMode) return;
   const key = e.key.toLowerCase();
-  if (key === 'u') {
-    if (isFreehandDrawing) map.fire('mouseup');
-    isFreehandCut = true; 
-    showStatus('statusAvoid', '✂️ Đã cắt nét (Phím U).', 'success');
-  }
-  if (key === 'c') {
-    if (isFreehandDrawing) map.fire('mouseup');
-    resetZoneDrawing();
-    showStatus('statusAvoid', '🔄 Đã tạo nhóm mới (Phím C).', 'success');
-  }
+  if (key === 'u') { if (isFreehandDrawing) map.fire('mouseup'); isFreehandCut = true; showStatus('statusAvoid', '✂️ Đã cắt nét (U)', 'success'); }
+  if (key === 'c') { if (isFreehandDrawing) map.fire('mouseup'); resetZoneDrawing(); showStatus('statusAvoid', '🔄 Đã tạo nhóm mới (C)', 'success'); }
 });
 
 async function getCoordsFromGmapsUrl(url) {
@@ -901,142 +718,207 @@ async function getCoordsFromGmapsUrl(url) {
     const data = await res.json();
     if (data.success && data.coords) return { success: true, coords: data.coords };
     return { success: false, error: 'Link bị chặn!' };
-  } catch (e) {
-    return { success: false, error: 'Lỗi kết nối Server' };
-  }
+  } catch (e) { return { success: false, error: 'Lỗi kết nối Server' }; }
 }
 
 window.resolveRestStopUrl = async function() {
   const url = document.getElementById('poiGmapsUrl').value.trim();
   if (!url) return showStatus('statusRestStop', 'Vui lòng dán link!', 'error');
-
   const btn = document.getElementById('btnResolvePoi');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-  showStatus('statusRestStop', 'Đang giải mã link...', 'loading');
-  
   const result = await getCoordsFromGmapsUrl(url);
-
   if (result.success) {
     const coords = result.coords;
-    document.getElementById('poiLat').value = coords.lat.toFixed(6);
-    document.getElementById('poiLng').value = coords.lng.toFixed(6);
-    
+    document.getElementById('poiLat').value = coords.lat.toFixed(6); document.getElementById('poiLng').value = coords.lng.toFixed(6);
     map.flyTo({ center: [coords.lng, coords.lat], zoom: 16 });
-    
     if (currentRestStopMarker) currentRestStopMarker.setLngLat([coords.lng, coords.lat]);
-    else {
-      const el = document.createElement('div');
-      el.className = 'custom-pin pin-rest-stop';
-      el.style.cssText = 'width: 30px; height: 30px;';
-      el.innerHTML = '<i class="fas fa-bed"></i>';
-      currentRestStopMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([coords.lng, coords.lat]).addTo(map);
-    }
+    else { const el = document.createElement('div'); el.className = 'custom-pin pin-rest-stop'; el.style.cssText = 'width: 30px; height: 30px;'; el.innerHTML = '<i class="fas fa-bed"></i>'; currentRestStopMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([coords.lng, coords.lat]).addTo(map); }
     showStatus('statusRestStop', `✅ Đã lấy được tọa độ!`, 'success');
-  } else {
-    showStatus('statusRestStop', '❌ ' + result.error, 'error');
-  }
+  } else { showStatus('statusRestStop', '❌ ' + result.error, 'error'); }
   btn.disabled = false; btn.innerHTML = '<i class="fas fa-search-location"></i>';
 };
 
 window.submitRestStop = async function() {
-  if (!currentUser) return showStatus('statusRestStop', 'Lỗi: Chưa đăng nhập Firebase!', 'error');
+  if (!currentUser) return showStatus('statusRestStop', 'Lỗi: Chưa đăng nhập!', 'error');
   const name = document.getElementById('poiName').value.trim();
   const lat = parseFloat(document.getElementById('poiLat').value.replace(/,/g, '.'));
   const lng = parseFloat(document.getElementById('poiLng').value.replace(/,/g, '.'));
-  if (!name || isNaN(lat) || isNaN(lng)) return showStatus('statusRestStop', 'Vui lòng nhập đủ Tên và Tọa độ!', 'error');
-
+  if (!name || isNaN(lat) || isNaN(lng)) return showStatus('statusRestStop', 'Nhập đủ Tên và Tọa độ!', 'error');
   showStatus('statusRestStop', 'Đang lưu...', 'loading');
-  const btn = document.getElementById('btnSaveRestStop');
-  btn.disabled = true;
-
   try {
-    const payload = {
-      lat: lat, lng: lng, name: name, tag: 'rest_stop',
-      uid: currentUser.uid, authorName: 'Admin', timestamp: Date.now(), upvotes: 0
-    };
+    const payload = { lat, lng, name, tag: 'rest_stop', uid: currentUser.uid, authorName: 'Admin', timestamp: Date.now(), upvotes: 0 };
     const docRef = await addDoc(collection(db, "rest_stops"), payload);
     await set(ref(rtdb, `communityPois/${docRef.id}`), payload);
     await updateVersion('rest_stops');
-
     showStatus('statusRestStop', '✅ Đã lưu: ' + name, 'success');
-    document.getElementById('poiName').value = '';
-    document.getElementById('poiGmapsUrl').value = '';
+    document.getElementById('poiName').value = ''; document.getElementById('poiGmapsUrl').value = '';
     if (currentRestStopMarker) { currentRestStopMarker.remove(); currentRestStopMarker = null; }
-  } catch (err) {
-    showStatus('statusRestStop', 'Lỗi: ' + err.message, 'error');
-  } finally {
-    btn.disabled = false;
-  }
+  } catch (err) { showStatus('statusRestStop', 'Lỗi: ' + err.message, 'error'); }
 };
 
 window.saveAvoidZone = async function() {
-  if (!currentUser) return showStatus('statusAvoid', 'Lỗi: Chưa đăng nhập Firebase!', 'error');
-  
+  if (!currentUser) return showStatus('statusAvoid', 'Chưa đăng nhập!', 'error');
   const name = document.getElementById('zoneName').value.trim();
+  if (!name) return showStatus('statusAvoid', 'Nhập Tên đoạn cấm!', 'error');
+  if (!currentRouteWaypoints || currentRouteWaypoints.length < 2) return showStatus('statusAvoid', 'Chưa vẽ tuyến đường!', 'error');
   const isNightClosure = document.getElementById('zoneNightClosure').checked;
-  const startTimeVal = document.getElementById('zoneStartTime').value;
-  const endTimeVal = document.getElementById('zoneEndTime').value;
-
-  if (!name) return showStatus('statusAvoid', 'Vui lòng nhập Tên đoạn cấm!', 'error');
-  if (!currentRouteWaypoints || currentRouteWaypoints.length < 2) {
-    return showStatus('statusAvoid', 'Vui lòng vẽ hoặc chọn tọa độ tuyến đường trước!', 'error');
-  }
-
   const bannedVehicles = Array.from(document.querySelectorAll('.zone-vehicle:checked')).map(cb => cb.value);
-
   let firstPoint, lastPoint;
   if (Array.isArray(currentRouteWaypoints[0][0])) {
-    const firstLine = currentRouteWaypoints[0];
+    firstPoint = currentRouteWaypoints[0][0];
     const lastLine = currentRouteWaypoints[currentRouteWaypoints.length - 1];
-    firstPoint = firstLine[0];
     lastPoint = lastLine[lastLine.length - 1];
   } else {
     firstPoint = currentRouteWaypoints[0];
     lastPoint = currentRouteWaypoints[currentRouteWaypoints.length - 1];
   }
-
   let startTime = null, endTime = null;
   if (isNightClosure) { startTime = "17:00"; endTime = "05:00"; } 
   else {
-    if (startTimeVal) startTime = new Date(startTimeVal).getTime();
-    if (endTimeVal) endTime = new Date(endTimeVal).getTime();
+    const st = document.getElementById('zoneStartTime').value;
+    const et = document.getElementById('zoneEndTime').value;
+    if (st) startTime = new Date(st).getTime();
+    if (et) endTime = new Date(et).getTime();
   }
-
   showStatus('statusAvoid', 'Đang lưu...', 'loading');
   try {
-    const payload = {
-      name: name,
-      isNightClosure: isNightClosure,
-      lat1: firstPoint[0],
-      lng1: firstPoint[1],
-      lat2: lastPoint[0],
-      lng2: lastPoint[1],
-      waypoints: JSON.stringify(currentRouteWaypoints),
-      startTime: startTime,
-      endTime: endTime,
-      bannedVehicles: bannedVehicles,
-      timestamp: Date.now()
-    };
-
+    const payload = { name, isNightClosure, lat1: firstPoint[0], lng1: firstPoint[1], lat2: lastPoint[0], lng2: lastPoint[1], waypoints: JSON.stringify(currentRouteWaypoints), startTime, endTime, bannedVehicles, timestamp: Date.now() };
     const docRef = await addDoc(collection(db, "avoid_zones"), payload);
     await set(ref(rtdb, `avoid_zones/${docRef.id}`), payload);
     await updateVersion('avoid_zones');
-    
-    showStatus('statusAvoid', '✅ Đã lưu đoạn cấm thành công!', 'success');
-    resetZoneDrawing();
-    document.getElementById('zoneName').value = '';
-  } catch (err) {
-    showStatus('statusAvoid', 'Lỗi: ' + err.message, 'error');
+    showStatus('statusAvoid', '✅ Đã lưu đoạn cấm!', 'success');
+    resetZoneDrawing(); document.getElementById('zoneName').value = '';
+  } catch (err) { showStatus('statusAvoid', 'Lỗi: ' + err.message, 'error'); }
+};
+
+async function updateVersion(collectionName) {
+  try { await setDoc(doc(db, "system_meta", "version"), { [collectionName]: Date.now() }, { merge: true }); } 
+  catch(e) { console.warn(e); }
+}
+
+function showStatus(id, msg, type) {
+  const box = document.getElementById(id); if (!box) return;
+  box.textContent = msg; box.className = 'status-box status-' + type;
+  if (type !== 'loading') setTimeout(() => { if (box.textContent === msg) box.style.display = 'none'; }, 3000);
+}
+
+// ================= MODE MANAGE (BẢNG DỮ LIỆU) =================
+window.loadManageData = async function(collectionName, btn) {
+  document.querySelectorAll('.manage-tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  currentManageCollection = collectionName;
+  
+  document.getElementById('manage-title').innerHTML = `<i class="fas fa-table" style="color:var(--primary);"></i> Dữ liệu: ${collectionName}`;
+  const tbody = document.getElementById('manage-tbody');
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin" style="color:var(--primary); font-size:1.5rem;"></i></td></tr>';
+
+  try {
+    let items = [];
+    // Gộp cả 2 nguồn (Firestore + RTDB) để quản lý
+    try {
+      const fsSnap = await getDocs(collection(db, collectionName));
+      fsSnap.forEach(d => items.push({ id: d.id, source: 'firestore', ...d.data() }));
+    } catch(e) { console.warn('Lỗi đọc Firestore', e); }
+
+    try {
+      const snap = await get(ref(rtdb, collectionName));
+      if (snap.exists()) {
+        const data = snap.val();
+        for (const key in data) {
+          // Nếu đã có trong Firestore thì bỏ qua, ưu tiên bản ghi Firestore
+          if (!items.find(i => i.id === key)) {
+            items.push({ id: key, source: 'rtdb', ...data[key] });
+          }
+        }
+      }
+    } catch(e) { console.warn('Lỗi đọc RTDB', e); }
+
+    tbody.innerHTML = '';
+    if (items.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">Không có dữ liệu</td></tr>';
+      return;
+    }
+
+    items.forEach((item, index) => {
+      let summary = '';
+      if (item.name) summary += `<b>${item.name}</b> - `;
+      if (item.tag) summary += `Tag: ${item.tag} - `;
+      if (item.type) summary += `Loại: ${item.type} - `;
+      if (item.lat && item.lng) summary += `Toạ độ: ${parseFloat(item.lat).toFixed(4)}, ${parseFloat(item.lng).toFixed(4)}`;
+      if (!summary) summary = JSON.stringify(item).substring(0, 50) + '...';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="color:var(--text-muted);">${index + 1}</td>
+        <td style="font-family:monospace; color:var(--primary); font-size:0.8rem;">${item.id}</td>
+        <td>${summary}</td>
+        <td style="text-align:center;">
+          <button onclick='openEditModal(${JSON.stringify(item).replace(/'/g, "&#39;")})' class="btn btn-outline btn-sm" style="color:var(--warning); border-color:var(--warning); display:inline-flex; margin-right:4px;"><i class="fas fa-edit"></i> Sửa</button>
+          <button onclick="deleteManageData('${item.source}', '${item.id}')" class="btn btn-outline btn-sm" style="color:var(--danger); border-color:var(--danger); display:inline-flex;"><i class="fas fa-trash"></i> Xoá</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger);">Lỗi: ${e.message}</td></tr>`;
   }
 };
 
-function showStatus(id, msg, type) {
-  const box = document.getElementById(id);
-  if (!box) return;
-  box.textContent = msg;
-  box.className = 'status-box status-' + type;
-}
-</script>
+window.openEditModal = function(item) {
+  currentEditId = item.id;
+  currentEditData = { ...item };
+  const source = currentEditData.source;
+  delete currentEditData.source;
+  delete currentEditData.id;
+  
+  document.getElementById('jsonEditor').value = JSON.stringify(currentEditData, null, 4);
+  document.getElementById('editModal').classList.add('active');
+};
 
+window.closeEditModal = function() {
+  document.getElementById('editModal').classList.remove('active');
+};
+
+window.saveEditedData = async function() {
+  const val = document.getElementById('jsonEditor').value;
+  let parsed;
+  try { parsed = JSON.parse(val); } catch(e) { alert('Lỗi JSON! Kiểm tra lại ngoặc kép, dấu phẩy.'); return; }
+  
+  const btn = event.target;
+  btn.disabled = true; btn.innerHTML = 'Đang lưu...';
+
+  try {
+    // Ghi đè lên cả 2 nguồn (nếu có)
+    if (currentEditData.source === 'firestore' || true) {
+      await setDoc(doc(db, currentManageCollection, currentEditId), parsed, { merge: true });
+    }
+    // Ghi lên RTDB luôn (vì app có thể đọc từ RTDB)
+    await set(ref(rtdb, `${currentManageCollection}/${currentEditId}`), parsed);
+    
+    await updateVersion(currentManageCollection);
+    closeEditModal();
+    loadManageData(currentManageCollection, document.querySelector('.manage-tab-btn.active'));
+  } catch(e) {
+    alert('Lỗi khi lưu: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Lưu thay đổi';
+  }
+};
+
+window.deleteManageData = async function(source, id) {
+  if (!confirm('Bạn có chắc chắn muốn xoá bản ghi này vĩnh viễn?')) return;
+  try {
+    // Xoá cả 2 nguồn cho đồng bộ
+    await deleteDoc(doc(db, currentManageCollection, id)).catch(()=>{});
+    await remove(ref(rtdb, `${currentManageCollection}/${id}`)).catch(()=>{});
+    await updateVersion(currentManageCollection);
+    loadManageData(currentManageCollection, document.querySelector('.manage-tab-btn.active'));
+  } catch(e) {
+    alert('Lỗi khi xoá: ' + e.message);
+  }
+};
+
+</script>
 </body>
 </html>
