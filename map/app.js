@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (Cải thiện UX + Tốc độ + Tương tác)
+   DriveKit — app.js (Fixed 1km Radius + Clear Markers)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -7,7 +7,6 @@ import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPasswor
 import { getDatabase, ref, set, get, onValue, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getFirestore, collection, doc, addDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-/* ---------- FIREBASE ---------- */
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
   authDomain: "drivekit-c88ef.firebaseapp.com",
@@ -22,7 +21,6 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 const fsdb = getFirestore(app);
 
-/* ---------- API KEYS ---------- */
 const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
 const MAPTILER_STYLE = `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`;
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
@@ -38,15 +36,11 @@ async function apiReverseGeocode(lat, lng) {
     const data = await res.json();
     const f = data.features?.[0];
     return f?.place_name_vi || f?.place_name || '';
-  } catch (e) { 
-    console.warn('reverse-geocode error:', e); 
-    return ''; 
-  }
+  } catch (e) { return ''; }
 }
 
 async function apiSearch(query) {
   let finalResults = [];
-  
   const addUniqueResults = (newResults) => {
     newResults.forEach(nr => {
       if (!finalResults.some(fr => fr.name === nr.name || (Math.abs(fr.lat - nr.lat) < 0.0001 && Math.abs(fr.lng - nr.lng) < 0.0001))) {
@@ -55,45 +49,33 @@ async function apiSearch(query) {
     });
   };
 
-  // 1. Ưu tiên Mapbox (Tìm kiếm POI, địa danh tốt nhất)
   try {
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_KEY}&language=vi&country=vn&limit=20&autocomplete=true&types=poi,address,place`;
     const res = await fetch(url);
     const data = await res.json();
     if (data.features && data.features.length > 0) {
-      addUniqueResults(data.features.map(f => ({ 
-        name: f.place_name, 
-        lat: f.center[1], lng: f.center[0] 
-      })));
+      addUniqueResults(data.features.map(f => ({ name: f.place_name, lat: f.center[1], lng: f.center[0] })));
     }
   } catch (e) { console.warn('Mapbox search error:', e); }
 
-  // 2. Fallback: MapTiler
   if (finalResults.length === 0) {
     try {
       const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=vi&limit=20&autocomplete=true&boundary.country=vn`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.features && data.features.length > 0) {
-        addUniqueResults(data.features.map(f => ({ 
-          name: f.place_name_vi || f.place_name || f.text, 
-          lat: f.center[1], lng: f.center[0] 
-        })));
+        addUniqueResults(data.features.map(f => ({ name: f.place_name_vi || f.place_name || f.text, lat: f.center[1], lng: f.center[0] })));
       }
     } catch (e) { console.warn('MapTiler search error:', e); }
   }
 
-  // 3. Fallback: TomTom
   if (finalResults.length === 0) {
     try {
       const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&countrySet=VN&language=vi-VN&limit=20`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.results && data.results.length > 0) {
-        addUniqueResults(data.results.map(r => ({ 
-          name: r.address.freeformAddress || r.poi.name, 
-          lat: r.position.lat, lng: r.position.lon 
-        })));
+        addUniqueResults(data.results.map(r => ({ name: r.address.freeformAddress || r.poi.name, lat: r.position.lat, lng: r.position.lon })));
       }
     } catch (e) { console.warn('TomTom search error:', e); }
   }
@@ -311,10 +293,7 @@ function updateLoadingProgress(targetPercent, text) {
   if (targetPercent > loadProgress) loadProgress = targetPercent;
   const pctEl = document.getElementById('loadingPercent');
   if (pctEl) pctEl.textContent = `${Math.floor(loadProgress)}%`;
-  if (text) {
-    const tEl = document.getElementById('loadingText');
-    if (tEl) tEl.textContent = text;
-  }
+  if (text) { const tEl = document.getElementById('loadingText'); if (tEl) tEl.textContent = text; }
 }
 
 function checkLoadingComplete() {
@@ -381,10 +360,7 @@ onAuthStateChanged(auth, (user) => {
     if (pe) pe.textContent = user.email;
     if (pa && user.photoURL) pa.innerHTML = `<img src="${user.photoURL}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
 
-    if (isAppReadyToShow && !wasLoggedIn) {
-      applyScreenState();
-      return;
-    }
+    if (isAppReadyToShow && !wasLoggedIn) { applyScreenState(); return; }
 
     const params = new URLSearchParams(window.location.search);
     if (params.get('fromLat')) {
@@ -406,15 +382,9 @@ onAuthStateChanged(auth, (user) => {
         () => { updateLoadingProgress(95, "Không lấy được GPS, dùng mặc định"); checkLoadingComplete(); },
         { enableHighAccuracy: true, timeout: 3000 }
       );
-    } else {
-      updateLoadingProgress(95, "Thiết bị không hỗ trợ GPS");
-      checkLoadingComplete();
-    }
+    } else { updateLoadingProgress(95, "Thiết bị không hỗ trợ GPS"); checkLoadingComplete(); }
   } else {
-    if (isAppReadyToShow && wasLoggedIn) {
-      applyScreenState();
-      return;
-    }
+    if (isAppReadyToShow && wasLoggedIn) { applyScreenState(); return; }
     updateLoadingProgress(95, "Chưa đăng nhập...");
     checkLoadingComplete();
   }
@@ -454,9 +424,7 @@ function initAppUI() {
     }, 800);
   }
   const liveRoomParam = params.get('room');
-  if (liveRoomParam) {
-    setTimeout(() => { initViewerLiveRoom(liveRoomParam); }, 1000);
-  }
+  if (liveRoomParam) { setTimeout(() => { initViewerLiveRoom(liveRoomParam); }, 1000); }
 }
 
 function initTheme() {
@@ -779,28 +747,21 @@ function initMap() {
     if (document.getElementById('trafficToggle') && document.getElementById('trafficToggle').checked) toggleTraffic(true);
   });
 
+  map.on('contextmenu', (e) => {
+    if (document.getElementById('dirSheet').classList.contains('open')) return;
+    if (document.getElementById('suggestionsBox').classList.contains('show')) closeSearch();
+    showLocationPopup(e.lngLat);
+  });
+
   // SỰ KIỆN CLICK BẢN ĐỒ + HIỆU ỨNG RIPPLE & HAPTIC
   map.on('click', (e) => { 
-    // 1. Đang mở bottom sheet -> đóng lại
-    if (document.getElementById('poiDetailSheet').classList.contains('open')) {
-      closePoiDetail();
-      return;
-    }
-    
-    // 2. Đang mở popup -> đóng lại
-    if (touchMarker) {
-      try { touchMarker.remove(); touchMarker = null; } catch(e) {}
-      return;
-    }
-    
-    // 3. Đang mở direction sheet / search -> đóng và return
+    if (document.getElementById('poiDetailSheet').classList.contains('open')) { closePoiDetail(); return; }
+    if (touchMarker) { try { touchMarker.remove(); touchMarker = null; } catch(e) {} return; }
     if (document.getElementById('dirSheet').classList.contains('open') || document.getElementById('suggestionsBox').classList.contains('show')) {
       closeDirections();
       if (document.getElementById('suggestionsBox').classList.contains('show')) closeSearch();
       return;
     }
-    
-    // 4. Ngược lại -> mở popup mới + Hiệu ứng
     showLocationPopup(e.lngLat);
   });
 
@@ -821,7 +782,6 @@ function initMap() {
 
 // Hàm hiển thị popup mượt mà với loading state + Hiệu ứng Ripple
 function showLocationPopup(lngLat) {
-  // Hiệu ứng gợn sóng (Ripple) tại điểm click
   const pixel = map.project(lngLat);
   const ripple = document.createElement('div');
   ripple.className = 'map-ripple';
@@ -830,10 +790,8 @@ function showLocationPopup(lngLat) {
   document.body.appendChild(ripple);
   setTimeout(() => ripple.remove(), 600);
   
-  // Rung nhẹ (Haptic)
   if (navigator.vibrate) navigator.vibrate(30);
 
-  // 1. Tạo popup loading ngay lập tức
   const loadingHtml = `<div style="text-align:center; padding:8px; color:var(--text); min-width: 140px;"><i class="fas fa-spinner fa-spin" style="color:var(--primary); font-size:1.2rem; margin-bottom:6px;"></i><br><span style="font-size:0.85rem; font-weight:600;">Đang lấy địa chỉ...</span></div>`;
   
   const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeOnClick: false, closeButton: true })
@@ -842,11 +800,8 @@ function showLocationPopup(lngLat) {
 
   const el = document.createElement('div');
   el.className = 'marker-pop-in';
-  el.style.width = '24px';
-  el.style.height = '24px';
-  el.style.borderRadius = '50%';
-  el.style.background = '#ef4444';
-  el.style.border = '3px solid white';
+  el.style.width = '24px'; el.style.height = '24px'; el.style.borderRadius = '50%';
+  el.style.background = '#ef4444'; el.style.border = '3px solid white';
   el.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
 
   touchMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
@@ -857,7 +812,6 @@ function showLocationPopup(lngLat) {
   
   const markerRef = touchMarker;
   
-  // 2. Gọi API async để lấy địa chỉ
   (async () => {
     let name = '';
     try { const raw = await apiReverseGeocode(lngLat.lat, lngLat.lng); if (raw) name = raw.split(',').slice(0, 3).join(', '); } catch (e) {}
@@ -872,7 +826,6 @@ function showLocationPopup(lngLat) {
         <button onclick="event.stopPropagation(); shareLocation(${lngLat.lat}, ${lngLat.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fas fa-share-alt"></i> Chia sẻ</button>
       </div>`;
     
-    // Chỉ cập nhật nếu marker hiện tại vẫn là marker đã tạo (chưa bị đóng)
     if (touchMarker === markerRef) {
       try { popup.setHTML(popupHtml); } catch(e) {}
     }
@@ -884,31 +837,16 @@ function showSharedLocationMarker(lat, lng, name, isDestination = false) {
   el.innerHTML = `<div style="position: relative; width: 24px; height: 24px;"><div style="position: absolute; inset: 0; background: #f97316; border-radius: 50%; opacity: 0.5; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div><div style="position: absolute; inset: 4px; background: #f97316; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(249,115,22,0.8);"></div></div>`;
   const label = isDestination ? '📍 Điểm đến được chia sẻ' : '📍 Vị trí được chia sẻ';
   const popup = new maplibregl.Popup().setHTML(`<b>${label}</b><br><small>${name}</small>`);
-  
-  new maplibregl.Marker({ element: el, anchor: 'center' })
-    .setLngLat([lng, lat])
-    .setPopup(popup)
-    .addTo(map)
-    .togglePopup();
-    
+  new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).setPopup(popup).addTo(map).togglePopup();
   map.flyTo({ center: [lng, lat], zoom: 16 });
 }
 
 /* ---------- MARKERS RENDERING ---------- */
 function createSavedPlacePin(place) {
-  const icons = {
-    home: { icon: 'fa-home', color: '#10b981' },
-    cafe: { icon: 'fa-coffee', color: '#f59e0b' },
-    restaurant: { icon: 'fa-utensils', color: '#ef4444' },
-    company: { icon: 'fa-building', color: '#3b82f6' },
-    school: { icon: 'fa-school', color: '#8b5cf6' },
-    other: { icon: 'fa-map-marker-alt', color: '#64748b' }
-  };
+  const icons = { home: { icon: 'fa-home', color: '#10b981' }, cafe: { icon: 'fa-coffee', color: '#f59e0b' }, restaurant: { icon: 'fa-utensils', color: '#ef4444' }, company: { icon: 'fa-building', color: '#3b82f6' }, school: { icon: 'fa-school', color: '#8b5cf6' }, other: { icon: 'fa-map-marker-alt', color: '#64748b' } };
   const conf = icons[place.type] || icons.other;
   const wrapper = document.createElement('div');
-  wrapper.style.width = '30px';
-  wrapper.style.height = '30px';
-  wrapper.style.position = 'relative';
+  wrapper.style.width = '30px'; wrapper.style.height = '30px'; wrapper.style.position = 'relative';
   wrapper.innerHTML = `<div class="custom-pin" style="width: 30px; height: 30px; background: ${conf.color}; border-color: ${conf.color};"><i class="fas ${conf.icon}" style="color: white;"></i></div><div class="custom-pin-close" onclick="deleteSavedPlace('${place.source}','${place._id}')" title="Xoá"><i class="fas fa-times"></i></div>`;
   return wrapper;
 }
@@ -917,12 +855,10 @@ function renderSavedPlacesOnMap() {
   savedPlacesMarkers.forEach(m => m.remove());
   savedPlacesMarkers = [];
   const currentZoom = map ? map.getZoom() : 17;
-  
   for (const key in allSavedPlaces) {
     const place = allSavedPlaces[key];
     const alwaysShow = ZOOM_CONFIG.savedPlaceAlwaysShow.includes(place.type);
     if (!alwaysShow && currentZoom < ZOOM_CONFIG.savedPlace) continue;
-    
     const el = createSavedPlacePin(place);
     const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`<b>${(place.address || '').split(',')[0]}</b>`);
     const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([place.lng, place.lat]).setPopup(popup).addTo(map);
@@ -970,19 +906,12 @@ function renderRestStopMarkers() {
   restStopMarkers = [];
   const z = map ? map.getZoom() : 17;
   if (z < ZOOM_CONFIG.restStop) return;
-  
   allRestStops.forEach(poi => {
     const el = document.createElement('div');
-    el.style.width = '40px';
-    el.style.height = '40px';
+    el.style.width = '40px'; el.style.height = '40px';
     el.innerHTML = `<div class="community-poi-pin rest-stop-pin"><i class="fas fa-bed"></i><div class="verified-badge"><i class="fas fa-check"></i></div></div>`;
-    
-    // KHÔNG dùng popup - chỉ mở bottom sheet khi click
     const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([poi.lng, poi.lat]).addTo(map);
-    el.addEventListener('click', (ev) => { 
-      ev.stopPropagation();
-      openPoiDetail(poi.source, poi._id);
-    });
+    el.addEventListener('click', (ev) => { ev.stopPropagation(); openPoiDetail(poi.source, poi._id); });
     restStopMarkers.push(marker);
   });
 }
@@ -992,12 +921,10 @@ function renderCommunityPoisOnMap() {
   communityPoiMarkers = [];
   const currentZoom = map ? map.getZoom() : 17;
   if (currentZoom < ZOOM_CONFIG.communityPoi) return;
-  
   allCommunityPois.forEach(poi => {
     const conf = POI_TAG_CONFIG[poi.tag] || POI_TAG_CONFIG.supermarket;
     const el = document.createElement('div');
-    el.style.width = '32px';
-    el.style.height = '32px';
+    el.style.width = '32px'; el.style.height = '32px';
     el.innerHTML = `<div class="community-poi-pin"><i class="fas ${conf.icon}"></i><div class="verified-badge"><i class="fas fa-check"></i></div></div>`;
     const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([poi.lng, poi.lat]).addTo(map);
     el.addEventListener('click', (ev) => { ev.stopPropagation(); openPoiDetail(poi.source, poi._id); });
@@ -1014,19 +941,15 @@ function renderReportsOnMap() {
   
   for (const key in allReports) {
     const rep = allReports[key]; if (now > rep.expiresAt) continue;
-    
-    // Xử lý icon đặc biệt cho Speed Limit
     if (rep.type === 'speed_limit') {
       const el = document.createElement('div');
       el.className = 'speed-limit-marker';
       el.textContent = rep.speed || '?';
-      
       const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b>Tốc độ tối đa: ${rep.speed} km/h</b><br><small>Báo cáo bởi cộng đồng</small>`);
       const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([rep.lng, rep.lat]).setPopup(popup).addTo(map);
       reportMarkers.push(marker);
       continue;
     }
-
     const icons = {
       police: '<div style="background:#3b82f6;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-shield-alt"></i></div>',
       camera: '<div style="background:#e11d48;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-camera"></i></div>',
@@ -1038,7 +961,6 @@ function renderReportsOnMap() {
       bridge_collapse: '<div style="background:#dc2626;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-road-circle-xmark"></i></div>',
       road_collapse: '<div style="background:#b91c1c;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-triangle-exclamation"></i></div>'
     };
-    
     const el = document.createElement('div');
     el.innerHTML = icons[rep.type] || icons.pothole;
     let title = rep.type === 'police' ? 'CSGT' : rep.type === 'camera' ? 'Camera giao thông' : rep.type === 'toll' ? 'Trạm thu phí' : rep.type === 'accident' ? 'Tai nạn' : rep.type === 'traffic' ? 'Kẹt xe' : rep.type === 'flood' ? 'Ngập nước' : rep.type === 'bridge_collapse' ? 'Sập cầu' : rep.type === 'road_collapse' ? 'Sập đường' : 'Ổ gà';
@@ -1051,28 +973,13 @@ function renderReportsOnMap() {
 function renderAvoidZonesOnMap() {
   avoidZoneMarkers.forEach(m => m.remove());
   avoidZoneMarkers = [];
-  
   if (map.getLayer('avoid-zones-line')) map.removeLayer('avoid-zones-line');
   if (map.getSource('avoid-zones')) map.removeSource('avoid-zones');
-  
   if (allAvoidZones.length === 0) return;
-  
-  const features = allAvoidZones.filter(z => z.lat1 && z.lng1 && z.lat2 && z.lng2).map(zone => ({
-    type: 'Feature',
-    properties: { name: zone.name || 'Tuyến đường cấm' },
-    geometry: { type: 'LineString', coordinates: [[zone.lng1, zone.lat1], [zone.lng2, zone.lat2]] }
-  }));
-  
+  const features = allAvoidZones.filter(z => z.lat1 && z.lng1 && z.lat2 && z.lng2).map(zone => ({ type: 'Feature', properties: { name: zone.name || 'Tuyến đường cấm' }, geometry: { type: 'LineString', coordinates: [[zone.lng1, zone.lat1], [zone.lng2, zone.lat2]] } }));
   if (features.length === 0) return;
-  
   map.addSource('avoid-zones', { type: 'geojson', data: { type: 'FeatureCollection', features } });
-  map.addLayer({
-    id: 'avoid-zones-line',
-    type: 'line',
-    source: 'avoid-zones',
-    paint: { 'line-color': '#ef4444', 'line-width': 8, 'line-opacity': 0.85, 'line-dasharray': [2, 2] }
-  });
-  
+  map.addLayer({ id: 'avoid-zones-line', type: 'line', source: 'avoid-zones', paint: { 'line-color': '#ef4444', 'line-width': 8, 'line-opacity': 0.85, 'line-dasharray': [2, 2] } });
   allAvoidZones.forEach(zone => {
     if (!zone.lat1 || !zone.lng1) return;
     const midLat = (zone.lat1 + zone.lat2) / 2;
@@ -1095,13 +1002,10 @@ window.submitSpeedReport = function() {
   if (speed === null) return;
   const speedVal = parseInt(speed);
   if (isNaN(speedVal) || speedVal <= 0) return alert("Vui lòng nhập số hợp lệ!");
-
   closeReportMenu();
   if (!lastUserPos) return alert('Chưa lấy được vị trí GPS!');
-  
   const now = Date.now();
   const ttl = 86400000 * 30; 
-  
   addDoc(collection(fsdb, 'reports'), {
     lat: lastUserPos.lat, lng: lastUserPos.lng, type: 'speed_limit', speed: speedVal, timestamp: now, expiresAt: now + ttl, uid: currentUser.uid
   }).then(() => {
@@ -1645,11 +1549,16 @@ function closeSearch() {
 window.clearTopSearch = function() {
   searchResultMarkers.forEach(m => m.remove());
   searchResultMarkers = [];
+  
+  // Xóa chấm đỏ nếu có
+  if (touchMarker) { 
+    try { touchMarker.remove(); } catch(e) {} 
+    touchMarker = null; 
+  }
 
   document.getElementById('topSearchInput').value = '';
   document.getElementById('searchClearBtn').classList.add('hidden');
   clearPoint('end');
-  if (touchMarker) touchMarker.remove();
   closeSearch();
 };
 
@@ -1662,13 +1571,14 @@ function renderSearchResultMarkers(results, originalQuery) {
   const center = results[0]; 
   if (!center || !center.lat || !center.lng) return;
   
-  const MAX_DIST = 500; // Bán kính 500m
+  const MAX_DIST = 1000; // Bán kính 1000 mét (đường kính 2000m)
 
   results.forEach((r) => {
     if (!r.lat || !r.lng) return;
     
     const dist = calcDist(center.lat, center.lng, r.lat, r.lng);
     
+    // Giữ lại nếu nằm trong bán kính 1000m HOẶC chính là tâm điểm
     if (dist <= MAX_DIST || r === center) {
       const el = document.createElement('div');
       el.className = 'search-result-pin';
@@ -1798,14 +1708,13 @@ async function doSearch(query) {
 async function selectLocation(lat, lng, name) {
   searchResultMarkers.forEach(m => m.remove());
   searchResultMarkers = [];
+  if (touchMarker) { try { touchMarker.remove(); } catch(e) {} touchMarker = null; }
 
   document.getElementById('topSearchInput').value = name;
   document.getElementById('topSearchInput').readOnly = true;
   document.getElementById('searchClearBtn').classList.remove('hidden');
   closeSearch();
   map.flyTo({ center: [lng, lat], zoom: 16 });
-  
-  if (touchMarker) touchMarker.remove();
   
   let finalName = name;
   try { const raw = await apiReverseGeocode(lat, lng); if (raw) finalName = raw.split(',').slice(0, 3).join(', '); } catch (e) {}
