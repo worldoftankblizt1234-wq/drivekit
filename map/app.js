@@ -1,6 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (MapLibre Native + MapTiler Geocoding)
-   - Tìm kiếm giới hạn tại Việt Nam, tối đa 20 kết quả
+   DriveKit — app.js (MapLibre Native + Siêu Tìm Kiếm)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -27,9 +26,10 @@ const fsdb = getFirestore(app);
 const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
 const MAPTILER_STYLE = `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`;
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
+const MAPBOX_KEY = 'pk.eyJ1IjoibWluaGFkb2YyIiwiYSI6ImNtdnMwNDBhdzAwbnozNXExaHczb3Znd2MifQ.iVKGNbnj_pUxT6B_gqazEw';
 const TOMTOM_KEY = 'tG84Z1Yh4rauGWjz6pRn98rrWymLjTru';
 
-/* ---------- API HELPERS (Chuyển sang dùng MapTiler) ---------- */
+/* ---------- API HELPERS ---------- */
 async function apiReverseGeocode(lat, lng) {
   try {
     const url = `https://api.maptiler.com/geocoding/${lng},${lat}.json?key=${MAPTILER_KEY}&language=vi&limit=1`;
@@ -44,21 +44,61 @@ async function apiReverseGeocode(lat, lng) {
 }
 
 async function apiSearch(query) {
+  let finalResults = [];
+  
+  // Hàm phụ để xoá các kết quả bị trùng tên hoặc trùng toạ độ
+  const addUniqueResults = (newResults) => {
+    newResults.forEach(nr => {
+      if (!finalResults.some(fr => fr.name === nr.name || (Math.abs(fr.lat - nr.lat) < 0.0001 && Math.abs(fr.lng - nr.lng) < 0.0001))) {
+        finalResults.push(nr);
+      }
+    });
+  };
+
+  // Lớp 1: MapTiler (Ưu tiên số 1, chuẩn tiếng Việt)
   try {
-    // country=vn: Chỉ tìm kiếm trong lãnh thổ Việt Nam
-    // limit=20: Lấy tối đa 20 kết quả
-    const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=vi&country=vn&limit=20&autocomplete=true`;
+    const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=vi&limit=20&autocomplete=true&boundary.country=vn`;
     const res = await fetch(url);
     const data = await res.json();
-    return (data.features || []).map(f => ({ 
-      name: f.place_name_vi || f.place_name || f.text, 
-      lat: f.center[1], 
-      lng: f.center[0] 
-    }));
-  } catch (e) { 
-    console.warn('search error:', e); 
-    return []; 
+    if (data.features && data.features.length > 0) {
+      addUniqueResults(data.features.map(f => ({ 
+        name: f.place_name_vi || f.place_name || f.text, 
+        lat: f.center[1], lng: f.center[0] 
+      })));
+    }
+  } catch (e) { console.warn('MapTiler search error:', e); }
+
+  // Lớp 2: Mapbox (Fallback nếu MapTiler bị lỗi)
+  if (finalResults.length === 0) {
+    try {
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_KEY}&language=vi&country=vn&limit=20&autocomplete=true`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.features && data.features.length > 0) {
+        addUniqueResults(data.features.map(f => ({ 
+          name: f.place_name, 
+          lat: f.center[1], lng: f.center[0] 
+        })));
+      }
+    } catch (e) { console.warn('Mapbox search error:', e); }
   }
+
+  // Lớp 3: TomTom (Fallback cuối cùng)
+  if (finalResults.length === 0) {
+    try {
+      const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&countrySet=VN&language=vi-VN&limit=20`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        addUniqueResults(data.results.map(r => ({ 
+          name: r.address.freeformAddress || r.poi.name, 
+          lat: r.position.lat, lng: r.position.lon 
+        })));
+      }
+    } catch (e) { console.warn('TomTom search error:', e); }
+  }
+
+  return finalResults.slice(0, 20);
 }
 
 function mapTomTomManeuver(m) {
