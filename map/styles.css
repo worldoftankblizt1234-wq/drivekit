@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — styles.css
+   DriveKit — styles.css (MapLibre Native)
    ===================================================== */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -70,29 +70,41 @@ button { cursor: pointer; }
 }
 .layer-option.active .layer-desc { color: rgba(255,255,255,0.8); }
 
-/* ---------- MAP ---------- */
+/* ---------- MAP (MapLibre Container) ---------- */
 #map {
-  position: fixed; inset: 0; z-index: 1; background: #e5e5e5;
-  touch-action: none !important;
+  position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1;
+  background: #e5e5e5;
 }
 body.light-mode #map { background: #f1f5f9; }
-.leaflet-container { font-family: var(--font-main) !important; background: #e5e5e5 !important; }
-body.light-mode .leaflet-container { background: #f1f5f9 !important; }
-.leaflet-control-attribution {
-  font-size: 9px !important; background: rgba(15,23,42,0.7) !important;
-  color: #94a3b8 !important;
-}
-.leaflet-control-attribution a { color: #60a5fa !important; }
 
-/* ✅ FIX: MapLibre canvas không chặn leaflet-rotate xoay & chống crash */
-#map .maplibregl-canvas,
-#map .maplibregl-canvas-container,
-#map .leaflet-container {
-  touch-action: none !important;
-  will-change: transform;
+/* MapLibre Popup (Dark Mode) */
+.maplibregl-popup-content {
+  background: var(--card) !important; color: var(--text) !important;
+  border-radius: 12px !important; border: 1px solid var(--border) !important;
+  padding: 15px !important; box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
 }
-.maplibregl-ctrl-compass { display: none !important; }
-.leaflet-map-pane { transition: none !important; }
+.maplibregl-popup-tip {
+  border-top-color: var(--card) !important;
+  border-bottom-color: var(--card) !important;
+  border-left-color: var(--card) !important;
+  border-right-color: var(--card) !important;
+}
+.maplibregl-popup-close-button {
+  color: var(--text-muted) !important; font-size: 18px !important; padding: 5px 8px !important; outline: none !important;
+}
+
+/* MapLibre Navigation Control (Zoom, Compass) */
+.maplibregl-ctrl-group {
+  background: var(--card) !important; border: 1px solid var(--border) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; border-radius: 8px !important;
+}
+.maplibregl-ctrl-group button {
+  width: 36px !important; height: 36px !important;
+}
+.maplibregl-ctrl-group button span {
+  filter: invert(1); /* Icon trắng cho Dark mode */
+}
+body.light-mode .maplibregl-ctrl-group button span { filter: none; }
 
 /* ---------- HUD TOP ---------- */
 .hud-top {
@@ -226,7 +238,7 @@ body.navigating #btnReport {
   bottom: calc(90px + var(--safe-bottom)); opacity: 0.85; z-index: 600;
 }
 
-/* ---------- PINS ---------- */
+/* ---------- PINS (DOM Markers) ---------- */
 .custom-pin {
   background: white; border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg); display: flex; align-items: center; justify-content: center;
@@ -357,13 +369,6 @@ body.navigating #btnReport {
   border-left: 3px solid #3b82f6;
 }
 .sug-section-title.community { color: var(--success); }
-
-/* ---------- LEAFLET POPUP ---------- */
-.leaflet-popup-content-wrapper {
-  background: var(--card) !important; color: var(--text) !important;
-  border-radius: 12px !important; border: 1px solid var(--border) !important;
-}
-.leaflet-popup-tip { background: var(--card) !important; }
 
 /* ---------- AUTH ---------- */
 .auth-screen {
