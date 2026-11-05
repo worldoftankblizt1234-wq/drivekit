@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (MapLibre GL Native + MapTiler Geocoding)
+   DriveKit — app.js (MapLibre GL Native + Multi-Search)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -26,11 +26,13 @@ const fsdb = getFirestore(app);
 const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
 const MAPTILER_STYLE = `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`;
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
+const MAPBOX_KEY = 'pk.eyJ1IjoibWluaGFkb2YyIiwiYSI6ImNtdnMwNDBhdzAwbnozNXExaHczb3Znd2MifQ.iVKGNbnj_pUxT6B_gqazEw';
 const TOMTOM_KEY = 'tG84Z1Yh4rauGWjz6pRn98rrWymLjTru';
 
-/* ---------- API HELPERS (Chuyển sang dùng MapTiler) ---------- */
+/* ---------- API HELPERS ---------- */
 async function apiReverseGeocode(lat, lng) {
   try {
+    // Sử dụng MapTiler cho Reverse Geocode
     const url = `https://api.maptiler.com/geocoding/${lng},${lat}.json?key=${MAPTILER_KEY}&language=vi&limit=1`;
     const res = await fetch(url);
     const data = await res.json();
@@ -42,16 +44,66 @@ async function apiReverseGeocode(lat, lng) {
   }
 }
 
-async function apiSearch(query) {
+// Gọi song song 3 API tìm kiếm
+async function searchMapTiler(query) {
   try {
-    const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=vi&limit=10&autocomplete=true`;
+    const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=vi&limit=5&autocomplete=true`;
     const res = await fetch(url);
     const data = await res.json();
-    return (data.features || []).map(f => ({ 
-      name: f.place_name_vi || f.place_name || f.text, 
-      lat: f.center[1], 
-      lng: f.center[0] 
+    return (data.features || []).map(f => ({
+      name: f.place_name_vi || f.place_name || f.text,
+      lat: f.center[1], lng: f.center[0], provider: 'MapTiler'
     }));
+  } catch (e) { return []; }
+}
+
+async function searchMapbox(query) {
+  try {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_KEY}&language=vi&country=vn&limit=5&autocomplete=true`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return (data.features || []).map(f => ({
+      name: f.place_name, lat: f.center[1], lng: f.center[0], provider: 'Mapbox'
+    }));
+  } catch (e) { return []; }
+}
+
+async function searchTomTom(query) {
+  try {
+    const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&limit=5&countrySet=VN&language=vi-VN`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return (data.results || []).map(r => ({
+      name: r.address.freeformAddress, lat: r.position.lat, lng: r.position.lon, provider: 'TomTom'
+    }));
+  } catch (e) { return []; }
+}
+
+async function apiSearch(query) {
+  try {
+    const [mtRes, mbRes, ttRes] = await Promise.allSettled([
+      searchMapTiler(query),
+      searchMapbox(query),
+      searchTomTom(query)
+    ]);
+
+    let allResults = [];
+    if (mtRes.status === 'fulfilled') allResults.push(...mtRes.value);
+    if (mbRes.status === 'fulfilled') allResults.push(...mbRes.value);
+    if (ttRes.status === 'fulfilled') allResults.push(...ttRes.value);
+
+    // Loại bỏ kết quả trùng lặp (làm tròn 4 chữ số thập phân ~ 11m)
+    const uniqueResults = [];
+    const seen = new Set();
+    allResults.forEach(r => {
+      const key = `${r.lat.toFixed(4)}_${r.lng.toFixed(4)}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueResults.push(r);
+      }
+    });
+
+    return uniqueResults;
   } catch (e) { 
     console.warn('search error:', e); 
     return []; 
@@ -1492,7 +1544,8 @@ function activateSearch(type) {
     else document.getElementById('searchClearBtn').classList.add('hidden');
     if (q.length < 2 && !q.startsWith('http')) return;
     clearTimeout(window._searchTimer);
-    window._searchTimer = setTimeout(() => doSearch(q), 500);
+    // Debounce 700ms
+    window._searchTimer = setTimeout(() => doSearch(q), 700);
   };
   updateUIState();
 }
@@ -1572,16 +1625,31 @@ async function doSearch(query) {
     if (results.length > 0) {
       const title2 = document.createElement('div');
       title2.className = 'sug-section-title';
-      title2.innerHTML = '<i class="fas fa-map-marked-alt"></i> Địa điểm khác';
+      title2.innerHTML = `<i class="fas fa-map-marked-alt"></i> Kết quả tìm kiếm (${results.length})`;
       box.appendChild(title2);
+      
       results.forEach(r => {
         const div = document.createElement('div');
         div.className = 'sug-item';
-        div.innerHTML = `<i class="fas fa-map-marker-alt"></i><div>${escapeHtml(r.name)}</div>`;
+        
+        // Label cho từng nhà cung cấp
+        let providerIcon = 'fa-map-marker-alt';
+        let providerColor = 'var(--text-muted)';
+        if (r.provider === 'MapTiler') { providerIcon = 'fa-layer-group'; providerColor = '#3b82f6'; }
+        if (r.provider === 'Mapbox') { providerIcon = 'fa-cube'; providerColor = '#10b981'; }
+        if (r.provider === 'TomTom') { providerIcon = 'fa-traffic-light'; providerColor = '#ef4444'; }
+
+        div.innerHTML = `
+          <i class="fas ${providerIcon}" style="color:${providerColor}; width:16px; text-align:center;"></i>
+          <div style="flex:1; font-size:0.85rem;">${escapeHtml(r.name)} 
+            <span style="font-size:0.65rem; color:var(--text-muted); margin-left:4px; padding: 2px 6px; background:var(--bg-2); border-radius: 4px;">${r.provider}</span>
+          </div>`;
         div.onclick = () => selectLocation(r.lat, r.lng, r.name);
         box.appendChild(div);
       });
-    } else if (restStopMatches.length === 0 && poiMatches.length === 0) box.innerHTML = '<div class="sug-item">Không tìm thấy kết quả</div>';
+    } else if (restStopMatches.length === 0 && poiMatches.length === 0) {
+      box.innerHTML = '<div class="sug-item">Không tìm thấy kết quả</div>';
+    }
   } catch (e) {
     loadingDiv.remove();
     if (restStopMatches.length === 0 && poiMatches.length === 0) box.innerHTML = '<div class="sug-item" style="color:var(--danger)">Lỗi kết nối</div>';
