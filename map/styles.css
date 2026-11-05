@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — styles.css (MapLibre Native)
+   DriveKit — styles.css (MapLibre Native + Controls)
    ===================================================== */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -77,6 +77,29 @@ button { cursor: pointer; }
 }
 body.light-mode #map { background: #f1f5f9; }
 
+/* ---------- MAPLIBRE NATIVE CONTROLS (Zoom + Compass) ---------- */
+.maplibregl-ctrl-top-right {
+  top: calc(70px + var(--safe-top)) !important; /* Đẩy xuống dưới nút Menu */
+  right: 16px !important;
+}
+.maplibregl-ctrl-group {
+  background: var(--card) !important; 
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.15) !important; 
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+.maplibregl-ctrl-group button {
+  width: 40px !important; 
+  height: 40px !important;
+}
+.maplibregl-ctrl-group button span {
+  filter: invert(1); /* Icon trắng cho Dark mode */
+}
+body.light-mode .maplibregl-ctrl-group button span { 
+  filter: none; 
+}
+
 /* MapLibre Popup (Dark Mode) */
 .maplibregl-popup-content {
   background: var(--card) !important; color: var(--text) !important;
@@ -92,19 +115,6 @@ body.light-mode #map { background: #f1f5f9; }
 .maplibregl-popup-close-button {
   color: var(--text-muted) !important; font-size: 18px !important; padding: 5px 8px !important; outline: none !important;
 }
-
-/* MapLibre Navigation Control (Zoom, Compass) */
-.maplibregl-ctrl-group {
-  background: var(--card) !important; border: 1px solid var(--border) !important;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; border-radius: 8px !important;
-}
-.maplibregl-ctrl-group button {
-  width: 36px !important; height: 36px !important;
-}
-.maplibregl-ctrl-group button span {
-  filter: invert(1); /* Icon trắng cho Dark mode */
-}
-body.light-mode .maplibregl-ctrl-group button span { filter: none; }
 
 /* ---------- HUD TOP ---------- */
 .hud-top {
@@ -767,15 +777,3 @@ body.navigating .fab-rest-stop-filter { display: none; }
   display: flex; align-items: center; justify-content: center;
 }
 .avoid-zone-pin i { color: white; font-size: 0.9rem; }
-
-/* ---------- COMPASS ---------- */
-.fab-compass {
-  position: fixed; bottom: calc(200px + var(--safe-bottom)); right: 16px;
-  width: 44px; height: 44px; border-radius: 50%;
-  background: var(--card); border: 1px solid var(--border);
-  color: var(--text); display: flex; align-items: center; justify-content: center;
-  z-index: 450; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  cursor: pointer; transition: transform 0.2s;
-}
-.fab-compass i { transition: transform 0.2s; }
-.fab-compass.north i { color: var(--danger); }
