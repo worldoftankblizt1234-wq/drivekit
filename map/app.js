@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (MapLibre Native + Search Labels)
+   DriveKit — app.js (MapLibre Native + Search Labels + Traffic)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -723,7 +723,6 @@ window.resetNorth = function() {
   map.easeTo({ bearing: 0, pitch: 0, duration: 600 });
 };
 
-// Xử lý bật tắt giao thông TomTom
 window.toggleTraffic = function(isChecked) {
   if (!map) return;
   if (isChecked) {
@@ -760,8 +759,8 @@ function initMap() {
   
   map = new maplibregl.Map({
     container: 'map',
-    style: TRACKASIA_STYLE, // Đặt mặc định là TrackAsia
-    center: [initialCenter[1], initialCenter[0]], // MapLibre dùng [lng, lat]
+    style: TRACKASIA_STYLE,
+    center: [initialCenter[1], initialCenter[0]],
     zoom: initialZoom,
     pitch: 0,
     bearing: 0,
@@ -791,7 +790,9 @@ function initMap() {
     showLocationPopup(e.lngLat);
   });
 
-  map.on('click', () => { 
+  // SỬA LỖI: Thêm sự kiện click để hiện popup khi chạm vào bản đồ
+  map.on('click', (e) => { 
+    showLocationPopup(e.lngLat);
     closeDirections(); 
     if (document.getElementById('suggestionsBox').classList.contains('show')) closeSearch(); 
   });
@@ -1092,7 +1093,6 @@ window.fetchAndShowRouteOptions = async function() {
     routes = routes.slice(0, 5);
     alternativeRoutesData = routes;
 
-    // Xoá các layer tuyến đường cũ
     routes.forEach((_, i) => {
       if (map.getLayer(`alt-route-layer-${i}`)) map.removeLayer(`alt-route-layer-${i}`);
       if (map.getSource(`alt-route-source-${i}`)) map.removeSource(`alt-route-source-${i}`);
@@ -1101,7 +1101,7 @@ window.fetchAndShowRouteOptions = async function() {
     
     const bounds = new maplibregl.LngLatBounds();
     routes.forEach((r, index) => {
-      r.geometry.coordinates.forEach(c => bounds.extend([c[1], c[0]])); // c = [lat, lng]
+      r.geometry.coordinates.forEach(c => bounds.extend([c[1], c[0]]));
       
       const isBest = index === 0;
       const color = ROUTE_COLORS[index];
@@ -1176,7 +1176,6 @@ window.selectRouteOption = function(index) {
   const unselectedRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(unselectedRoutes));
   
-  // Xoá các tuyến phụ
   alternativeRoutesData.forEach((_, i) => {
     if (i !== index) {
       if (map.getLayer(`alt-route-layer-${i}`)) map.removeLayer(`alt-route-layer-${i}`);
@@ -1588,20 +1587,26 @@ window.clearTopSearch = function() {
   closeSearch();
 };
 
-// Hàm vẽ các thẻ tên địa điểm lên bản đồ khi tìm kiếm
+// Hàm vẽ các thẻ tên địa điểm lên bản đồ khi tìm kiếm (Đã fix)
 function renderSearchResultMarkers(results, originalQuery) {
   searchResultMarkers.forEach(m => m.remove());
   searchResultMarkers = [];
   if (!results || results.length === 0) return;
 
   const center = results[0]; 
-  const MAX_DIST = 500; // Bán kính 500 mét
+  if (!center || !center.lat || !center.lng) return;
+  
+  const MAX_DIST = 500;
 
   results.forEach((r) => {
+    if (!r.lat || !r.lng) return;
+    
     const dist = calcDist(center.lat, center.lng, r.lat, r.lng);
-    if (dist <= MAX_DIST) {
+    
+    if (dist <= MAX_DIST || r === center) {
       const el = document.createElement('div');
       el.className = 'search-result-pin';
+      el.style.zIndex = '999';
       
       let displayName = r.name.split(',')[0]; 
       if (displayName.length > 25) displayName = displayName.substring(0, 25) + '...';
@@ -1621,7 +1626,8 @@ function renderSearchResultMarkers(results, originalQuery) {
         .setLngLat([r.lng, r.lat])
         .addTo(map);
         
-      el.addEventListener('click', () => {
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation();
         selectLocation(r.lat, r.lng, r.name);
       });
 
