@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — styles.css (MapLibre Native + Controls)
+   DriveKit — styles.css (MapLibre Native + Search Labels)
    ===================================================== */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -76,29 +76,6 @@ button { cursor: pointer; }
   background: #e5e5e5;
 }
 body.light-mode #map { background: #f1f5f9; }
-
-/* ---------- MAPLIBRE NATIVE CONTROLS (Zoom + Compass) ---------- */
-.maplibregl-ctrl-top-right {
-  top: calc(70px + var(--safe-top)) !important; /* Đẩy xuống dưới nút Menu */
-  right: 16px !important;
-}
-.maplibregl-ctrl-group {
-  background: var(--card) !important; 
-  border: 1px solid var(--border) !important;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.15) !important; 
-  border-radius: 10px !important;
-  overflow: hidden;
-}
-.maplibregl-ctrl-group button {
-  width: 40px !important; 
-  height: 40px !important;
-}
-.maplibregl-ctrl-group button span {
-  filter: invert(1); /* Icon trắng cho Dark mode */
-}
-body.light-mode .maplibregl-ctrl-group button span { 
-  filter: none; 
-}
 
 /* MapLibre Popup (Dark Mode) */
 .maplibregl-popup-content {
@@ -207,6 +184,48 @@ body.light-mode .maplibregl-ctrl-group button span {
   color: var(--text-muted); font-size: 1rem; padding: 4px 8px; cursor: pointer;
 }
 
+/* ---------- SEARCH RESULT LABELS (THẺ TRÊN BẢN ĐỒ) ---------- */
+.search-result-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.2s, z-index 0.2s;
+}
+.search-result-pin:hover {
+  transform: scale(1.05);
+  z-index: 100 !important;
+}
+.search-result-label {
+  background: var(--card);
+  color: var(--text);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  white-space: nowrap;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+  border: 1px solid var(--border);
+  transition: all 0.2s;
+}
+.search-result-pin:hover .search-result-label {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+.search-result-dot {
+  width: 14px;
+  height: 14px;
+  background: #ef4444;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+
 /* ---------- FABs ---------- */
 .fab-menu {
   position: fixed; top: calc(16px + var(--safe-top)); right: 16px; z-index: 1000;
@@ -246,6 +265,41 @@ body.light-mode .maplibregl-ctrl-group button span {
 body.navigating #btnReport {
   width: 40px; height: 40px; font-size: 1rem;
   bottom: calc(90px + var(--safe-bottom)); opacity: 0.85; z-index: 600;
+}
+
+/* ---------- NÚT LA BÀN TỰ CHẾ ---------- */
+.fab-compass {
+  position: fixed; bottom: calc(140px + var(--safe-bottom)); left: 16px;
+  z-index: 1000; width: 50px; height: 50px; border-radius: 50%;
+  background: var(--card); border: 1px solid var(--border); color: var(--text);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+.fab-compass:active { transform: scale(0.92); }
+.compass-needle {
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.15s linear; will-change: transform;
+}
+.compass-needle i {
+  background: linear-gradient(180deg, #ef4444 50%, #e2e8f0 50%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  font-size: 1.35rem;
+}
+body.light-mode .compass-needle i {
+  background: linear-gradient(180deg, #ef4444 50%, #64748b 50%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.fab-compass.off-north {
+  border-color: var(--primary);
+  box-shadow: 0 4px 18px rgba(59,130,246,0.45);
+}
+.fab-compass.off-north::after {
+  content: ''; position: absolute; top: 3px; right: 3px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--primary); border: 2px solid var(--card);
 }
 
 /* ---------- PINS (DOM Markers) ---------- */
@@ -777,42 +831,6 @@ body.navigating .fab-rest-stop-filter { display: none; }
   display: flex; align-items: center; justify-content: center;
 }
 .avoid-zone-pin i { color: white; font-size: 0.9rem; }
-
-/* ---------- NÚT LA BÀN TỰ CHẾ ---------- */
-.fab-compass {
-  position: fixed; bottom: calc(140px + var(--safe-bottom)); left: 16px;
-  z-index: 1000; width: 50px; height: 50px; border-radius: 50%;
-  background: var(--card); border: 1px solid var(--border); color: var(--text);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.3rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-}
-.fab-compass:active { transform: scale(0.92); }
-.compass-needle {
-  display: flex; align-items: center; justify-content: center;
-  transition: transform 0.15s linear; will-change: transform;
-}
-.compass-needle i {
-  background: linear-gradient(180deg, #ef4444 50%, #e2e8f0 50%);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent; color: transparent;
-  font-size: 1.35rem;
-}
-body.light-mode .compass-needle i {
-  background: linear-gradient(180deg, #ef4444 50%, #64748b 50%);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-/* Khi bản đồ đang xoay (không còn hướng Bắc) — nút sáng lên */
-.fab-compass.off-north {
-  border-color: var(--primary);
-  box-shadow: 0 4px 18px rgba(59,130,246,0.45);
-}
-.fab-compass.off-north::after {
-  content: ''; position: absolute; top: 3px; right: 3px;
-  width: 9px; height: 9px; border-radius: 50%;
-  background: var(--primary); border: 2px solid var(--card);
-}
 
 /* ---------- BADGE "MỚI" CHO POI MỚI ---------- */
 .poi-new-badge {
