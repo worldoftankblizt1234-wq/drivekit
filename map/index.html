@@ -6,23 +6,17 @@
 <meta name="theme-color" content="#0f172a" />
 <title>DriveKit — Mọi hành trình, một giải pháp</title>
 
-<!-- Fonts & Icons -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&family=Fira+Code:wght@500;600;700&display=swap&subset=vietnamese" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-
-<!-- MapLibre CSS & JS -->
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-
-<!-- App CSS -->
 <link rel="stylesheet" href="styles.css" />
-<base target="_blank">
 </head>
 <body>
 
-<!-- ========== LOADING SCREEN ========== -->
+<!-- ... (Loading & Auth giữ nguyên) ... -->
 <div class="loading-screen" id="loadingScreen">
   <div class="spinner"></div>
   <div style="text-align:center;">
@@ -32,7 +26,6 @@
   </div>
 </div>
 
-<!-- ========== AUTH SCREEN ========== -->
 <div class="auth-screen hidden" id="authScreen">
   <div class="auth-box">
     <h2 id="authTitle">DriveKit 🚌</h2>
@@ -50,26 +43,21 @@
   </div>
 </div>
 
-<!-- ========== MAIN APP UI ========== -->
 <div id="appUI" class="hidden">
-  <!-- MapLibre Container -->
   <div id="map"></div>
 
-  <!-- Search -->
   <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
     <i class="fas fa-search"></i>
     <input type="text" id="topSearchInput" placeholder="Tìm địa điểm hoặc dán link Google Maps..." readonly />
     <i class="fas fa-times search-clear-btn hidden" id="searchClearBtn" onclick="event.stopPropagation(); clearTopSearch()"></i>
   </div>
 
-  <!-- FABs -->
   <button class="fab-menu" id="mainMenuBtn" onclick="openMenu()"><i class="fas fa-bars"></i></button>
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
   <button class="fab-layers" id="btnLayerMenu" onclick="event.stopPropagation(); toggleLayerMenu()" title="Lớp bản đồ">
     <i class="fas fa-layer-group"></i>
   </button>
   
-  <!-- Nút La bàn tự chế: kim xoay theo bearing, bấm để về hướng Bắc -->
   <button class="fab-compass" id="btnCompass" onclick="resetNorth()" title="La bàn — Bấm để về hướng Bắc">
     <span class="compass-needle" id="compassNeedle"><i class="fas fa-location-arrow"></i></span>
   </button>
@@ -81,13 +69,14 @@
     <i class="fas fa-bed"></i>
   </button>
 
-  <!-- Layer menu -->
+  <!-- LAYER MENU ĐÃ ĐƯỢC CẬP NHẬT -->
   <div class="layer-menu" id="layerMenu">
-    <button class="layer-option" onclick="changeLayer('trackasia-maplibre', this)">
+    <!-- Đổi mặc định active sang TrackAsia -->
+    <button class="layer-option active" onclick="changeLayer('trackasia', this)">
       <div class="layer-title"><i class="fas fa-map"></i> 1. TrackAsia + MapLibre</div>
       <div class="layer-desc">Vector TrackAsia</div>
     </button>
-    <button class="layer-option active" onclick="changeLayer('maptiler', this)">
+    <button class="layer-option" onclick="changeLayer('maptiler', this)">
       <div class="layer-title"><i class="fas fa-map-marked-alt"></i> 2. MapTiler Streets V4 + MapLibre</div>
       <div class="layer-desc">Key: aEzMCP0ANRz52vd1RvrW</div>
     </button>
@@ -95,12 +84,23 @@
       <div class="layer-title"><i class="fas fa-satellite"></i> 3. Vệ tinh</div>
       <div class="layer-desc">MapTiler Hybrid</div>
     </button>
+    
+    <hr style="border: 0; border-top: 1px solid var(--border); margin: 4px 0;">
+    
+    <!-- Nút gạt Giao thông TomTom -->
+    <div style="display:flex; align-items:center; justify-content:space-between; padding: 8px 14px;">
+      <div class="layer-title" style="font-size: 0.85rem; font-weight: 700; color: var(--text);"><i class="fas fa-traffic-light" style="color: #ef4444;"></i> Giao thông</div>
+      <label class="switch">
+        <input type="checkbox" id="trafficToggle" onchange="toggleTraffic(this.checked)">
+        <span class="slider"></span>
+      </label>
+    </div>
   </div>
 
   <button class="fab-report" id="btnReport" onclick="openReportMenu()"><i class="fas fa-exclamation-triangle"></i></button>
   <button class="fab-directions" id="mainDirBtn" onclick="openDirections()"><i class="fas fa-directions"></i></button>
 
-  <!-- Directions Sheet -->
+  <!-- ... (Giữ nguyên toàn bộ các sheet, modal, poi từ code cũ) ... -->
   <div class="dir-sheet" id="dirSheet">
     <div class="dir-handle"></div>
     <div class="input-group" style="margin-top: 10px;">
@@ -136,7 +136,6 @@
 
   <div class="suggestions-box" id="suggestionsBox"></div>
 
-  <!-- HUD (navigation) -->
   <div class="hidden" id="hud">
     <div class="hud-top">
       <div class="hud-stat"><span class="label">Còn lại</span><span class="value" id="hudRemainDist">—</span></div>
@@ -164,7 +163,7 @@
   </div>
 </div>
 
-<!-- ========== ROUTE OPTIONS MODAL ========== -->
+<!-- Toàn bộ các Modal và Sheet khác (Bạn có thể giữ nguyên từ code trước) -->
 <div class="route-options-modal" id="routeOptionsModal">
   <div class="route-options-header">
     <h2><i class="fas fa-route"></i> Các tuyến đường gợi ý</h2>
@@ -173,7 +172,6 @@
   <div class="route-options-body" id="routeOptionsBody"></div>
 </div>
 
-<!-- ========== REPORT MODAL ========== -->
 <div class="report-modal" id="reportModal">
   <div class="report-header">
     <h2>Báo cáo sự cố</h2>
@@ -190,7 +188,6 @@
   </div>
 </div>
 
-<!-- ========== PROFILE MODAL ========== -->
 <div class="profile-modal" id="profileModal">
   <div class="profile-header">
     <button class="profile-close" onclick="closeMenu()"><i class="fas fa-times"></i></button>
@@ -306,7 +303,6 @@
   </div>
 </div>
 
-<!-- ========== END TRIP MODAL ========== -->
 <div class="end-trip-modal" id="endTripModal">
   <div class="end-trip-box">
     <h2>🏁 Hoàn thành chuyến đi</h2>
@@ -322,7 +318,6 @@
   </div>
 </div>
 
-<!-- ========== SAVE PLACE MODAL ========== -->
 <div class="end-trip-modal" id="savePlaceModal">
   <div class="end-trip-box">
     <h2>📍 Lưu địa điểm</h2>
@@ -339,7 +334,6 @@
   </div>
 </div>
 
-<!-- ========== POI DETAIL SHEET ========== -->
 <div class="poi-detail-sheet" id="poiDetailSheet">
   <div class="sheet-swipe-hint" id="poiDetailSwipeHandle">
     <div class="sheet-swipe-bar"></div>
@@ -348,7 +342,6 @@
   <div id="poiDetailContent"></div>
 </div>
 
-<!-- ========== POI SHEET (thêm địa điểm) ========== -->
 <div class="poi-sheet" id="poiSheet">
   <div class="sheet-swipe-hint" id="poiSheetSwipeHandle">
     <div class="sheet-swipe-bar"></div>
@@ -380,7 +373,6 @@
   </div>
 </div>
 
-<!-- ========== SCRIPTS ========== -->
 <script>
   window.addEventListener('error', function (e) {
     var t = document.getElementById('loadingText');
@@ -393,6 +385,17 @@
       if (t) t.textContent = 'Không tải được ứng dụng. Mở F12 → Console để xem lỗi.';
     }
   }, 3500);
+
+  // Đăng ký Service Worker để cache bản đồ
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').then(reg => {
+        console.log('Service Worker registered!', reg.scope);
+      }).catch(err => {
+        console.warn('Service Worker registration failed:', err);
+      });
+    });
+  }
 </script>
 
 <script type="module" src="app.js"></script>
