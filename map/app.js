@@ -1,7 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (MapLibre GL Native)
-   - Bỏ hoàn toàn Leaflet. Dùng MapLibre cho Map, Marker, Popup.
-   - Hỗ trợ xoay 360°, nghiêng 3D, không bao giờ rơi marker.
+   DriveKit — app.js (MapLibre GL Native + Native Controls)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -73,7 +71,6 @@ async function apiRouteTrackAsia(origin, dest, mode) {
   if (!data.routes) throw new Error(data.message || 'TrackAsia không có tuyến');
   return data.routes.map(r => {
     const raw = r.geometry?.coordinates || [];
-    // TrackAsia trả về [lng, lat]. Chuyển về [lat, lng] để đồng bộ toàn app
     const coords = raw.map(c => Math.abs(c[0]) > 90 ? [c[1], c[0]] : [c[0], c[1]]);
     const leg = r.legs?.[0] || {};
     const dist = leg.distance?.value || leg.distance || 0;
@@ -98,7 +95,7 @@ async function apiRouteTomTom(origin, dest, mode) {
     const coords = [];
     const steps = [];
     (r.legs || []).forEach(leg => {
-      (leg.points || []).forEach(p => coords.push([p.latitude, p.longitude])); // TomTom trả về [lat, lng]
+      (leg.points || []).forEach(p => coords.push([p.latitude, p.longitude]));
       (leg.instructions || []).forEach(ins => {
         const man = mapTomTomManeuver(ins.maneuver);
         steps.push({ maneuver: {
@@ -573,22 +570,18 @@ function updateUIState() {
   const fabQuickPin = document.getElementById('btnQuickPin');
   const fabReport = document.getElementById('btnReport');
   const fabRestStop = document.getElementById('btnRestStopFilter');
-  const fabCompass = document.getElementById('btnCompass');
   if (isDirOpen || isSearchBoxShow) {
     fabLocate.style.display = 'none'; fabDir.style.display = 'none';
     fabLayers.style.display = 'none'; fabQuickPin.style.display = 'none';
     fabReport.style.display = 'none'; fabRestStop.style.display = 'none';
-    if(fabCompass) fabCompass.style.display = 'none';
   } else if (isNav) {
     fabLocate.style.display = 'none'; fabDir.style.display = 'none';
     fabLayers.style.display = 'none'; fabQuickPin.style.display = 'none';
     fabReport.style.display = 'flex'; fabRestStop.style.display = 'none';
-    if(fabCompass) fabCompass.style.display = 'flex';
   } else {
     fabLocate.style.display = 'flex'; fabDir.style.display = 'flex';
     fabLayers.style.display = 'flex'; fabQuickPin.style.display = 'flex';
     fabReport.style.display = 'flex'; fabRestStop.style.display = 'flex';
-    if(fabCompass) fabCompass.style.display = 'flex';
   }
 }
 
@@ -667,17 +660,12 @@ function initMap() {
     dragRotate: true
   });
 
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
-
-  map.on('rotate', () => {
-    const b = map.getBearing();
-    const comp = document.getElementById('btnCompass');
-    if(comp){
-      const icon = comp.querySelector('i');
-      if(icon) icon.style.transform = `rotate(${-b}deg)`;
-      if(Math.abs(b) < 3) comp.classList.add('north'); else comp.classList.remove('north');
-    }
-  });
+  // Thêm bộ điều khiển Zoom (+/-) và La bàn
+  map.addControl(new maplibregl.NavigationControl({
+    showCompass: true,
+    showZoom: true,
+    visualizePitch: true
+  }), 'top-right');
 
   map.on('load', () => {
     initGpsCircleLayer();
@@ -1815,12 +1803,6 @@ function changeLayer(type, btn) {
       if (currentRouteCoords.length > 0) drawCurrentRoute();
     }, 100);
   });
-}
-
-function resetMapBearing() {
-  map.easeTo({ bearing: 0, pitch: 0, duration: 500 });
-  const btn = document.getElementById('btnCompass');
-  if (btn) { btn.style.transform = 'scale(0.9)'; setTimeout(()=> btn.style.transform='scale(1)',150); }
 }
 
 window.goToLongPressLocation = function(lat, lng, name) {
