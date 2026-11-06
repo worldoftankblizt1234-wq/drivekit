@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (TomTom 70% + MapTiler 30%, bỏ Mapbox search)
+   DriveKit — app.js (Full - Worker API Proxy)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -21,166 +21,71 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 const fsdb = getFirestore(app);
 
+/* ========== WORKER CONFIG ========== */
+const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
+
+// Map tile keys — chỉ dùng cho style.json (MapLibre tiles), không nhạy cảm
 const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
-const MAPTILER_STYLE = `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`;
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
+const MAPTILER_STYLE = `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`;
 const TRACKASIA_STYLE = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
-const MAPBOX_KEY = 'pk.eyJ1IjoibWluaGFkb2YyIiwiYSI6ImNtdnMwNDBhdzAwbnozNXExaHczb3Znd2MifQ.iVKGNbnj_pUxT6B_gqazEw'; // giữ cho geocode reverse nếu cần
-const TOMTOM_KEY = 'tG84Z1Yh4rauGWjz6pRn98rrWymLjTru';
 
-/* ---------- API HELPERS ---------- */
-async function apiReverseGeocode(lat, lng) {
-  try {
-    const url = `https://api.maptiler.com/geocoding/${lng},${lat}.json?key=${MAPTILER_KEY}&language=vi&limit=1`;
-    const res = await fetch(url);
-    const data = await res.json();
-    const f = data.features?.[0];
-    return f?.place_name_vi || f?.place_name || '';
-  } catch (e) { return ''; }
-}
-
-/* ---------- SEARCH: TomTom (70%) + MapTiler (30%) ---------- */
-async function fetchTomTomSearch(query) {
-  const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&countrySet=VN&language=vi-VN&limit=20&idxSet=POI,Addr,Geo&typeahead=true`;
-  const res = await fetch(url);
-  const data = await res.json();
-  return (data.results || []).map(r => {
-    const type = (r.type || '').toLowerCase();
-    const poiName = r.poi?.name;
-    const displayName = (type === 'poi' && poiName)
-      ? poiName + (r.address?.freeformAddress ? ', ' + r.address.freeformAddress : '')
-      : (r.address?.freeformAddress || poiName || '');
-    return {
-      name: displayName,
-      fullName: r.address?.freeformAddress || '',
-      lat: r.position.lat, lng: r.position.lon,
-      type,
-      category: r.poi?.categories?.[0] || ''
-    };
-  });
-}
-
-async function fetchMapTilerSearch(query) {
-  const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=vi&limit=20&autocomplete=true&boundary.country=vn&types=poi,address,place`;
-  const res = await fetch(url);
-  const data = await res.json();
-  return (data.features || []).map(f => {
-    const type = f.place_type?.[0] || '';
-    const poiName = f.properties?.name || f.text;
-    const displayName = (type === 'poi' || type === 'place') && poiName
-      ? poiName + (f.address ? ', ' + f.address : '')
-      : (poiName || f.place_name_vi || f.place_name);
-    return {
-      name: displayName,
-      fullName: f.place_name_vi || f.place_name,
-      lat: f.center[1], lng: f.center[0],
-      type,
-      category: f.properties?.category || ''
-    };
-  });
-}
-
+/* ========== WORKER API WRAPPERS ========== */
 async function apiSearch(query) {
-  // Chạy song song TomTom + MapTiler
-  const [tomtomResults, maptilerResults] = await Promise.all([
-    fetchTomTomSearch(query).catch(e => { console.warn('TomTom search error:', e); return []; }),
-    fetchMapTilerSearch(query).catch(e => { console.warn('MapTiler search error:', e); return []; })
-  ]);
-
-  // Dedupe MapTiler vs TomTom (cùng tên HOẶC toạ độ < 11m)
-  const filteredMaptiler = maptilerResults.filter(mt =>
-    !tomtomResults.some(tt =>
-      tt.name === mt.name ||
-      (Math.abs(tt.lat - mt.lat) < 0.0001 && Math.abs(tt.lng - mt.lng) < 0.0001)
-    )
-  );
-
-  // Quota: 14 TomTom + 6 MapTiler = 20
-  const TOMTOM_QUOTA = 14;
-  const MAX_TOTAL = 20;
-
-  const combined = [...tomtomResults.slice(0, TOMTOM_QUOTA)];
-  const remaining = MAX_TOTAL - combined.length;
-  if (remaining > 0) combined.push(...filteredMaptiler.slice(0, remaining));
-
-  // Sort POI > place > address > street
-  const typeScore = { poi: 4, place: 3, geography: 3, address: 2, street: 1, 'point address': 2 };
-  combined.sort((a, b) => (typeScore[b.type] || 0) - (typeScore[a.type] || 0));
-
-  return combined;
-}
-
-function mapTomTomManeuver(m) {
-  const s = (m || '').toUpperCase();
-  if (s.includes('ARRIVE')) return { type: 'arrive', modifier: '' };
-  if (s.includes('ROUNDABOUT')) return { type: 'roundabout', modifier: '' };
-  if (s.includes('UTURN')) return { type: 'turn', modifier: 'uturn' };
-  if (s.includes('SHARP_LEFT')) return { type: 'turn', modifier: 'sharp left' };
-  if (s.includes('SHARP_RIGHT')) return { type: 'turn', modifier: 'sharp right' };
-  if (s.includes('SLIGHT_LEFT') || s.includes('BEAR_LEFT')) return { type: 'turn', modifier: 'slight left' };
-  if (s.includes('SLIGHT_RIGHT') || s.includes('BEAR_RIGHT')) return { type: 'turn', modifier: 'slight right' };
-  if (s.includes('LEFT')) return { type: 'turn', modifier: 'left' };
-  if (s.includes('RIGHT')) return { type: 'turn', modifier: 'right' };
-  return { type: 'continue', modifier: '' };
-}
-
-async function apiRouteTrackAsia(origin, dest, mode) {
-  const vehicleMap = { driving:'car', hd:'car', truck:'truck', motorcycle:'motorcycle', walking:'pedestrian', bicycle:'bicycle' };
-  const vehicle = vehicleMap[mode] || 'car';
-  const url = `https://maps.track-asia.com/route/v2/route?key=${TRACKASIA_KEY}&origin=${origin.lat},${origin.lng}&destination=${dest.lat},${dest.lng}&vehicle=${vehicle}&alternatives=true&instructions=true`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if (!data.routes) throw new Error(data.message || 'TrackAsia không có tuyến');
-  return data.routes.map(r => {
-    const raw = r.geometry?.coordinates || [];
-    const coords = raw.map(c => Math.abs(c[0]) > 90 ? [c[1], c[0]] : [c[0], c[1]]);
-    const leg = r.legs?.[0] || {};
-    return {
-      geometry: { coordinates: coords },
-      distance: leg.distance?.value || leg.distance || 0,
-      duration: leg.duration?.value || leg.duration || 0,
-      legs: [{ steps: leg.steps || [] }],
-      provider: 'TrackAsia', mode
-    };
-  });
-}
-
-async function apiRouteTomTom(origin, dest, mode) {
-  const modeMap = { 'driving-traffic':'car', driving:'car', hd:'car', truck:'truck', motorcycle:'motorcycle', walking:'pedestrian', bicycle:'bicycle' };
-  const travelMode = modeMap[mode] || 'car';
-  const url = `https://api.tomtom.com/routing/1/calculateRoute/${origin.lat},${origin.lng}:${dest.lat},${dest.lng}/json?key=${TOMTOM_KEY}&travelMode=${travelMode}&traffic=true&routeType=fastest&maxAlternatives=2&instructionsType=text&language=vi-VN`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if (!data.routes) throw new Error(data.error?.description || 'TomTom không có tuyến');
-  return data.routes.map(r => {
-    const coords = [];
-    const steps = [];
-    (r.legs || []).forEach(leg => {
-      (leg.points || []).forEach(p => coords.push([p.latitude, p.longitude]));
-      (leg.instructions || []).forEach(ins => {
-        const man = mapTomTomManeuver(ins.maneuver);
-        steps.push({ maneuver: {
-          location: [ins.point?.longitude || 0, ins.point?.latitude || 0],
-          type: man.type, modifier: man.modifier,
-          instruction: ins.message || ins.instruction || ''
-        }});
-      });
-    });
-    return {
-      geometry: { coordinates: coords },
-      distance: r.summary?.lengthInMeters || 0,
-      duration: r.summary?.travelTimeInSeconds || 0,
-      legs: [{ steps }],
-      provider: 'TomTom', mode
-    };
-  });
+  try {
+    const r = await fetch(`${WORKER_URL}/api/search?q=${encodeURIComponent(query)}`);
+    if (!r.ok) return [];
+    const j = await r.json();
+    return j.results || [];
+  } catch (e) { console.warn('Search error:', e); return []; }
 }
 
 async function apiRoute(origin, dest, mode) {
-  if (mode === 'driving-traffic') return apiRouteTomTom(origin, dest, mode);
-  return apiRouteTrackAsia(origin, dest, mode);
+  const r = await fetch(
+    `${WORKER_URL}/api/route?fromLat=${origin.lat}&fromLng=${origin.lng}` +
+    `&toLat=${dest.lat}&toLng=${dest.lng}&mode=${encodeURIComponent(mode)}`
+  );
+  if (!r.ok) throw new Error('Không tìm được tuyến');
+  const j = await r.json();
+  if (!j.routes) throw new Error('Không có tuyến');
+  return j.routes;
 }
 
+async function apiReverseGeocode(lat, lng) {
+  try {
+    const r = await fetch(`${WORKER_URL}/api/geocode?lat=${lat}&lng=${lng}`);
+    if (!r.ok) return '';
+    const j = await r.json();
+    return j.name || '';
+  } catch { return ''; }
+}
+
+/* ========== D1 STATIC WARNINGS ========== */
+async function getStaticWarnings(bounds) {
+  try {
+    const r = await fetch(
+      `${WORKER_URL}/warnings?minLat=${bounds.south}&maxLat=${bounds.north}` +
+      `&minLng=${bounds.west}&maxLng=${bounds.east}`
+    );
+    if (!r.ok) return [];
+    const j = await r.json();
+    return j.warnings || [];
+  } catch { return []; }
+}
+
+async function saveStaticWarning(type, lat, lng, speed, uid) {
+  try {
+    const r = await fetch(`${WORKER_URL}/warnings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, lat, lng, speed, uid })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.json();
+  } catch (e) { throw e; }
+}
+
+/* ========== PARSE GMAPS URL ========== */
 function parseGmapsUrl(url) {
   let m = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
   if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
@@ -193,7 +98,7 @@ function parseGmapsUrl(url) {
   return null;
 }
 
-/* ---------- GLOBAL STATE ---------- */
+/* ========== GLOBAL STATE ========== */
 let map = null;
 let currentUser = null;
 let startPoint = null;
@@ -237,20 +142,24 @@ let allAvoidZones = [];
 let allSavedPlaces = {};
 let allHistory = [];
 let allSavedRoutes = [];
-let _fsRestStops = [], _rtdbRestStops = [];
-let _fsCommunityPois = [], _rtdbCommunityPois = [];
-let _fsReports = {}, _rtdbReports = {};
-let _fsAvoidZones = [], _rtdbAvoidZones = [];
-let _fsSavedPlaces = {}, _rtdbSavedPlaces = {};
-let _fsHistory = [], _rtdbHistory = [];
-let _fsSavedRoutes = [], _rtdbSavedRoutes = [];
+let _fsRestStops = [];
+let _fsCommunityPois = [];
+let _fsReports = {};
+let _fsAvoidZones = [];
+let _fsSavedPlaces = {};
+let _fsHistory = [];
+let _fsSavedRoutes = [];
+let _rtdbReports = {};
 let communityPoiMarkers = [];
 let restStopMarkers = [];
 let reportMarkers = [];
 let savedPlacesMarkers = [];
 let avoidZoneMarkers = [];
 let searchResultMarkers = [];
-let _unsub = { fsRest:null, rtdbCommunity:null, fsPoi:null, fsReports:null, rtdbReports:null, fsAvoid:null, rtdbAvoid:null, fsSaved:null, rtdbSaved:null, fsHistory:null, rtdbHistory:null, fsRoutes:null, rtdbRoutes:null };
+let staticWarningMarkers = [];
+let staticWarningsGridCache = {};
+let staticWarningsTimer = null;
+let _unsub = { fsRest:null, fsPoi:null, fsReports:null, fsAvoid:null, fsSaved:null, fsHistory:null, fsRoutes:null, rtdbReports:null };
 let liveEnabled = false;
 let liveRoomCode = null;
 let liveIsPublic = false;
@@ -269,6 +178,7 @@ const LIVE_ANIM_DURATION = 6000;
 const LIVE_HEARTBEAT_TIMEOUT = 120000;
 let isViewingLiveTrack = false;
 let touchMarker = null;
+
 const POI_TAG_CONFIG = {
   supermarket: { icon: 'fa-shopping-cart', label: 'Siêu thị', color: '#10b981' },
   rest_stop: { icon: 'fa-bed', label: 'Trạm dừng nghỉ', color: '#3b82f6' },
@@ -288,14 +198,11 @@ const POI_TAG_CONFIG = {
 };
 const ZOOM_CONFIG = { communityPoi: 15, restStop: 13, savedPlace: 14, report: 14, savedPlaceAlwaysShow: ['home', 'company'] };
 
-/* ---------- HELPER: MARKER & POPUP ---------- */
+/* ========== HELPER: MARKER & POPUP ========== */
 function createTouchMarkerElement() {
   const el = document.createElement('div');
   el.className = 'map-touch-marker';
-  el.innerHTML = `
-    <div class="pulse"></div>
-    <div class="dot"><i class="fas fa-map-marker-alt"></i></div>
-  `;
+  el.innerHTML = `<div class="pulse"></div><div class="dot"><i class="fas fa-map-marker-alt"></i></div>`;
   return el;
 }
 
@@ -317,7 +224,7 @@ function closePopupSmoothly(marker) {
   } catch(e) { try { marker.remove(); } catch(e) {} }
 }
 
-/* ---------- LOADING & AUTH SCREEN ---------- */
+/* ========== LOADING & AUTH SCREEN ========== */
 let loadProgress = 0;
 let loadInterval = null;
 let isUserAuthChecked = false;
@@ -446,11 +353,11 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
-/* ---------- APP INIT ---------- */
+/* ========== APP INIT ========== */
 function initAppUI() {
   initTheme();
   initMap();
-  initDualDataSubscriptions();
+  initDataSubscriptions();
   loadSharedLinksFromStorage();
   if (lastUserPos) {
     if (!startPoint) {
@@ -495,7 +402,7 @@ window.toggleTheme = function() {
 };
 setInterval(() => { const c = document.getElementById('profileTime'); if (c) c.textContent = new Date().toLocaleTimeString('vi-VN'); }, 1000);
 
-/* ---------- AUTH UI ---------- */
+/* ========== AUTH UI ========== */
 function getAuthErrorMessage(errorCode) {
   switch (errorCode) {
     case 'auth/invalid-email': return 'Email không đúng định dạng.';
@@ -560,84 +467,54 @@ if (btnGoogleAuth) {
 }
 function logout() { if (liveEnabled) stopLiveSession(); signOut(auth); closeMenu(); }
 
-/* ---------- DATA SUBSCRIPTIONS ---------- */
-function initDualDataSubscriptions() {
+/* ========== DATA SUBSCRIPTIONS (Firestore + RTDB Reports) ========== */
+function initDataSubscriptions() {
   if (!currentUser) return;
   _unsub.fsRest = onSnapshot(collection(fsdb, 'rest_stops'), snap => {
     _fsRestStops = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
     recomputeRestStops();
   }, err => console.warn('FS rest_stops:', err));
-  _unsub.rtdbCommunity = onValue(ref(db, 'communityPois'), snap => {
-    const data = snap.val() || {};
-    const all = Object.entries(data).map(([k, v]) => ({ _id: k, id: k, ...v }));
-    _rtdbRestStops = all.filter(p => p.tag === 'rest_stop').map(p => ({ ...p, source: 'rtdb' }));
-    _rtdbCommunityPois = all.filter(p => p.tag !== 'rest_stop').map(p => ({ ...p, source: 'rtdb' }));
-    recomputeRestStops();
-    recomputeCommunityPois();
-  }, err => console.warn('RTDB communityPois:', err));
   _unsub.fsPoi = onSnapshot(collection(fsdb, 'community_pois'), snap => {
     _fsCommunityPois = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
     recomputeCommunityPois();
   }, err => console.warn('FS community_pois:', err));
-  _unsub.fsReports = onSnapshot(collection(fsdb, 'reports'), snap => {
-    _fsReports = {};
-    snap.docs.forEach(d => { _fsReports[d.id] = { id: d.id, _id: d.id, source: 'firestore', ...d.data() }; });
-    recomputeReports();
-  }, err => console.warn('FS reports:', err));
   _unsub.rtdbReports = onValue(ref(db, 'reports'), snap => {
     const data = snap.val() || {};
     _rtdbReports = {};
-    Object.entries(data).forEach(([k, v]) => { _rtdbReports[k] = { id: k, _id: k, source: 'rtdb', ...v }; });
+    Object.entries(data).forEach(([k, v]) => {
+      // Bỏ static types (đã ở D1)
+      if (v.type === 'speed_limit' || v.type === 'camera') return;
+      _rtdbReports[k] = { id: k, _id: k, source: 'rtdb', ...v };
+    });
     recomputeReports();
   }, err => console.warn('RTDB reports:', err));
   _unsub.fsAvoid = onSnapshot(collection(fsdb, 'avoid_zones'), snap => {
     _fsAvoidZones = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
     recomputeAvoidZones();
   }, err => console.warn('FS avoid_zones:', err));
-  _unsub.rtdbAvoid = onValue(ref(db, 'avoid_zones'), snap => {
-    const data = snap.val() || {};
-    _rtdbAvoidZones = Object.entries(data).map(([k, v]) => ({ id: k, _id: k, source: 'rtdb', ...v }));
-    recomputeAvoidZones();
-  }, err => console.warn('RTDB avoid_zones:', err));
   _unsub.fsSaved = onSnapshot(collection(fsdb, `users/${currentUser.uid}/savedPlaces`), snap => {
     _fsSavedPlaces = {};
     snap.docs.forEach(d => { _fsSavedPlaces[d.id] = { id: d.id, _id: d.id, source: 'firestore', ...d.data() }; });
     recomputeSavedPlaces();
   }, err => console.warn('FS savedPlaces:', err));
-  _unsub.rtdbSaved = onValue(ref(db, `users/${currentUser.uid}/savedPlaces`), snap => {
-    const data = snap.val() || {};
-    _rtdbSavedPlaces = {};
-    Object.entries(data).forEach(([k, v]) => { _rtdbSavedPlaces[k] = { id: k, _id: k, source: 'rtdb', ...v }; });
-    recomputeSavedPlaces();
-  }, err => console.warn('RTDB savedPlaces:', err));
   _unsub.fsHistory = onSnapshot(collection(fsdb, `users/${currentUser.uid}/history`), snap => {
     _fsHistory = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
     recomputeHistory();
   }, err => console.warn('FS history:', err));
-  _unsub.rtdbHistory = onValue(ref(db, `users/${currentUser.uid}/history`), snap => {
-    const data = snap.val() || {};
-    _rtdbHistory = Object.entries(data).map(([k, v]) => ({ id: k, _id: k, source: 'rtdb', ...v }));
-    recomputeHistory();
-  }, err => console.warn('RTDB history:', err));
   _unsub.fsRoutes = onSnapshot(collection(fsdb, `users/${currentUser.uid}/savedRoutes`), snap => {
     _fsSavedRoutes = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
     recomputeSavedRoutes();
   }, err => console.warn('FS savedRoutes:', err));
-  _unsub.rtdbRoutes = onValue(ref(db, `users/${currentUser.uid}/savedRoutes`), snap => {
-    const data = snap.val() || {};
-    _rtdbSavedRoutes = Object.entries(data).map(([k, v]) => ({ id: k, _id: k, source: 'rtdb', ...v }));
-    recomputeSavedRoutes();
-  }, err => console.warn('RTDB savedRoutes:', err));
 }
-function recomputeRestStops() { allRestStops = [..._fsRestStops, ..._rtdbRestStops]; renderCommunityPoisOnMap(); renderRestStopMarkers(); }
-function recomputeCommunityPois() { allCommunityPois = [..._fsCommunityPois, ..._rtdbCommunityPois]; renderCommunityPoisOnMap(); }
-function recomputeReports() { allReports = { ..._fsReports, ..._rtdbReports }; renderReportsOnMap(); }
-function recomputeAvoidZones() { allAvoidZones = [..._fsAvoidZones, ..._rtdbAvoidZones]; renderAvoidZonesOnMap(); }
-function recomputeSavedPlaces() { allSavedPlaces = { ..._fsSavedPlaces, ..._rtdbSavedPlaces }; renderSavedPlacesOnMap(); }
-function recomputeHistory() { allHistory = [..._fsHistory, ..._rtdbHistory].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); }
-function recomputeSavedRoutes() { allSavedRoutes = [..._fsSavedRoutes, ..._rtdbSavedRoutes].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); }
+function recomputeRestStops() { allRestStops = [..._fsRestStops]; renderCommunityPoisOnMap(); renderRestStopMarkers(); }
+function recomputeCommunityPois() { allCommunityPois = [..._fsCommunityPois]; renderCommunityPoisOnMap(); }
+function recomputeReports() { allReports = { ..._rtdbReports }; renderReportsOnMap(); }
+function recomputeAvoidZones() { allAvoidZones = [..._fsAvoidZones]; renderAvoidZonesOnMap(); }
+function recomputeSavedPlaces() { allSavedPlaces = { ..._fsSavedPlaces }; renderSavedPlacesOnMap(); }
+function recomputeHistory() { allHistory = [..._fsHistory].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); }
+function recomputeSavedRoutes() { allSavedRoutes = [..._fsSavedRoutes].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); }
 
-/* ---------- UI STATE ---------- */
+/* ========== UI STATE ========== */
 function updateUIState() {
   const isNav = document.body.classList.contains('navigating');
   const isDirOpen = document.getElementById('dirSheet').classList.contains('open');
@@ -667,25 +544,15 @@ function updateUIState() {
   }
 }
 
-/* ---------- MAP INIT ---------- */
+/* ========== MAP INIT ========== */
 function initGpsCircleLayer() {
   if (!map.getSource('gps-circle-source')) {
     map.addSource('gps-circle-source', {
       type: 'geojson',
       data: gpsCircleGeoJSON || { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[]] } }
     });
-    map.addLayer({
-      id: 'gps-circle-layer',
-      type: 'fill',
-      source: 'gps-circle-source',
-      paint: { 'fill-color': '#10b981', 'fill-opacity': 0.15 }
-    });
-    map.addLayer({
-      id: 'gps-circle-outline',
-      type: 'line',
-      source: 'gps-circle-source',
-      paint: { 'line-color': '#10b981', 'line-width': 1, 'line-opacity': 0.5 }
-    });
+    map.addLayer({ id: 'gps-circle-layer', type: 'fill', source: 'gps-circle-source', paint: { 'fill-color': '#10b981', 'fill-opacity': 0.15 } });
+    map.addLayer({ id: 'gps-circle-outline', type: 'line', source: 'gps-circle-source', paint: { 'line-color': '#10b981', 'line-width': 1, 'line-opacity': 0.5 } });
   }
 }
 
@@ -697,9 +564,7 @@ function createCircleGeoJSON(lng, lat, radiusInMeters) {
   const distanceY = km / 110.574;
   for (let i = 0; i < points; i++) {
     const theta = (i / points) * (2 * Math.PI);
-    const x = distanceX * Math.cos(theta);
-    const y = distanceY * Math.sin(theta);
-    ret.push([lng + x, lat + y]);
+    ret.push([lng + distanceX * Math.cos(theta), lat + distanceY * Math.sin(theta)]);
   }
   ret.push(ret[0]);
   return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ret] } };
@@ -709,16 +574,12 @@ function drawCurrentRoute() {
   if (map.getLayer('current-route-layer')) map.removeLayer('current-route-layer');
   if (map.getSource('current-route-source')) map.removeSource('current-route-source');
   if (!currentRouteCoords || currentRouteCoords.length === 0) return;
-  
   map.addSource('current-route-source', {
     type: 'geojson',
     data: { type: 'Feature', geometry: { type: 'LineString', coordinates: currentRouteCoords.map(c => [c[1], c[0]]) } }
   });
-  
   map.addLayer({
-    id: 'current-route-layer',
-    type: 'line',
-    source: 'current-route-source',
+    id: 'current-route-layer', type: 'line', source: 'current-route-source',
     layout: { 'line-join': 'round', 'line-cap': 'round' },
     paint: { 'line-color': '#3b82f6', 'line-width': 8 }
   });
@@ -735,41 +596,18 @@ function updateCompassNeedle() {
 }
 window.resetNorth = function() {
   if (!map) return;
-  if (Math.abs(map.getBearing() || 0) < 1 && Math.abs(map.getPitch() || 0) < 1) {
-    map.easeTo({ bearing: 0, pitch: 0, duration: 300 });
-    return;
-  }
   map.easeTo({ bearing: 0, pitch: 0, duration: 600 });
 };
 
 window.toggleTraffic = function(isChecked) {
   if (!map) return;
   if (isChecked) {
-    if (!map.getSource('tomtom-traffic')) {
-      map.addSource('tomtom-traffic', {
-        type: 'raster',
-        tiles: [`https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`],
-        tileSize: 256
-      });
+    // Traffic tiles qua MapTiler style mặc định đã có? Nếu không, bật TomTom traffic
+    // (Nếu không muốn expose TOMTOM_KEY nữa, có thể bỏ tính năng này)
+    if (!map.getSource('traffic-layer')) {
+      // Cần TOMTOM_KEY — nếu muốn ẩn, phải proxy qua Worker. Tạm thời tắt.
+      console.warn('Traffic layer cần TOMTOM_KEY, đã chuyển sang Worker');
     }
-    if (!map.getLayer('tomtom-traffic-layer')) {
-      let beforeId = undefined;
-      const layers = map.getStyle().layers;
-      for (let i = 0; i < layers.length; i++) {
-        if (layers[i].id.includes('label') || layers[i].id.includes('text')) {
-          beforeId = layers[i].id;
-          break;
-        }
-      }
-      map.addLayer({
-        id: 'tomtom-traffic-layer',
-        type: 'raster',
-        source: 'tomtom-traffic',
-        paint: { 'raster-opacity': 0.8 }
-      }, beforeId);
-    }
-  } else {
-    if (map.getLayer('tomtom-traffic-layer')) map.removeLayer('tomtom-traffic-layer');
   }
 };
 
@@ -800,7 +638,8 @@ function initMap() {
     renderReportsOnMap();
     renderAvoidZonesOnMap();
     
-    if (document.getElementById('trafficToggle') && document.getElementById('trafficToggle').checked) toggleTraffic(true);
+    // Load static warnings lần đầu
+    setTimeout(loadStaticWarnings, 1000);
   });
 
   map.on('contextmenu', (e) => {
@@ -820,6 +659,17 @@ function initMap() {
     showLocationPopup(e.lngLat);
   });
 
+  // Load static warnings khi map di chuyển (debounce)
+  map.on('moveend', () => {
+    if (map.getZoom() < 13) {
+      staticWarningMarkers.forEach(m => m.remove());
+      staticWarningMarkers = [];
+      return;
+    }
+    if (staticWarningsTimer) clearTimeout(staticWarningsTimer);
+    staticWarningsTimer = setTimeout(loadStaticWarnings, 600);
+  });
+
   let zoomRenderTimer = null;
   map.on('zoomend', () => {
     if (zoomRenderTimer) clearTimeout(zoomRenderTimer);
@@ -835,6 +685,48 @@ function initMap() {
   });
 }
 
+/* ========== STATIC WARNINGS (D1) ========== */
+async function loadStaticWarnings() {
+  if (!map || map.getZoom() < 13) return;
+  const b = map.getBounds();
+  const bounds = { south: b.getSouth(), north: b.getNorth(), west: b.getWest(), east: b.getEast() };
+  
+  // Grid cache (mỗi ~5km không refetch)
+  const gridKey = `${bounds.south.toFixed(2)}_${bounds.west.toFixed(2)}_${bounds.north.toFixed(2)}_${bounds.east.toFixed(2)}`;
+  if (staticWarningsGridCache[gridKey]) {
+    renderStaticWarningsOnMap(staticWarningsGridCache[gridKey]);
+    return;
+  }
+  
+  const warnings = await getStaticWarnings(bounds);
+  staticWarningsGridCache[gridKey] = warnings;
+  renderStaticWarningsOnMap(warnings);
+}
+
+function renderStaticWarningsOnMap(warnings) {
+  staticWarningMarkers.forEach(m => m.remove());
+  staticWarningMarkers = [];
+  if (!warnings || warnings.length === 0) return;
+  if (!map || map.getZoom() < 13) return;
+  
+  warnings.forEach(w => {
+    const el = document.createElement('div');
+    if (w.type === 'speed_limit') {
+      el.className = 'speed-limit-marker';
+      el.textContent = w.speed || '?';
+    } else if (w.type === 'camera') {
+      el.innerHTML = `<div style="background:#e11d48;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-camera"></i></div>`;
+    } else return;
+    
+    const title = w.type === 'speed_limit' ? `Tốc độ: ${w.speed} km/h` : 'Camera giao thông';
+    const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b>${title}</b><br><small>Cảnh báo cộng đồng (D1)</small>`);
+    const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+      .setLngLat([w.lng, w.lat]).setPopup(popup).addTo(map);
+    staticWarningMarkers.push(marker);
+  });
+}
+
+/* ========== POPUP & MARKERS ========== */
 function showLocationPopup(lngLat) {
   const pixel = map.project(lngLat);
   const ripple = document.createElement('div');
@@ -843,25 +735,17 @@ function showLocationPopup(lngLat) {
   ripple.style.top = pixel.y + 'px';
   document.body.appendChild(ripple);
   setTimeout(() => ripple.remove(), 600);
-  
   if (navigator.vibrate) navigator.vibrate(30);
 
   const loadingHtml = `<div style="text-align:center; padding:8px; color:var(--text); min-width: 140px;"><i class="fas fa-spinner fa-spin" style="color:var(--primary); font-size:1.2rem; margin-bottom:6px;"></i><br><span style="font-size:0.85rem; font-weight:600;">Đang lấy địa chỉ...</span></div>`;
-  
   const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeOnClick: false, closeButton: false })
-    .setLngLat([lngLat.lng, lngLat.lat])
-    .setHTML(loadingHtml);
-
+    .setLngLat([lngLat.lng, lngLat.lat]).setHTML(loadingHtml);
   const el = createTouchMarkerElement();
-
   touchMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
-    .setLngLat([lngLat.lng, lngLat.lat])
-    .setPopup(popup)
-    .addTo(map);
+    .setLngLat([lngLat.lng, lngLat.lat]).setPopup(popup).addTo(map);
   touchMarker.togglePopup();
   
   const markerRef = touchMarker;
-  
   (async () => {
     let name = '';
     try { const raw = await apiReverseGeocode(lngLat.lat, lngLat.lng); if (raw) name = raw.split(',').slice(0, 3).join(', '); } catch (e) {}
@@ -870,28 +754,25 @@ function showLocationPopup(lngLat) {
     const popupHtml = `
       <div style="min-width: 180px;">
         <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: var(--text);">${displayName}</div>
-        <button onclick="event.stopPropagation(); openSavePlaceModal(${lngLat.lat}, ${lngLat.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--success); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-bookmark"></i> Ghim địa điểm</button>
-        <button onclick="event.stopPropagation(); openPoiSheet(${lngLat.lat}, ${lngLat.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: linear-gradient(135deg,#10b981,#059669); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-plus-circle"></i> Thêm địa điểm mới</button>
-        <button onclick="event.stopPropagation(); goToLongPressLocation(${lngLat.lat}, ${lngLat.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
-        <button onclick="event.stopPropagation(); shareLocation(${lngLat.lat}, ${lngLat.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fas fa-share-alt"></i> Chia sẻ</button>
+        <button onclick="event.stopPropagation(); openSavePlaceModal(${lngLat.lat}, ${lngLat.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--success); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; margin-bottom: 6px;"><i class="fas fa-bookmark"></i> Ghim địa điểm</button>
+        <button onclick="event.stopPropagation(); openPoiSheet(${lngLat.lat}, ${lngLat.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: linear-gradient(135deg,#10b981,#059669); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; margin-bottom: 6px;"><i class="fas fa-plus-circle"></i> Thêm địa điểm mới</button>
+        <button onclick="event.stopPropagation(); goToLongPressLocation(${lngLat.lat}, ${lngLat.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; margin-bottom: 6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
+        <button onclick="event.stopPropagation(); shareLocation(${lngLat.lat}, ${lngLat.lng}, '${escapeHtml(displayName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer;"><i class="fas fa-share-alt"></i> Chia sẻ</button>
       </div>`;
-    
-    if (touchMarker === markerRef) {
-      try { popup.setHTML(popupHtml); } catch(e) {}
-    }
+    if (touchMarker === markerRef) { try { popup.setHTML(popupHtml); } catch(e) {} }
   })();
 }
 
 function showSharedLocationMarker(lat, lng, name, isDestination = false) {
   const el = document.createElement('div');
-  el.innerHTML = `<div style="position: relative; width: 24px; height: 24px;"><div style="position: absolute; inset: 0; background: #f97316; border-radius: 50%; opacity: 0.5; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div><div style="position: absolute; inset: 4px; background: #f97316; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(249,115,22,0.8);"></div></div>`;
+  el.innerHTML = `<div style="position: relative; width: 24px; height: 24px;"><div style="position: absolute; inset: 0; background: #f97316; border-radius: 50%; opacity: 0.5; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div><div style="position: absolute; inset: 4px; background: #f97316; border-radius: 50%; border: 3px solid white;"></div></div>`;
   const label = isDestination ? '📍 Điểm đến được chia sẻ' : '📍 Vị trí được chia sẻ';
   const popup = new maplibregl.Popup().setHTML(`<b>${label}</b><br><small>${name}</small>`);
   new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).setPopup(popup).addTo(map).togglePopup();
   map.flyTo({ center: [lng, lat], zoom: 16 });
 }
 
-/* ---------- MARKERS RENDERING ---------- */
+/* ========== MARKERS RENDERING ========== */
 function createSavedPlacePin(place) {
   const icons = { home: { icon: 'fa-home', color: '#10b981' }, cafe: { icon: 'fa-coffee', color: '#f59e0b' }, restaurant: { icon: 'fa-utensils', color: '#ef4444' }, company: { icon: 'fa-building', color: '#3b82f6' }, school: { icon: 'fa-school', color: '#8b5cf6' }, other: { icon: 'fa-map-marker-alt', color: '#64748b' } };
   const conf = icons[place.type] || icons.other;
@@ -938,17 +819,15 @@ window.submitSavePlace = async function(type) {
   closeSavePlaceModal();
   try {
     await addDoc(collection(fsdb, `users/${currentUser.uid}/savedPlaces`), {
-      lat: tempPinLatLng.lat, lng: tempPinLatLng.lng, address: tempPinName, type: type, timestamp: Date.now()
+      lat: tempPinLatLng.lat, lng: tempPinLatLng.lng, address: tempPinName, type, timestamp: Date.now()
     });
     alert('Đã ghim địa điểm cá nhân lên bản đồ!');
   } catch (e) { alert('Lỗi lưu địa điểm: ' + e.message); }
 };
 window.deleteSavedPlace = async function(source, id) {
   if (!confirm('Bạn có chắc muốn xoá ghim này?')) return;
-  try {
-    if (source === 'firestore') await deleteDoc(doc(fsdb, `users/${currentUser.uid}/savedPlaces/${id}`));
-    else await remove(ref(db, `users/${currentUser.uid}/savedPlaces/${id}`));
-  } catch(e) { alert('Lỗi xoá: ' + e.message); }
+  try { await deleteDoc(doc(fsdb, `users/${currentUser.uid}/savedPlaces/${id}`)); }
+  catch(e) { alert('Lỗi xoá: ' + e.message); }
 };
 
 function renderRestStopMarkers() {
@@ -990,19 +869,13 @@ function renderReportsOnMap() {
   if (currentZoom < ZOOM_CONFIG.report) return;
   
   for (const key in allReports) {
-    const rep = allReports[key]; if (now > rep.expiresAt) continue;
-    if (rep.type === 'speed_limit') {
-      const el = document.createElement('div');
-      el.className = 'speed-limit-marker';
-      el.textContent = rep.speed || '?';
-      const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b>Tốc độ tối đa: ${rep.speed} km/h</b><br><small>Báo cáo bởi cộng đồng</small>`);
-      const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([rep.lng, rep.lat]).setPopup(popup).addTo(map);
-      reportMarkers.push(marker);
-      continue;
-    }
+    const rep = allReports[key];
+    if (now > rep.expiresAt) continue;
+    // Static types giờ ở D1, skip
+    if (rep.type === 'speed_limit' || rep.type === 'camera') continue;
+    
     const icons = {
       police: '<div style="background:#3b82f6;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-shield-alt"></i></div>',
-      camera: '<div style="background:#e11d48;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-camera"></i></div>',
       toll: '<div style="background:#8b5cf6;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-money-bill"></i></div>',
       accident: '<div style="background:#ef4444;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-car-crash"></i></div>',
       traffic: '<div style="background:#f97316;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-traffic-light"></i></div>',
@@ -1013,8 +886,8 @@ function renderReportsOnMap() {
     };
     const el = document.createElement('div');
     el.innerHTML = icons[rep.type] || icons.pothole;
-    let title = rep.type === 'police' ? 'CSGT' : rep.type === 'camera' ? 'Camera giao thông' : rep.type === 'toll' ? 'Trạm thu phí' : rep.type === 'accident' ? 'Tai nạn' : rep.type === 'traffic' ? 'Kẹt xe' : rep.type === 'flood' ? 'Ngập nước' : rep.type === 'bridge_collapse' ? 'Sập cầu' : rep.type === 'road_collapse' ? 'Sập đường' : 'Ổ gà';
-    const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b>${title}</b><br><small>Báo cáo bởi cộng đồng</small>`);
+    let title = rep.type === 'police' ? 'CSGT' : rep.type === 'toll' ? 'Trạm thu phí' : rep.type === 'accident' ? 'Tai nạn' : rep.type === 'traffic' ? 'Kẹt xe' : rep.type === 'flood' ? 'Ngập nước' : rep.type === 'bridge_collapse' ? 'Sập cầu' : rep.type === 'road_collapse' ? 'Sập đường' : 'Ổ gà';
+    const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b>${title}</b><br><small>Cảnh báo động (RTDB)</small>`);
     const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([rep.lng, rep.lat]).setPopup(popup).addTo(map);
     reportMarkers.push(marker);
   }
@@ -1043,7 +916,7 @@ function renderAvoidZonesOnMap() {
   });
 }
 
-/* ---------- REPORT ---------- */
+/* ========== REPORT ========== */
 window.openReportMenu = function() { document.getElementById('reportModal').classList.add('open'); };
 window.closeReportMenu = function() { document.getElementById('reportModal').classList.remove('open'); };
 
@@ -1054,30 +927,47 @@ window.submitSpeedReport = function() {
   if (isNaN(speedVal) || speedVal <= 0) return alert("Vui lòng nhập số hợp lệ!");
   closeReportMenu();
   if (!lastUserPos) return alert('Chưa lấy được vị trí GPS!');
-  const now = Date.now();
-  const ttl = 86400000 * 30; 
-  addDoc(collection(fsdb, 'reports'), {
-    lat: lastUserPos.lat, lng: lastUserPos.lng, type: 'speed_limit', speed: speedVal, timestamp: now, expiresAt: now + ttl, uid: currentUser.uid
-  }).then(() => {
-    alert(`Đã ghim biển báo tốc độ ${speedVal} km/h!`);
-  }).catch(e => alert('Lỗi: ' + e.message));
+  
+  saveStaticWarning('speed_limit', lastUserPos.lat, lastUserPos.lng, speedVal, currentUser?.uid)
+    .then(() => {
+      alert(`Đã ghim biển báo tốc độ ${speedVal} km/h!`);
+      loadStaticWarnings();
+    })
+    .catch(e => alert('Lỗi: ' + e.message));
 };
 
 window.submitReport = async function(type) {
   if (!lastUserPos) return alert('Chưa lấy được vị trí GPS, không thể báo cáo!');
-  closeReportMenu(); const now = Date.now(); let ttl = 3600000;
+  closeReportMenu();
+  const now = Date.now();
+
+  // ===== STATIC (speed_limit, camera) → D1 via Worker =====
+  if (type === 'speed_limit' || type === 'camera') {
+    try {
+      await saveStaticWarning(type, lastUserPos.lat, lastUserPos.lng, null, currentUser?.uid);
+      alert('Cảm ơn bạn! Cảnh báo đã được gửi.');
+      loadStaticWarnings();
+    } catch (e) { alert('Lỗi: ' + e.message); }
+    return;
+  }
+
+  // ===== DYNAMIC → RTDB =====
+  let ttl = 3600000;
   if (type === 'pothole') ttl = 86400000;
   else if (type === 'flood') ttl = 10800000;
   else if (type === 'traffic') ttl = 1800000;
   else if (type === 'bridge_collapse' || type === 'road_collapse') ttl = 604800000;
-  else if (type === 'camera' || type === 'toll') ttl = 86400000 * 30;
+  else if (type === 'toll') ttl = 86400000 * 30;
   try {
-    await addDoc(collection(fsdb, 'reports'), { lat: lastUserPos.lat, lng: lastUserPos.lng, type, timestamp: now, expiresAt: now + ttl, uid: currentUser.uid });
+    await set(ref(db, `reports/${now}_${currentUser.uid}`), {
+      lat: lastUserPos.lat, lng: lastUserPos.lng, type,
+      timestamp: now, expiresAt: now + ttl, uid: currentUser.uid
+    });
     alert('Cảm ơn bạn! Báo cáo đã được gửi.');
   } catch (e) { alert('Lỗi: ' + e.message); }
 };
 
-/* ---------- VEHICLE MODE ---------- */
+/* ========== VEHICLE MODE ========== */
 window.setVehicleMode = function(mode, btn) {
   currentVehicleMode = mode;
   document.querySelectorAll('.vehicle-mode-btn').forEach(b => b.classList.remove('active'));
@@ -1091,7 +981,7 @@ window.setVehicleMode = function(mode, btn) {
 };
 window.changeSort = function(mode) { currentSortMode = mode; if (startPoint && endPoint) fetchAndShowRouteOptions(); };
 
-/* ---------- ROUTE ---------- */
+/* ========== ROUTE ========== */
 window.fetchAndShowRouteOptions = async function() {
   if (!startPoint || !endPoint || !startPoint.lat || !endPoint.lat) {
     return alert('Vui lòng chọn đủ Điểm đi và Điểm đến hợp lệ!');
@@ -1119,12 +1009,12 @@ window.fetchAndShowRouteOptions = async function() {
       if (map.getLayer(`alt-route-layer-${i}`)) map.removeLayer(`alt-route-layer-${i}`);
       if (map.getSource(`alt-route-source-${i}`)) map.removeSource(`alt-route-source-${i}`);
     });
-    if (window._routeBadges) window._routeBadges.forEach(m => m.remove()); window._routeBadges = [];
+    if (window._routeBadges) window._routeBadges.forEach(m => m.remove());
+    window._routeBadges = [];
     
     const bounds = new maplibregl.LngLatBounds();
     routes.forEach((r, index) => {
       r.geometry.coordinates.forEach(c => bounds.extend([c[1], c[0]]));
-      
       const isBest = index === 0;
       const color = ROUTE_COLORS[index];
       
@@ -1132,11 +1022,8 @@ window.fetchAndShowRouteOptions = async function() {
         type: 'geojson',
         data: { type: 'Feature', geometry: { type: 'LineString', coordinates: r.geometry.coordinates.map(c => [c[1], c[0]]) } }
       });
-      
       map.addLayer({
-        id: `alt-route-layer-${index}`,
-        type: 'line',
-        source: `alt-route-source-${index}`,
+        id: `alt-route-layer-${index}`, type: 'line', source: `alt-route-source-${index}`,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
           'line-color': isBest ? color : '#94a3b8',
@@ -1145,22 +1032,13 @@ window.fetchAndShowRouteOptions = async function() {
           'line-dasharray': isBest ? null : [2, 2]
         }
       });
-      
       map.on('click', `alt-route-layer-${index}`, () => selectRouteOption(index));
       map.on('mouseenter', `alt-route-layer-${index}`, () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', `alt-route-layer-${index}`, () => { map.getCanvas().style.cursor = ''; });
       
       const midIdx = Math.floor(r.geometry.coordinates.length / 2);
       const el = document.createElement('div');
-      el.style.background = isBest ? color : 'white';
-      el.style.color = isBest ? 'white' : '#334155';
-      el.style.border = `3px solid ${isBest ? 'white' : color}`;
-      el.style.borderRadius = '50%';
-      el.style.width = '32px'; el.style.height = '32px';
-      el.style.display = 'flex'; el.style.alignItems = 'center'; el.style.justifyContent = 'center';
-      el.style.fontWeight = '900'; el.style.fontSize = '0.9rem';
-      el.style.boxShadow = '0 4px 10px rgba(0,0,0,0.4)';
-      el.style.cursor = 'pointer';
+      el.style.cssText = `background:${isBest?color:'white'};color:${isBest?'white':'#334155'};border:3px solid ${isBest?'white':color};border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:0.9rem;box-shadow:0 4px 10px rgba(0,0,0,0.4);cursor:pointer;`;
       el.innerHTML = index + 1;
       el.onclick = () => selectRouteOption(index);
       
@@ -1177,21 +1055,19 @@ window.fetchAndShowRouteOptions = async function() {
       const dur = Math.round(r.duration / 60);
       const isBest = index === 0;
       const color = ROUTE_COLORS[index];
-      html += `<div class="route-card ${isBest ? 'active' : ''}" onclick="selectRouteOption(${index})" style="border-left: 4px solid ${color}; cursor: pointer;"><div class="info"><h3 style="display:flex; align-items:center; gap:8px;"><span style="background:${color}; color:white; width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:900;">${index + 1}</span>Tuyến ${index + 1} ${isBest ? '(Ưu tiên)' : ''} <span style="font-size:0.6rem; background:var(--bg-2); padding:2px 6px; border-radius:4px; color:var(--text-muted);">${r.provider}</span></h3><p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p></div>${isBest ? '<span class="badge" style="background:linear-gradient(135deg, #f59e0b, #ef4444); color:white; box-shadow:0 2px 8px rgba(245,158,11,0.5);"><i class="fas fa-star"></i> Đề xuất</span>' : ''}</div>`;
+      html += `<div class="route-card ${isBest ? 'active' : ''}" onclick="selectRouteOption(${index})" style="border-left: 4px solid ${color}; cursor: pointer;"><div class="info"><h3 style="display:flex; align-items:center; gap:8px;"><span style="background:${color}; color:white; width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:900;">${index + 1}</span>Tuyến ${index + 1} ${isBest ? '(Ưu tiên)' : ''} <span style="font-size:0.6rem; background:var(--bg-2); padding:2px 6px; border-radius:4px; color:var(--text-muted);">${r.provider}</span></h3><p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p></div>${isBest ? '<span class="badge" style="background:linear-gradient(135deg, #f59e0b, #ef4444); color:white;"><i class="fas fa-star"></i> Đề xuất</span>' : ''}</div>`;
     });
     bodyEl.innerHTML = html;
   } catch (error) {
     console.error('Lỗi lấy tuyến:', error);
-    bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Có lỗi xảy ra khi tìm tuyến. Vui lòng thử lại.</p><div style="font-size:0.8rem; margin-top:12px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; text-align:left; word-break:break-all;"><b>Lỗi:</b> ${error.message || ''}</div></div>`;
+    bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Có lỗi xảy ra khi tìm tuyến.</p><div style="font-size:0.8rem; margin-top:12px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; text-align:left;"><b>Lỗi:</b> ${error.message || ''}</div></div>`;
   }
 };
 
 window.selectRouteOption = function(index) {
   const selectedRoute = alternativeRoutesData[index];
   if (!selectedRoute) return;
-  if (!selectedRoute.geometry || !selectedRoute.geometry.coordinates || selectedRoute.geometry.coordinates.length === 0) {
-    return alert('Lỗi: Tuyến đường này không có dữ liệu tọa độ. Vui lòng chọn phương tiện khác!');
-  }
+  if (!selectedRoute.geometry?.coordinates?.length) return alert('Tuyến đường này không có dữ liệu!');
   if (!selectedRoute.legs || !Array.isArray(selectedRoute.legs) || selectedRoute.legs.length === 0) selectedRoute.legs = [{ steps: [] }];
   if (!selectedRoute.legs[0].steps) selectedRoute.legs[0].steps = [];
 
@@ -1205,7 +1081,8 @@ window.selectRouteOption = function(index) {
   });
   if (window._routeBadges) { window._routeBadges.forEach(m => m.remove()); window._routeBadges = []; }
 
-  currentRouteData = selectedRoute; currentRouteCoords = selectedRoute.geometry.coordinates;
+  currentRouteData = selectedRoute;
+  currentRouteCoords = selectedRoute.geometry.coordinates;
   drawCurrentRoute();
   closeRouteOptions();
   startNavigationHUD();
@@ -1246,7 +1123,7 @@ function startNavigationHUD() {
     if (lastUserPos) updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
   } catch (err) {
     console.error('Lỗi khởi động dẫn đường:', err);
-    alert('Lỗi khởi động dẫn đường: ' + err.message + '. Vui lòng thử tìm tuyến khác!');
+    alert('Lỗi khởi động dẫn đường: ' + err.message);
     document.getElementById('hud').classList.add('hidden');
     document.body.classList.remove('navigating');
     updateUIState();
@@ -1270,27 +1147,24 @@ window.openAlternativeRoutes = function() {
 
 window.switchToRoute = function(index) {
   const selectedRoute = alternativeRoutesData[index];
-  if (!selectedRoute) return;
-  if (!selectedRoute.geometry || !selectedRoute.geometry.coordinates || selectedRoute.geometry.coordinates.length === 0) {
-    return alert('Lỗi: Tuyến đường này không có dữ liệu tọa độ!');
-  }
+  if (!selectedRoute?.geometry?.coordinates?.length) return alert('Tuyến đường này không có dữ liệu!');
   if (!selectedRoute.legs || !Array.isArray(selectedRoute.legs) || selectedRoute.legs.length === 0) selectedRoute.legs = [{ steps: [] }];
   if (!selectedRoute.legs[0].steps) selectedRoute.legs[0].steps = [];
   const otherRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(otherRoutes));
   
-  currentRouteData = selectedRoute; currentRouteCoords = selectedRoute.geometry.coordinates;
-  voiceRouteSteps = selectedRoute.legs[0].steps; voiceStepIndex = 0; lastSnapIndex = 0;
-  
+  currentRouteData = selectedRoute;
+  currentRouteCoords = selectedRoute.geometry.coordinates;
+  voiceRouteSteps = selectedRoute.legs[0].steps;
+  voiceStepIndex = 0; lastSnapIndex = 0;
   drawCurrentRoute();
-  
   const bounds = new maplibregl.LngLatBounds();
   currentRouteCoords.forEach(c => bounds.extend([c[1], c[0]]));
   map.fitBounds(bounds, { padding: 50, maxZoom: 17 });
-  
   document.getElementById('hudRemainDist').textContent = (selectedRoute.distance / 1000).toFixed(1) + ' km';
   document.getElementById('hudRemainTime').textContent = Math.round(selectedRoute.duration / 60) + ' phút';
-  closeRouteOptions(); speak('Đã đổi tuyến đường mới.');
+  closeRouteOptions();
+  speak('Đã đổi tuyến đường mới.');
 };
 
 function updateNextManeuverHUD(lat, lng) {
@@ -1298,15 +1172,22 @@ function updateNextManeuverHUD(lat, lng) {
   let nextStep = null; let minDist = Infinity;
   for (let i = Math.max(0, voiceStepIndex); i < Math.min(voiceRouteSteps.length, voiceStepIndex + 5); i++) {
     const step = voiceRouteSteps[i];
-    if (!step || !step.maneuver || !step.maneuver.location) continue;
+    if (!step?.maneuver?.location) continue;
     const d = calcDist(lat, lng, step.maneuver.location[1], step.maneuver.location[0]);
     if (d > 5 && d < minDist) { minDist = d; nextStep = step; }
   }
   if (nextStep) {
-    let icon = 'fa-arrow-up'; const type = nextStep.maneuver.type || ''; const modifier = nextStep.maneuver.modifier || '';
+    let icon = 'fa-arrow-up';
+    const type = nextStep.maneuver.type || '';
+    const modifier = nextStep.maneuver.modifier || '';
     if (type.includes('turn') || type.includes('fork') || type.includes('merge')) {
-      if (modifier.includes('left')) icon = 'fa-arrow-left'; else if (modifier.includes('right')) icon = 'fa-arrow-right'; else if (modifier.includes('slight left')) icon = 'fa-share'; else if (modifier.includes('slight right')) icon = 'fa-reply';
-    } else if (type.includes('roundabout')) icon = 'fa-sync-alt'; else if (type.includes('arrive')) icon = 'fa-flag-checkered'; else if (type.includes('uturn')) icon = 'fa-undo';
+      if (modifier.includes('left')) icon = 'fa-arrow-left';
+      else if (modifier.includes('right')) icon = 'fa-arrow-right';
+      else if (modifier.includes('slight left')) icon = 'fa-share';
+      else if (modifier.includes('slight right')) icon = 'fa-reply';
+    } else if (type.includes('roundabout')) icon = 'fa-sync-alt';
+    else if (type.includes('arrive')) icon = 'fa-flag-checkered';
+    else if (type.includes('uturn')) icon = 'fa-undo';
     document.getElementById('hudNextArrow').innerHTML = `<i class="fas ${icon}"></i>`;
     document.getElementById('hudNextDist').textContent = minDist > 1000 ? (minDist / 1000).toFixed(1) + ' km' : Math.round(minDist) + ' m';
     document.getElementById('hudNextInstr').textContent = nextStep.maneuver.instruction || 'Tiếp tục di chuyển';
@@ -1323,54 +1204,68 @@ function checkArrival(lat, lng) {
   if (distToEnd < ARRIVAL_RADIUS_M) { arrivalHandled = true; triggerArrival(); }
 }
 function triggerArrival() {
-  document.getElementById('hudRemainDist').textContent = '0 m'; document.getElementById('hudRemainTime').textContent = 'Đã đến';
-  document.getElementById('hudNextInstr').textContent = 'Đã đến nơi 🎉'; document.getElementById('hudNextDist').textContent = '';
-  document.getElementById('hudNextArrow').innerHTML = '🏁'; document.getElementById('hudNextStopDist').textContent = '0 m';
-  speak('Bạn đã đến nơi. Chuyến đi kết thúc.'); showArrivalToast();
+  document.getElementById('hudRemainDist').textContent = '0 m';
+  document.getElementById('hudRemainTime').textContent = 'Đã đến';
+  document.getElementById('hudNextInstr').textContent = 'Đã đến nơi 🎉';
+  document.getElementById('hudNextDist').textContent = '';
+  document.getElementById('hudNextArrow').innerHTML = '🏁';
+  document.getElementById('hudNextStopDist').textContent = '0 m';
+  speak('Bạn đã đến nơi. Chuyến đi kết thúc.');
+  showArrivalToast();
   setTimeout(() => { if (document.getElementById('hud').classList.contains('hidden')) return; openEndTripModal(); }, 3000);
 }
 function showArrivalToast() {
-  const toast = document.createElement('div'); toast.id = 'arrivalToast';
-  toast.style.cssText = `position: fixed; top: calc(80px + var(--safe-top)); left: 50%; transform: translateX(-50%) translateY(-30px); background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 16px 24px; border-radius: 16px; font-weight: 800; font-size: 1rem; z-index: 9999; box-shadow: 0 10px 40px rgba(16,185,129,0.5); display: flex; align-items: center; gap: 12px; opacity: 0; transition: all 0.3s ease-out; pointer-events: none;`;
+  const toast = document.createElement('div');
+  toast.style.cssText = `position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%) translateY(-30px);background:linear-gradient(135deg,#10b981,#059669);color:white;padding:16px 24px;border-radius:16px;font-weight:800;font-size:1rem;z-index:9999;box-shadow:0 10px 40px rgba(16,185,129,0.5);display:flex;align-items:center;gap:12px;opacity:0;transition:all 0.3s ease-out;pointer-events:none;`;
   toast.innerHTML = `<i class="fas fa-flag-checkered" style="font-size:1.5rem;"></i><span>Đã đến nơi! 🎉</span>`;
-  document.body.appendChild(toast); if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+  document.body.appendChild(toast);
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
   requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateX(-50%) translateY(0)'; });
   setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(-30px)'; setTimeout(() => toast.remove(), 300); }, 2800);
 }
 
 function checkOffRoute(userLat, userLng) {
   if (!currentRouteCoords || currentRouteCoords.length < 2 || isRerouting || arrivalHandled) return;
-  let minDist = Infinity; const startScan = Math.max(0, lastSnapIndex - 10); const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 150);
+  let minDist = Infinity;
+  const startScan = Math.max(0, lastSnapIndex - 10);
+  const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 150);
   for (let i = startScan; i < endScan; i++) {
-    const pt = getClosestPointOnSegment({ lat: userLat, lng: userLng }, { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] }, { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] });
-    const d = calcDist(userLat, userLng, pt.lat, pt.lng); if (d < minDist) minDist = d;
+    const pt = getClosestPointOnSegment(
+      { lat: userLat, lng: userLng },
+      { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] },
+      { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] }
+    );
+    const d = calcDist(userLat, userLng, pt.lat, pt.lng);
+    if (d < minDist) minDist = d;
   }
-  if (minDist > 50) { offRouteCount++; if (offRouteCount >= 3) { offRouteCount = 0; autoReroute(userLat, userLng); } } else offRouteCount = 0;
+  if (minDist > 50) {
+    offRouteCount++;
+    if (offRouteCount >= 3) { offRouteCount = 0; autoReroute(userLat, userLng); }
+  } else offRouteCount = 0;
 }
 
 async function autoReroute(userLat, userLng) {
-  if (isRerouting) return; isRerouting = true;
+  if (isRerouting) return;
+  isRerouting = true;
   const currentMode = currentRouteData?.mode || 'driving';
   try {
     const altRoutes = await apiRoute({ lat: userLat, lng: userLng }, endPoint, currentMode);
     const r = altRoutes[0];
     if (!r) throw new Error('Không có tuyến thay thế');
-
     if (!r.legs || !Array.isArray(r.legs) || r.legs.length === 0) r.legs = [{ steps: [] }];
     if (!r.legs[0].steps) r.legs[0].steps = [];
-
-    currentRouteData = r; voiceRouteSteps = r.legs[0].steps; voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
+    currentRouteData = r;
+    voiceRouteSteps = r.legs[0].steps;
+    voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
     currentRouteCoords = r.geometry.coordinates;
-    
     drawCurrentRoute();
-    
     const bounds = new maplibregl.LngLatBounds();
     currentRouteCoords.forEach(c => bounds.extend([c[1], c[0]]));
     map.fitBounds(bounds, { padding: 50, maxZoom: 17 });
-    
     document.getElementById('hudRemainDist').textContent = (r.distance / 1000).toFixed(1) + ' km';
     document.getElementById('hudRemainTime').textContent = Math.round(r.duration / 60) + ' phút';
-  } catch (e) { console.error('Lỗi Reroute:', e); } finally { isRerouting = false; }
+  } catch (e) { console.error('Lỗi Reroute:', e); }
+  finally { isRerouting = false; }
 }
 
 window.openEndTripModal = function() {
@@ -1406,17 +1301,21 @@ window.endTrip = async function(save) {
   if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
   if (voiceCheckTimer) { clearInterval(voiceCheckTimer); voiceCheckTimer = null; }
   if (window.speechSynthesis) speechSynthesis.cancel();
-  
   if (map.getLayer('current-route-layer')) map.removeLayer('current-route-layer');
   if (map.getSource('current-route-source')) map.removeSource('current-route-source');
-  
   if (window._routeBadges) { window._routeBadges.forEach(m => m.remove()); window._routeBadges = []; }
-
-  currentRouteCoords = []; currentRouteData = null; alternativeRoutesData = []; voiceRouteSteps = null; voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0; isRerouting = false; tripStartTime = null; arrivalHandled = false; warnedReports.clear(); localStorage.removeItem('alternativeRoutes');
+  currentRouteCoords = []; currentRouteData = null; alternativeRoutesData = []; voiceRouteSteps = null;
+  voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0; isRerouting = false;
+  tripStartTime = null; arrivalHandled = false; warnedReports.clear();
+  localStorage.removeItem('alternativeRoutes');
   document.body.classList.remove('navigating');
   document.getElementById('hud').classList.add('hidden');
   updateUIState();
-  document.getElementById('dirInputEnd').value = ''; document.getElementById('topSearchInput').value = ''; document.getElementById('btnClearEnd').classList.add('hidden'); document.getElementById('searchClearBtn').classList.add('hidden'); endPoint = null;
+  document.getElementById('dirInputEnd').value = '';
+  document.getElementById('topSearchInput').value = '';
+  document.getElementById('btnClearEnd').classList.add('hidden');
+  document.getElementById('searchClearBtn').classList.add('hidden');
+  endPoint = null;
   if (lastUserPos) map.flyTo({ center: [lastUserPos.lng, lastUserPos.lat], zoom: 16 });
   alert(save ? '✅ Đã lưu chuyến đi. Cảm ơn bạn đã dùng DriveKit!' : '🏁 Đã kết thúc chuyến đi.');
 };
@@ -1430,14 +1329,19 @@ async function saveHistoryToFirestore(start, end, distance) {
   } catch(e) { console.warn('Lỗi lưu history:', e); }
 }
 
-/* ---------- SHARE ---------- */
+/* ========== SHARE ========== */
 window.shareRoute = function() {
   if (!startPoint || !endPoint) return alert('Vui lòng chọn đủ Điểm đi và Điểm đến!');
   const baseUrl = window.location.origin + window.location.pathname;
   const params = new URLSearchParams({ fromLat: startPoint.lat, fromLng: startPoint.lng, fromName: startPoint.name, toLat: endPoint.lat, toLng: endPoint.lng, toName: endPoint.name });
   const shareUrl = `${baseUrl}?${params.toString()}`;
-  if (navigator.share) { navigator.share({ title: 'DriveKit - Lộ trình', text: `Lộ trình từ ${startPoint.name} đến ${endPoint.name}`, url: shareUrl }).then(() => { saveSharedLinkToStorage(startPoint.name, endPoint.name, shareUrl); alert('Đã chia sẻ thành công!'); }).catch(() => {}); }
-  else { navigator.clipboard.writeText(shareUrl).then(() => { saveSharedLinkToStorage(startPoint.name, endPoint.name, shareUrl); alert('Đã copy link chia sẻ!'); }).catch(() => prompt('Copy link này:', shareUrl)); }
+  if (navigator.share) {
+    navigator.share({ title: 'DriveKit - Lộ trình', text: `Lộ trình từ ${startPoint.name} đến ${endPoint.name}`, url: shareUrl })
+      .then(() => { saveSharedLinkToStorage(startPoint.name, endPoint.name, shareUrl); alert('Đã chia sẻ thành công!'); })
+      .catch(() => {});
+  } else {
+    navigator.clipboard.writeText(shareUrl).then(() => { saveSharedLinkToStorage(startPoint.name, endPoint.name, shareUrl); alert('Đã copy link chia sẻ!'); }).catch(() => prompt('Copy link này:', shareUrl));
+  }
 };
 window.shareLocation = function(lat, lng, name) {
   const baseUrl = window.location.origin + window.location.pathname;
@@ -1477,7 +1381,7 @@ window.clearAllSharedLinks = function() {
   loadSharedLinksFromStorage();
 };
 
-/* ---------- HISTORY / SAVED ROUTES ---------- */
+/* ========== HISTORY / SAVED ROUTES ========== */
 async function loadHistory() {
   const list = document.getElementById('historyList'); if (!list) return;
   if (allHistory.length === 0) {
@@ -1502,52 +1406,64 @@ async function loadSavedRoutes() {
   });
 }
 window.reloadSavedRoute = function(source, id) {
-  const item = window._savedRoutesData.find(i => i._id === id && i.source === source); if (!item) return;
+  const item = window._savedRoutesData.find(i => i._id === id);
+  if (!item) return;
   startPoint = { lat: item.startLat, lng: item.startLng, name: item.startName };
   endPoint = { lat: item.endLat, lng: item.endLng, name: item.endName };
-  document.getElementById('dirInputStart').value = startPoint.name; document.getElementById('dirInputEnd').value = endPoint.name;
-  document.getElementById('topSearchInput').value = endPoint.name; document.getElementById('btnClearStart').classList.remove('hidden'); document.getElementById('btnClearEnd').classList.remove('hidden'); document.getElementById('searchClearBtn').classList.remove('hidden');
-  
-  currentRouteCoords = item.coords; lastSnapIndex = 0;
+  document.getElementById('dirInputStart').value = startPoint.name;
+  document.getElementById('dirInputEnd').value = endPoint.name;
+  document.getElementById('topSearchInput').value = endPoint.name;
+  document.getElementById('btnClearStart').classList.remove('hidden');
+  document.getElementById('btnClearEnd').classList.remove('hidden');
+  document.getElementById('searchClearBtn').classList.remove('hidden');
+  currentRouteCoords = item.coords;
+  lastSnapIndex = 0;
   drawCurrentRoute();
-  
   const bounds = new maplibregl.LngLatBounds();
   currentRouteCoords.forEach(c => bounds.extend([c[1], c[0]]));
   map.fitBounds(bounds, { padding: 50, maxZoom: 17 });
-  
-  closeMenu(); openDirections();
+  closeMenu();
+  openDirections();
 };
 window.deleteItem = async function(type, source, id) {
   if (!confirm('Bạn có chắc muốn xoá mục này?')) return;
-  try {
-    if (source === 'firestore') await deleteDoc(doc(fsdb, `users/${currentUser.uid}/${type}/${id}`));
-    else await remove(ref(db, `users/${currentUser.uid}/${type}/${id}`));
-  } catch (e) { alert('Lỗi xoá: ' + e.message); }
+  try { await deleteDoc(doc(fsdb, `users/${currentUser.uid}/${type}/${id}`)); }
+  catch (e) { alert('Lỗi xoá: ' + e.message); }
 };
 window.clearAllHistory = async function() {
-  if (!confirm('Xoá TẤT CẢ lịch sử? (cả 2 nguồn)')) return;
+  if (!confirm('Xoá TẤT CẢ lịch sử?')) return;
   try {
     const fsSnap = await getDocs(collection(fsdb, `users/${currentUser.uid}/history`));
     for (const d of fsSnap.docs) await deleteDoc(d.ref);
-    await remove(ref(db, `users/${currentUser.uid}/history`));
   } catch(e) { console.warn(e); }
 };
 window.clearAllSavedRoutes = async function() {
-  if (!confirm('Xoá TẤT CẢ lộ trình? (cả 2 nguồn)')) return;
+  if (!confirm('Xoá TẤT CẢ lộ trình?')) return;
   try {
     const fsSnap = await getDocs(collection(fsdb, `users/${currentUser.uid}/savedRoutes`));
     for (const d of fsSnap.docs) await deleteDoc(d.ref);
-    await remove(ref(db, `users/${currentUser.uid}/savedRoutes`));
   } catch(e) { console.warn(e); }
 };
 
-window.openMenu = function() { document.getElementById('profileModal').classList.add('open'); loadHistory(); loadSavedRoutes(); loadSharedLinksFromStorage(); };
+window.openMenu = function() {
+  document.getElementById('profileModal').classList.add('open');
+  loadHistory(); loadSavedRoutes(); loadSharedLinksFromStorage();
+};
 window.closeMenu = function() { document.getElementById('profileModal').classList.remove('open'); };
 
-/* ---------- DIRECTIONS / SEARCH ---------- */
+/* ========== DIRECTIONS / SEARCH ========== */
 window.clearPoint = function(type) {
-  if (type === 'start') { startPoint = null; document.getElementById('dirInputStart').value = ''; document.getElementById('btnClearStart').classList.add('hidden'); }
-  else { endPoint = null; document.getElementById('dirInputEnd').value = ''; document.getElementById('btnClearEnd').classList.add('hidden'); document.getElementById('topSearchInput').value = ''; document.getElementById('searchClearBtn').classList.add('hidden'); }
+  if (type === 'start') {
+    startPoint = null;
+    document.getElementById('dirInputStart').value = '';
+    document.getElementById('btnClearStart').classList.add('hidden');
+  } else {
+    endPoint = null;
+    document.getElementById('dirInputEnd').value = '';
+    document.getElementById('btnClearEnd').classList.add('hidden');
+    document.getElementById('topSearchInput').value = '';
+    document.getElementById('searchClearBtn').classList.add('hidden');
+  }
 };
 
 function openDirections() {
@@ -1587,7 +1503,7 @@ function activateSearch(type) {
     else document.getElementById('searchClearBtn').classList.add('hidden');
     if (q.length < 2 && !q.startsWith('http')) return;
     clearTimeout(window._searchTimer);
-    window._searchTimer = setTimeout(() => doSearch(q), 500);
+    window._searchTimer = setTimeout(() => doSearch(q), 400);
   };
   updateUIState();
 }
@@ -1599,12 +1515,7 @@ function closeSearch() {
 window.clearTopSearch = function() {
   searchResultMarkers.forEach(m => m.remove());
   searchResultMarkers = [];
-  
-  if (touchMarker) { 
-    closePopupSmoothly(touchMarker); 
-    touchMarker = null; 
-  }
-
+  if (touchMarker) { closePopupSmoothly(touchMarker); touchMarker = null; }
   document.getElementById('topSearchInput').value = '';
   document.getElementById('searchClearBtn').classList.add('hidden');
   clearPoint('end');
@@ -1615,45 +1526,25 @@ function renderSearchResultMarkers(results, originalQuery) {
   searchResultMarkers.forEach(m => m.remove());
   searchResultMarkers = [];
   if (!results || results.length === 0) return;
-
-  const center = results[0]; 
-  if (!center || !center.lat || !center.lng) return;
-  
+  const center = results[0];
+  if (!center?.lat || !center?.lng) return;
   const MAX_DIST = 1000;
-
   results.forEach((r) => {
     if (!r.lat || !r.lng) return;
-    
     const dist = calcDist(center.lat, center.lng, r.lat, r.lng);
-    
     if (dist <= MAX_DIST || r === center) {
       const el = document.createElement('div');
       el.className = 'search-result-pin';
       el.style.zIndex = '999';
-      
-      let displayName = r.name.split(',')[0]; 
+      let displayName = r.name.split(',')[0];
       if (displayName.length > 25) displayName = displayName.substring(0, 25) + '...';
-      
       let labelHtml = `<div style="font-weight:800; font-size:0.75rem; color:var(--text);">${escapeHtml(displayName)}</div>`;
-      
       if (originalQuery && !displayName.toLowerCase().includes(originalQuery.toLowerCase())) {
         labelHtml += `<div style="font-size:0.6rem; color:#f59e0b; font-weight:800; margin-top:4px; background:rgba(245,158,11,0.15); padding:2px 6px; border-radius:4px; display:inline-block;"><i class="fas fa-location-dot"></i> ${escapeHtml(originalQuery)}</div>`;
       }
-      
-      el.innerHTML = `
-        <div class="search-result-label" style="padding:8px 10px; text-align:center;">${labelHtml}</div>
-        <div class="search-result-dot"></div>
-      `;
-      
-      const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
-        .setLngLat([r.lng, r.lat])
-        .addTo(map);
-        
-      el.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        selectLocation(r.lat, r.lng, r.name);
-      });
-
+      el.innerHTML = `<div class="search-result-label" style="padding:8px 10px; text-align:center;">${labelHtml}</div><div class="search-result-dot"></div>`;
+      const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([r.lng, r.lat]).addTo(map);
+      el.addEventListener('click', (ev) => { ev.stopPropagation(); selectLocation(r.lat, r.lng, r.name); });
       searchResultMarkers.push(marker);
     }
   });
@@ -1672,7 +1563,7 @@ async function doSearch(query) {
         div.onclick = () => selectLocation(coords.lat, coords.lng, coords.name || 'Vị trí từ Google Maps');
         box.appendChild(div);
       } else {
-        box.innerHTML = '<div class="sug-item" style="color:var(--danger);line-height:1.4;">Không đọc được toạ độ từ link rút gọn (goo.gl).<br>Mở link → copy toạ độ dạng <b>lat,lng</b> và dán vào đây!</div>';
+        box.innerHTML = '<div class="sug-item" style="color:var(--danger);line-height:1.4;">Không đọc được toạ độ từ link rút gọn.</div>';
       }
       return;
     }
@@ -1729,18 +1620,12 @@ async function doSearch(query) {
       title2.className = 'sug-section-title';
       title2.innerHTML = '<i class="fas fa-map-marked-alt"></i> Địa điểm khác';
       box.appendChild(title2);
-      
       displayResults.forEach(r => {
         const div = document.createElement('div');
         div.className = 'sug-item';
         const isPoi = r.type === 'poi';
-        const typeIcon = isPoi ? 'fa-map-marker-alt'
-                      : (r.type === 'address' ? 'fa-location-dot'
-                      : (r.type === 'place' ? 'fa-map-location-dot' : 'fa-road'));
-        const typeLabel = isPoi ? (r.category ? r.category : 'Địa điểm')
-                        : r.type === 'address' ? 'Địa chỉ'
-                        : r.type === 'place' ? 'Địa danh'
-                        : (r.type === 'street' ? 'Đường' : 'Khác');
+        const typeIcon = isPoi ? 'fa-map-marker-alt' : (r.type === 'address' ? 'fa-location-dot' : (r.type === 'place' ? 'fa-map-location-dot' : 'fa-road'));
+        const typeLabel = isPoi ? (r.category ? r.category : 'Địa điểm') : r.type === 'address' ? 'Địa chỉ' : r.type === 'place' ? 'Địa danh' : (r.type === 'street' ? 'Đường' : 'Khác');
         const typeColor = isPoi ? '#10b981' : '#94a3b8';
         div.innerHTML = `
           <i class="fas ${typeIcon}" style="color:${typeColor}; font-size:1rem;"></i>
@@ -1753,9 +1638,7 @@ async function doSearch(query) {
         div.onclick = () => selectLocation(r.lat, r.lng, r.name);
         box.appendChild(div);
       });
-
       renderSearchResultMarkers(displayResults, query);
-
     } else if (restStopMatches.length === 0 && poiMatches.length === 0) {
       box.innerHTML = '<div class="sug-item">Không tìm thấy kết quả</div>';
     }
@@ -1779,76 +1662,73 @@ async function selectLocation(lat, lng, name) {
   map.flyTo({ center: [lng, lat], zoom: 16 });
   
   let finalName = name;
-  try { const raw = await apiReverseGeocode(lat, lng); if (raw) finalName = raw.split(',').slice(0, 3).join(', '); } catch (e) {}
+  try {
+    const raw = await apiReverseGeocode(lat, lng);
+    if (raw) finalName = raw.split(',').slice(0, 3).join(', ');
+  } catch (e) {}
   
   const popupHtml = `
     <div style="min-width: 180px;">
       <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: var(--text);">${finalName}</div>
-      <button onclick="event.stopPropagation(); openSavePlaceModal(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--success); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-bookmark"></i> Ghim địa điểm</button>
-      <button onclick="event.stopPropagation(); openPoiSheet(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: linear-gradient(135deg,#10b981,#059669); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-plus-circle"></i> Thêm địa điểm mới</button>
-      <button onclick="event.stopPropagation(); goToLongPressLocation(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
-      <button onclick="event.stopPropagation(); shareLocation(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fas fa-share-alt"></i> Chia sẻ</button>
+      <button onclick="event.stopPropagation(); openSavePlaceModal(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--success); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; margin-bottom: 6px;"><i class="fas fa-bookmark"></i> Ghim địa điểm</button>
+      <button onclick="event.stopPropagation(); openPoiSheet(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: linear-gradient(135deg,#10b981,#059669); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; margin-bottom: 6px;"><i class="fas fa-plus-circle"></i> Thêm địa điểm mới</button>
+      <button onclick="event.stopPropagation(); goToLongPressLocation(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; margin-bottom: 6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
+      <button onclick="event.stopPropagation(); shareLocation(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer;"><i class="fas fa-share-alt"></i> Chia sẻ</button>
     </div>`;
 
-  const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeButton: false })
-    .setLngLat([lng, lat])
-    .setHTML(popupHtml);
-
+  const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeButton: false }).setLngLat([lng, lat]).setHTML(popupHtml);
   const el = createTouchMarkerElement();
-
-  touchMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
-    .setLngLat([lng, lat])
-    .setPopup(popup)
-    .addTo(map);
-    
+  touchMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
   touchMarker.togglePopup();
 
-  if (searchContext === 'view') {}
-  else if (searchContext === 'start') { startPoint = { lat, lng, name: finalName }; document.getElementById('dirInputStart').value = finalName; document.getElementById('btnClearStart').classList.remove('hidden'); }
-  else if (searchContext === 'end') { endPoint = { lat, lng, name: finalName }; document.getElementById('dirInputEnd').value = finalName; document.getElementById('topSearchInput').value = finalName; document.getElementById('btnClearEnd').classList.remove('hidden'); }
+  if (searchContext === 'start') {
+    startPoint = { lat, lng, name: finalName };
+    document.getElementById('dirInputStart').value = finalName;
+    document.getElementById('btnClearStart').classList.remove('hidden');
+  } else if (searchContext === 'end') {
+    endPoint = { lat, lng, name: finalName };
+    document.getElementById('dirInputEnd').value = finalName;
+    document.getElementById('topSearchInput').value = finalName;
+    document.getElementById('btnClearEnd').classList.remove('hidden');
+  }
 }
 
 function refreshGPS() {
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(pos => {
-    startPoint = { lat: pos.coords.latitude, lng: pos.coords.longitude, name: 'Vị trí của tôi' }; document.getElementById('dirInputStart').value = 'Vị trí của tôi (GPS)'; document.getElementById('btnClearStart').classList.remove('hidden');
-    lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; 
-    map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 16 }); 
+    startPoint = { lat: pos.coords.latitude, lng: pos.coords.longitude, name: 'Vị trí của tôi' };
+    document.getElementById('dirInputStart').value = 'Vị trí của tôi (GPS)';
+    document.getElementById('btnClearStart').classList.remove('hidden');
+    lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+    map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 16 });
     updateUserMarkerOnMap(lastUserPos, lastHeading);
   }, (err) => { console.warn(err); });
 }
 
-/* ---------- GEO HELPERS ---------- */
+/* ========== GEO HELPERS ========== */
 function getClosestPointOnSegment(p, a, b) {
-  const atob = { x: b.lng - a.lng, y: b.lat - a.lat }; const atop = { x: p.lng - a.lng, y: p.lat - a.lat };
-  const len = atob.x * atob.x + atob.y * atob.y; const dot = atop.x * atob.x + atop.y * atob.y;
-  const t = Math.min(1, Math.max(0, dot / len)); return { lat: a.lat + atob.y * t, lng: a.lng + atob.x * t };
+  const atob = { x: b.lng - a.lng, y: b.lat - a.lat };
+  const atop = { x: p.lng - a.lng, y: p.lat - a.lat };
+  const len = atob.x * atob.x + atob.y * atob.y;
+  const dot = atop.x * atob.x + atop.y * atob.y;
+  const t = Math.min(1, Math.max(0, dot / len));
+  return { lat: a.lat + atob.y * t, lng: a.lng + atob.x * t };
 }
 
 function updateUserMarkerOnMap(pos, heading) {
   const lngLat = [pos.lng, pos.lat];
   if (!userMarker) {
     const el = document.createElement('div');
-    el.style.width = '32px';
-    el.style.height = '32px';
-    el.style.display = 'flex';
-    el.style.alignItems = 'center';
-    el.style.justifyContent = 'center';
-    el.innerHTML = `<svg class="user-marker-inner" style="transform: rotate(${heading || 0}deg); width: 24px; height: 24px;" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L22 20L12 16L2 20L12 2Z" fill="#10b981" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg>`;
-    
-    userMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
-      .setLngLat(lngLat)
-      .addTo(map);
+    el.style.cssText = 'width:32px;height:32px;display:flex;align-items:center;justify-content:center;';
+    el.innerHTML = `<svg class="user-marker-inner" style="transform: rotate(${heading || 0}deg); width: 24px; height: 24px;" viewBox="0 0 24 24"><path d="M12 2L22 20L12 16L2 20L12 2Z" fill="#10b981" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg>`;
+    userMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(lngLat).addTo(map);
   } else {
     userMarker.setLngLat(lngLat);
     const inner = userMarker.getElement().querySelector('.user-marker-inner');
     if (inner) inner.style.transform = `rotate(${heading || 0}deg)`;
   }
-  
   gpsCircleGeoJSON = createCircleGeoJSON(pos.lng, pos.lat, pos.accuracy || 10);
-  if (map.getSource('gps-circle-source')) {
-    map.getSource('gps-circle-source').setData(gpsCircleGeoJSON);
-  }
+  if (map.getSource('gps-circle-source')) map.getSource('gps-circle-source').setData(gpsCircleGeoJSON);
 }
 
 function animateMarkerTo(targetPos) {
@@ -1856,57 +1736,56 @@ function animateMarkerTo(targetPos) {
   let snappedLat = targetPos.lat, snappedLng = targetPos.lng, targetHeading = targetPos.heading;
   if (currentRouteCoords && currentRouteCoords.length > 1 && lastSnapIndex < currentRouteCoords.length - 1) {
     let minDist = Infinity, bestPoint = null, bestSegmentIndex = lastSnapIndex;
-    const startScan = Math.max(0, lastSnapIndex - 5); const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 50);
+    const startScan = Math.max(0, lastSnapIndex - 5);
+    const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 50);
     for (let i = startScan; i < endScan; i++) {
-      const pt = getClosestPointOnSegment({ lat: targetPos.lat, lng: targetPos.lng }, { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] }, { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] });
-      const d = calcDist(targetPos.lat, targetPos.lng, pt.lat, pt.lng); if (d < minDist) { minDist = d; bestPoint = pt; bestSegmentIndex = i; if (i > lastSnapIndex) lastSnapIndex = i; }
+      const pt = getClosestPointOnSegment(
+        { lat: targetPos.lat, lng: targetPos.lng },
+        { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] },
+        { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] }
+      );
+      const d = calcDist(targetPos.lat, targetPos.lng, pt.lat, pt.lng);
+      if (d < minDist) { minDist = d; bestPoint = pt; bestSegmentIndex = i; if (i > lastSnapIndex) lastSnapIndex = i; }
     }
     if (bestPoint && minDist < 40) {
-      const p1 = currentRouteCoords[bestSegmentIndex]; const p2 = currentRouteCoords[bestSegmentIndex + 1];
+      const p1 = currentRouteCoords[bestSegmentIndex];
+      const p2 = currentRouteCoords[bestSegmentIndex + 1];
       const angle = Math.atan2(p2[0] - p1[0], p2[1] - p1[1]);
-      snappedLat = bestPoint.lat + Math.cos(angle) * 0.00003; snappedLng = bestPoint.lng - Math.sin(angle) * 0.00003; targetHeading = (angle * 180 / Math.PI) + 90;
+      snappedLat = bestPoint.lat + Math.cos(angle) * 0.00003;
+      snappedLng = bestPoint.lng - Math.sin(angle) * 0.00003;
+      targetHeading = (angle * 180 / Math.PI) + 90;
     }
   }
-  
   if (currentRouteCoords && currentRouteCoords.length > 0 && lastSnapIndex > 0) {
     const remaining = currentRouteCoords.slice(lastSnapIndex);
-    if (remaining.length > 1) {
-      currentRouteCoords = remaining;
-      drawCurrentRoute();
-    } else {
+    if (remaining.length > 1) { currentRouteCoords = remaining; drawCurrentRoute(); }
+    else {
       if (map.getLayer('current-route-layer')) map.removeLayer('current-route-layer');
       if (map.getSource('current-route-source')) map.removeSource('current-route-source');
       currentRouteCoords = [];
     }
   }
-  
   const startLat = userMarker.getLngLat().lat;
   const startLng = userMarker.getLngLat().lng;
   const startTime = performance.now(), duration = 1000;
-  
   function step(time) {
-    const progress = Math.min((time - startTime) / duration, 1); const ease = 1 - Math.pow(1 - progress, 3);
+    const progress = Math.min((time - startTime) / duration, 1);
+    const ease = 1 - Math.pow(1 - progress, 3);
     const currentLat = startLat + (snappedLat - startLat) * ease;
     const currentLng = startLng + (snappedLng - startLng) * ease;
-    
     userMarker.setLngLat([currentLng, currentLat]);
     const inner = userMarker.getElement().querySelector('.user-marker-inner');
     if (inner) inner.style.transform = `rotate(${targetHeading || 0}deg)`;
-    
     if (progress < 1) requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
-  
   gpsCircleGeoJSON = createCircleGeoJSON(snappedLng, snappedLat, targetPos.accuracy || 10);
-  if (map.getSource('gps-circle-source')) {
-    map.getSource('gps-circle-source').setData(gpsCircleGeoJSON);
-  }
+  if (map.getSource('gps-circle-source')) map.getSource('gps-circle-source').setData(gpsCircleGeoJSON);
 }
 
 function startWatching() {
   if (watchId) navigator.geolocation.clearWatch(watchId);
-  let lastPosForSpeed = null;
-  let lastTimeForSpeed = null;
+  let lastPosForSpeed = null, lastTimeForSpeed = null;
   watchId = navigator.geolocation.watchPosition(pos => {
     const now = Date.now();
     let speed = pos.coords.speed;
@@ -1920,25 +1799,31 @@ function startWatching() {
     const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, speed: speed || 0, accuracy: pos.coords.accuracy || 10, heading: pos.coords.heading };
     smoothedSpeed = (0.2 * newPos.speed) + (0.8 * smoothedSpeed);
     document.getElementById('hudSpeed').textContent = Math.round(smoothedSpeed * 3.6) + ' km/h';
-    if (lastUserPos && !newPos.heading) { const dy = newPos.lat - lastUserPos.lat, dx = newPos.lng - lastUserPos.lng; newPos.heading = 90 - (Math.atan2(dy, dx) * 180 / Math.PI); }
-    lastUserPos = newPos; 
+    if (lastUserPos && !newPos.heading) {
+      const dy = newPos.lat - lastUserPos.lat, dx = newPos.lng - lastUserPos.lng;
+      newPos.heading = 90 - (Math.atan2(dy, dx) * 180 / Math.PI);
+    }
+    lastUserPos = newPos;
     animateMarkerTo(lastUserPos);
     if (map) map.easeTo({ center: [lastUserPos.lng, lastUserPos.lat], duration: 500 });
-    checkReportProximity(lastUserPos.lat, lastUserPos.lng); checkOffRoute(lastUserPos.lat, lastUserPos.lng); checkArrival(lastUserPos.lat, lastUserPos.lng); updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
+    checkReportProximity(lastUserPos.lat, lastUserPos.lng);
+    checkOffRoute(lastUserPos.lat, lastUserPos.lng);
+    checkArrival(lastUserPos.lat, lastUserPos.lng);
+    updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
   }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
 }
 
 function checkReportProximity(lat, lng) {
-  if (!voiceEnabled) return; const now = Date.now();
+  if (!voiceEnabled) return;
+  const now = Date.now();
   for (const key in allReports) {
-    const rep = allReports[key]; if (now > rep.expiresAt || warnedReports.has(key)) continue;
+    const rep = allReports[key];
+    if (now > rep.expiresAt || warnedReports.has(key)) continue;
     if (calcDist(lat, lng, rep.lat, rep.lng) < 300) {
       warnedReports.add(key);
       let msg = 'sự cố';
       if (rep.type === 'police') msg = 'CSGT';
-      else if (rep.type === 'camera') msg = 'Camera giao thông';
       else if (rep.type === 'toll') msg = 'Trạm thu phí';
-      else if (rep.type === 'speed_limit') msg = `biển báo tốc độ ${rep.speed} km/h`;
       else if (rep.type === 'accident') msg = 'tai nạn';
       else if (rep.type === 'traffic') msg = 'kẹt xe';
       else if (rep.type === 'flood') msg = 'ngập nước';
@@ -1950,15 +1835,20 @@ function checkReportProximity(lat, lng) {
 
 function speak(text) {
   if (!voiceEnabled || !window.speechSynthesis) return;
-  speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'vi-VN'; speechSynthesis.speak(u);
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'vi-VN';
+  speechSynthesis.speak(u);
 }
 
 function startVoice() {
-  speak('Bắt đầu dẫn đường.'); document.getElementById('hudBtnVoice').classList.add('active');
+  speak('Bắt đầu dẫn đường.');
+  document.getElementById('hudBtnVoice').classList.add('active');
   voiceCheckTimer = setInterval(() => {
     if (!lastUserPos || !voiceRouteSteps) return;
     for (let i = voiceStepIndex; i < Math.min(voiceRouteSteps.length, voiceStepIndex + 3); i++) {
-      const step = voiceRouteSteps[i]; if (!step || !step.maneuver || !step.maneuver.location) continue;
+      const step = voiceRouteSteps[i];
+      if (!step?.maneuver?.location) continue;
       const d = calcDist(lastUserPos.lat, lastUserPos.lng, step.maneuver.location[1], step.maneuver.location[0]);
       if (d < 50) { speak(step.maneuver.instruction); voiceStepIndex = i + 1; break; }
     }
@@ -1966,12 +1856,14 @@ function startVoice() {
 }
 
 function calcDist(lat1, lng1, lat2, lng2) {
-  const R = 6371e3; const p1 = lat1 * Math.PI/180, p2 = lat2 * Math.PI/180; const dp = (lat2-lat1) * Math.PI/180, dl = (lng2-lng1) * Math.PI/180;
-  const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
+  const R = 6371e3;
+  const p1 = lat1 * Math.PI/180, p2 = lat2 * Math.PI/180;
+  const dp = (lat2-lat1) * Math.PI/180, dl = (lng2-lng1) * Math.PI/180;
+  const a = Math.sin(dp/2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-/* ---------- LAYER ---------- */
+/* ========== LAYER ========== */
 window.toggleLayerMenu = function() {
   const menu = document.getElementById('layerMenu');
   const isShowing = menu.classList.contains('show');
@@ -1996,43 +1888,42 @@ function changeLayer(type, btn) {
   document.querySelectorAll('.layer-option').forEach(el => el.classList.remove('active'));
   if (btn) btn.classList.add('active');
   document.getElementById('layerMenu').classList.remove('show');
-
   let styleUrl = MAPTILER_STYLE;
-  if (type === 'trackasia-maplibre' || type === 'trackasia') {
-    styleUrl = TRACKASIA_STYLE;
-  } else if (type === 'satellite') {
-    styleUrl = `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`;
-  }
-  
+  if (type === 'trackasia-maplibre' || type === 'trackasia') styleUrl = TRACKASIA_STYLE;
+  else if (type === 'satellite') styleUrl = `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`;
   map.setStyle(styleUrl);
-  
   map.once('styledata', () => {
     setTimeout(() => {
       initGpsCircleLayer();
       if (currentRouteCoords.length > 0) drawCurrentRoute();
-      
-      if (document.getElementById('trafficToggle') && document.getElementById('trafficToggle').checked) {
-        toggleTraffic(true);
-      }
     }, 100);
   });
 }
 
 window.goToLongPressLocation = function(lat, lng, name) {
   endPoint = { lat, lng, name };
-  document.getElementById('dirInputEnd').value = name; document.getElementById('topSearchInput').value = name;
-  document.getElementById('btnClearEnd').classList.remove('hidden'); document.getElementById('searchClearBtn').classList.remove('hidden');
+  document.getElementById('dirInputEnd').value = name;
+  document.getElementById('topSearchInput').value = name;
+  document.getElementById('btnClearEnd').classList.remove('hidden');
+  document.getElementById('searchClearBtn').classList.remove('hidden');
   if (touchMarker) touchMarker.remove();
-  openDirections(); if (!startPoint) refreshGPS();
+  openDirections();
+  if (!startPoint) refreshGPS();
 };
 
-function escapeHtml(text) { return String(text || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
-function centerToLocation() { if (lastUserPos) map.flyTo({ center: [lastUserPos.lng, lastUserPos.lat], zoom: 18 }); else refreshGPS(); }
+function escapeHtml(text) {
+  return String(text || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+function centerToLocation() {
+  if (lastUserPos) map.flyTo({ center: [lastUserPos.lng, lastUserPos.lat], zoom: 18 });
+  else refreshGPS();
+}
 
-/* ---------- POI ---------- */
+/* ========== POI ========== */
 window.openPoiSheet = function(lat, lng, addressHint) {
   if (!currentUser) { alert('Vui lòng đăng nhập để thêm địa điểm!'); return; }
-  tempPoiLatLng = { lat, lng }; tempPoiTag = null;
+  tempPoiLatLng = { lat, lng };
+  tempPoiTag = null;
   document.getElementById('poiCoords').textContent = `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}${addressHint ? ' • ' + addressHint : ''}`;
   document.getElementById('poiNameInput').value = '';
   document.getElementById('poiSaveBtn').disabled = true;
@@ -2050,8 +1941,7 @@ window.selectPoiTag = function(tag, btn) {
 };
 function updatePoiSaveBtnState() {
   const name = document.getElementById('poiNameInput').value.trim();
-  const btn = document.getElementById('poiSaveBtn');
-  btn.disabled = !(tempPoiTag && name.length >= 2);
+  document.getElementById('poiSaveBtn').disabled = !(tempPoiTag && name.length >= 2);
 }
 const poiNameInputEl = document.getElementById('poiNameInput');
 if (poiNameInputEl) poiNameInputEl.addEventListener('input', updatePoiSaveBtnState);
@@ -2061,20 +1951,27 @@ window.submitCommunityPoi = async function() {
   const name = document.getElementById('poiNameInput').value.trim();
   if (name.length < 2) return alert('Tên địa điểm quá ngắn!');
   const btn = document.getElementById('poiSaveBtn');
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...';
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...';
   try {
     const collectionName = tempPoiTag === 'rest_stop' ? 'rest_stops' : 'community_pois';
     await addDoc(collection(fsdb, collectionName), {
-      lat: tempPoiLatLng.lat, lng: tempPoiLatLng.lng, name: name, tag: tempPoiTag,
-      uid: currentUser.uid, authorName: currentUser.displayName || currentUser.email.split('@')[0],
+      lat: tempPoiLatLng.lat, lng: tempPoiLatLng.lng, name, tag: tempPoiTag,
+      uid: currentUser.uid,
+      authorName: currentUser.displayName || currentUser.email.split('@')[0],
       timestamp: Date.now(), upvotes: 0
     });
     closePoiSheet();
     const t = document.createElement('div');
     t.style.cssText = 'position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#10b981,#059669);color:white;padding:14px 22px;border-radius:14px;font-weight:800;z-index:9999;box-shadow:0 10px 30px rgba(16,185,129,0.5);display:flex;gap:10px;align-items:center;';
     t.innerHTML = '<i class="fas fa-check-circle"></i><span>Đã thêm địa điểm!</span>';
-    document.body.appendChild(t); setTimeout(() => t.remove(), 2500);
-  } catch (e) { alert('Lỗi lưu: ' + e.message); btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Lưu địa điểm'; }
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
+  } catch (e) {
+    alert('Lỗi lưu: ' + e.message);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-check"></i> Lưu địa điểm';
+  }
 };
 window.openPoiDetail = function(source, id) {
   const poi = [...allCommunityPois, ...allRestStops].find(p => p._id === id && p.source === source);
@@ -2093,7 +1990,7 @@ window.openPoiDetail = function(source, id) {
     <div class="poi-detail-coords">
       <i class="fas fa-map-pin"></i>
       <div class="poi-detail-coords-text">${poi.lat.toFixed(6)}, ${poi.lng.toFixed(6)}</div>
-      <button onclick="copyPoiCoords()" style="background:transparent; color:var(--primary); font-size:1.1rem; padding:4px;" title="Copy toạ độ"><i class="fas fa-copy"></i></button>
+      <button onclick="copyPoiCoords()" style="background:transparent; color:var(--primary); font-size:1.1rem; padding:4px;"><i class="fas fa-copy"></i></button>
     </div>
     <div class="poi-detail-meta">
       <span><i class="fas fa-check-circle" style="color:#3b82f6;"></i> Địa điểm cộng đồng</span>
@@ -2108,8 +2005,16 @@ window.openPoiDetail = function(source, id) {
   if (touchMarker) touchMarker.remove();
 };
 window.closePoiDetail = function() { document.getElementById('poiDetailSheet').classList.remove('open'); currentDetailPoi = null; };
-window.goToPoiFromDetail = function() { if (!currentDetailPoi) return; const { lat, lng, name } = currentDetailPoi; closePoiDetail(); goToLongPressLocation(lat, lng, name); };
-window.sharePoiFromDetail = function() { if (!currentDetailPoi) return; shareLocation(currentDetailPoi.lat, currentDetailPoi.lng, currentDetailPoi.name); };
+window.goToPoiFromDetail = function() {
+  if (!currentDetailPoi) return;
+  const { lat, lng, name } = currentDetailPoi;
+  closePoiDetail();
+  goToLongPressLocation(lat, lng, name);
+};
+window.sharePoiFromDetail = function() {
+  if (!currentDetailPoi) return;
+  shareLocation(currentDetailPoi.lat, currentDetailPoi.lng, currentDetailPoi.name);
+};
 window.copyPoiCoords = function() {
   if (!currentDetailPoi) return;
   const text = `${currentDetailPoi.lat.toFixed(6)}, ${currentDetailPoi.lng.toFixed(6)}`;
@@ -2132,7 +2037,8 @@ function setupSwipeDown(sheetId, handleId, closeFn) {
   function onTouchStart(e) { startY = e.touches[0].clientY; currentY = startY; isDragging = true; sheet.style.transition = 'none'; }
   function onTouchMove(e) { if (!isDragging) return; currentY = e.touches[0].clientY; const deltaY = currentY - startY; if (deltaY > 0) sheet.style.transform = `translateY(${deltaY}px)`; }
   function onTouchEnd() {
-    if (!isDragging) return; isDragging = false;
+    if (!isDragging) return;
+    isDragging = false;
     sheet.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
     const deltaY = currentY - startY;
     if (deltaY > 100) { sheet.style.transform = ''; closeFn(); } else sheet.style.transform = '';
@@ -2176,18 +2082,19 @@ window.toggleRestStopFilter = function() {
   setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2000);
 };
 
-/* ---------- LIVE ---------- */
+/* ========== LIVE ========== */
 function liveLerp(a, b, t) { return a + (b - a) * t; }
 function liveEase(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2; }
 function liveHaversine(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 function generateLiveRoomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let c = ''; for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random()*chars.length)];
+  let c = '';
+  for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random()*chars.length)];
   return c;
 }
 function startLiveAnim(animState) {
@@ -2261,11 +2168,15 @@ async function stopLiveSession() {
   }
   Object.values(liveMemberAnimStates).forEach(a => { if (a.animId) cancelAnimationFrame(a.animId); });
   Object.values(liveMemberMarkers).forEach(m => m.remove());
-  liveMemberMarkers = {}; liveMemberAnimStates = {};
+  liveMemberMarkers = {};
+  liveMemberAnimStates = {};
   if (liveMyAnimState?.animId) cancelAnimationFrame(liveMyAnimState.animId);
   if (liveMyMarker) { liveMyMarker.remove(); liveMyMarker = null; }
   liveMyAnimState = null;
-  liveRoomCode = null; liveIsPublic = false; liveRoomMembers = []; livePublicUsers = [];
+  liveRoomCode = null;
+  liveIsPublic = false;
+  liveRoomMembers = [];
+  livePublicUsers = [];
   updateLiveUI();
 }
 function updateLiveUI() {
@@ -2279,30 +2190,46 @@ function updateLiveUI() {
   const leaveBtn = document.getElementById('liveLeaveBtn');
   const codeText = document.getElementById('liveRoomCodeText');
   if (liveEnabled) {
-    badge.textContent = 'LIVE'; badge.classList.add('on'); badge.style.display = 'inline-block';
-    features.style.opacity = '1'; features.style.pointerEvents = 'auto';
+    badge.textContent = 'LIVE';
+    badge.classList.add('on');
+    badge.style.display = 'inline-block';
+    features.style.opacity = '1';
+    features.style.pointerEvents = 'auto';
     overlay.style.display = 'none';
   } else {
-    badge.textContent = 'OFF'; badge.classList.remove('on'); badge.style.display = 'none';
-    features.style.opacity = '0.4'; features.style.pointerEvents = 'none';
+    badge.textContent = 'OFF';
+    badge.classList.remove('on');
+    badge.style.display = 'none';
+    features.style.opacity = '0.4';
+    features.style.pointerEvents = 'none';
     overlay.style.display = 'flex';
-    codeBox.style.display = 'none'; actions.style.display = 'flex';
-    publicBox.style.display = 'none'; membersBox.style.display = 'none'; leaveBtn.style.display = 'none';
+    codeBox.style.display = 'none';
+    actions.style.display = 'flex';
+    publicBox.style.display = 'none';
+    membersBox.style.display = 'none';
+    leaveBtn.style.display = 'none';
     return;
   }
   if (liveRoomCode) {
     codeText.textContent = liveRoomCode;
-    codeBox.style.display = 'flex'; actions.style.display = 'none';
-    publicBox.style.display = 'block'; membersBox.style.display = 'block'; leaveBtn.style.display = 'block';
+    codeBox.style.display = 'flex';
+    actions.style.display = 'none';
+    publicBox.style.display = 'block';
+    membersBox.style.display = 'block';
+    leaveBtn.style.display = 'block';
   } else {
-    codeBox.style.display = 'none'; actions.style.display = 'flex';
-    publicBox.style.display = 'none'; membersBox.style.display = 'none'; leaveBtn.style.display = 'none';
+    codeBox.style.display = 'none';
+    actions.style.display = 'flex';
+    publicBox.style.display = 'none';
+    membersBox.style.display = 'none';
+    leaveBtn.style.display = 'none';
   }
 }
 window.createLiveRoom = async function(silent) {
   if (!currentUser) return;
   const code = generateLiveRoomCode();
-  liveRoomCode = code; liveIsPublic = false;
+  liveRoomCode = code;
+  liveIsPublic = false;
   try {
     await set(ref(db, `live_rooms/${code}`), { hostUid: currentUser.uid, hostName: currentUser.displayName || currentUser.email.split('@')[0], isPublic: false, createdAt: Date.now() });
     const memberRef = ref(db, `live_rooms/${code}/members/${currentUser.uid}`);
@@ -2324,7 +2251,8 @@ window.joinLiveRoom = async function() {
   try {
     const snap = await get(ref(db, `live_rooms/${code}`));
     if (!snap.exists()) return alert('Không tìm thấy phòng: ' + code);
-    liveRoomCode = code; liveIsPublic = false;
+    liveRoomCode = code;
+    liveIsPublic = false;
     const memberRef = ref(db, `live_rooms/${code}/members/${currentUser.uid}`);
     onDisconnect(memberRef).remove();
     const publicRef = ref(db, `public_users/${currentUser.uid}`);
@@ -2345,7 +2273,7 @@ window.leaveLiveRoom = async function() {
 };
 window.copyLiveRoomCode = function() {
   if (!liveRoomCode) return;
-  navigator.clipboard.writeText(liveRoomCode).then(() => { alert('Đã copy mã phòng: ' + liveRoomCode); }).catch(() => { prompt('Copy mã phòng:', liveRoomCode); });
+  navigator.clipboard.writeText(liveRoomCode).then(() => alert('Đã copy mã phòng: ' + liveRoomCode)).catch(() => prompt('Copy mã phòng:', liveRoomCode));
 };
 window.toggleLivePublic = async function() {
   if (!liveRoomCode || !currentUser) return;
@@ -2357,7 +2285,8 @@ window.toggleLivePublic = async function() {
     await remove(ref(db, `public_users/${currentUser.uid}`)).catch(()=>{});
     if (livePublicUnsub) { livePublicUnsub(); livePublicUnsub = null; }
     livePublicUsers = [];
-    renderLiveMembers(); renderLiveMemberMarkers();
+    renderLiveMembers();
+    renderLiveMemberMarkers();
   }
 };
 async function pushLivePositionToRTDB() {
@@ -2374,7 +2303,8 @@ function subscribeLiveRoom() {
     const data = snap.val() || {};
     const now = Date.now();
     liveRoomMembers = Object.entries(data).map(([uid, m]) => ({ uid, ...m })).filter(m => !m.lastPing || (now - m.lastPing) < LIVE_HEARTBEAT_TIMEOUT);
-    renderLiveMembers(); renderLiveMemberMarkers();
+    renderLiveMembers();
+    renderLiveMemberMarkers();
   });
 }
 function subscribeLivePublic() {
@@ -2388,7 +2318,8 @@ function subscribeLivePublic() {
       .filter(u => !u.lastPing || (now - u.lastPing) < LIVE_HEARTBEAT_TIMEOUT)
       .filter(u => { if (!lastUserPos) return false; return liveHaversine(lastUserPos.lat, lastUserPos.lng, u.lat, u.lng) <= 10; })
       .map(u => ({ ...u, distance: lastUserPos ? liveHaversine(lastUserPos.lat, lastUserPos.lng, u.lat, u.lng) : null }));
-    renderLiveMembers(); renderLiveMemberMarkers();
+    renderLiveMembers();
+    renderLiveMemberMarkers();
   });
 }
 function renderLiveMembers() {
@@ -2420,7 +2351,6 @@ function updateLiveMyMarker() {
   const el = document.createElement('div');
   el.className = 'live-me-pin';
   el.innerHTML = '<i class="fas fa-location-arrow"></i>';
-  
   if (liveMyMarker) liveMyMarker.setLngLat([lastUserPos.lng, lastUserPos.lat]);
   else {
     liveMyMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
@@ -2460,7 +2390,8 @@ function renderLiveMemberMarkers() {
     if (!seen.has(uid)) {
       if (liveMemberAnimStates[uid]?.animId) cancelAnimationFrame(liveMemberAnimStates[uid].animId);
       liveMemberMarkers[uid].remove();
-      delete liveMemberMarkers[uid]; delete liveMemberAnimStates[uid];
+      delete liveMemberMarkers[uid];
+      delete liveMemberAnimStates[uid];
     }
   });
 }
@@ -2498,7 +2429,8 @@ async function initViewerLiveRoom(roomCode) {
       if (!members.some(m => m.uid === uid)) {
         if (liveMemberAnimStates[uid]?.animId) cancelAnimationFrame(liveMemberAnimStates[uid].animId);
         liveMemberMarkers[uid].remove();
-        delete liveMemberMarkers[uid]; delete liveMemberAnimStates[uid];
+        delete liveMemberMarkers[uid];
+        delete liveMemberAnimStates[uid];
       }
     });
   });
@@ -2510,16 +2442,18 @@ function handleViewerDisconnect(roomCode, isTimeout) {
     if (liveMemberAnimStates[uid]?.animId) cancelAnimationFrame(liveMemberAnimStates[uid].animId);
     try { liveMemberMarkers[uid].remove(); } catch(e){}
   });
-  liveMemberMarkers = {}; liveMemberAnimStates = {};
+  liveMemberMarkers = {};
+  liveMemberAnimStates = {};
   const hud = document.getElementById('liveHud');
   if (hud) {
-    hud.style.borderColor = 'var(--danger)'; hud.style.color = 'var(--danger)';
+    hud.style.borderColor = 'var(--danger)';
+    hud.style.color = 'var(--danger)';
     hud.innerHTML = isTimeout ? `<i class="fas fa-exclamation-triangle"></i> Mất kết nối` : `<i class="fas fa-times-circle"></i> Phòng đã đóng`;
     setTimeout(() => hud.remove(), 5000);
   }
 }
 
-/* ---------- KEYBOARD & EXPORTS ---------- */
+/* ========== KEYBOARD & EXPORTS ========== */
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' || e.key === 'Esc') closeDirections(); });
 
 window.openDirections = openDirections;
