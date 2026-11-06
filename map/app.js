@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (Fixed 1km Radius + Clear Markers)
+   DriveKit — app.js (Full - Smooth Popup & Pulse Marker)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -260,6 +260,35 @@ const POI_TAG_CONFIG = {
   car_wash: { icon: 'fa-soap', label: 'Rửa xe', color: '#a855f7' }
 };
 const ZOOM_CONFIG = { communityPoi: 15, restStop: 13, savedPlace: 14, report: 14, savedPlaceAlwaysShow: ['home', 'company'] };
+
+/* ---------- HELPER: MARKER & POPUP ---------- */
+function createTouchMarkerElement() {
+  const el = document.createElement('div');
+  el.className = 'map-touch-marker';
+  el.innerHTML = `
+    <div class="pulse"></div>
+    <div class="dot"><i class="fas fa-map-marker-alt"></i></div>
+  `;
+  return el;
+}
+
+function closePopupSmoothly(marker) {
+  if (!marker) return;
+  try {
+    const popup = marker.getPopup();
+    if (popup) {
+      const el = popup.getElement();
+      if (el) {
+        el.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(-10px) scale(0.95)';
+        setTimeout(() => { try { marker.remove(); } catch(e) {} }, 200);
+        return;
+      }
+    }
+    marker.remove();
+  } catch(e) { try { marker.remove(); } catch(e) {} }
+}
 
 /* ---------- LOADING & AUTH SCREEN ---------- */
 let loadProgress = 0;
@@ -756,7 +785,7 @@ function initMap() {
   // SỰ KIỆN CLICK BẢN ĐỒ + HIỆU ỨNG RIPPLE & HAPTIC
   map.on('click', (e) => { 
     if (document.getElementById('poiDetailSheet').classList.contains('open')) { closePoiDetail(); return; }
-    if (touchMarker) { try { touchMarker.remove(); touchMarker = null; } catch(e) {} return; }
+    if (touchMarker) { closePopupSmoothly(touchMarker); touchMarker = null; return; }
     if (document.getElementById('dirSheet').classList.contains('open') || document.getElementById('suggestionsBox').classList.contains('show')) {
       closeDirections();
       if (document.getElementById('suggestionsBox').classList.contains('show')) closeSearch();
@@ -794,15 +823,12 @@ function showLocationPopup(lngLat) {
 
   const loadingHtml = `<div style="text-align:center; padding:8px; color:var(--text); min-width: 140px;"><i class="fas fa-spinner fa-spin" style="color:var(--primary); font-size:1.2rem; margin-bottom:6px;"></i><br><span style="font-size:0.85rem; font-weight:600;">Đang lấy địa chỉ...</span></div>`;
   
-  const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeOnClick: false, closeButton: true })
+  // KHÔNG CÓ NÚT X (closeButton: false)
+  const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeOnClick: false, closeButton: false })
     .setLngLat([lngLat.lng, lngLat.lat])
     .setHTML(loadingHtml);
 
-  const el = document.createElement('div');
-  el.className = 'marker-pop-in';
-  el.style.width = '24px'; el.style.height = '24px'; el.style.borderRadius = '50%';
-  el.style.background = '#ef4444'; el.style.border = '3px solid white';
-  el.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
+  const el = createTouchMarkerElement();
 
   touchMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
     .setLngLat([lngLat.lng, lngLat.lat])
@@ -1552,7 +1578,7 @@ window.clearTopSearch = function() {
   
   // Xóa chấm đỏ nếu có
   if (touchMarker) { 
-    try { touchMarker.remove(); } catch(e) {} 
+    closePopupSmoothly(touchMarker); 
     touchMarker = null; 
   }
 
@@ -1728,17 +1754,12 @@ async function selectLocation(lat, lng, name) {
       <button onclick="event.stopPropagation(); shareLocation(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fas fa-share-alt"></i> Chia sẻ</button>
     </div>`;
 
-  const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px' })
+  // KHÔNG CÓ NÚT X (closeButton: false)
+  const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeButton: false })
     .setLngLat([lng, lat])
     .setHTML(popupHtml);
 
-  const el = document.createElement('div');
-  el.style.width = '24px';
-  el.style.height = '24px';
-  el.style.borderRadius = '50%';
-  el.style.background = '#ef4444';
-  el.style.border = '3px solid white';
-  el.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
+  const el = createTouchMarkerElement();
 
   touchMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
     .setLngLat([lng, lat])
