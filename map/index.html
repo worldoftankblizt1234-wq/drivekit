@@ -168,7 +168,7 @@
   <div class="route-options-body" id="routeOptionsBody"></div>
 </div>
 
-<!-- ========== REPORT MODAL (CẬP NHẬT ICON MỚI) ========== -->
+<!-- ========== REPORT MODAL ========== -->
 <div class="report-modal" id="reportModal">
   <div class="report-header">
     <h2>Báo cáo sự cố</h2>
@@ -176,18 +176,65 @@
   </div>
   <div class="report-body" style="grid-template-columns: repeat(3, 1fr);">
     <button class="report-btn police" onclick="submitReport('police')"><i class="fas fa-shield-alt" style="color:#3b82f6;"></i> CSGT</button>
-    <button class="report-btn camera" onclick="submitReport('camera')"><i class="fas fa-camera" style="color:#e11d48;"></i> Camera</button>
     <button class="report-btn accident" onclick="submitReport('accident')"><i class="fas fa-car-crash" style="color:#ef4444;"></i> Tai nạn</button>
     <button class="report-btn traffic" onclick="submitReport('traffic')"><i class="fas fa-traffic-light" style="color:#f97316;"></i> Kẹt xe</button>
-    <button class="report-btn speed" onclick="submitSpeedReport()"><i class="fas fa-tachometer-alt" style="color:#10b981;"></i> Tốc độ</button>
+    
+    <!-- NÚT BIỂN BÁO MỚI -->
+    <button class="report-btn" onclick="openSignsMenu()" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none;"><i class="fas fa-triangle-exclamation" style="color:white;"></i> Biển báo</button>
+    
     <button class="report-btn pothole" onclick="submitReport('pothole')"><i class="fas fa-exclamation-circle" style="color:#f59e0b;"></i> Ổ gà</button>
     <button class="report-btn" onclick="submitReport('flood')"><i class="fas fa-water" style="color:#06b6d4;"></i> Ngập nước</button>
-    <button class="report-btn" onclick="submitReport('toll')"><i class="fas fa-money-bill" style="color:#8b5cf6;"></i> Trạm thu phí</button>
     <button class="report-btn" onclick="submitReport('bridge_collapse')"><i class="fas fa-road-circle-xmark" style="color:#dc2626;"></i> Sập cầu</button>
+    <button class="report-btn" onclick="submitReport('road_collapse')"><i class="fas fa-triangle-exclamation" style="color:#b91c1c;"></i> Sập đường</button>
   </div>
 </div>
 
-<!-- ========== PROFILE MODAL (ĐÃ BỎ NÚT ADMIN) ========== -->
+<!-- ========== SIGNS MENU MODAL ========== -->
+<div class="report-modal" id="signsMenuModal" style="z-index: 2600;">
+  <div class="report-header" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+    <h2>Chọn loại biển báo</h2>
+    <button class="report-close" onclick="closeSignsMenu()"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="report-body" style="display:flex; flex-direction:column; gap:12px; padding:20px;">
+    <button class="report-btn" onclick="selectSignsType('speed_camera')" style="flex-direction:row; justify-content:flex-start; padding:16px;">
+      <i class="fas fa-camera" style="color:#e11d48;"></i> <span style="margin-left:12px; font-size:1rem;">Camera tốc độ</span>
+    </button>
+    <button class="report-btn" onclick="selectSignsType('penalty_camera')" style="flex-direction:row; justify-content:flex-start; padding:16px;">
+      <i class="fas fa-video" style="color:#8b5cf6;"></i> <span style="margin-left:12px; font-size:1rem;">Camera phạt nguội</span>
+    </button>
+    <button class="report-btn" onclick="selectSignsType('speed_limit')" style="flex-direction:row; justify-content:flex-start; padding:16px;">
+      <i class="fas fa-tachometer-alt" style="color:#10b981;"></i> <span style="margin-left:12px; font-size:1rem;">Biển báo tốc độ</span>
+    </button>
+    <button class="report-btn" onclick="selectSignsType('toll')" style="flex-direction:row; justify-content:flex-start; padding:16px;">
+      <i class="fas fa-money-bill" style="color:#f59e0b;"></i> <span style="margin-left:12px; font-size:1rem;">Trạm thu phí</span>
+    </button>
+  </div>
+</div>
+
+<!-- ========== SPEED LIMIT MODAL ========== -->
+<div class="report-modal" id="speedLimitModal" style="z-index: 2700;">
+  <div class="report-header" style="background: #10b981;">
+    <h2>Chọn tốc độ tối đa</h2>
+    <button class="report-close" onclick="closeSpeedLimitMenu()"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="report-body" style="grid-template-columns: repeat(4, 1fr); gap:8px; padding:20px;">
+    <button class="report-btn" onclick="submitSpeedLimit(10)">10</button>
+    <button class="report-btn" onclick="submitSpeedLimit(15)">15</button>
+    <button class="report-btn" onclick="submitSpeedLimit(20)">20</button>
+    <button class="report-btn" onclick="submitSpeedLimit(30)">30</button>
+    <button class="report-btn" onclick="submitSpeedLimit(40)">40</button>
+    <button class="report-btn" onclick="submitSpeedLimit(50)">50</button>
+    <button class="report-btn" onclick="submitSpeedLimit(60)">60</button>
+    <button class="report-btn" onclick="submitSpeedLimit(70)">70</button>
+    <button class="report-btn" onclick="submitSpeedLimit(80)">80</button>
+    <button class="report-btn" onclick="submitSpeedLimit(90)">90</button>
+    <button class="report-btn" onclick="submitSpeedLimit(100)">100</button>
+    <button class="report-btn" onclick="submitSpeedLimit(110)">110</button>
+    <button class="report-btn" onclick="submitSpeedLimit(120)">120</button>
+  </div>
+</div>
+
+<!-- ========== PROFILE MODAL ========== -->
 <div class="profile-modal" id="profileModal">
   <div class="profile-header">
     <button class="profile-close" onclick="closeMenu()"><i class="fas fa-times"></i></button>
@@ -199,7 +246,6 @@
   <div class="profile-body">
     <div class="profile-card" id="liveRoomCard">
       <h3><span><i class="fas fa-satellite-dish" style="color:#10b981;"></i> Live Room</span><span class="live-badge-status" id="liveStatusBadge" style="display:none;">OFF</span></h3>
-      <!-- Live UI giữ nguyên -->
       <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:var(--bg-2); border-radius:10px; margin-bottom:12px;">
         <div><div style="font-weight:800; font-size:0.9rem;">Chế độ Live</div><div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">Chia sẻ vị trí 6s/lần</div></div>
         <label class="switch"><input type="checkbox" id="liveToggleSwitch" onchange="toggleLiveRoom()"><span class="slider"></span></label>
@@ -215,9 +261,7 @@
     </div>
     
     <button class="profile-btn" onclick="shareRoute()"><span><i class="fas fa-share-alt"></i> Chia sẻ lộ trình hiện tại</span><i class="fas fa-chevron-right"></i></button>
-    
     <div class="profile-btn" style="cursor: default;"><span><i class="fas fa-moon"></i> Chế độ Sáng / Tối</span><label class="switch"><input type="checkbox" id="themeToggle" onchange="toggleTheme()"><span class="slider"></span></label></div>
-    
     <div class="profile-card"><h3><i class="fas fa-bookmark"></i> Lộ trình đã lưu <button onclick="clearAllSavedRoutes()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button></h3><div class="history-list" id="savedRoutesList"><div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có lộ trình nào</div></div></div>
     <div class="profile-card"><h3><i class="fas fa-history"></i> Lịch sử chuyến đi <button onclick="clearAllHistory()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button></h3><div class="history-list" id="historyList"><div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có chuyến đi nào</div></div></div>
     <div class="profile-card"><h3><i class="fas fa-link"></i> Link đã chia sẻ <button onclick="clearAllSharedLinks()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button></h3><div class="history-list" id="sharedLinksList"><div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có link nào</div></div></div>
