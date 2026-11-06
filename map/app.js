@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (Full - Worker API Proxy)
+   DriveKit — app.js (Full - Worker Proxy + Signs Menu)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -24,7 +24,6 @@ const fsdb = getFirestore(app);
 /* ========== WORKER CONFIG ========== */
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 
-// Map tile keys — chỉ dùng cho style.json (MapLibre tiles), không nhạy cảm
 const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
 const MAPTILER_STYLE = `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`;
@@ -40,10 +39,11 @@ async function apiSearch(query) {
   } catch (e) { console.warn('Search error:', e); return []; }
 }
 
-async function apiRoute(origin, dest, mode) {
+async function apiRoute(origin, dest, mode, bypassCache = false) {
+  const cacheParam = bypassCache ? '&nocache=1' : '';
   const r = await fetch(
     `${WORKER_URL}/api/route?fromLat=${origin.lat}&fromLng=${origin.lng}` +
-    `&toLat=${dest.lat}&toLng=${dest.lng}&mode=${encodeURIComponent(mode)}`
+    `&toLat=${dest.lat}&toLng=${dest.lng}&mode=${encodeURIComponent(mode)}${cacheParam}`
   );
   if (!r.ok) throw new Error('Không tìm được tuyến');
   const j = await r.json();
@@ -139,12 +139,12 @@ let allRestStops = [];
 let allCommunityPois = [];
 let allReports = {};
 let allAvoidZones = [];
+let previousAvoidZones = [];
 let allSavedPlaces = {};
 let allHistory = [];
 let allSavedRoutes = [];
 let _fsRestStops = [];
 let _fsCommunityPois = [];
-let _fsReports = {};
 let _fsAvoidZones = [];
 let _fsSavedPlaces = {};
 let _fsHistory = [];
@@ -159,7 +159,7 @@ let searchResultMarkers = [];
 let staticWarningMarkers = [];
 let staticWarningsGridCache = {};
 let staticWarningsTimer = null;
-let _unsub = { fsRest:null, fsPoi:null, fsReports:null, fsAvoid:null, fsSaved:null, fsHistory:null, fsRoutes:null, rtdbReports:null };
+let _unsub = { fsRest:null, fsPoi:null, fsAvoid:null, fsSaved:null, fsHistory:null, fsRoutes:null, rtdbReports:null };
 let liveEnabled = false;
 let liveRoomCode = null;
 let liveIsPublic = false;
@@ -198,7 +198,27 @@ const POI_TAG_CONFIG = {
 };
 const ZOOM_CONFIG = { communityPoi: 15, restStop: 13, savedPlace: 14, report: 14, savedPlaceAlwaysShow: ['home', 'company'] };
 
-/* ========== HELPER: MARKER & POPUP ========== */
+/* ========== HELPER: TOAST & POPUP ========== */
+function showCustomToast(message, type = 'info') {
+  const colors = {
+    success: 'linear-gradient(135deg, #10b981, #059669)',
+    danger: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+    warning: 'linear-gradient(135deg, #f59e0b, #d97706)',
+    info: 'linear-gradient(135deg, #3b82f6, #2563eb)'
+  };
+  const icons = {
+    success: 'fa-check-circle', danger: 'fa-exclamation-triangle',
+    warning: 'fa-exclamation-circle', info: 'fa-info-circle'
+  };
+  const toast = document.createElement('div');
+  toast.style.cssText = `position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%) translateY(-20px);background:${colors[type]};color:white;padding:14px 20px;border-radius:12px;font-weight:700;font-size:0.9rem;z-index:9999;box-shadow:0 10px 30px rgba(0,0,0,0.3);display:flex;align-items:center;gap:10px;opacity:0;transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);pointer-events:none;max-width:90vw;text-align:center;`;
+  toast.innerHTML = `<i class="fas ${icons[type]}" style="font-size:1.2rem;"></i><span>${message}</span>`;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateX(-50%) translateY(0)'; });
+  if (navigator.vibrate) navigator.vibrate(50);
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(-20px)'; setTimeout(() => toast.remove(), 300); }, 4000);
+}
+
 function createTouchMarkerElement() {
   const el = document.createElement('div');
   el.className = 'map-touch-marker';
@@ -467,7 +487,7 @@ if (btnGoogleAuth) {
 }
 function logout() { if (liveEnabled) stopLiveSession(); signOut(auth); closeMenu(); }
 
-/* ========== DATA SUBSCRIPTIONS (Firestore + RTDB Reports) ========== */
+/* ========== DATA SUBSCRIPTIONS ========== */
 function initDataSubscriptions() {
   if (!currentUser) return;
   _unsub.fsRest = onSnapshot(collection(fsdb, 'rest_stops'), snap => {
@@ -482,8 +502,8 @@ function initDataSubscriptions() {
     const data = snap.val() || {};
     _rtdbReports = {};
     Object.entries(data).forEach(([k, v]) => {
-      // Bỏ static types (đã ở D1)
-      if (v.type === 'speed_limit' || v.type === 'camera') return;
+      // Filter out D1 types
+      if (v.type === 'speed_limit' || v.type === 'speed_camera' || v.type === 'penalty_camera') return;
       _rtdbReports[k] = { id: k, _id: k, source: 'rtdb', ...v };
     });
     recomputeReports();
@@ -506,13 +526,45 @@ function initDataSubscriptions() {
     recomputeSavedRoutes();
   }, err => console.warn('FS savedRoutes:', err));
 }
+
 function recomputeRestStops() { allRestStops = [..._fsRestStops]; renderCommunityPoisOnMap(); renderRestStopMarkers(); }
 function recomputeCommunityPois() { allCommunityPois = [..._fsCommunityPois]; renderCommunityPoisOnMap(); }
 function recomputeReports() { allReports = { ..._rtdbReports }; renderReportsOnMap(); }
-function recomputeAvoidZones() { allAvoidZones = [..._fsAvoidZones]; renderAvoidZonesOnMap(); }
 function recomputeSavedPlaces() { allSavedPlaces = { ..._fsSavedPlaces }; renderSavedPlacesOnMap(); }
 function recomputeHistory() { allHistory = [..._fsHistory].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); }
 function recomputeSavedRoutes() { allSavedRoutes = [..._fsSavedRoutes].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); }
+
+function checkRouteAgainstAvoidZones(routeCoords) {
+  if (!allAvoidZones || allAvoidZones.length === 0) return { blocked: false };
+  for (const zone of allAvoidZones) {
+    if (!zone.lat1 || !zone.lng1 || !zone.lat2 || !zone.lng2) continue;
+    const zoneMidLat = (zone.lat1 + zone.lat2) / 2;
+    const zoneMidLng = (zone.lng1 + zone.lng2) / 2;
+    for (let i = 0; i < routeCoords.length; i += 5) {
+      const lat = routeCoords[i][1], lng = routeCoords[i][0];
+      if (calcDist(lat, lng, zoneMidLat, zoneMidLng) < 50) return { blocked: true, zoneName: zone.name };
+    }
+  }
+  return { blocked: false };
+}
+
+function recomputeAvoidZones() {
+  const newAvoidZones = [..._fsAvoidZones];
+  const addedZones = newAvoidZones.filter(n => !previousAvoidZones.some(o => o.id === n.id));
+  allAvoidZones = newAvoidZones;
+  previousAvoidZones = JSON.parse(JSON.stringify(newAvoidZones));
+  renderAvoidZonesOnMap();
+
+  if (addedZones.length > 0 && document.body.classList.contains('navigating')) {
+    const check = checkRouteAgainstAvoidZones(currentRouteCoords);
+    if (check.blocked) {
+      speak("Phát hiện tuyến đường cấm mới trên lộ trình. Đang tự động tìm đường tránh.");
+      showCustomToast("🚫 Lộ trình bị chặn bởi tuyến cấm mới. Đang Reroute...", "danger");
+      localStorage.removeItem('alternativeRoutes');
+      if (lastUserPos) autoReroute(lastUserPos.lat, lastUserPos.lng, true);
+    }
+  }
+}
 
 /* ========== UI STATE ========== */
 function updateUIState() {
@@ -594,36 +646,20 @@ function updateCompassNeedle() {
   needle.style.transform = `rotate(${-bearing}deg)`;
   btn.classList.toggle('off-north', Math.abs(bearing) > 1);
 }
-window.resetNorth = function() {
-  if (!map) return;
-  map.easeTo({ bearing: 0, pitch: 0, duration: 600 });
-};
+window.resetNorth = function() { if (map) map.easeTo({ bearing: 0, pitch: 0, duration: 600 }); };
 
 window.toggleTraffic = function(isChecked) {
   if (!map) return;
-  if (isChecked) {
-    // Traffic tiles qua MapTiler style mặc định đã có? Nếu không, bật TomTom traffic
-    // (Nếu không muốn expose TOMTOM_KEY nữa, có thể bỏ tính năng này)
-    if (!map.getSource('traffic-layer')) {
-      // Cần TOMTOM_KEY — nếu muốn ẩn, phải proxy qua Worker. Tạm thời tắt.
-      console.warn('Traffic layer cần TOMTOM_KEY, đã chuyển sang Worker');
-    }
-  }
+  console.warn('Traffic layer disabled to protect API key. Route includes traffic data.');
 };
 
 function initMap() {
   if (map) return;
-  
   map = new maplibregl.Map({
-    container: 'map',
-    style: TRACKASIA_STYLE,
-    center: [initialCenter[1], initialCenter[0]],
-    zoom: initialZoom,
-    pitch: 0,
-    bearing: 0,
-    attributionControl: true,
-    touchZoomRotate: true,
-    dragRotate: true
+    container: 'map', style: TRACKASIA_STYLE,
+    center: [initialCenter[1], initialCenter[0]], zoom: initialZoom,
+    pitch: 0, bearing: 0, attributionControl: true,
+    touchZoomRotate: true, dragRotate: true
   });
 
   map.on('rotate', updateCompassNeedle);
@@ -637,8 +673,6 @@ function initMap() {
     renderSavedPlacesOnMap();
     renderReportsOnMap();
     renderAvoidZonesOnMap();
-    
-    // Load static warnings lần đầu
     setTimeout(loadStaticWarnings, 1000);
   });
 
@@ -659,7 +693,6 @@ function initMap() {
     showLocationPopup(e.lngLat);
   });
 
-  // Load static warnings khi map di chuyển (debounce)
   map.on('moveend', () => {
     if (map.getZoom() < 13) {
       staticWarningMarkers.forEach(m => m.remove());
@@ -690,14 +723,11 @@ async function loadStaticWarnings() {
   if (!map || map.getZoom() < 13) return;
   const b = map.getBounds();
   const bounds = { south: b.getSouth(), north: b.getNorth(), west: b.getWest(), east: b.getEast() };
-  
-  // Grid cache (mỗi ~5km không refetch)
   const gridKey = `${bounds.south.toFixed(2)}_${bounds.west.toFixed(2)}_${bounds.north.toFixed(2)}_${bounds.east.toFixed(2)}`;
   if (staticWarningsGridCache[gridKey]) {
     renderStaticWarningsOnMap(staticWarningsGridCache[gridKey]);
     return;
   }
-  
   const warnings = await getStaticWarnings(bounds);
   staticWarningsGridCache[gridKey] = warnings;
   renderStaticWarningsOnMap(warnings);
@@ -706,22 +736,26 @@ async function loadStaticWarnings() {
 function renderStaticWarningsOnMap(warnings) {
   staticWarningMarkers.forEach(m => m.remove());
   staticWarningMarkers = [];
-  if (!warnings || warnings.length === 0) return;
-  if (!map || map.getZoom() < 13) return;
+  if (!warnings || warnings.length === 0 || !map || map.getZoom() < 13) return;
   
   warnings.forEach(w => {
     const el = document.createElement('div');
     if (w.type === 'speed_limit') {
       el.className = 'speed-limit-marker';
       el.textContent = w.speed || '?';
-    } else if (w.type === 'camera') {
+    } else if (w.type === 'speed_camera') {
       el.innerHTML = `<div style="background:#e11d48;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-camera"></i></div>`;
+    } else if (w.type === 'penalty_camera') {
+      el.innerHTML = `<div style="background:#8b5cf6;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-video"></i></div>`;
     } else return;
     
-    const title = w.type === 'speed_limit' ? `Tốc độ: ${w.speed} km/h` : 'Camera giao thông';
+    let title = 'Cảnh báo';
+    if (w.type === 'speed_limit') title = `Tốc độ: ${w.speed} km/h`;
+    if (w.type === 'speed_camera') title = 'Camera tốc độ';
+    if (w.type === 'penalty_camera') title = 'Camera phạt nguội';
+
     const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b>${title}</b><br><small>Cảnh báo cộng đồng (D1)</small>`);
-    const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-      .setLngLat([w.lng, w.lat]).setPopup(popup).addTo(map);
+    const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([w.lng, w.lat]).setPopup(popup).addTo(map);
     staticWarningMarkers.push(marker);
   });
 }
@@ -738,11 +772,9 @@ function showLocationPopup(lngLat) {
   if (navigator.vibrate) navigator.vibrate(30);
 
   const loadingHtml = `<div style="text-align:center; padding:8px; color:var(--text); min-width: 140px;"><i class="fas fa-spinner fa-spin" style="color:var(--primary); font-size:1.2rem; margin-bottom:6px;"></i><br><span style="font-size:0.85rem; font-weight:600;">Đang lấy địa chỉ...</span></div>`;
-  const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeOnClick: false, closeButton: false })
-    .setLngLat([lngLat.lng, lngLat.lat]).setHTML(loadingHtml);
+  const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeOnClick: false, closeButton: false }).setLngLat([lngLat.lng, lngLat.lat]).setHTML(loadingHtml);
   const el = createTouchMarkerElement();
-  touchMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
-    .setLngLat([lngLat.lng, lngLat.lat]).setPopup(popup).addTo(map);
+  touchMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lngLat.lng, lngLat.lat]).setPopup(popup).addTo(map);
   touchMarker.togglePopup();
   
   const markerRef = touchMarker;
@@ -871,12 +903,11 @@ function renderReportsOnMap() {
   for (const key in allReports) {
     const rep = allReports[key];
     if (now > rep.expiresAt) continue;
-    // Static types giờ ở D1, skip
-    if (rep.type === 'speed_limit' || rep.type === 'camera') continue;
+    if (rep.type === 'speed_limit' || rep.type === 'speed_camera' || rep.type === 'penalty_camera') continue;
     
     const icons = {
       police: '<div style="background:#3b82f6;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-shield-alt"></i></div>',
-      toll: '<div style="background:#8b5cf6;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-money-bill"></i></div>',
+      toll: '<div style="background:#f59e0b;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-money-bill"></i></div>',
       accident: '<div style="background:#ef4444;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-car-crash"></i></div>',
       traffic: '<div style="background:#f97316;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-traffic-light"></i></div>',
       pothole: '<div style="background:#f59e0b;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-exclamation-circle"></i></div>',
@@ -916,54 +947,81 @@ function renderAvoidZonesOnMap() {
   });
 }
 
-/* ========== REPORT ========== */
+/* ========== REPORT & SIGNS ========== */
 window.openReportMenu = function() { document.getElementById('reportModal').classList.add('open'); };
 window.closeReportMenu = function() { document.getElementById('reportModal').classList.remove('open'); };
 
-window.submitSpeedReport = function() {
-  const speed = prompt("Nhập giới hạn tốc độ tối đa (km/h):\nVí dụ: 40, 60, 80", "60");
-  if (speed === null) return;
-  const speedVal = parseInt(speed);
-  if (isNaN(speedVal) || speedVal <= 0) return alert("Vui lòng nhập số hợp lệ!");
-  closeReportMenu();
+window.openSignsMenu = function() {
+  document.getElementById('reportModal').classList.remove('open');
+  document.getElementById('signsMenuModal').classList.add('open');
+};
+window.closeSignsMenu = function() {
+  document.getElementById('signsMenuModal').classList.remove('open');
+  document.getElementById('reportModal').classList.add('open');
+};
+window.closeSpeedLimitMenu = function() {
+  document.getElementById('speedLimitModal').classList.remove('open');
+  document.getElementById('signsMenuModal').classList.add('open');
+};
+
+window.selectSignsType = function(type) {
+  if (type === 'speed_limit') {
+    document.getElementById('signsMenuModal').classList.remove('open');
+    document.getElementById('speedLimitModal').classList.add('open');
+  } else {
+    submitSignReport(type);
+  }
+};
+
+window.submitSpeedLimit = async function(speed) {
+  document.getElementById('speedLimitModal').classList.remove('open');
   if (!lastUserPos) return alert('Chưa lấy được vị trí GPS!');
   
-  saveStaticWarning('speed_limit', lastUserPos.lat, lastUserPos.lng, speedVal, currentUser?.uid)
-    .then(() => {
-      alert(`Đã ghim biển báo tốc độ ${speedVal} km/h!`);
-      loadStaticWarnings();
-    })
-    .catch(e => alert('Lỗi: ' + e.message));
+  try {
+    await saveStaticWarning('speed_limit', lastUserPos.lat, lastUserPos.lng, speed, currentUser?.uid);
+    showCustomToast(`Đã ghim biển báo tốc độ ${speed} km/h!`, 'success');
+    loadStaticWarnings();
+  } catch (e) { alert('Lỗi: ' + e.message); }
 };
+
+async function submitSignReport(type) {
+  if (!lastUserPos) return alert('Chưa lấy được vị trí GPS!');
+  closeSignsMenu();
+  const now = Date.now();
+  
+  try {
+    if (type === 'speed_camera' || type === 'penalty_camera') {
+      await saveStaticWarning(type, lastUserPos.lat, lastUserPos.lng, null, currentUser?.uid);
+      showCustomToast('Đã gửi cảnh báo Camera!', 'success');
+      loadStaticWarnings();
+    } else if (type === 'toll') {
+      const ttl = 86400000 * 30;
+      await set(ref(db, `reports/${now}_${currentUser.uid}`), {
+        lat: lastUserPos.lat, lng: lastUserPos.lng, type: 'toll',
+        timestamp: now, expiresAt: now + ttl, uid: currentUser.uid
+      });
+      showCustomToast('Đã gửi cảnh báo Trạm thu phí!', 'success');
+    }
+  } catch (e) { alert('Lỗi: ' + e.message); }
+}
 
 window.submitReport = async function(type) {
   if (!lastUserPos) return alert('Chưa lấy được vị trí GPS, không thể báo cáo!');
   closeReportMenu();
   const now = Date.now();
 
-  // ===== STATIC (speed_limit, camera) → D1 via Worker =====
-  if (type === 'speed_limit' || type === 'camera') {
-    try {
-      await saveStaticWarning(type, lastUserPos.lat, lastUserPos.lng, null, currentUser?.uid);
-      alert('Cảm ơn bạn! Cảnh báo đã được gửi.');
-      loadStaticWarnings();
-    } catch (e) { alert('Lỗi: ' + e.message); }
-    return;
-  }
-
-  // ===== DYNAMIC → RTDB =====
   let ttl = 3600000;
   if (type === 'pothole') ttl = 86400000;
   else if (type === 'flood') ttl = 10800000;
   else if (type === 'traffic') ttl = 1800000;
   else if (type === 'bridge_collapse' || type === 'road_collapse') ttl = 604800000;
-  else if (type === 'toll') ttl = 86400000 * 30;
+  
   try {
     await set(ref(db, `reports/${now}_${currentUser.uid}`), {
       lat: lastUserPos.lat, lng: lastUserPos.lng, type,
       timestamp: now, expiresAt: now + ttl, uid: currentUser.uid
     });
-    alert('Cảm ơn bạn! Báo cáo đã được gửi.');
+    showCustomToast('Đã gửi báo cáo!', 'success');
   } catch (e) { alert('Lỗi: ' + e.message); }
 };
 
@@ -992,6 +1050,14 @@ window.fetchAndShowRouteOptions = async function() {
   document.getElementById('routeOptionsModal').classList.add('open');
   try {
     let routes = await apiRoute(startPoint, endPoint, currentVehicleMode);
+    
+    const check = checkRouteAgainstAvoidZones(routes[0].geometry.coordinates);
+    if (check.blocked) {
+      speak(`Cảnh báo, tuyến đường hiện tại đi qua khu vực cấm ${check.zoneName}. Đang tìm đường tránh...`);
+      showCustomToast(`🚫 Tuyến cấm: ${check.zoneName}. Đang tìm đường khác!`, 'danger');
+      routes = await apiRoute(startPoint, endPoint, currentVehicleMode, true);
+    }
+
     routes = routes.filter(r => {
       const coords = r.geometry?.coordinates;
       if (!coords || coords.length < 2) return false;
@@ -1019,8 +1085,7 @@ window.fetchAndShowRouteOptions = async function() {
       const color = ROUTE_COLORS[index];
       
       map.addSource(`alt-route-source-${index}`, {
-        type: 'geojson',
-        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: r.geometry.coordinates.map(c => [c[1], c[0]]) } }
+        type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: r.geometry.coordinates.map(c => [c[1], c[0]]) } }
       });
       map.addLayer({
         id: `alt-route-layer-${index}`, type: 'line', source: `alt-route-source-${index}`,
@@ -1244,12 +1309,12 @@ function checkOffRoute(userLat, userLng) {
   } else offRouteCount = 0;
 }
 
-async function autoReroute(userLat, userLng) {
+async function autoReroute(userLat, userLng, bypassCache = false) {
   if (isRerouting) return;
   isRerouting = true;
   const currentMode = currentRouteData?.mode || 'driving';
   try {
-    const altRoutes = await apiRoute({ lat: userLat, lng: userLng }, endPoint, currentMode);
+    const altRoutes = await apiRoute({ lat: userLat, lng: userLng }, endPoint, currentMode, bypassCache);
     const r = altRoutes[0];
     if (!r) throw new Error('Không có tuyến thay thế');
     if (!r.legs || !Array.isArray(r.legs) || r.legs.length === 0) r.legs = [{ steps: [] }];
@@ -1962,11 +2027,7 @@ window.submitCommunityPoi = async function() {
       timestamp: Date.now(), upvotes: 0
     });
     closePoiSheet();
-    const t = document.createElement('div');
-    t.style.cssText = 'position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#10b981,#059669);color:white;padding:14px 22px;border-radius:14px;font-weight:800;z-index:9999;box-shadow:0 10px 30px rgba(16,185,129,0.5);display:flex;gap:10px;align-items:center;';
-    t.innerHTML = '<i class="fas fa-check-circle"></i><span>Đã thêm địa điểm!</span>';
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 2500);
+    showCustomToast('Đã thêm địa điểm!', 'success');
   } catch (e) {
     alert('Lỗi lưu: ' + e.message);
     btn.disabled = false;
@@ -2018,16 +2079,9 @@ window.sharePoiFromDetail = function() {
 window.copyPoiCoords = function() {
   if (!currentDetailPoi) return;
   const text = `${currentDetailPoi.lat.toFixed(6)}, ${currentDetailPoi.lng.toFixed(6)}`;
-  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => showDetailToast('Đã copy toạ độ!'));
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => showCustomToast('Đã copy toạ độ!', 'success'));
   else prompt('Copy toạ độ:', text);
 };
-function showDetailToast(msg) {
-  const t = document.createElement('div');
-  t.style.cssText = 'position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#10b981,#059669);color:white;padding:12px 20px;border-radius:14px;font-weight:800;z-index:9999;box-shadow:0 10px 30px rgba(16,185,129,0.5);display:flex;gap:10px;align-items:center;font-size:0.85rem;';
-  t.innerHTML = `<i class="fas fa-check-circle"></i><span>${msg}</span>`;
-  document.body.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2000);
-}
 
 function setupSwipeDown(sheetId, handleId, closeFn) {
   const sheet = document.getElementById(sheetId);
@@ -2073,13 +2127,7 @@ window.toggleRestStopFilter = function() {
   if (btn) btn.classList.toggle('active', restStopFilterActive);
   renderRestStopMarkers();
   renderCommunityPoisOnMap();
-  const t = document.createElement('div');
-  t.style.cssText = `position:fixed;top:calc(80px + var(--safe-top));left:50%;transform:translateX(-50%);background:${restStopFilterActive ? 'linear-gradient(135deg,#3b82f6,#1d4ed8)' : 'linear-gradient(135deg,#64748b,#475569)'};color:white;padding:12px 20px;border-radius:14px;font-weight:800;z-index:9999;box-shadow:0 10px 30px rgba(59,130,246,0.5);display:flex;gap:10px;align-items:center;font-size:0.85rem;`;
-  t.innerHTML = restStopFilterActive
-    ? `<i class="fas fa-bed"></i><span>Đang hiện ${restStopMarkers.length} trạm dừng nghỉ</span>`
-    : `<i class="fas fa-eye"></i><span>Đã hiện tất cả địa điểm</span>`;
-  document.body.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2000);
+  showCustomToast(restStopFilterActive ? `Đang hiện ${restStopMarkers.length} trạm dừng nghỉ` : 'Đã hiện tất cả địa điểm', 'info');
 };
 
 /* ========== LIVE ========== */
