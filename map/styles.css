@@ -406,6 +406,22 @@ body.light-mode .compass-bg { border-color: rgba(0,0,0,0.1); }
 }
 .report-btn:hover { background: var(--bg-2); transform: translateY(-2px); }
 .report-btn i { font-size: 1.8rem; }
+.report-btn.row { flex-direction: row; justify-content: flex-start; padding: 16px; }
+.report-btn.row i { font-size: 1.5rem; }
+.report-btn.row span { margin-left: 12px; font-size: 1rem; }
+
+/* ---------- SIGNS & SPEED LIMIT GRID ---------- */
+.speed-limit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 20px;
+}
+.speed-limit-grid .report-btn {
+  padding: 15px 5px;
+  font-size: 1.1rem;
+  border-radius: 12px;
+}
 
 .route-card {
   background: var(--card); border: 2px solid var(--border);
