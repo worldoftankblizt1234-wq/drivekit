@@ -261,6 +261,9 @@
       <button class="manage-tab-btn" onclick="loadManageData('community_pois', this)"><i class="fas fa-map-marker-alt"></i> Bảng Địa Điểm</button>
       <button class="manage-tab-btn" onclick="loadManageData('avoid_zones', this)"><i class="fas fa-ban"></i> Bảng Tuyến Đường Cấm</button>
       <button class="manage-tab-btn" onclick="loadManageData('reports', this)"><i class="fas fa-exclamation-triangle"></i> Bảng Báo Cáo Sự Cố</button>
+      
+      <p style="font-size:0.75rem; color:var(--text-muted); margin-top:16px; margin-bottom:8px; text-transform:uppercase; font-weight:700;">Cloudflare D1</p>
+      <button class="manage-tab-btn" onclick="loadManageData('d1_static_warnings', this)"><i class="fas fa-camera"></i> Biển báo / Camera (D1)</button>
     </div>
   </div>
 </div>
@@ -353,12 +356,13 @@ let isFreehandDrawing = false, activeFreehandCoords = [];
 let startLatLng = null, isFreehandCut = false, longPressTimer = null;
 const emptyGeoJSON = { type: 'FeatureCollection', features: [] };
 
-// Cấu hình ánh xạ giữa App chính và Cơ sở dữ liệu
+// Cấu hình ánh xạ
 const COLLECTION_MAP = {
   'rest_stops': { fs: 'rest_stops', rtdb: 'communityPois', filter: p => p.tag === 'rest_stop' },
   'community_pois': { fs: 'community_pois', rtdb: 'communityPois', filter: p => p.tag !== 'rest_stop' },
   'avoid_zones': { fs: 'avoid_zones', rtdb: 'avoid_zones', filter: p => true },
-  'reports': { fs: 'reports', rtdb: 'reports', filter: p => true }
+  'reports': { fs: 'reports', rtdb: 'reports', filter: p => true },
+  'd1_static_warnings': { type: 'd1' }
 };
 
 window.doLogin = async function() {
@@ -549,7 +553,7 @@ window.updateRestStopMapFromInputs = function() {
 
 async function fetchSnappedRoute(lat1, lng1, lat2, lng2) {
   try {
-    const res = await fetch(`${MAIN_WORKER_URL}/trackasia-route?origin=${lat1},${lng1}&destination=${lat2},${lng2}&mode=driving`);
+    const res = await fetch(`${MAIN_WORKER_URL}/api/route?fromLat=${lat1}&fromLng=${lng1}&toLat=${lat2}&toLng=${lng2}&mode=driving`);
     const data = await res.json();
     if (data.routes && data.routes.length > 0) {
       let coords = [];
@@ -757,7 +761,7 @@ function showStatus(id, msg, type) {
   if (type !== 'loading') setTimeout(() => { if (box.textContent === msg) box.style.display = 'none'; }, 3000);
 }
 
-// ================= MODE MANAGE (SỬA LỖI ĐỌC DATA) =================
+// ================= MODE MANAGE =================
 window.loadManageData = async function(collectionName, btn) {
   document.querySelectorAll('.manage-tab-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
@@ -770,26 +774,36 @@ window.loadManageData = async function(collectionName, btn) {
   const mapConf = COLLECTION_MAP[collectionName];
   let items = [];
 
-  // 1. Đọc từ Firestore
-  try {
-    const fsSnap = await getDocs(collection(db, mapConf.fs));
-    fsSnap.forEach(d => items.push({ id: d.id, source: 'firestore', ...d.data() }));
-  } catch(e) { console.warn('Lỗi đọc Firestore', e); }
+  // NẾU LÀ D1 (Static Warnings)
+  if (mapConf.type === 'd1') {
+    try {
+      const res = await fetch(`${MAIN_WORKER_URL}/admin/warnings`);
+      const data = await res.json();
+      if (data.warnings) {
+        items = data.warnings.map(w => ({ id: w.id, source: 'd1', ...w }));
+      }
+    } catch(e) { console.warn('Lỗi đọc D1', e); }
+  } 
+  // NẾU LÀ FIREBASE/RTDB
+  else {
+    try {
+      const fsSnap = await getDocs(collection(db, mapConf.fs));
+      fsSnap.forEach(d => items.push({ id: d.id, source: 'firestore', ...d.data() }));
+    } catch(e) { console.warn('Lỗi đọc Firestore', e); }
 
-  // 2. Đọc từ RTDB (Dùng đúng tên bảng của RTDB, có lọc theo điều kiện)
-  try {
-    const snap = await get(ref(rtdb, mapConf.rtdb));
-    if (snap.exists()) {
-      const data = snap.val();
-      for (const key in data) {
-        const item = data[key];
-        // Nếu thỏa mãn điều kiện lọc (ví dụ: chỉ lấy tag === 'rest_stop') và chưa có trong Firestore
-        if (mapConf.filter(item) && !items.find(i => i.id === key)) {
-          items.push({ id: key, source: 'rtdb', ...item });
+    try {
+      const snap = await get(ref(rtdb, mapConf.rtdb));
+      if (snap.exists()) {
+        const data = snap.val();
+        for (const key in data) {
+          const item = data[key];
+          if (mapConf.filter(item) && !items.find(i => i.id === key)) {
+            items.push({ id: key, source: 'rtdb', ...item });
+          }
         }
       }
-    }
-  } catch(e) { console.warn('Lỗi đọc RTDB', e); }
+    } catch(e) { console.warn('Lỗi đọc RTDB', e); }
+  }
 
   document.getElementById('manage-count').textContent = `Tổng cộng: ${items.length} bản ghi`;
   document.getElementById('manage-count').style.display = 'block';
@@ -800,12 +814,21 @@ window.loadManageData = async function(collectionName, btn) {
     return;
   }
 
-  // Render an toàn bằng DOM (Tránh lỗi dấu nháy)
   items.forEach((item, index) => {
     let summary = '';
     if (item.name) summary += `<b>${item.name}</b> - `;
     if (item.tag) summary += `Tag: ${item.tag} - `;
-    if (item.type) summary += `Loại: ${item.type} - `;
+    
+    if (item.type) {
+      let typeStr = item.type;
+      if (item.type === 'speed_limit') typeStr = 'Biển báo tốc độ';
+      else if (item.type === 'speed_camera') typeStr = 'Camera tốc độ';
+      else if (item.type === 'penalty_camera') typeStr = 'Camera phạt nguội';
+      summary += `Loại: <span style="color:var(--warning); font-weight:700;">${typeStr}</span> - `;
+    }
+    
+    if (item.speed) summary += `Tốc độ: ${item.speed} km/h - `;
+    
     if (item.lat && item.lng) summary += `Toạ độ: ${parseFloat(item.lat).toFixed(4)}, ${parseFloat(item.lng).toFixed(4)}`;
     if (!summary) summary = JSON.stringify(item).substring(0, 50) + '...';
 
@@ -846,6 +869,9 @@ window.openEditModal = function(item) {
   const dataToEdit = { ...item };
   delete dataToEdit.source;
   delete dataToEdit.id;
+  if (currentManageCollection === 'd1_static_warnings') {
+    delete dataToEdit.created_at; // Bỏ field rườm rà
+  }
   
   document.getElementById('jsonEditor').value = JSON.stringify(dataToEdit, null, 4);
   document.getElementById('editModal').classList.add('active');
@@ -864,18 +890,25 @@ window.saveEditedData = async function() {
   btn.disabled = true; btn.innerHTML = 'Đang lưu...';
 
   try {
-    const mapConf = COLLECTION_MAP[currentManageCollection];
-    
-    // Ghi vào Firestore
-    if (currentEditSource === 'firestore') {
-      await setDoc(doc(db, mapConf.fs, currentEditId), parsed, { merge: true });
-    } 
-    // Ghi vào RTDB
-    else if (currentEditSource === 'rtdb') {
-      await set(ref(rtdb, `${mapConf.rtdb}/${currentEditId}`), parsed);
+    if (currentManageCollection === 'd1_static_warnings') {
+      // SỬA D1
+      parsed.id = currentEditId;
+      const res = await fetch(`${MAIN_WORKER_URL}/warnings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed)
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+    } else {
+      const mapConf = COLLECTION_MAP[currentManageCollection];
+      if (currentEditSource === 'firestore') {
+        await setDoc(doc(db, mapConf.fs, currentEditId), parsed, { merge: true });
+      } else if (currentEditSource === 'rtdb') {
+        await set(ref(rtdb, `${mapConf.rtdb}/${currentEditId}`), parsed);
+      }
+      await updateVersion(currentManageCollection);
     }
     
-    await updateVersion(currentManageCollection);
     closeEditModal();
     loadManageData(currentManageCollection, document.querySelector('.manage-tab-btn.active'));
   } catch(e) {
@@ -888,13 +921,19 @@ window.saveEditedData = async function() {
 window.deleteManageData = async function(source, id) {
   if (!confirm('Bạn có chắc chắn muốn xoá bản ghi này vĩnh viễn?')) return;
   try {
-    const mapConf = COLLECTION_MAP[currentManageCollection];
-    if (source === 'firestore') {
-      await deleteDoc(doc(db, mapConf.fs, id)).catch(()=>{});
+    if (currentManageCollection === 'd1_static_warnings') {
+      // XOÁ D1
+      const res = await fetch(`${MAIN_WORKER_URL}/warnings?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
     } else {
-      await remove(ref(rtdb, `${mapConf.rtdb}/${id}`)).catch(()=>{});
+      const mapConf = COLLECTION_MAP[currentManageCollection];
+      if (source === 'firestore') {
+        await deleteDoc(doc(db, mapConf.fs, id)).catch(()=>{});
+      } else {
+        await remove(ref(rtdb, `${mapConf.rtdb}/${id}`)).catch(()=>{});
+      }
+      await updateVersion(currentManageCollection);
     }
-    await updateVersion(currentManageCollection);
     loadManageData(currentManageCollection, document.querySelector('.manage-tab-btn.active'));
   } catch(e) {
     alert('Lỗi khi xoá: ' + e.message);
