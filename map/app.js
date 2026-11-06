@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (Full - Smooth Popup & Pulse Marker)
+   DriveKit — app.js (Full - POI Priority Search)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -49,12 +49,25 @@ async function apiSearch(query) {
     });
   };
 
+  // Mapbox — ưu tiên text (tên POI thuần) thay vì place_name
   try {
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_KEY}&language=vi&country=vn&limit=20&autocomplete=true&types=poi,address,place`;
     const res = await fetch(url);
     const data = await res.json();
-    if (data.features && data.features.length > 0) {
-      addUniqueResults(data.features.map(f => ({ name: f.place_name, lat: f.center[1], lng: f.center[0], _src: 'mapbox' })));
+    if (data.features?.length) {
+      addUniqueResults(data.features.map(f => {
+        const type = f.place_type?.[0] || '';
+        const displayName = (type === 'poi' || type === 'place') && f.text
+          ? f.text + (f.address ? ', ' + f.address : '')
+          : (f.text || f.place_name);
+        return {
+          name: displayName,
+          fullName: f.place_name,
+          lat: f.center[1], lng: f.center[0],
+          type,
+          category: f.properties?.category || ''
+        };
+      }));
     }
   } catch (e) { console.warn('Mapbox search error:', e); }
 
@@ -63,8 +76,21 @@ async function apiSearch(query) {
       const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=vi&limit=20&autocomplete=true&boundary.country=vn&types=poi,address,place`;
       const res = await fetch(url);
       const data = await res.json();
-      if (data.features && data.features.length > 0) {
-        addUniqueResults(data.features.map(f => ({ name: f.place_name_vi || f.place_name || f.text, lat: f.center[1], lng: f.center[0], _src: 'maptiler' })));
+      if (data.features?.length) {
+        addUniqueResults(data.features.map(f => {
+          const type = f.place_type?.[0] || '';
+          const poiName = f.properties?.name || f.text;
+          const displayName = (type === 'poi' || type === 'place') && poiName
+            ? poiName + (f.address ? ', ' + f.address : '')
+            : (poiName || f.place_name_vi || f.place_name);
+          return {
+            name: displayName,
+            fullName: f.place_name_vi || f.place_name,
+            lat: f.center[1], lng: f.center[0],
+            type,
+            category: f.properties?.category || ''
+          };
+        }));
       }
     } catch (e) { console.warn('MapTiler search error:', e); }
   }
@@ -74,27 +100,32 @@ async function apiSearch(query) {
       const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&countrySet=VN&language=vi-VN&limit=20&idxSet=POI,Addr,Geo&typeahead=true`;
       const res = await fetch(url);
       const data = await res.json();
-      if (data.results && data.results.length > 0) {
-        addUniqueResults(data.results.map(r => ({ name: r.address.freeformAddress || r.poi.name, lat: r.position.lat, lng: r.position.lon, _src: 'tomtom' })));
+      if (data.results?.length) {
+        addUniqueResults(data.results.map(r => {
+          const type = (r.type || '').toLowerCase();
+          const poiName = r.poi?.name;
+          const displayName = (type === 'poi' && poiName)
+            ? poiName + (r.address?.freeformAddress ? ', ' + r.address.freeformAddress : '')
+            : (r.address?.freeformAddress || poiName || '');
+          return {
+            name: displayName,
+            fullName: r.address?.freeformAddress || '',
+            lat: r.position.lat, lng: r.position.lon,
+            type,
+            category: r.poi?.categories?.[0] || ''
+          };
+        }));
       }
     } catch (e) { console.warn('TomTom search error:', e); }
   }
 
-  // Sort: ưu tiên POI/địa điểm cụ thể lên đầu, tên đường xuống cuối
-  const scoreName = (r) => {
-    const n = (r.name || '').toLowerCase().trim();
-    if (!n) return 0;
-    const words = n.split(/\s+/);
-    // Có số nhà hoặc dấu phẩy (địa chỉ/POI cụ thể) → điểm cao
-    if (/^\d+/.test(n) || n.includes(',')) return 3;
-    // Tên dài (≥4 từ) thường là POI/địa chỉ đầy đủ
-    if (words.length >= 4) return 2;
-    // 3 từ trở lên: có thể là POI hoặc địa danh
-    if (words.length === 3) return 1;
-    // 1-2 từ ngắn: thường là tên đường/thị trấn → xuống cuối
-    return 0;
-  };
-  finalResults.sort((a, b) => scoreName(b) - scoreName(a));
+  // Sort: POI > place > address > street
+  const typeScore = { poi: 4, place: 3, geography: 3, address: 2, street: 1, 'point address': 2 };
+  finalResults.sort((a, b) => {
+    const sa = typeScore[a.type] || 0;
+    const sb = typeScore[b.type] || 0;
+    return sb - sa;
+  });
 
   return finalResults.slice(0, 20);
 }
@@ -798,7 +829,6 @@ function initMap() {
     showLocationPopup(e.lngLat);
   });
 
-  // SỰ KIỆN CLICK BẢN ĐỒ + HIỆU ỨNG RIPPLE & HAPTIC
   map.on('click', (e) => { 
     if (document.getElementById('poiDetailSheet').classList.contains('open')) { closePoiDetail(); return; }
     if (touchMarker) { closePopupSmoothly(touchMarker); touchMarker = null; return; }
@@ -825,7 +855,6 @@ function initMap() {
   });
 }
 
-// Hàm hiển thị popup mượt mà với loading state + Hiệu ứng Ripple
 function showLocationPopup(lngLat) {
   const pixel = map.project(lngLat);
   const ripple = document.createElement('div');
@@ -839,7 +868,6 @@ function showLocationPopup(lngLat) {
 
   const loadingHtml = `<div style="text-align:center; padding:8px; color:var(--text); min-width: 140px;"><i class="fas fa-spinner fa-spin" style="color:var(--primary); font-size:1.2rem; margin-bottom:6px;"></i><br><span style="font-size:0.85rem; font-weight:600;">Đang lấy địa chỉ...</span></div>`;
   
-  // KHÔNG CÓ NÚT X (closeButton: false)
   const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeOnClick: false, closeButton: false })
     .setLngLat([lngLat.lng, lngLat.lat])
     .setHTML(loadingHtml);
@@ -1592,7 +1620,6 @@ window.clearTopSearch = function() {
   searchResultMarkers.forEach(m => m.remove());
   searchResultMarkers = [];
   
-  // Xóa chấm đỏ nếu có
   if (touchMarker) { 
     closePopupSmoothly(touchMarker); 
     touchMarker = null; 
@@ -1604,7 +1631,6 @@ window.clearTopSearch = function() {
   closeSearch();
 };
 
-// Hàm vẽ thẻ tên địa điểm (Có badge nếu là đường/ngõ)
 function renderSearchResultMarkers(results, originalQuery) {
   searchResultMarkers.forEach(m => m.remove());
   searchResultMarkers = [];
@@ -1613,14 +1639,13 @@ function renderSearchResultMarkers(results, originalQuery) {
   const center = results[0]; 
   if (!center || !center.lat || !center.lng) return;
   
-  const MAX_DIST = 1000; // Bán kính 1000 mét (đường kính 2000m)
+  const MAX_DIST = 1000;
 
   results.forEach((r) => {
     if (!r.lat || !r.lng) return;
     
     const dist = calcDist(center.lat, center.lng, r.lat, r.lng);
     
-    // Giữ lại nếu nằm trong bán kính 1000m HOẶC chính là tâm điểm
     if (dist <= MAX_DIST || r === center) {
       const el = document.createElement('div');
       el.className = 'search-result-pin';
@@ -1629,7 +1654,6 @@ function renderSearchResultMarkers(results, originalQuery) {
       let displayName = r.name.split(',')[0]; 
       if (displayName.length > 25) displayName = displayName.substring(0, 25) + '...';
       
-      // Thêm badge tên địa điểm gốc nếu kết quả là đường/ngõ
       let labelHtml = `<div style="font-weight:800; font-size:0.75rem; color:var(--text);">${escapeHtml(displayName)}</div>`;
       
       if (originalQuery && !displayName.toLowerCase().includes(originalQuery.toLowerCase())) {
@@ -1726,10 +1750,27 @@ async function doSearch(query) {
       title2.innerHTML = '<i class="fas fa-map-marked-alt"></i> Địa điểm khác';
       box.appendChild(title2);
       
+      // FIX: hiển thị loại kết quả (Địa điểm / Địa chỉ / Đường)
       displayResults.forEach(r => {
         const div = document.createElement('div');
         div.className = 'sug-item';
-        div.innerHTML = `<i class="fas fa-map-marker-alt"></i><div>${escapeHtml(r.name)}</div>`;
+        const isPoi = r.type === 'poi';
+        const typeIcon = isPoi ? 'fa-map-marker-alt'
+                      : (r.type === 'address' ? 'fa-location-dot'
+                      : (r.type === 'place' ? 'fa-map-location-dot' : 'fa-road'));
+        const typeLabel = isPoi ? (r.category ? r.category : 'Địa điểm')
+                        : r.type === 'address' ? 'Địa chỉ'
+                        : r.type === 'place' ? 'Địa danh'
+                        : (r.type === 'street' ? 'Đường' : 'Khác');
+        const typeColor = isPoi ? '#10b981' : '#94a3b8';
+        div.innerHTML = `
+          <i class="fas ${typeIcon}" style="color:${typeColor}; font-size:1rem;"></i>
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700; white-space:normal; word-break:break-word;">${escapeHtml(r.name)}</div>
+            <div style="font-size:0.65rem; color:${typeColor}; font-weight:700; margin-top:2px;">
+              <i class="fas ${typeIcon}"></i> ${escapeHtml(typeLabel)}
+            </div>
+          </div>`;
         div.onclick = () => selectLocation(r.lat, r.lng, r.name);
         box.appendChild(div);
       });
@@ -1770,7 +1811,6 @@ async function selectLocation(lat, lng, name) {
       <button onclick="event.stopPropagation(); shareLocation(${lat}, ${lng}, '${escapeHtml(finalName).replace(/'/g, "\\'")}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fas fa-share-alt"></i> Chia sẻ</button>
     </div>`;
 
-  // KHÔNG CÓ NÚT X (closeButton: false)
   const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeButton: false })
     .setLngLat([lng, lat])
     .setHTML(popupHtml);
