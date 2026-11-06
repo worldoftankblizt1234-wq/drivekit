@@ -54,31 +54,47 @@ async function apiSearch(query) {
     const res = await fetch(url);
     const data = await res.json();
     if (data.features && data.features.length > 0) {
-      addUniqueResults(data.features.map(f => ({ name: f.place_name, lat: f.center[1], lng: f.center[0] })));
+      addUniqueResults(data.features.map(f => ({ name: f.place_name, lat: f.center[1], lng: f.center[0], _src: 'mapbox' })));
     }
   } catch (e) { console.warn('Mapbox search error:', e); }
 
   if (finalResults.length === 0) {
     try {
-      const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=vi&limit=20&autocomplete=true&boundary.country=vn`;
+      const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=vi&limit=20&autocomplete=true&boundary.country=vn&types=poi,address,place`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.features && data.features.length > 0) {
-        addUniqueResults(data.features.map(f => ({ name: f.place_name_vi || f.place_name || f.text, lat: f.center[1], lng: f.center[0] })));
+        addUniqueResults(data.features.map(f => ({ name: f.place_name_vi || f.place_name || f.text, lat: f.center[1], lng: f.center[0], _src: 'maptiler' })));
       }
     } catch (e) { console.warn('MapTiler search error:', e); }
   }
 
   if (finalResults.length === 0) {
     try {
-      const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&countrySet=VN&language=vi-VN&limit=20`;
+      const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&countrySet=VN&language=vi-VN&limit=20&idxSet=POI,Addr,Geo&typeahead=true`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.results && data.results.length > 0) {
-        addUniqueResults(data.results.map(r => ({ name: r.address.freeformAddress || r.poi.name, lat: r.position.lat, lng: r.position.lon })));
+        addUniqueResults(data.results.map(r => ({ name: r.address.freeformAddress || r.poi.name, lat: r.position.lat, lng: r.position.lon, _src: 'tomtom' })));
       }
     } catch (e) { console.warn('TomTom search error:', e); }
   }
+
+  // Sort: ưu tiên POI/địa điểm cụ thể lên đầu, tên đường xuống cuối
+  const scoreName = (r) => {
+    const n = (r.name || '').toLowerCase().trim();
+    if (!n) return 0;
+    const words = n.split(/\s+/);
+    // Có số nhà hoặc dấu phẩy (địa chỉ/POI cụ thể) → điểm cao
+    if (/^\d+/.test(n) || n.includes(',')) return 3;
+    // Tên dài (≥4 từ) thường là POI/địa chỉ đầy đủ
+    if (words.length >= 4) return 2;
+    // 3 từ trở lên: có thể là POI hoặc địa danh
+    if (words.length === 3) return 1;
+    // 1-2 từ ngắn: thường là tên đường/thị trấn → xuống cuối
+    return 0;
+  };
+  finalResults.sort((a, b) => scoreName(b) - scoreName(a));
 
   return finalResults.slice(0, 20);
 }
