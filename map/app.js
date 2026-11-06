@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (Full - POI Priority Search)
+   DriveKit — app.js (TomTom 70% + MapTiler 30%, bỏ Mapbox search)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -25,7 +25,7 @@ const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
 const MAPTILER_STYLE = `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`;
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
 const TRACKASIA_STYLE = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
-const MAPBOX_KEY = 'pk.eyJ1IjoibWluaGFkb2YyIiwiYSI6ImNtdnMwNDBhdzAwbnozNXExaHczb3Znd2MifQ.iVKGNbnj_pUxT6B_gqazEw';
+const MAPBOX_KEY = 'pk.eyJ1IjoibWluaGFkb2YyIiwiYSI6ImNtdnMwNDBhdzAwbnozNXExaHczb3Znd2MifQ.iVKGNbnj_pUxT6B_gqazEw'; // giữ cho geocode reverse nếu cần
 const TOMTOM_KEY = 'tG84Z1Yh4rauGWjz6pRn98rrWymLjTru';
 
 /* ---------- API HELPERS ---------- */
@@ -39,95 +39,75 @@ async function apiReverseGeocode(lat, lng) {
   } catch (e) { return ''; }
 }
 
-async function apiSearch(query) {
-  let finalResults = [];
-  const addUniqueResults = (newResults) => {
-    newResults.forEach(nr => {
-      if (!finalResults.some(fr => fr.name === nr.name || (Math.abs(fr.lat - nr.lat) < 0.0001 && Math.abs(fr.lng - nr.lng) < 0.0001))) {
-        finalResults.push(nr);
-      }
-    });
-  };
-
-  // Mapbox — ưu tiên text (tên POI thuần) thay vì place_name
-  try {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_KEY}&language=vi&country=vn&limit=20&autocomplete=true&types=poi,address,place`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data.features?.length) {
-      addUniqueResults(data.features.map(f => {
-        const type = f.place_type?.[0] || '';
-        const displayName = (type === 'poi' || type === 'place') && f.text
-          ? f.text + (f.address ? ', ' + f.address : '')
-          : (f.text || f.place_name);
-        return {
-          name: displayName,
-          fullName: f.place_name,
-          lat: f.center[1], lng: f.center[0],
-          type,
-          category: f.properties?.category || ''
-        };
-      }));
-    }
-  } catch (e) { console.warn('Mapbox search error:', e); }
-
-  if (finalResults.length === 0) {
-    try {
-      const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=vi&limit=20&autocomplete=true&boundary.country=vn&types=poi,address,place`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.features?.length) {
-        addUniqueResults(data.features.map(f => {
-          const type = f.place_type?.[0] || '';
-          const poiName = f.properties?.name || f.text;
-          const displayName = (type === 'poi' || type === 'place') && poiName
-            ? poiName + (f.address ? ', ' + f.address : '')
-            : (poiName || f.place_name_vi || f.place_name);
-          return {
-            name: displayName,
-            fullName: f.place_name_vi || f.place_name,
-            lat: f.center[1], lng: f.center[0],
-            type,
-            category: f.properties?.category || ''
-          };
-        }));
-      }
-    } catch (e) { console.warn('MapTiler search error:', e); }
-  }
-
-  if (finalResults.length === 0) {
-    try {
-      const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&countrySet=VN&language=vi-VN&limit=20&idxSet=POI,Addr,Geo&typeahead=true`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.results?.length) {
-        addUniqueResults(data.results.map(r => {
-          const type = (r.type || '').toLowerCase();
-          const poiName = r.poi?.name;
-          const displayName = (type === 'poi' && poiName)
-            ? poiName + (r.address?.freeformAddress ? ', ' + r.address.freeformAddress : '')
-            : (r.address?.freeformAddress || poiName || '');
-          return {
-            name: displayName,
-            fullName: r.address?.freeformAddress || '',
-            lat: r.position.lat, lng: r.position.lon,
-            type,
-            category: r.poi?.categories?.[0] || ''
-          };
-        }));
-      }
-    } catch (e) { console.warn('TomTom search error:', e); }
-  }
-
-  // Sort: POI > place > address > street
-  const typeScore = { poi: 4, place: 3, geography: 3, address: 2, street: 1, 'point address': 2 };
-  finalResults.sort((a, b) => {
-    const sa = typeScore[a.type] || 0;
-    const sb = typeScore[b.type] || 0;
-    return sb - sa;
+/* ---------- SEARCH: TomTom (70%) + MapTiler (30%) ---------- */
+async function fetchTomTomSearch(query) {
+  const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&countrySet=VN&language=vi-VN&limit=20&idxSet=POI,Addr,Geo&typeahead=true`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return (data.results || []).map(r => {
+    const type = (r.type || '').toLowerCase();
+    const poiName = r.poi?.name;
+    const displayName = (type === 'poi' && poiName)
+      ? poiName + (r.address?.freeformAddress ? ', ' + r.address.freeformAddress : '')
+      : (r.address?.freeformAddress || poiName || '');
+    return {
+      name: displayName,
+      fullName: r.address?.freeformAddress || '',
+      lat: r.position.lat, lng: r.position.lon,
+      type,
+      category: r.poi?.categories?.[0] || ''
+    };
   });
+}
 
-  return finalResults.slice(0, 20);
+async function fetchMapTilerSearch(query) {
+  const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=vi&limit=20&autocomplete=true&boundary.country=vn&types=poi,address,place`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return (data.features || []).map(f => {
+    const type = f.place_type?.[0] || '';
+    const poiName = f.properties?.name || f.text;
+    const displayName = (type === 'poi' || type === 'place') && poiName
+      ? poiName + (f.address ? ', ' + f.address : '')
+      : (poiName || f.place_name_vi || f.place_name);
+    return {
+      name: displayName,
+      fullName: f.place_name_vi || f.place_name,
+      lat: f.center[1], lng: f.center[0],
+      type,
+      category: f.properties?.category || ''
+    };
+  });
+}
+
+async function apiSearch(query) {
+  // Chạy song song TomTom + MapTiler
+  const [tomtomResults, maptilerResults] = await Promise.all([
+    fetchTomTomSearch(query).catch(e => { console.warn('TomTom search error:', e); return []; }),
+    fetchMapTilerSearch(query).catch(e => { console.warn('MapTiler search error:', e); return []; })
+  ]);
+
+  // Dedupe MapTiler vs TomTom (cùng tên HOẶC toạ độ < 11m)
+  const filteredMaptiler = maptilerResults.filter(mt =>
+    !tomtomResults.some(tt =>
+      tt.name === mt.name ||
+      (Math.abs(tt.lat - mt.lat) < 0.0001 && Math.abs(tt.lng - mt.lng) < 0.0001)
+    )
+  );
+
+  // Quota: 14 TomTom + 6 MapTiler = 20
+  const TOMTOM_QUOTA = 14;
+  const MAX_TOTAL = 20;
+
+  const combined = [...tomtomResults.slice(0, TOMTOM_QUOTA)];
+  const remaining = MAX_TOTAL - combined.length;
+  if (remaining > 0) combined.push(...filteredMaptiler.slice(0, remaining));
+
+  // Sort POI > place > address > street
+  const typeScore = { poi: 4, place: 3, geography: 3, address: 2, street: 1, 'point address': 2 };
+  combined.sort((a, b) => (typeScore[b.type] || 0) - (typeScore[a.type] || 0));
+
+  return combined;
 }
 
 function mapTomTomManeuver(m) {
@@ -1750,7 +1730,6 @@ async function doSearch(query) {
       title2.innerHTML = '<i class="fas fa-map-marked-alt"></i> Địa điểm khác';
       box.appendChild(title2);
       
-      // FIX: hiển thị loại kết quả (Địa điểm / Địa chỉ / Đường)
       displayResults.forEach(r => {
         const div = document.createElement('div');
         div.className = 'sug-item';
