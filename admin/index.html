@@ -152,6 +152,7 @@
       </div>
     </div>
 
+    <!-- TAB: TRẠM DỪNG NGHỈ -->
     <div class="tab-content active" id="tab-reststop">
       <div class="form-group">
         <label>Dán link Google Maps</label>
@@ -177,6 +178,7 @@
       <div id="statusRestStop" class="status-box"></div>
     </div>
 
+    <!-- TAB: TUYẾN ĐƯỜNG CẤM -->
     <div class="tab-content" id="tab-avoid">
       <div style="display: flex; gap: 8px; margin-bottom: 8px;">
         <button class="btn btn-outline" id="btnToggleDraw" onclick="toggleDrawMode()" style="flex:1;">
@@ -192,35 +194,74 @@
         <input type="text" id="zoneName" class="form-control" placeholder="VD: Cấm tải đường Nguyễn Trãi">
       </div>
 
+      <!-- THỜI GIAN & NGÀY ÁP DỤNG -->
       <div class="form-group" style="background: rgba(16,185,129,0.1); padding: 12px; border-radius: 8px; border: 1px dashed var(--success);">
         <label style="color: var(--success); display: flex; align-items: center; justify-content: space-between;">
-          <span><i class="fas fa-clock"></i> Thời gian cấm</span>
-          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: white; font-size: 0.85rem;">
-            <input type="checkbox" id="zoneNightClosure" onchange="toggleNightClosure()" style="width: 16px; height: 16px; accent-color: var(--success);"> 
-            Chặn đêm (17h - 5h)
-          </label>
+          <span><i class="fas fa-clock"></i> Thời gian & Ngày áp dụng</span>
         </label>
-        <div style="display: flex; gap: 8px; margin-top: 10px;" id="timeInputsContainer">
+        
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
           <div style="flex:1;">
-            <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Từ lúc:</div>
-            <input type="datetime-local" id="zoneStartTime" class="form-control">
+            <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Từ ngày (Bắt đầu):</div>
+            <input type="date" id="zoneStartDate" class="form-control">
           </div>
           <div style="flex:1;">
-            <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Đến lúc:</div>
-            <input type="datetime-local" id="zoneEndTime" class="form-control">
+            <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Đến ngày (Bỏ trống = Vô hạn):</div>
+            <input type="date" id="zoneEndDate" class="form-control">
           </div>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <div style="flex:1;">
+            <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Giờ bắt đầu cấm:</div>
+            <input type="time" id="zoneTimeStart" class="form-control" placeholder="VD: 17:00">
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:4px;">Giờ kết thúc cấm:</div>
+            <input type="time" id="zoneTimeEnd" class="form-control" placeholder="VD: 05:00">
+          </div>
+        </div>
+        <div class="help-text" style="color: #f59e0b; margin-top:8px;">
+          <i class="fas fa-info-circle"></i> <b>Mẹo:</b> Nếu Giờ bắt đầu lớn hơn Giờ kết thúc, hệ thống tự hiểu là <b>Cấm qua đêm</b> (từ hôm trước đến sáng hôm sau). Bỏ trống giờ nếu muốn cấm 24/7.
         </div>
       </div>
 
+      <!-- LOẠI XE BỊ CẤM -->
       <div class="form-group" style="background: rgba(239,68,68,0.1); padding: 12px; border-radius: 8px; border: 1px dashed var(--danger);">
         <label style="color: var(--danger);"><i class="fas fa-car-crash"></i> Loại xe bị cấm (Bỏ trống = Cấm tất cả)</label>
         <div class="vehicle-checkbox-group">
-          <label class="vehicle-chip"><input type="checkbox" value="car" class="zone-vehicle"><i class="fas fa-car"></i> Ô tô</label>
+          <label class="vehicle-chip"><input type="checkbox" value="car" class="zone-vehicle" id="chk-car" onchange="toggleVehicleSpecs()"><i class="fas fa-car"></i> Ô tô</label>
           <label class="vehicle-chip"><input type="checkbox" value="motorcycle" class="zone-vehicle"><i class="fas fa-motorcycle"></i> Xe máy</label>
-          <label class="vehicle-chip"><input type="checkbox" value="truck" class="zone-vehicle"><i class="fas fa-truck"></i> Xe tải</label>
+          <label class="vehicle-chip"><input type="checkbox" value="truck" class="zone-vehicle" id="chk-truck" onchange="toggleVehicleSpecs()"><i class="fas fa-truck"></i> Xe tải</label>
           <label class="vehicle-chip"><input type="checkbox" value="hd" class="zone-vehicle"><i class="fas fa-motorcycle"></i> Xe CN</label>
           <label class="vehicle-chip"><input type="checkbox" value="bicycle" class="zone-vehicle"><i class="fas fa-bicycle"></i> Xe đạp</label>
           <label class="vehicle-chip"><input type="checkbox" value="walking" class="zone-vehicle"><i class="fas fa-walking"></i> Đi bộ</label>
+        </div>
+
+        <!-- THÔNG SỐ XE HƠI -->
+        <div id="car-specs" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(239,68,68,0.3);">
+          <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; display: block;">Số chỗ ngồi (Bỏ trống = Tất cả)</label>
+          <div class="vehicle-checkbox-group">
+            <label class="vehicle-chip" style="padding: 4px 10px; font-size: 0.75rem;"><input type="checkbox" value="4" class="car-seat"><i class="fas fa-car-side"></i> 4 chỗ</label>
+            <label class="vehicle-chip" style="padding: 4px 10px; font-size: 0.75rem;"><input type="checkbox" value="5" class="car-seat"><i class="fas fa-car-side"></i> 5 chỗ</label>
+            <label class="vehicle-chip" style="padding: 4px 10px; font-size: 0.75rem;"><input type="checkbox" value="6" class="car-seat"><i class="fas fa-car-side"></i> 6 chỗ</label>
+            <label class="vehicle-chip" style="padding: 4px 10px; font-size: 0.75rem;"><input type="checkbox" value="7" class="car-seat"><i class="fas fa-car-side"></i> 7 chỗ</label>
+            <label class="vehicle-chip" style="padding: 4px 10px; font-size: 0.75rem;"><input type="checkbox" value="8" class="car-seat"><i class="fas fa-car-side"></i> 8 chỗ</label>
+          </div>
+        </div>
+
+        <!-- THÔNG SỐ XE TẢI -->
+        <div id="truck-specs" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(239,68,68,0.3);">
+          <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; display: block;">Số trục xe (Bỏ trống = Tất cả)</label>
+          <div class="vehicle-checkbox-group">
+            <label class="vehicle-chip" style="padding: 4px 10px; font-size: 0.75rem;"><input type="checkbox" value="2" class="truck-axle"><i class="fas fa-truck"></i> 2 trục</label>
+            <label class="vehicle-chip" style="padding: 4px 10px; font-size: 0.75rem;"><input type="checkbox" value="3" class="truck-axle"><i class="fas fa-truck"></i> 3 trục</label>
+            <label class="vehicle-chip" style="padding: 4px 10px; font-size: 0.75rem;"><input type="checkbox" value="4" class="truck-axle"><i class="fas fa-truck"></i> 4 trục</label>
+            <label class="vehicle-chip" style="padding: 4px 10px; font-size: 0.75rem;"><input type="checkbox" value="5" class="truck-axle"><i class="fas fa-truck"></i> 5 trục</label>
+            <label class="vehicle-chip" style="padding: 4px 10px; font-size: 0.75rem;"><input type="checkbox" value="6" class="truck-axle"><i class="fas fa-truck"></i> 6 trục</label>
+            <label class="vehicle-chip" style="padding: 4px 10px; font-size: 0.75rem;"><input type="checkbox" value="7" class="truck-axle"><i class="fas fa-truck"></i> 7 trục</label>
+            <label class="vehicle-chip" style="padding: 4px 10px; font-size: 0.75rem;"><input type="checkbox" value="8" class="truck-axle"><i class="fas fa-truck"></i> 8 trục</label>
+          </div>
         </div>
       </div>
 
@@ -346,7 +387,6 @@ let currentRestStopMarker = null;
 let currentManageCollection = '';
 let currentEditSource = '';
 let currentEditId = '';
-let currentEditData = {};
 
 let pointA = null, pointB = null, tempMarkerA = null, tempMarkerB = null;
 let isDrawMode = false, isFreehandMode = false;
@@ -418,11 +458,15 @@ window.switchTab = function(tabId) {
   }
 };
 
-window.toggleNightClosure = function() {
-  const isNight = document.getElementById('zoneNightClosure').checked;
-  document.getElementById('zoneStartTime').disabled = isNight;
-  document.getElementById('zoneEndTime').disabled = isNight;
-  if (isNight) { document.getElementById('zoneStartTime').value = ''; document.getElementById('zoneEndTime').value = ''; }
+window.toggleVehicleSpecs = function() {
+  const isCar = document.getElementById('chk-car').checked;
+  const isTruck = document.getElementById('chk-truck').checked;
+  
+  document.getElementById('car-specs').style.display = isCar ? 'block' : 'none';
+  document.getElementById('truck-specs').style.display = isTruck ? 'block' : 'none';
+  
+  if (!isCar) document.querySelectorAll('.car-seat').forEach(cb => cb.checked = false);
+  if (!isTruck) document.querySelectorAll('.truck-axle').forEach(cb => cb.checked = false);
 };
 
 function updateMapCursorClass() {
@@ -459,10 +503,17 @@ window.resetZoneDrawing = function() {
     if (map.getSource('avoid-zones-source')) map.getSource('avoid-zones-source').setData(emptyGeoJSON);
     if (map.getSource('active-freehand-source')) map.getSource('active-freehand-source').setData(emptyGeoJSON);
   }
-  ['zoneLat1','zoneLng1','zoneLat2','zoneLng2','zoneStartTime','zoneEndTime'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('zoneNightClosure').checked = false;
-  toggleNightClosure();
+  
+  ['zoneLat1','zoneLng1','zoneLat2','zoneLng2','zoneStartDate','zoneEndDate','zoneTimeStart','zoneTimeEnd'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
   document.querySelectorAll('.zone-vehicle').forEach(cb => cb.checked = false);
+  document.querySelectorAll('.car-seat').forEach(cb => cb.checked = false);
+  document.querySelectorAll('.truck-axle').forEach(cb => cb.checked = false);
+  toggleVehicleSpecs();
+
   drawHistory = []; historyIndex = -1; saveHistory();
 };
 
@@ -720,8 +771,16 @@ window.saveAvoidZone = async function() {
   const name = document.getElementById('zoneName').value.trim();
   if (!name) return showStatus('statusAvoid', 'Nhập Tên đoạn cấm!', 'error');
   if (!currentRouteWaypoints || currentRouteWaypoints.length < 2) return showStatus('statusAvoid', 'Chưa vẽ tuyến đường!', 'error');
-  const isNightClosure = document.getElementById('zoneNightClosure').checked;
+  
+  const startDate = document.getElementById('zoneStartDate').value;
+  const endDate = document.getElementById('zoneEndDate').value;
+  const timeStart = document.getElementById('zoneTimeStart').value;
+  const timeEnd = document.getElementById('zoneTimeEnd').value;
+
   const bannedVehicles = Array.from(document.querySelectorAll('.zone-vehicle:checked')).map(cb => cb.value);
+  const carSeats = Array.from(document.querySelectorAll('.car-seat:checked')).map(cb => cb.value);
+  const truckAxles = Array.from(document.querySelectorAll('.truck-axle:checked')).map(cb => cb.value);
+  
   let firstPoint, lastPoint;
   if (Array.isArray(currentRouteWaypoints[0][0])) {
     firstPoint = currentRouteWaypoints[0][0];
@@ -731,17 +790,18 @@ window.saveAvoidZone = async function() {
     firstPoint = currentRouteWaypoints[0];
     lastPoint = currentRouteWaypoints[currentRouteWaypoints.length - 1];
   }
-  let startTime = null, endTime = null;
-  if (isNightClosure) { startTime = "17:00"; endTime = "05:00"; } 
-  else {
-    const st = document.getElementById('zoneStartTime').value;
-    const et = document.getElementById('zoneEndTime').value;
-    if (st) startTime = new Date(st).getTime();
-    if (et) endTime = new Date(et).getTime();
-  }
+  
   showStatus('statusAvoid', 'Đang lưu...', 'loading');
   try {
-    const payload = { name, isNightClosure, lat1: firstPoint[0], lng1: firstPoint[1], lat2: lastPoint[0], lng2: lastPoint[1], waypoints: JSON.stringify(currentRouteWaypoints), startTime, endTime, bannedVehicles, timestamp: Date.now() };
+    const payload = { 
+      name, 
+      startDate, endDate, timeStart, timeEnd,
+      lat1: firstPoint[0], lng1: firstPoint[1], 
+      lat2: lastPoint[0], lng2: lastPoint[1], 
+      waypoints: JSON.stringify(currentRouteWaypoints), 
+      bannedVehicles, carSeats, truckAxles,
+      timestamp: Date.now() 
+    };
     const docRef = await addDoc(collection(db, "avoid_zones"), payload);
     await set(ref(rtdb, `avoid_zones/${docRef.id}`), payload);
     await updateVersion('avoid_zones');
@@ -774,7 +834,7 @@ window.loadManageData = async function(collectionName, btn) {
   const mapConf = COLLECTION_MAP[collectionName];
   let items = [];
 
-  // NẾU LÀ D1 (Static Warnings)
+  // NẾU LÀ D1
   if (mapConf.type === 'd1') {
     try {
       const res = await fetch(`${MAIN_WORKER_URL}/admin/warnings`);
@@ -784,7 +844,7 @@ window.loadManageData = async function(collectionName, btn) {
       }
     } catch(e) { console.warn('Lỗi đọc D1', e); }
   } 
-  // NẾU LÀ FIREBASE/RTDB
+  // FIREBASE
   else {
     try {
       const fsSnap = await getDocs(collection(db, mapConf.fs));
@@ -818,7 +878,6 @@ window.loadManageData = async function(collectionName, btn) {
     let summary = '';
     if (item.name) summary += `<b>${item.name}</b> - `;
     if (item.tag) summary += `Tag: ${item.tag} - `;
-    
     if (item.type) {
       let typeStr = item.type;
       if (item.type === 'speed_limit') typeStr = 'Biển báo tốc độ';
@@ -826,20 +885,14 @@ window.loadManageData = async function(collectionName, btn) {
       else if (item.type === 'penalty_camera') typeStr = 'Camera phạt nguội';
       summary += `Loại: <span style="color:var(--warning); font-weight:700;">${typeStr}</span> - `;
     }
-    
     if (item.speed) summary += `Tốc độ: ${item.speed} km/h - `;
-    
     if (item.lat && item.lng) summary += `Toạ độ: ${parseFloat(item.lat).toFixed(4)}, ${parseFloat(item.lng).toFixed(4)}`;
     if (!summary) summary = JSON.stringify(item).substring(0, 50) + '...';
 
     const tr = document.createElement('tr');
-    
     const td1 = document.createElement('td'); td1.style.color = 'var(--text-muted)'; td1.textContent = index + 1;
-    
     const td2 = document.createElement('td'); td2.style.fontFamily = 'monospace'; td2.style.color = 'var(--primary)'; td2.style.fontSize = '0.8rem'; td2.textContent = item.id;
-    
     const td3 = document.createElement('td'); td3.innerHTML = summary;
-    
     const td4 = document.createElement('td'); td4.style.textAlign = 'center';
     
     const btnEdit = document.createElement('button');
@@ -869,34 +922,27 @@ window.openEditModal = function(item) {
   const dataToEdit = { ...item };
   delete dataToEdit.source;
   delete dataToEdit.id;
-  if (currentManageCollection === 'd1_static_warnings') {
-    delete dataToEdit.created_at; // Bỏ field rườm rà
-  }
+  if (currentManageCollection === 'd1_static_warnings') delete dataToEdit.created_at;
   
   document.getElementById('jsonEditor').value = JSON.stringify(dataToEdit, null, 4);
   document.getElementById('editModal').classList.add('active');
 };
 
-window.closeEditModal = function() {
-  document.getElementById('editModal').classList.remove('active');
-};
+window.closeEditModal = function() { document.getElementById('editModal').classList.remove('active'); };
 
 window.saveEditedData = async function() {
   const val = document.getElementById('jsonEditor').value;
   let parsed;
-  try { parsed = JSON.parse(val); } catch(e) { alert('Lỗi JSON! Kiểm tra lại ngoặc kép, dấu phẩy.'); return; }
+  try { parsed = JSON.parse(val); } catch(e) { alert('Lỗi JSON!'); return; }
   
   const btn = event.target;
   btn.disabled = true; btn.innerHTML = 'Đang lưu...';
 
   try {
     if (currentManageCollection === 'd1_static_warnings') {
-      // SỬA D1
       parsed.id = currentEditId;
       const res = await fetch(`${MAIN_WORKER_URL}/warnings`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parsed)
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(parsed)
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
     } else {
@@ -908,7 +954,6 @@ window.saveEditedData = async function() {
       }
       await updateVersion(currentManageCollection);
     }
-    
     closeEditModal();
     loadManageData(currentManageCollection, document.querySelector('.manage-tab-btn.active'));
   } catch(e) {
@@ -922,7 +967,6 @@ window.deleteManageData = async function(source, id) {
   if (!confirm('Bạn có chắc chắn muốn xoá bản ghi này vĩnh viễn?')) return;
   try {
     if (currentManageCollection === 'd1_static_warnings') {
-      // XOÁ D1
       const res = await fetch(`${MAIN_WORKER_URL}/warnings?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
     } else {
