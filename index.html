@@ -97,12 +97,12 @@
     let CENTER_LNG = 105.8542;
     const RADIUS = 1500; // Bán kính 1.5km
 
-    // Ánh xạ danh mục (MapTiler dùng tiếng Việt để dễ tìm hơn)
+    // Ánh xạ danh mục
     const CATEGORIES = {
-        'cafe': { tomtom: '7315', geoapify: 'catering.cafe', mapbox: 'cafe', maptiler: 'quán cà phê' },
-        'restaurant': { tomtom: '7314', geoapify: 'catering.restaurant', mapbox: 'restaurant', maptiler: 'nhà hàng' },
-        'hotel': { tomtom: '7314', geoapify: 'accommodation.hotel', mapbox: 'hotel', maptiler: 'khách sạn' },
-        'gas_station': { tomtom: '7313', geoapify: 'service.vehicle.fuel', mapbox: 'gas station', maptiler: 'trạm xăng' }
+        'cafe': { tomtom: '7315', geoapify: 'catering.cafe', mapbox: 'cafe', maptiler: 'cafe' },
+        'restaurant': { tomtom: '7314', geoapify: 'catering.restaurant', mapbox: 'restaurant', maptiler: 'restaurant' },
+        'hotel': { tomtom: '7314', geoapify: 'accommodation.hotel', mapbox: 'hotel', maptiler: 'hotel' },
+        'gas_station': { tomtom: '7313', geoapify: 'service.vehicle.fuel', mapbox: 'gas station', maptiler: 'gas station' }
     };
 
     let tomtomMarkers = [], geoapifyMarkers = [], mapboxMarkers = [], maptilerMarkers = [];
@@ -231,9 +231,10 @@
             } else document.getElementById('countMapbox').textContent = '0';
         } catch (e) { document.getElementById('countMapbox').textContent = 'Lỗi'; }
 
-        // 4. MAPTILER (Đã sửa lỗi)
+        // 4. MAPTILER (Đã sửa limit=20)
         try {
-            const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(cat.maptiler)}.json?key=${MAPTILER_KEY}&language=vi&limit=30&proximity=${CENTER_LNG},${CENTER_LAT}&country=vn`;
+            // Thêm types=poi và limit=20 (MapTiler max là 20)
+            const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(cat.maptiler)}.json?key=${MAPTILER_KEY}&language=vi&limit=20&proximity=${CENTER_LNG},${CENTER_LAT}&types=poi&country=vn`;
             const res = await fetch(url);
             
             if (!res.ok) {
