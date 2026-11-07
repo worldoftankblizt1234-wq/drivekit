@@ -135,6 +135,7 @@ let arrivalHandled = false;
 const ARRIVAL_RADIUS_M = 20;
 let tempPinLatLng = null;
 let tempPinName = "";
+let destinationMarker = null; // Biến lưu Cờ Đích Đến
 const ROUTE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 let tempPoiLatLng = null;
 let tempPoiTag = null;
@@ -206,7 +207,41 @@ const POI_TAG_CONFIG = {
 };
 const ZOOM_CONFIG = { communityPoi: 15, restStop: 13, savedPlace: 14, report: 14, savedPlaceAlwaysShow: ['home', 'company'] };
 
-/* ========== HELPER: TOAST & POPUP ========== */
+/* ========== HELPER: TRANSLATE & TOAST & POPUP ========== */
+function translateInstruction(text) {
+  if (!text) return '';
+  let translated = text;
+  const dict = {
+    'Drive west': 'Đi về hướng Tây',
+    'Drive east': 'Đi về hướng Đông',
+    'Drive north': 'Đi về hướng Bắc',
+    'Drive south': 'Đi về hướng Nam',
+    'Turn left': 'Rẽ trái',
+    'Turn right': 'Rẽ phải',
+    'Arrive at destination': 'Đã đến nơi',
+    'Arrive at': 'Đến',
+    'Continue': 'Tiếp tục',
+    'Take the roundabout': 'Đi vào vòng xuyến',
+    'Take the exit': 'Đi theo lối ra',
+    'Merge': 'Nhập làn',
+    'Keep left': 'Giữ bên trái',
+    'Keep right': 'Giữ bên phải',
+    'Slight left': 'Chếch sang trái',
+    'Slight right': 'Chếch sang phải',
+    'Sharp left': 'Rẽ gắt sang trái',
+    'Sharp right': 'Rẽ gắt sang phải',
+    'Make a U-turn': 'Quay đầu xe',
+    'on': 'trên đường',
+    'onto': 'vào',
+    'Drive': 'Đi'
+  };
+  for (const [en, vi] of Object.entries(dict)) {
+    const regex = new RegExp(`\\b${en}\\b`, 'gi');
+    translated = translated.replace(regex, vi);
+  }
+  return translated;
+}
+
 function showCustomToast(message, type = 'info') {
   const colors = {
     success: 'linear-gradient(135deg, #10b981, #059669)',
@@ -688,7 +723,7 @@ function drawCurrentRoute() {
   map.addLayer({
     id: 'current-route-layer', type: 'line', source: 'current-route-source',
     layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: { 'line-color': '#3b82f6', 'line-width': 8 }
+    paint: { 'line-color': '#3b82f6', 'line-width': 10 } // Nét liền đậm 10px
   });
 }
 
@@ -1085,19 +1120,16 @@ window.searchNearby = async function(keyword) {
   document.getElementById('searchClearBtn').classList.remove('hidden');
   box.innerHTML = `<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang quét ${keyword} xung quanh...</div>`;
 
-  // Mở rộng từ khóa để tìm được nhiều kết quả hơn
   let searchQuery = keyword;
   if (keyword === 'khách sạn') searchQuery = 'khách sạn homestay nhà nghỉ resort';
   if (keyword === 'quán ăn') searchQuery = 'quán ăn nhà hàng cafe';
   if (keyword === 'du lịch') searchQuery = 'du lịch khu du lịch điểm tham quan';
 
-  // Lần 1: Tìm trong bán kính 3km (3000m)
   let results = await apiSearch(searchQuery, lat, lng, 3000);
   let nearbyResults = results.map(r => {
     return { ...r, _dist: calcDist(lat, lng, r.lat, r.lng) };
   }).filter(r => r._dist <= 3000).sort((a, b) => a._dist - b._dist);
 
-  // Lần 2: Nếu 3km không có hoặc quá ít (dưới 3 cái), mở rộng lên 10km
   if (nearbyResults.length < 3) {
     results = await apiSearch(searchQuery, lat, lng, 10000);
     nearbyResults = results.map(r => {
@@ -1271,46 +1303,77 @@ window.fetchAndShowRouteOptions = async function() {
 
     routes.forEach((_, i) => {
       if (map.getLayer(`alt-route-layer-${i}`)) map.removeLayer(`alt-route-layer-${i}`);
+      if (map.getLayer(`alt-route-border-${i}`)) map.removeLayer(`alt-route-border-${i}`);
       if (map.getSource(`alt-route-source-${i}`)) map.removeSource(`alt-route-source-${i}`);
     });
     if (window._routeBadges) window._routeBadges.forEach(m => m.remove());
     window._routeBadges = [];
     
     const bounds = new maplibregl.LngLatBounds();
-    routes.forEach((r, index) => {
+
+    // Vẽ ngược mảng để Tuyến 1 nằm trên cùng
+    for (let i = routes.length - 1; i >= 0; i--) {
+      const r = routes[i];
+      if (!r.geometry || !r.geometry.coordinates || r.geometry.coordinates.length < 2) continue;
+
       r.geometry.coordinates.forEach(c => bounds.extend([c[1], c[0]]));
       
-      const isBest = index === 0;
-      const routeColor = '#3b82f6'; // Xanh dương cho tất cả
+      const isBest = (i === 0);
       
-      map.addSource(`alt-route-source-${index}`, {
+      map.addSource(`alt-route-source-${i}`, {
         type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: r.geometry.coordinates.map(c => [c[1], c[0]]) } }
       });
+      
+      // Vẽ viền trắng cho Tuyến 1
+      if (isBest) {
+        map.addLayer({
+          id: `alt-route-border-${i}`,
+          type: 'line',
+          source: `alt-route-source-${i}`,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#ffffff',
+            'line-width': 13,
+            'line-opacity': 0.9
+          }
+        });
+      }
+
       map.addLayer({
-        id: `alt-route-layer-${index}`, type: 'line', source: `alt-route-source-${index}`,
+        id: `alt-route-layer-${i}`, type: 'line', source: `alt-route-source-${i}`,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
-          'line-color': routeColor,
-          'line-width': isBest ? 9 : 5,           // Tuyến chính dày, phụ mỏng
-          'line-opacity': isBest ? 1 : 0.6,       // Tuyến chính đậm, phụ mờ
-          'line-dasharray': isBest ? null : [2, 2] // Tuyến chính liền, phụ đứt đoạn
+          'line-color': isBest ? '#3b82f6' : '#94a3b8',
+          'line-width': isBest ? 9 : 5,
+          'line-opacity': isBest ? 1 : 0.7,
+          'line-dasharray': isBest ? null : [2, 2]
         }
       });
-      map.on('click', `alt-route-layer-${index}`, () => selectRouteOption(index));
-      map.on('mouseenter', `alt-route-layer-${index}`, () => { map.getCanvas().style.cursor = 'pointer'; });
-      map.on('mouseleave', `alt-route-layer-${index}`, () => { map.getCanvas().style.cursor = ''; });
+      
+      map.on('click', `alt-route-layer-${i}`, () => selectRouteOption(i));
+      map.on('mouseenter', `alt-route-layer-${i}`, () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', `alt-route-layer-${i}`, () => { map.getCanvas().style.cursor = ''; });
       
       const midIdx = Math.floor(r.geometry.coordinates.length / 2);
       const el = document.createElement('div');
-      // Cập nhật màu cục số (1, 2, 3...) đồng bộ xanh dương
-      el.style.cssText = `background:${isBest ? routeColor : 'white'};color:${isBest ? 'white' : routeColor};border:3px solid ${isBest ? 'white' : routeColor};border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:0.9rem;box-shadow:0 4px 10px rgba(0,0,0,0.4);cursor:pointer;`;
-      el.innerHTML = index + 1;
-      el.onclick = () => selectRouteOption(index);
+      el.style.cssText = `background:${isBest ? '#3b82f6' : 'white'};color:${isBest ? 'white' : '#334155'};border:3px solid ${isBest ? 'white' : '#cbd5e1'};border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:0.9rem;box-shadow:0 4px 10px rgba(0,0,0,0.4);cursor:pointer;z-index:${isBest ? 100 : 10};`;
+      el.innerHTML = i + 1;
+      el.onclick = () => selectRouteOption(i);
       
       const midCoord = r.geometry.coordinates[midIdx];
       const badge = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([midCoord[1], midCoord[0]]).addTo(map);
       window._routeBadges.push(badge);
-    });
+    }
+
+    // Cờ đích đến
+    if (destinationMarker) destinationMarker.remove();
+    const destEl = document.createElement('div');
+    destEl.innerHTML = `<div style="background:#ef4444; color:white; width:36px; height:36px; border-radius:50% 50% 50% 0; transform: rotate(-45deg); display:flex; align-items:center; justify-content:center; border:3px solid white; box-shadow:0 4px 10px rgba(0,0,0,0.4);"><i class="fas fa-flag-checkered" style="transform: rotate(45deg); font-size:1.1rem;"></i></div>`;
+    destinationMarker = new maplibregl.Marker({ element: destEl, anchor: 'bottom' })
+      .setLngLat([endPoint.lng, endPoint.lat])
+      .setPopup(new maplibregl.Popup().setHTML(`<b>Đích đến: ${endPoint.name}</b>`))
+      .addTo(map);
+
     map.fitBounds(bounds, { padding: 50, maxZoom: 17 });
     
     let html = `<div class="sort-bar"><button class="sort-chip ${currentSortMode === 'fastest' ? 'active' : ''}" onclick="changeSort('fastest')"><i class="fas fa-bolt"></i> Nhanh nhất</button><button class="sort-chip ${currentSortMode === 'shortest' ? 'active' : ''}" onclick="changeSort('shortest')"><i class="fas fa-route"></i> Ngắn nhất</button></div>`;
@@ -1318,7 +1381,7 @@ window.fetchAndShowRouteOptions = async function() {
       const dist = (r.distance / 1000).toFixed(1);
       const dur = Math.round(r.duration / 60);
       const isBest = index === 0;
-      const color = ROUTE_COLORS[index];
+      const color = isBest ? '#3b82f6' : '#94a3b8';
       html += `<div class="route-card ${isBest ? 'active' : ''}" onclick="selectRouteOption(${index})" style="border-left: 4px solid ${color}; cursor: pointer;"><div class="info"><h3 style="display:flex; align-items:center; gap:8px;"><span style="background:${color}; color:white; width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:900;">${index + 1}</span>Tuyến ${index + 1} ${isBest ? '(Ưu tiên)' : ''} <span style="font-size:0.6rem; background:var(--bg-2); padding:2px 6px; border-radius:4px; color:var(--text-muted);">${r.provider}</span></h3><p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p></div>${isBest ? '<span class="badge" style="background:linear-gradient(135deg, #f59e0b, #ef4444); color:white;"><i class="fas fa-star"></i> Đề xuất</span>' : ''}</div>`;
     });
     bodyEl.innerHTML = html;
@@ -1332,22 +1395,28 @@ window.selectRouteOption = function(index) {
   const selectedRoute = alternativeRoutesData[index];
   if (!selectedRoute) return;
   if (!selectedRoute.geometry?.coordinates?.length) return alert('Tuyến đường này không có dữ liệu!');
+  
   if (!selectedRoute.legs || !Array.isArray(selectedRoute.legs) || selectedRoute.legs.length === 0) selectedRoute.legs = [{ steps: [] }];
   if (!selectedRoute.legs[0].steps) selectedRoute.legs[0].steps = [];
 
   const unselectedRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(unselectedRoutes));
+
+  // XÓA SẠCH CÁC TUYẾN ĐƯỜNG VÀ MARKER SỐ (1, 2, 3) TRÊN BẢN ĐỒ
   alternativeRoutesData.forEach((_, i) => {
-    if (i !== index) {
-      if (map.getLayer(`alt-route-layer-${i}`)) map.removeLayer(`alt-route-layer-${i}`);
-      if (map.getSource(`alt-route-source-${i}`)) map.removeSource(`alt-route-source-${i}`);
-    }
+    if (map.getLayer(`alt-route-layer-${i}`)) map.removeLayer(`alt-route-layer-${i}`);
+    if (map.getLayer(`alt-route-border-${i}`)) map.removeLayer(`alt-route-border-${i}`);
+    if (map.getSource(`alt-route-source-${i}`)) map.removeSource(`alt-route-source-${i}`);
   });
-  if (window._routeBadges) { window._routeBadges.forEach(m => m.remove()); window._routeBadges = []; }
+  if (window._routeBadges) { 
+    window._routeBadges.forEach(m => m.remove()); 
+    window._routeBadges = []; 
+  }
 
   currentRouteData = selectedRoute;
   currentRouteCoords = selectedRoute.geometry.coordinates;
   drawCurrentRoute();
+  
   closeRouteOptions();
   startNavigationHUD();
 };
@@ -1440,6 +1509,7 @@ function updateNextManeuverHUD(lat, lng) {
     const d = calcDist(lat, lng, step.maneuver.location[1], step.maneuver.location[0]);
     if (d > 5 && d < minDist) { minDist = d; nextStep = step; }
   }
+  
   if (nextStep) {
     let icon = 'fa-arrow-up';
     const type = nextStep.maneuver.type || '';
@@ -1452,9 +1522,12 @@ function updateNextManeuverHUD(lat, lng) {
     } else if (type.includes('roundabout')) icon = 'fa-sync-alt';
     else if (type.includes('arrive')) icon = 'fa-flag-checkered';
     else if (type.includes('uturn')) icon = 'fa-undo';
+    
+    const viInstruction = translateInstruction(nextStep.maneuver.instruction || 'Tiếp tục di chuyển');
+    
     document.getElementById('hudNextArrow').innerHTML = `<i class="fas ${icon}"></i>`;
     document.getElementById('hudNextDist').textContent = minDist > 1000 ? (minDist / 1000).toFixed(1) + ' km' : Math.round(minDist) + ' m';
-    document.getElementById('hudNextInstr').textContent = nextStep.maneuver.instruction || 'Tiếp tục di chuyển';
+    document.getElementById('hudNextInstr').textContent = viInstruction;
   } else {
     document.getElementById('hudNextArrow').innerHTML = `<i class="fas fa-arrow-up"></i>`;
     document.getElementById('hudNextDist').textContent = 'Đi thẳng';
@@ -1568,6 +1641,8 @@ window.endTrip = async function(save) {
   if (map.getLayer('current-route-layer')) map.removeLayer('current-route-layer');
   if (map.getSource('current-route-source')) map.removeSource('current-route-source');
   if (window._routeBadges) { window._routeBadges.forEach(m => m.remove()); window._routeBadges = []; }
+  if (destinationMarker) { destinationMarker.remove(); destinationMarker = null; } // Xóa cờ đích
+  
   currentRouteCoords = []; currentRouteData = null; alternativeRoutesData = []; voiceRouteSteps = null;
   voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0; isRerouting = false;
   tripStartTime = null; arrivalHandled = false; warnedReports.clear();
@@ -1744,6 +1819,7 @@ function closeDirections() {
     if (map.getSource('current-route-source')) map.removeSource('current-route-source');
     alternativeRoutesData.forEach((_, i) => {
       if (map.getLayer(`alt-route-layer-${i}`)) map.removeLayer(`alt-route-layer-${i}`);
+      if (map.getLayer(`alt-route-border-${i}`)) map.removeLayer(`alt-route-border-${i}`);
       if (map.getSource(`alt-route-source-${i}`)) map.removeSource(`alt-route-source-${i}`);
     });
     if (window._routeBadges) { window._routeBadges.forEach(m => m.remove()); window._routeBadges = []; }
@@ -2114,7 +2190,7 @@ function startVoice() {
       const step = voiceRouteSteps[i];
       if (!step?.maneuver?.location) continue;
       const d = calcDist(lastUserPos.lat, lastUserPos.lng, step.maneuver.location[1], step.maneuver.location[0]);
-      if (d < 50) { speak(step.maneuver.instruction); voiceStepIndex = i + 1; break; }
+      if (d < 50) { speak(translateInstruction(step.maneuver.instruction)); voiceStepIndex = i + 1; break; }
     }
   }, 3000);
 }
