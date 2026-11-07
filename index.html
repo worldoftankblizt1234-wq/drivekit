@@ -11,7 +11,6 @@
     <!-- vConsole dành cho Mobile Debug -->
     <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
     <script>
-        // Khởi tạo vConsole (hiển thị nút debug màu xanh trên điện thoại)
         var vConsole = new window.VConsole();
     </script>
 
@@ -67,6 +66,9 @@
         const FSQ_API_KEY = 'OZ4V35PQYDWISQTVSR4PUQ4TAJDDRBKY4SON2UGWL333DX33'; 
         const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
         
+        // 👇 ĐÃ CẬP NHẬT KEY CORSPROXY.IO CỦA BẠN
+        const CORSPROXY_KEY = '68c61444'; 
+        
         const DEFAULT_LAT = 21.0285; // Hồ Hoàn Kiếm
         const DEFAULT_LNG = 105.8542;
         const RADIUS = 2000; // Bán kính 2km
@@ -74,7 +76,6 @@
         // --- KHỞI TẠO BẢN ĐỒ VỚI MAPTILER ---
         const map = L.map('map').setView([DEFAULT_LAT, DEFAULT_LNG], 14);
         
-        // Sử dụng MapTiler làm bản đồ nền
         L.tileLayer(`https://api.maptiler.com/maps/streets-v4/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`, {
             tileSize: 512,
             zoomOffset: -1,
@@ -83,10 +84,8 @@
             crossOrigin: true
         }).addTo(map);
 
-        // Fix lỗi bản đồ xám khi mới load trang
         setTimeout(() => { map.invalidateSize(); }, 500);
 
-        // Marker màu xanh (Tâm tìm kiếm)
         const centerIcon = L.divIcon({
             className: 'custom-div-icon',
             html: "<div style='background-color:#007bff; width:15px; height:15px; border-radius:50%; border:3px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);'></div>",
@@ -102,7 +101,6 @@
         const statusMsg = document.getElementById('status-msg');
         const resultsList = document.getElementById('results-list');
 
-        // --- CHỨC NĂNG 1: VỊ TRÍ CỦA TÔI ---
         document.getElementById('btn-locate').addEventListener('click', () => {
             if (!navigator.geolocation) {
                 alert("Trình duyệt không hỗ trợ định vị GPS.");
@@ -129,7 +127,6 @@
             );
         });
 
-        // --- CHỨC NĂNG 2: CHỌN ĐIỂM KHÁC (CLICK BẢN ĐỒ) ---
         btnPick.addEventListener('click', togglePickMode);
 
         function togglePickMode() {
@@ -162,7 +159,7 @@
             searchFoursquare(currentLatLng.lat, currentLatLng.lng);
         });
 
-        // --- GỌI API FOURSQUARE QUA PROXY MỚI ---
+        // --- GỌI API FOURSQUARE QUA CORSPROXY.IO (DÙNG URLSearchParams) ---
         async function searchFoursquare(lat, lng) {
             const query = document.getElementById('search-query').value || 'cafe';
             resultsList.innerHTML = '';
@@ -171,13 +168,17 @@
             resultMarkers.forEach(marker => map.removeLayer(marker));
             resultMarkers = [];
 
-            // 1. Endpoint gốc của Foursquare
+            // 1. URL gốc của Foursquare
             const targetUrl = `https://places-api.foursquare.com/places/search?query=${encodeURIComponent(query)}&ll=${lat},${lng}&radius=${RADIUS}&limit=20`;
             
-            // 2. Đi qua CORS Proxy mới (codetabs.com) - Miễn phí, không cần API key, hỗ trợ gửi header
-            const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
+            // 2. Tạo URL Proxy bằng URLSearchParams (Theo đúng code mẫu của bạn)
+            const params = new URLSearchParams({
+                key: CORSPROXY_KEY,
+                url: targetUrl
+            });
+            const proxyUrl = 'https://corsproxy.io/?' + params.toString();
 
-            console.log('Đang gọi Foursquare qua Codetabs Proxy...');
+            console.log('Đang gọi API qua Proxy:', proxyUrl);
 
             try {
                 const response = await fetch(proxyUrl, {
@@ -194,7 +195,7 @@
                 if (!response.ok) {
                     const errText = await response.text();
                     console.error('Lỗi từ API:', errText);
-                    throw new Error(`Lỗi API: ${response.status} (Xem vConsole)`);
+                    throw new Error(`Lỗi API: ${response.status}`);
                 }
 
                 const data = await response.json();
@@ -207,12 +208,10 @@
                     const pAddress = place.location.formatted_address || 'Không có địa chỉ';
                     const pDistance = place.distance;
 
-                    // Thêm marker đỏ
                     const marker = L.marker([pLat, pLng]).addTo(map)
                         .bindPopup(`<b>${pName}</b><br>${pAddress}<br>Cách ${pDistance}m`);
                     resultMarkers.push(marker);
 
-                    // Thêm vào danh sách
                     const li = document.createElement('li');
                     li.innerHTML = `
                         <div class="place-name">${pName}</div>
@@ -233,7 +232,6 @@
             }
         }
 
-        // Tự động tìm kiếm lần đầu khi mở bản đồ
         searchFoursquare(DEFAULT_LAT, DEFAULT_LNG);
 
     </script>
