@@ -186,7 +186,6 @@
     <button class="report-btn accident" onclick="submitReport('accident')"><i class="fas fa-car-crash" style="color:#ef4444;"></i> Tai nạn</button>
     <button class="report-btn traffic" onclick="submitReport('traffic')"><i class="fas fa-traffic-light" style="color:#f97316;"></i> Kẹt xe</button>
     
-    <!-- NÚT BIỂN BÁO -->
     <button class="report-btn" onclick="openSignsMenu()" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none;"><i class="fas fa-triangle-exclamation" style="color:white;"></i> Biển báo</button>
     
     <button class="report-btn pothole" onclick="submitReport('pothole')"><i class="fas fa-exclamation-circle" style="color:#f59e0b;"></i> Ổ gà</button>
@@ -295,6 +294,10 @@
     
     <button class="profile-btn" onclick="shareRoute()"><span><i class="fas fa-share-alt"></i> Chia sẻ lộ trình hiện tại</span><i class="fas fa-chevron-right"></i></button>
     <div class="profile-btn" style="cursor: default;"><span><i class="fas fa-moon"></i> Chế độ Sáng / Tối</span><label class="switch"><input type="checkbox" id="themeToggle" onchange="toggleTheme()"><span class="slider"></span></label></div>
+    
+    <!-- CÀI ĐẶT GIỌNG NÓI -->
+    <button class="profile-btn" onclick="openVoiceSettings()"><span><i class="fas fa-volume-up"></i> Cài đặt Giọng nói</span><i class="fas fa-chevron-right"></i></button>
+
     <div class="profile-card"><h3><i class="fas fa-bookmark"></i> Lộ trình đã lưu <button onclick="clearAllSavedRoutes()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button></h3><div class="history-list" id="savedRoutesList"><div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có lộ trình nào</div></div></div>
     <div class="profile-card"><h3><i class="fas fa-history"></i> Lịch sử chuyến đi <button onclick="clearAllHistory()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button></h3><div class="history-list" id="historyList"><div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có chuyến đi nào</div></div></div>
     <div class="profile-card"><h3><i class="fas fa-link"></i> Link đã chia sẻ <button onclick="clearAllSharedLinks()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button></h3><div class="history-list" id="sharedLinksList"><div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có link nào</div></div></div>
@@ -371,12 +374,73 @@
   </div>
 </div>
 
+<!-- ========== VOICE SETTINGS MODAL ========== -->
+<div class="report-modal" id="voiceSettingsModal" style="z-index: 2600;">
+  <div class="report-header" style="background: var(--card); border-bottom: 1px solid var(--border); color: var(--text);">
+    <h2><i class="fas fa-volume-up" style="color:var(--primary);"></i> Cài đặt Giọng nói</h2>
+    <button class="report-close" style="background:var(--bg-2); color:var(--text);" onclick="closeVoiceSettings()"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="report-body" style="display:flex; flex-direction:column; gap:20px; padding:20px;">
+    
+    <!-- Âm lượng -->
+    <div class="form-group" style="background:var(--bg-2); padding:16px; border-radius:12px; border:1px solid var(--border);">
+      <label style="display:flex; justify-content:space-between; font-weight:800; font-size:0.95rem;">
+        <span>Âm lượng (Tối đa 200%)</span>
+        <span id="voiceVolLabel" style="color:var(--primary); font-weight:900;">100%</span>
+      </label>
+      <input type="range" id="voiceVolumeSlider" min="0" max="200" step="10" value="100" oninput="updateVoiceVolumeLabel(this.value)" style="width:100%; margin-top:12px; accent-color:var(--primary);">
+      <div style="font-size:0.7rem; color:var(--text-muted); margin-top:8px; font-style:italic;">*Một số trình duyệt có thể giới hạn âm lượng tối đa ở 100%.</div>
+    </div>
+
+    <!-- Chế độ Dẫn đường -->
+    <div class="voice-setting-row">
+      <span class="voice-setting-title"><i class="fas fa-diamond-turn-right" style="color:#3b82f6;"></i> Dẫn đường</span>
+      <div class="segmented-control" id="seg-nav">
+        <button class="seg-btn" onclick="setVoiceMode('nav', 'never')">Không</button>
+        <button class="seg-btn" onclick="setVoiceMode('nav', 'always')">Luôn</button>
+        <button class="seg-btn" onclick="setVoiceMode('nav', 'vibrate')">Rung</button>
+      </div>
+    </div>
+
+    <!-- Chế độ Cảnh báo -->
+    <div class="voice-setting-row">
+      <span class="voice-setting-title"><i class="fas fa-exclamation-triangle" style="color:#f59e0b;"></i> Cảnh báo</span>
+      <div class="segmented-control" id="seg-warning">
+        <button class="seg-btn" onclick="setVoiceMode('warning', 'never')">Không</button>
+        <button class="seg-btn" onclick="setVoiceMode('warning', 'always')">Luôn</button>
+        <button class="seg-btn" onclick="setVoiceMode('warning', 'vibrate')">Rung</button>
+      </div>
+    </div>
+
+    <!-- Chế độ POI -->
+    <div class="voice-setting-row">
+      <span class="voice-setting-title"><i class="fas fa-gas-pump" style="color:#10b981;"></i> Trạm xăng / Dừng nghỉ</span>
+      <div class="segmented-control" id="seg-poi">
+        <button class="seg-btn" onclick="setVoiceMode('poi', 'never')">Không</button>
+        <button class="seg-btn" onclick="setVoiceMode('poi', 'always')">Luôn</button>
+        <button class="seg-btn" onclick="setVoiceMode('poi', 'vibrate')">Rung</button>
+      </div>
+    </div>
+
+    <!-- Chế độ Đường cấm -->
+    <div class="voice-setting-row">
+      <span class="voice-setting-title"><i class="fas fa-ban" style="color:#ef4444;"></i> Đường cấm</span>
+      <div class="segmented-control" id="seg-avoid">
+        <button class="seg-btn" onclick="setVoiceMode('avoid', 'never')">Không</button>
+        <button class="seg-btn" onclick="setVoiceMode('avoid', 'always')">Luôn</button>
+        <button class="seg-btn" onclick="setVoiceMode('avoid', 'vibrate')">Rung</button>
+      </div>
+    </div>
+
+    <button class="btn-auth btn-email" style="margin-top:10px;" onclick="closeVoiceSettings()">Lưu & Đóng</button>
+  </div>
+</div>
+
 <!-- ========== SCRIPTS ========== -->
 <script>
   window.addEventListener('error', function (e) { var t = document.getElementById('loadingText'); if (t) t.textContent = 'Lỗi tải: ' + (e.message || 'không rõ'); });
   setTimeout(function () { var el = document.getElementById('loadingPercent'); if (el && el.textContent === '0%') { var t = document.getElementById('loadingText'); if (t) t.textContent = 'Không tải được ứng dụng.'; } }, 3500);
   
-  // Đăng ký Service Worker để cache bản đồ
   if ('serviceWorker' in navigator) { 
     window.addEventListener('load', () => { 
       navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW error:', err)); 
