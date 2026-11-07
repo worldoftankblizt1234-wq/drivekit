@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (Full - Worker Proxy + Signs Menu + Waypoints Fix)
+   DriveKit — app.js (Full - Worker Proxy + Signs + Time/Vehicle Checks)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -178,6 +178,9 @@ const LIVE_ANIM_DURATION = 6000;
 const LIVE_HEARTBEAT_TIMEOUT = 120000;
 let isViewingLiveTrack = false;
 let touchMarker = null;
+
+// Biến lưu thông số xe hiện tại của User (Có thể mở rộng thành UI chọn sau này)
+let userVehicleSpecs = { type: 'car', seats: 5, axles: 2 }; 
 
 const POI_TAG_CONFIG = {
   supermarket: { icon: 'fa-shopping-cart', label: 'Siêu thị', color: '#10b981' },
@@ -502,7 +505,6 @@ function initDataSubscriptions() {
     const data = snap.val() || {};
     _rtdbReports = {};
     Object.entries(data).forEach(([k, v]) => {
-      // Filter out D1 types
       if (v.type === 'speed_limit' || v.type === 'speed_camera' || v.type === 'penalty_camera') return;
       _rtdbReports[k] = { id: k, _id: k, source: 'rtdb', ...v };
     });
@@ -534,15 +536,72 @@ function recomputeSavedPlaces() { allSavedPlaces = { ..._fsSavedPlaces }; render
 function recomputeHistory() { allHistory = [..._fsHistory].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); }
 function recomputeSavedRoutes() { allSavedRoutes = [..._fsSavedRoutes].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); }
 
+/* ========== LOGIC THỜI GIAN & LOẠI XE ========== */
+function isZoneCurrentlyActive(zone) {
+  const now = new Date();
+  
+  // 1. Kiểm tra Ngày hiệu lực (YYYY-MM-DD)
+  const todayStr = now.toISOString().split('T')[0];
+  if (zone.startDate && todayStr < zone.startDate) return false;
+  if (zone.endDate && todayStr > zone.endDate) return false;
+
+  // 2. Kiểm tra Khung giờ (HH:mm)
+  if (zone.timeStart && zone.timeEnd) {
+    const currentTimeStr = now.toTimeString().slice(0, 5); // "14:30"
+    
+    if (zone.timeStart <= zone.timeEnd) {
+      if (currentTimeStr < zone.timeStart || currentTimeStr > zone.timeEnd) return false;
+    } else {
+      // Cấm qua đêm (VD: 17:00 - 05:00)
+      if (currentTimeStr < zone.timeStart && currentTimeStr > zone.timeEnd) return false;
+    }
+  }
+  return true;
+}
+
+function isVehicleBannedByZone(zone) {
+  const vType = userVehicleSpecs.type;
+  const banned = zone.bannedVehicles || [];
+  
+  // Nếu mảng banned rỗng => Cấm tất cả
+  if (banned.length === 0) return true;
+  
+  // Nếu loại xe hiện tại nằm trong danh sách cấm
+  if (banned.includes(vType)) {
+    // Kiểm tra thông số chi tiết (nếu có)
+    if (vType === 'car' && zone.carSeats && zone.carSeats.length > 0) {
+      const isMatchSeat = zone.carSeats.includes(userVehicleSpecs.seats.toString()) || 
+                         (userVehicleSpecs.seats >= 9 && zone.carSeats.includes('9'));
+      if (!isMatchSeat) return false; // Cấm xe hơi, nhưng không cấm số chỗ này
+    }
+    if (vType === 'truck' && zone.truckAxles && zone.truckAxles.length > 0) {
+      if (!zone.truckAxles.includes(userVehicleSpecs.axles.toString())) return false;
+    }
+    return true;
+  }
+  return false;
+}
+
 function checkRouteAgainstAvoidZones(routeCoords) {
   if (!allAvoidZones || allAvoidZones.length === 0) return { blocked: false };
+  
   for (const zone of allAvoidZones) {
-    if (!zone.lat1 || !zone.lng1 || !zone.lat2 || !zone.lng2) continue;
+    if (!zone.lat1 || !zone.lng1) continue;
+    
+    // Nếu không nằm trong thời gian cấm -> Bỏ qua
+    if (!isZoneCurrentlyActive(zone)) continue;
+    
+    // Nếu xe hiện tại không bị cấm bởi vùng này -> Bỏ qua
+    if (!isVehicleBannedByZone(zone)) continue;
+
     const zoneMidLat = (zone.lat1 + zone.lat2) / 2;
     const zoneMidLng = (zone.lng1 + zone.lng2) / 2;
+    
     for (let i = 0; i < routeCoords.length; i += 5) {
       const lat = routeCoords[i][1], lng = routeCoords[i][0];
-      if (calcDist(lat, lng, zoneMidLat, zoneMidLng) < 50) return { blocked: true, zoneName: zone.name };
+      if (calcDist(lat, lng, zoneMidLat, zoneMidLng) < 50) {
+        return { blocked: true, zoneName: zone.name };
+      }
     }
   }
   return { blocked: false };
@@ -936,23 +995,22 @@ function renderAvoidZonesOnMap() {
   allAvoidZones.forEach(zone => {
     if (!zone.lat1 || !zone.lng1) return;
     
+    const isActive = isZoneCurrentlyActive(zone);
     let coordsForMarker = [];
     let hasWaypoints = false;
 
-    // 1. Ưu tiên vẽ theo mảng waypoints (đường ngoằn ngoèo)
+    // 1. Ưu tiên vẽ theo mảng waypoints
     if (zone.waypoints) {
       try {
         const wps = typeof zone.waypoints === 'string' ? JSON.parse(zone.waypoints) : zone.waypoints;
-        
         if (Array.isArray(wps) && wps.length > 0) {
           const isMulti = Array.isArray(wps[0][0]);
-          
           if (isMulti) {
             wps.forEach(seg => {
               if (seg && seg.length > 1) {
                 features.push({
                   type: 'Feature',
-                  properties: { name: zone.name },
+                  properties: { name: zone.name, isActive: isActive },
                   geometry: { type: 'LineString', coordinates: seg.map(p => [p[1], p[0]]) }
                 });
               }
@@ -961,31 +1019,28 @@ function renderAvoidZonesOnMap() {
           } else {
             features.push({
               type: 'Feature',
-              properties: { name: zone.name },
+              properties: { name: zone.name, isActive: isActive },
               geometry: { type: 'LineString', coordinates: wps.map(p => [p[1], p[0]]) }
             });
             coordsForMarker = wps;
           }
           hasWaypoints = true;
         }
-      } catch (e) {
-        console.warn('Lỗi parse waypoints:', zone.name, e);
-      }
+      } catch (e) { console.warn('Lỗi parse waypoints:', zone.name, e); }
     }
     
-    // 2. Fallback: Nếu không có waypoints thì mới nối đường chim bay
+    // 2. Fallback
     if (!hasWaypoints) {
       features.push({
         type: 'Feature',
-        properties: { name: zone.name },
+        properties: { name: zone.name, isActive: isActive },
         geometry: { type: 'LineString', coordinates: [[zone.lng1, zone.lat1], [zone.lng2, zone.lat2]] }
       });
     }
 
-    // 3. Đặt Marker ở giữa đường vẽ
+    // 3. Đặt Marker
     let midLat = (zone.lat1 + zone.lat2) / 2;
     let midLng = (zone.lng1 + zone.lng2) / 2;
-    
     if (coordsForMarker && coordsForMarker.length > 0) {
       const midIdx = Math.floor(coordsForMarker.length / 2);
       midLat = coordsForMarker[midIdx][0];
@@ -995,7 +1050,9 @@ function renderAvoidZonesOnMap() {
     const el = document.createElement('div');
     el.className = 'avoid-zone-pin';
     el.innerHTML = `<i class="fas fa-ban"></i>`;
-    const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b>🚫 ${escapeHtml(zone.name || 'Tuyến đường cấm')}</b>`);
+    if (!isActive) el.style.opacity = '0.5';
+    
+    const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b>🚫 ${escapeHtml(zone.name || 'Tuyến đường cấm')}</b><br><small>${isActive ? 'Đang cấm' : 'Chưa tới giờ cấm'}</small>`);
     const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([midLng, midLat]).setPopup(popup).addTo(map);
     avoidZoneMarkers.push(marker);
   });
@@ -1008,9 +1065,9 @@ function renderAvoidZonesOnMap() {
     type: 'line', 
     source: 'avoid-zones', 
     paint: { 
-      'line-color': '#ef4444', 
+      'line-color': ['case', ['get', 'isActive'], '#ef4444', '#64748b'], 
       'line-width': 8, 
-      'line-opacity': 0.85, 
+      'line-opacity': ['case', ['get', 'isActive'], 0.85, 0.4],
       'line-dasharray': [2, 2] 
     } 
   });
@@ -1120,6 +1177,9 @@ window.fetchAndShowRouteOptions = async function() {
   try {
     let routes = await apiRoute(startPoint, endPoint, currentVehicleMode);
     
+    // Cập nhật thông số xe tạm thời dựa trên mode đang chọn
+    userVehicleSpecs.type = currentVehicleMode === 'truck' ? 'truck' : (currentVehicleMode === 'motorcycle' ? 'motorcycle' : 'car');
+
     const check = checkRouteAgainstAvoidZones(routes[0].geometry.coordinates);
     if (check.blocked) {
       speak(`Cảnh báo, tuyến đường hiện tại đi qua khu vực cấm ${check.zoneName}. Đang tìm đường tránh...`);
