@@ -1279,8 +1279,9 @@ window.fetchAndShowRouteOptions = async function() {
     const bounds = new maplibregl.LngLatBounds();
     routes.forEach((r, index) => {
       r.geometry.coordinates.forEach(c => bounds.extend([c[1], c[0]]));
+      
       const isBest = index === 0;
-      const color = ROUTE_COLORS[index];
+      const routeColor = '#3b82f6'; // Xanh dương cho tất cả
       
       map.addSource(`alt-route-source-${index}`, {
         type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: r.geometry.coordinates.map(c => [c[1], c[0]]) } }
@@ -1289,10 +1290,10 @@ window.fetchAndShowRouteOptions = async function() {
         id: `alt-route-layer-${index}`, type: 'line', source: `alt-route-source-${index}`,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
-          'line-color': isBest ? color : '#94a3b8',
-          'line-width': isBest ? 9 : 5,
-          'line-opacity': isBest ? 1 : 0.6,
-          'line-dasharray': isBest ? null : [2, 2]
+          'line-color': routeColor,
+          'line-width': isBest ? 9 : 5,           // Tuyến chính dày, phụ mỏng
+          'line-opacity': isBest ? 1 : 0.6,       // Tuyến chính đậm, phụ mờ
+          'line-dasharray': isBest ? null : [2, 2] // Tuyến chính liền, phụ đứt đoạn
         }
       });
       map.on('click', `alt-route-layer-${index}`, () => selectRouteOption(index));
@@ -1301,7 +1302,8 @@ window.fetchAndShowRouteOptions = async function() {
       
       const midIdx = Math.floor(r.geometry.coordinates.length / 2);
       const el = document.createElement('div');
-      el.style.cssText = `background:${isBest?color:'white'};color:${isBest?'white':'#334155'};border:3px solid ${isBest?'white':color};border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:0.9rem;box-shadow:0 4px 10px rgba(0,0,0,0.4);cursor:pointer;`;
+      // Cập nhật màu cục số (1, 2, 3...) đồng bộ xanh dương
+      el.style.cssText = `background:${isBest ? routeColor : 'white'};color:${isBest ? 'white' : routeColor};border:3px solid ${isBest ? 'white' : routeColor};border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:0.9rem;box-shadow:0 4px 10px rgba(0,0,0,0.4);cursor:pointer;`;
       el.innerHTML = index + 1;
       el.onclick = () => selectRouteOption(index);
       
@@ -1309,7 +1311,6 @@ window.fetchAndShowRouteOptions = async function() {
       const badge = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([midCoord[1], midCoord[0]]).addTo(map);
       window._routeBadges.push(badge);
     });
-    
     map.fitBounds(bounds, { padding: 50, maxZoom: 17 });
     
     let html = `<div class="sort-bar"><button class="sort-chip ${currentSortMode === 'fastest' ? 'active' : ''}" onclick="changeSort('fastest')"><i class="fas fa-bolt"></i> Nhanh nhất</button><button class="sort-chip ${currentSortMode === 'shortest' ? 'active' : ''}" onclick="changeSort('shortest')"><i class="fas fa-route"></i> Ngắn nhất</button></div>`;
