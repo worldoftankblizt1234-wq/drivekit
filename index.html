@@ -2,734 +2,202 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>DriveKit — Data Migration Tool</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>So sánh Nearby: TomTom vs Geoapify</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: -apple-system, 'Segoe UI', sans-serif;
-  background: #0f172a; color: #f1f5f9;
-  padding: 20px; min-height: 100vh;
-}
-.container { max-width: 1100px; margin: 0 auto; }
-h1 { color: #60a5fa; margin-bottom: 8px; font-size: 1.5rem; }
-.subtitle { color: #94a3b8; font-size: 0.85rem; margin-bottom: 24px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { display: flex; height: 100vh; overflow: hidden; background: #0f172a; color: #f1f5f9; }
+    
+    #sidebar { width: 350px; background: #1e293b; padding: 20px; display: flex; flex-direction: column; gap: 15px; z-index: 10; box-shadow: 2px 0 10px rgba(0,0,0,0.5); overflow-y: auto;}
+    #map { flex: 1; }
 
-/* Login */
-.login-box {
-  background: #1e293b; padding: 32px; border-radius: 16px;
-  max-width: 400px; margin: 80px auto;
-  border: 1px solid #334155;
-}
-.login-box h2 { margin-bottom: 16px; font-size: 1.2rem; }
-.login-box input {
-  width: 100%; padding: 12px; margin-bottom: 12px;
-  background: #0f172a; border: 1px solid #475569;
-  border-radius: 8px; color: white; font-size: 0.95rem;
-}
-.login-box button {
-  width: 100%; padding: 12px; background: #3b82f6;
-  color: white; border: none; border-radius: 8px;
-  font-weight: 700; cursor: pointer; font-size: 1rem;
-}
-.login-box button:disabled { opacity: 0.5; cursor: not-allowed; }
-.login-error { color: #ef4444; font-size: 0.85rem; margin-top: 8px; }
+    h1 { font-size: 1.2rem; color: #60a5fa; }
+    .desc { font-size: 0.85rem; color: #94a3b8; line-height: 1.4; margin-bottom: 10px; }
+    
+    .legend { display: flex; gap: 15px; background: #0f172a; padding: 10px; border-radius: 8px; font-size: 0.85rem; font-weight: bold; }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; }
+    .dot.tomtom { background: #ef4444; }
+    .dot.geoapify { background: #3b82f6; }
 
-/* User bar */
-.user-bar {
-  background: #1e293b; padding: 12px 16px; border-radius: 12px;
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 20px; border: 1px solid #334155;
-}
-.user-bar .info { display: flex; align-items: center; gap: 12px; }
-.user-bar .avatar {
-  width: 40px; height: 40px; border-radius: 50%;
-  background: #3b82f6; display: flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 1rem;
-}
-.user-bar .avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-.user-bar .name { font-weight: 700; font-size: 0.95rem; }
-.user-bar .email { font-size: 0.75rem; color: #94a3b8; }
-.user-bar button {
-  padding: 8px 16px; background: #ef4444; color: white;
-  border: none; border-radius: 6px; font-weight: 700; cursor: pointer;
-  font-size: 0.85rem;
-}
+    .btn-group { display: flex; flex-direction: column; gap: 10px; }
+    button {
+        padding: 12px; border: none; border-radius: 8px;
+        background: #334155; color: white; font-weight: bold; font-size: 0.95rem;
+        cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 10px;
+    }
+    button:hover { background: #475569; }
+    button.primary { background: #3b82f6; }
+    button.primary:hover { background: #2563eb; }
 
-/* Cards */
-.card {
-  background: #1e293b; border: 1px solid #334155;
-  border-radius: 12px; margin-bottom: 16px; overflow: hidden;
-}
-.card-header {
-  padding: 16px 20px; background: #1e293b;
-  border-bottom: 1px solid #334155;
-  display: flex; justify-content: space-between; align-items: center;
-}
-.card-header h3 { font-size: 1rem; display: flex; align-items: center; gap: 8px; }
-.card-header .badge {
-  font-size: 0.7rem; padding: 3px 10px; border-radius: 12px;
-  font-weight: 700;
-}
-.badge.source { background: #1e40af; color: #93c5fd; }
-.badge.dest-d1 { background: #7c2d12; color: #fdba74; }
-.badge.dest-firestore { background: #14532d; color: #86efac; }
-.badge.dest-keep { background: #475569; color: #cbd5e1; }
-.badge.dest-kv { background: #6b21a8; color: #e9d5ff; }
-
-.card-body { padding: 16px 20px; }
-.card-meta {
-  font-size: 0.8rem; color: #94a3b8;
-  margin-bottom: 12px; display: flex; gap: 16px; flex-wrap: wrap;
-}
-.card-meta strong { color: #cbd5e1; }
-
-.card-actions {
-  display: flex; gap: 8px; flex-wrap: wrap;
-  padding: 12px 20px; background: #0f172a;
-  border-top: 1px solid #334155;
-}
-.card-actions button {
-  padding: 8px 14px; border-radius: 6px;
-  border: none; font-weight: 700; cursor: pointer;
-  font-size: 0.8rem;
-}
-.btn-migrate { background: #10b981; color: white; }
-.btn-migrate:hover:not(:disabled) { background: #059669; }
-.btn-migrate:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn-delete { background: #ef4444; color: white; }
-.btn-delete:hover:not(:disabled) { background: #dc2626; }
-.btn-delete:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn-preview { background: #475569; color: white; }
-
-/* Table preview */
-.preview-table {
-  width: 100%; border-collapse: collapse; margin-top: 8px;
-  font-size: 0.75rem;
-}
-.preview-table th, .preview-table td {
-  padding: 6px 8px; text-align: left;
-  border-bottom: 1px solid #334155;
-}
-.preview-table th { color: #60a5fa; font-weight: 700; }
-.preview-table td { color: #cbd5e1; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.preview-table code { font-size: 0.7rem; color: #94a3b8; }
-
-/* Log */
-.log-panel {
-  background: #000; border: 1px solid #334155;
-  border-radius: 12px; margin-top: 20px;
-  max-height: 400px; overflow-y: auto;
-  padding: 16px; font-family: 'Fira Code', monospace;
-  font-size: 0.75rem; line-height: 1.6;
-}
-.log-line { margin-bottom: 2px; }
-.log-info { color: #60a5fa; }
-.log-success { color: #10b981; }
-.log-warn { color: #f59e0b; }
-.log-error { color: #ef4444; }
-.log-bold { font-weight: 700; }
-
-/* Summary */
-.summary {
-  background: #1e40af22; border: 1px solid #3b82f6;
-  border-radius: 12px; padding: 16px 20px; margin-bottom: 20px;
-}
-.summary h3 { color: #60a5fa; margin-bottom: 12px; font-size: 1rem; }
-.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-.summary-item { background: #0f172a; padding: 12px; border-radius: 8px; }
-.summary-item .label { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; font-weight: 700; }
-.summary-item .value { font-size: 1.3rem; font-weight: 800; color: #f1f5f9; margin-top: 4px; }
-
-.actions-top {
-  display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
-}
-.actions-top button {
-  padding: 12px 20px; border: none; border-radius: 8px;
-  font-weight: 800; cursor: pointer; font-size: 0.9rem;
-}
-.actions-top .btn-migrate-all { background: #10b981; color: white; }
-.actions-top .btn-migrate-all:hover:not(:disabled) { background: #059669; }
-.actions-top .btn-migrate-all:disabled { opacity: 0.4; cursor: not-allowed; }
-.actions-top .btn-refresh { background: #3b82f6; color: white; }
-.actions-top .btn-refresh:hover { background: #2563eb; }
-.actions-top .btn-reload { background: #475569; color: white; }
-
-input[type="checkbox"] { margin-right: 6px; }
-.checkbox-label { display: flex; align-items: center; font-size: 0.8rem; color: #fca5a5; font-weight: 700; }
+    .stats-box {
+        background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+        padding: 15px; font-size: 0.9rem; margin-top: 10px; display: none;
+    }
+    .stats-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .stats-row:last-child { margin-bottom: 0; }
+    .stats-val { font-weight: bold; font-family: monospace; font-size: 1rem; }
+    .val-tomtom { color: #ef4444; }
+    .val-geoapify { color: #3b82f6; }
 </style>
 </head>
 <body>
-<div class="container">
 
-<!-- LOGIN SCREEN -->
-<div id="loginScreen" class="login-box">
-  <h2>🔐 Đăng nhập để migrate</h2>
-  <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:16px;">
-    Cần đăng nhập bằng tài khoản Firebase để migrate data của user hiện tại.
-  </p>
-  <input type="email" id="loginEmail" placeholder="Email">
-  <input type="password" id="loginPassword" placeholder="Mật khẩu">
-  <button id="loginBtn" onclick="doLogin()">Đăng nhập</button>
-  <div id="loginError" class="login-error"></div>
+<div id="sidebar">
+    <h1><i class="fas fa-street-view"></i> Test Nearby APIs</h1>
+    <p class="desc">So sánh trực tiếp dữ liệu địa điểm (POI) giữa TomTom và Geoapify. Tâm bản đồ đang ở Hồ Hoàn Kiếm, Hà Nội.</p>
+    
+    <div class="legend">
+        <div class="legend-item"><div class="dot tomtom"></div> TomTom (Đỏ)</div>
+        <div class="legend-item"><div class="dot geoapify"></div> Geoapify (Xanh)</div>
+    </div>
+
+    <div class="btn-group">
+        <button class="primary" onclick="searchBoth('cafe')"><i class="fas fa-coffee"></i> Tìm Quán Cafe</button>
+        <button class="primary" onclick="searchBoth('restaurant')"><i class="fas fa-utensils"></i> Tìm Nhà hàng</button>
+        <button class="primary" onclick="searchBoth('hotel')"><i class="fas fa-hotel"></i> Tìm Khách sạn</button>
+        <button class="primary" onclick="searchBoth('gas_station')"><i class="fas fa-gas-pump"></i> Tìm Trạm xăng</button>
+        <button onclick="clearMarkers()" style="margin-top: 10px; background: #ef4444;"><i class="fas fa-trash"></i> Xóa tất cả Marker</button>
+    </div>
+
+    <div class="stats-box" id="statsBox">
+        <h3 style="font-size:1rem; margin-bottom:10px; color:#94a3b8;">Kết quả trả về:</h3>
+        <div class="stats-row"><span>TomTom (Đỏ):</span> <span class="stats-val val-tomtom" id="countTomTom">0</span></div>
+        <div class="stats-row"><span>Geoapify (Xanh):</span> <span class="stats-val val-geoapify" id="countGeoapify">0</span></div>
+    </div>
 </div>
 
-<!-- MAIN APP -->
-<div id="mainApp" style="display:none;">
+<div id="map"></div>
 
-  <h1>🛠️ DriveKit Data Migration</h1>
-  <p class="subtitle">
-    Chuyển data từ <b>RTDB</b> → <b>Firestore</b> (user/POI) + <b>D1</b> (biển báo) + <b>KV</b> (cache)
-  </p>
-
-  <div class="user-bar">
-    <div class="info">
-      <div class="avatar" id="userAvatar">U</div>
-      <div>
-        <div class="name" id="userName">...</div>
-        <div class="email" id="userEmail">...</div>
-      </div>
-    </div>
-    <button onclick="doLogout()">Đăng xuất</button>
-  </div>
-
-  <!-- Summary -->
-  <div class="summary">
-    <h3>📊 Tổng quan data cũ trong RTDB</h3>
-    <div class="summary-grid" id="summaryGrid">
-      <div class="summary-item"><div class="label">Loading...</div><div class="value">—</div></div>
-    </div>
-  </div>
-
-  <div class="actions-top">
-    <button class="btn-migrate-all" id="btnMigrateAll" onclick="migrateAll()" disabled>
-      ⚡ Migrate tất cả
-    </button>
-    <button class="btn-refresh" onclick="loadData()">🔄 Refresh data</button>
-    <button class="btn-reload" onclick="location.reload()">↻ Reload tool</button>
-  </div>
-
-  <!-- Cards sẽ render ở đây -->
-  <div id="cards"></div>
-
-  <!-- Log -->
-  <div class="log-panel" id="logPanel"></div>
-
-</div>
-</div>
-
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getDatabase, ref, get, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-import { getFirestore, collection, doc, setDoc, addDoc, getDocs, query, where, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-/* ========== CONFIG ========== */
-const firebaseConfig = {
-  apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
-  authDomain: "drivekit-c88ef.firebaseapp.com",
-  databaseURL: "https://drivekit-c88ef-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "drivekit-c88ef",
-  storageBucket: "drivekit-c88ef.firebasestorage.app",
-  messagingSenderId: "1073887619343",
-  appId: "1:1073887619343:web:d89a872968bc4ee871f67a"
-};
-const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const rtdb = getDatabase(app);
-const fsdb = getFirestore(app);
-
-/* ========== STATE ========== */
-let currentUser = null;
-let dataSnapshot = {
-  communityPois: {},       // RTDB communityPois
-  reports: {},             // RTDB reports
-  avoid_zones: {},         // RTDB avoid_zones
-  userSavedPlaces: {},     // users/{uid}/savedPlaces
-  userHistory: {},         // users/{uid}/history
-  userSavedRoutes: {},     // users/{uid}/savedRoutes
-};
-let migrateState = {};     // trạng thái từng collection
-
-/* ========== LOG ========== */
-function log(msg, type = 'info', bold = false) {
-  const panel = document.getElementById('logPanel');
-  const time = new Date().toLocaleTimeString('vi-VN');
-  const line = document.createElement('div');
-  line.className = `log-line log-${type}${bold ? ' log-bold' : ''}`;
-  line.textContent = `[${time}] ${msg}`;
-  panel.appendChild(line);
-  panel.scrollTop = panel.scrollHeight;
-}
-
-/* ========== AUTH ========== */
-window.doLogin = async function() {
-  const email = document.getElementById('loginEmail').value.trim();
-  const pass = document.getElementById('loginPassword').value;
-  const btn = document.getElementById('loginBtn');
-  const errEl = document.getElementById('loginError');
-  if (!email || !pass) { errEl.textContent = 'Nhập đủ email và password'; return; }
-  btn.disabled = true;
-  btn.textContent = 'Đang đăng nhập...';
-  errEl.textContent = '';
-  try {
-    await signInWithEmailAndPassword(auth, email, pass);
-  } catch (e) {
-    errEl.textContent = e.code === 'auth/invalid-credential'
-      ? 'Sai email hoặc mật khẩu'
-      : e.message;
-    btn.disabled = false;
-    btn.textContent = 'Đăng nhập';
-  }
-};
-
-window.doLogout = async function() {
-  if (!confirm('Đăng xuất?')) return;
-  await signOut(auth);
-  location.reload();
-};
-
-onAuthStateChanged(auth, (user) => {
-  currentUser = user;
-  if (user) {
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('mainApp').style.display = 'block';
-    const initial = (user.displayName || user.email)[0].toUpperCase();
-    document.getElementById('userAvatar').innerHTML = user.photoURL
-      ? `<img src="${user.photoURL}">`
-      : initial;
-    document.getElementById('userName').textContent = user.displayName || user.email.split('@')[0];
-    document.getElementById('userEmail').textContent = user.email;
-    loadData();
-  } else {
-    document.getElementById('loginScreen').style.display = 'block';
-    document.getElementById('mainApp').style.display = 'none';
-  }
-});
-
-/* ========== LOAD DATA ========== */
-window.loadData = async function() {
-  if (!currentUser) return;
-  log('Đang đọc data từ RTDB...', 'info');
-  document.getElementById('cards').innerHTML = '';
-  
-  try {
-    const [cpSnap, repSnap, avSnap, spSnap, hiSnap, srSnap] = await Promise.all([
-      get(ref(rtdb, 'communityPois')),
-      get(ref(rtdb, 'reports')),
-      get(ref(rtdb, 'avoid_zones')),
-      get(ref(rtdb, `users/${currentUser.uid}/savedPlaces`)),
-      get(ref(rtdb, `users/${currentUser.uid}/history`)),
-      get(ref(rtdb, `users/${currentUser.uid}/savedRoutes`)),
-    ]);
+<script>
+    // ===== CẤU HÌNH =====
+    const TOMTOM_KEY = 'tG84Z1Yh4rauGWjz6pRn98rrWymLjTru';
+    const GEOAPIFY_KEY = '4e7d216f24a14d54a8e667e28ca80989';
     
-    dataSnapshot.communityPois = cpSnap.val() || {};
-    dataSnapshot.reports = repSnap.val() || {};
-    dataSnapshot.avoid_zones = avSnap.val() || {};
-    dataSnapshot.userSavedPlaces = spSnap.val() || {};
-    dataSnapshot.userHistory = hiSnap.val() || {};
-    dataSnapshot.userSavedRoutes = srSnap.val() || {};
-    
-    log('✅ Đã đọc xong data RTDB', 'success');
-    renderSummary();
-    renderCards();
-  } catch (e) {
-    log('❌ Lỗi đọc data: ' + e.message, 'error');
-  }
-};
+    // Tâm bản đồ: Hồ Hoàn Kiếm, Hà Nội
+    const CENTER_LAT = 21.0285;
+    const CENTER_LNG = 105.8542;
+    const RADIUS = 1500; // Bán kính 1.5km
 
-/* ========== SUMMARY ========== */
-function renderSummary() {
-  const r = dataSnapshot.reports;
-  const staticReports = Object.values(r).filter(x => x.type === 'speed_limit' || x.type === 'camera').length;
-  const dynamicReports = Object.keys(r).length - staticReports;
-  
-  const items = [
-    { label: 'Community POIs', value: Object.keys(dataSnapshot.communityPois).length },
-    { label: 'Reports (static → D1)', value: staticReports },
-    { label: 'Reports (dynamic → RTDB)', value: dynamicReports },
-    { label: 'Avoid zones', value: Object.keys(dataSnapshot.avoid_zones).length },
-    { label: 'Saved places (bạn)', value: Object.keys(dataSnapshot.userSavedPlaces).length },
-    { label: 'History (bạn)', value: Object.keys(dataSnapshot.userHistory).length },
-    { label: 'Saved routes (bạn)', value: Object.keys(dataSnapshot.userSavedRoutes).length },
-  ];
-  
-  document.getElementById('summaryGrid').innerHTML = items.map(it =>
-    `<div class="summary-item"><div class="label">${it.label}</div><div class="value">${it.value}</div></div>`
-  ).join('');
-}
+    // Ánh xạ danh mục giữa TomTom và Geoapify
+    const CATEGORIES = {
+        'cafe': { tomtom: '7315', geoapify: 'catering.cafe' },
+        'restaurant': { tomtom: '7314', geoapify: 'catering.restaurant' },
+        'hotel': { tomtom: '7314', geoapify: 'accommodation.hotel' },
+        'gas_station': { tomtom: '7313', geoapify: 'service.vehicle.fuel' }
+    };
 
-/* ========== RENDER CARDS ========== */
-function renderCards() {
-  const cards = [];
-  const r = dataSnapshot.reports;
-  const staticReports = Object.fromEntries(Object.entries(r).filter(([k, v]) => v.type === 'speed_limit' || v.type === 'camera'));
-  const dynamicReports = Object.fromEntries(Object.entries(r).filter(([k, v]) => v.type !== 'speed_limit' && v.type !== 'camera'));
-  
-  // Card 1: Community POIs
-  cards.push(renderCard({
-    id: 'communityPois',
-    title: '📍 Community POIs',
-    source: 'RTDB communityPois',
-    dest: 'firestore',
-    destLabel: 'Firestore (rest_stops / community_pois)',
-    data: dataSnapshot.communityPois,
-    total: Object.keys(dataSnapshot.communityPois).length,
-    runFn: migrateCommunityPois,
-    deleteFn: () => deleteRtdbNode('communityPois')
-  }));
-  
-  // Card 2: Static reports → D1
-  cards.push(renderCard({
-    id: 'staticReports',
-    title: '🚦 Speed Limits + Cameras',
-    source: 'RTDB reports (static)',
-    dest: 'd1',
-    destLabel: 'D1 (static_warnings qua Worker)',
-    data: staticReports,
-    total: Object.keys(staticReports).length,
-    runFn: migrateStaticReports,
-    deleteFn: () => deleteStaticReports()
-  }));
-  
-  // Card 3: Dynamic reports → giữ RTDB
-  cards.push(renderCard({
-    id: 'dynamicReports',
-    title: '⚠️ Police / Traffic / Accident...',
-    source: 'RTDB reports (dynamic)',
-    dest: 'keep',
-    destLabel: 'Giữ nguyên RTDB (không migrate)',
-    data: dynamicReports,
-    total: Object.keys(dynamicReports).length,
-    runFn: null,
-    deleteFn: null,
-    note: 'Loại này code mới vẫn đọc trực tiếp RTDB. Không cần migrate.'
-  }));
-  
-  // Card 4: Avoid zones
-  cards.push(renderCard({
-    id: 'avoid_zones',
-    title: '🚫 Avoid Zones',
-    source: 'RTDB avoid_zones',
-    dest: 'firestore',
-    destLabel: 'Firestore avoid_zones',
-    data: dataSnapshot.avoid_zones,
-    total: Object.keys(dataSnapshot.avoid_zones).length,
-    runFn: migrateAvoidZones,
-    deleteFn: () => deleteRtdbNode('avoid_zones')
-  }));
-  
-  // Card 5: Saved places
-  cards.push(renderCard({
-    id: 'userSavedPlaces',
-    title: '📌 Saved Places (bạn)',
-    source: 'RTDB users/{uid}/savedPlaces',
-    dest: 'firestore',
-    destLabel: 'Firestore users/{uid}/savedPlaces',
-    data: dataSnapshot.userSavedPlaces,
-    total: Object.keys(dataSnapshot.userSavedPlaces).length,
-    runFn: () => migrateUserCollection('savedPlaces', dataSnapshot.userSavedPlaces),
-    deleteFn: () => deleteUserNode('savedPlaces')
-  }));
-  
-  // Card 6: History
-  cards.push(renderCard({
-    id: 'userHistory',
-    title: '📜 History (bạn)',
-    source: 'RTDB users/{uid}/history',
-    dest: 'firestore',
-    destLabel: 'Firestore users/{uid}/history',
-    data: dataSnapshot.userHistory,
-    total: Object.keys(dataSnapshot.userHistory).length,
-    runFn: () => migrateUserCollection('history', dataSnapshot.userHistory),
-    deleteFn: () => deleteUserNode('history')
-  }));
-  
-  // Card 7: Saved routes
-  cards.push(renderCard({
-    id: 'userSavedRoutes',
-    title: '🗺️ Saved Routes (bạn)',
-    source: 'RTDB users/{uid}/savedRoutes',
-    dest: 'firestore',
-    destLabel: 'Firestore users/{uid}/savedRoutes',
-    data: dataSnapshot.userSavedRoutes,
-    total: Object.keys(dataSnapshot.userSavedRoutes).length,
-    runFn: () => migrateUserCollection('savedRoutes', dataSnapshot.userSavedRoutes),
-    deleteFn: () => deleteUserNode('savedRoutes')
-  }));
-  
-  document.getElementById('cards').innerHTML = cards.join('');
-  
-  // Bật nút Migrate All nếu có data
-  const totalMigratable = Object.keys(dataSnapshot.communityPois).length
-    + Object.keys(staticReports).length
-    + Object.keys(dataSnapshot.avoid_zones).length
-    + Object.keys(dataSnapshot.userSavedPlaces).length
-    + Object.keys(dataSnapshot.userHistory).length
-    + Object.keys(dataSnapshot.userSavedRoutes).length;
-  document.getElementById('btnMigrateAll').disabled = totalMigratable === 0;
-}
+    let tomtomMarkers = [];
+    let geoapifyMarkers = [];
 
-function renderCard({ id, title, source, dest, destLabel, data, total, runFn, deleteFn, note }) {
-  const destBadgeClass = dest === 'd1' ? 'dest-d1'
-    : dest === 'firestore' ? 'dest-firestore'
-    : 'dest-keep';
-  
-  const preview = Object.entries(data).slice(0, 3).map(([k, v]) => {
-    const preview = JSON.stringify(v).substring(0, 80);
-    return `<tr><td><code>${k.substring(0, 20)}</code></td><td>${escapeHtml(preview)}...</td></tr>`;
-  }).join('');
-  
-  const canMigrate = total > 0 && runFn;
-  const canDelete = total > 0 && deleteFn;
-  
-  return `
-    <div class="card" id="card-${id}">
-      <div class="card-header">
-        <h3>${title}</h3>
-        <div style="display:flex; gap:6px;">
-          <span class="badge source">${source}</span>
-          <span class="badge ${destBadgeClass}">→ ${destLabel}</span>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="card-meta">
-          <span>Tổng: <strong>${total}</strong> records</span>
-          <span>Trạng thái: <strong id="status-${id}">${total === 0 ? 'Trống' : 'Chờ migrate'}</strong></span>
-        </div>
-        ${note ? `<div style="color:#fbbf24; font-size:0.8rem; margin-bottom:8px;">⚠️ ${note}</div>` : ''}
-        ${total > 0 && preview ? `
-          <details>
-            <summary style="cursor:pointer; font-size:0.8rem; color:#94a3b8;">Xem trước (3 records đầu)</summary>
-            <table class="preview-table">
-              <thead><tr><th>Key</th><th>Value</th></tr></thead>
-              <tbody>${preview}</tbody>
-            </table>
-          </details>
-        ` : ''}
-      </div>
-      <div class="card-actions">
-        <button class="btn-migrate" ${canMigrate ? '' : 'disabled'} onclick="runMigrate('${id}')">
-          ${runFn ? '▶ Migrate' : '— Không cần migrate'}
-        </button>
-        <button class="btn-delete" ${canDelete ? '' : 'disabled'} onclick="runDelete('${id}')">
-          🗑️ Xóa data cũ
-        </button>
-      </div>
-    </div>
-  `;
-}
+    // Khởi tạo bản đồ (Dùng style tối cho giống App DriveKit)
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+        center: [CENTER_LNG, CENTER_LAT],
+        zoom: 15
+    });
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-function escapeHtml(text) {
-  return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
+    // Tạo điểm tâm bản đồ
+    const centerEl = document.createElement('div');
+    centerEl.innerHTML = `<div style="background:#10b981; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.5);"></div>`;
+    new maplibregl.Marker({ element: centerEl }).setLngLat([CENTER_LNG, CENTER_LAT]).addTo(map);
 
-/* ========== MIGRATE FUNCTIONS ========== */
-
-async function migrateCommunityPois() {
-  const data = dataSnapshot.communityPois;
-  const entries = Object.entries(data);
-  log(`\n📦 Migrate ${entries.length} community POIs → Firestore...`, 'info', true);
-  
-  let ok = 0, fail = 0;
-  for (const [key, poi] of entries) {
-    try {
-      const col = poi.tag === 'rest_stop' ? 'rest_stops' : 'community_pois';
-      // Dùng setDoc với ID từ RTDB để tránh duplicate khi chạy lại
-      await setDoc(doc(fsdb, col, key), {
-        lat: poi.lat,
-        lng: poi.lng,
-        name: poi.name || '',
-        tag: poi.tag || 'supermarket',
-        uid: poi.uid || null,
-        authorName: poi.authorName || '',
-        timestamp: poi.timestamp || Date.now(),
-        upvotes: poi.upvotes || 0
-      }, { merge: true });
-      ok++;
-    } catch (e) {
-      fail++;
-      log(`  ❌ ${key}: ${e.message}`, 'error');
+    function clearMarkers() {
+        tomtomMarkers.forEach(m => m.remove());
+        geoapifyMarkers.forEach(m => m.remove());
+        tomtomMarkers = [];
+        geoapifyMarkers = [];
+        document.getElementById('statsBox').style.display = 'none';
     }
-  }
-  log(`✅ Xong: ${ok} thành công, ${fail} lỗi`, fail > 0 ? 'warn' : 'success', true);
-  updateCardStatus('communityPois', `Đã migrate ${ok}/${entries.length}`);
-}
 
-async function migrateStaticReports() {
-  const data = dataSnapshot.reports;
-  const entries = Object.entries(data).filter(([k, v]) => v.type === 'speed_limit' || v.type === 'camera');
-  log(`\n🚦 Migrate ${entries.length} static reports → D1 (qua Worker)...`, 'info', true);
-  
-  let ok = 0, fail = 0;
-  for (const [key, rep] of entries) {
-    try {
-      const res = await fetch(`${WORKER_URL}/warnings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: rep.type,
-          lat: rep.lat,
-          lng: rep.lng,
-          speed: rep.speed || null,
-          uid: rep.uid || null
-        })
-      });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      ok++;
-    } catch (e) {
-      fail++;
-      log(`  ❌ ${key} (${rep.type}): ${e.message}`, 'error');
+    function createPin(color, label) {
+        const el = document.createElement('div');
+        el.style.width = '24px';
+        el.style.height = '24px';
+        el.style.background = color;
+        el.style.borderRadius = '50%';
+        el.style.border = '2px solid white';
+        el.style.boxShadow = '0 3px 6px rgba(0,0,0,0.4)';
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = 'center';
+        el.style.fontSize = '10px';
+        el.style.color = 'white';
+        el.innerHTML = `<i class="fas ${label}"></i>`;
+        return el;
     }
-  }
-  log(`✅ Xong: ${ok} thành công, ${fail} lỗi`, fail > 0 ? 'warn' : 'success', true);
-  updateCardStatus('staticReports', `Đã migrate ${ok}/${entries.length} → D1`);
-}
 
-async function migrateAvoidZones() {
-  const data = dataSnapshot.avoid_zones;
-  const entries = Object.entries(data);
-  log(`\n🚫 Migrate ${entries.length} avoid zones → Firestore...`, 'info', true);
-  
-  let ok = 0, fail = 0;
-  for (const [key, zone] of entries) {
-    try {
-      await setDoc(doc(fsdb, 'avoid_zones', key), {
-        name: zone.name || 'Tuyến đường cấm',
-        lat1: zone.lat1, lng1: zone.lng1,
-        lat2: zone.lat2, lng2: zone.lng2,
-        timestamp: zone.timestamp || Date.now()
-      }, { merge: true });
-      ok++;
-    } catch (e) {
-      fail++;
-      log(`  ❌ ${key}: ${e.message}`, 'error');
+    async function searchBoth(type) {
+        clearMarkers();
+        const btnBox = document.getElementById('statsBox');
+        btnBox.style.display = 'block';
+        document.getElementById('countTomTom').textContent = '...';
+        document.getElementById('countGeoapify').textContent = '...';
+
+        const cat = CATEGORIES[type];
+        const iconLabel = type === 'cafe' ? 'fa-coffee' : type === 'hotel' ? 'fa-hotel' : type === 'restaurant' ? 'fa-utensils' : 'fa-gas-pump';
+
+        // ==========================================
+        // 1. GỌI TOMTOM
+        // ==========================================
+        try {
+            const ttUrl = `https://api.tomtom.com/search/2/nearbySearch/.json?key=${TOMTOM_KEY}&lat=${CENTER_LAT}&lon=${CENTER_LNG}&radius=${RADIUS}&categorySet=${cat.tomtom}&limit=30`;
+            const res = await fetch(ttUrl);
+            const data = await res.json();
+            
+            if (data.results) {
+                data.results.forEach(poi => {
+                    const name = poi.poi?.name || 'Không tên';
+                    const lat = poi.position.lat;
+                    const lng = poi.position.lon;
+                    
+                    const el = createPin('#ef4444', iconLabel);
+                    const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b style="color:#ef4444;">TomTom</b><br>${name}`);
+                    const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
+                    tomtomMarkers.push(marker);
+                });
+                document.getElementById('countTomTom').textContent = data.results.length;
+            } else {
+                document.getElementById('countTomTom').textContent = '0';
+            }
+        } catch (e) {
+            console.error('TomTom Error:', e);
+            document.getElementById('countTomTom').textContent = 'Lỗi';
+        }
+
+        // ==========================================
+        // 2. GỌI GEOAPIFY
+        // ==========================================
+        try {
+            const geoUrl = `https://api.geoapify.com/v2/places?categories=${cat.geoapify}&filter=circle:${CENTER_LNG},${CENTER_LAT},${RADIUS}&bias=proximity:${CENTER_LNG},${CENTER_LAT}&limit=30&apiKey=${GEOAPIFY_KEY}`;
+            const res = await fetch(geoUrl);
+            const data = await res.json();
+            
+            if (data.features) {
+                data.features.forEach(poi => {
+                    const name = poi.properties.name || poi.properties.address_line1 || 'Không tên';
+                    const lat = poi.properties.lat;
+                    const lng = poi.properties.lon;
+                    
+                    const el = createPin('#3b82f6', iconLabel);
+                    const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b style="color:#3b82f6;">Geoapify</b><br>${name}`);
+                    const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
+                    geoapifyMarkers.push(marker);
+                });
+                document.getElementById('countGeoapify').textContent = data.features.length;
+            } else {
+                document.getElementById('countGeoapify').textContent = '0';
+            }
+        } catch (e) {
+            console.error('Geoapify Error:', e);
+            document.getElementById('countGeoapify').textContent = 'Lỗi';
+        }
     }
-  }
-  log(`✅ Xong: ${ok} thành công, ${fail} lỗi`, fail > 0 ? 'warn' : 'success', true);
-  updateCardStatus('avoid_zones', `Đã migrate ${ok}/${entries.length}`);
-}
-
-async function migrateUserCollection(type, data) {
-  const entries = Object.entries(data);
-  log(`\n📁 Migrate ${entries.length} ${type} → Firestore...`, 'info', true);
-  
-  let ok = 0, fail = 0;
-  for (const [key, item] of entries) {
-    try {
-      await setDoc(doc(fsdb, `users/${currentUser.uid}/${type}`, key), item, { merge: true });
-      ok++;
-    } catch (e) {
-      fail++;
-      log(`  ❌ ${key}: ${e.message}`, 'error');
-    }
-  }
-  log(`✅ Xong: ${ok} thành công, ${fail} lỗi`, fail > 0 ? 'warn' : 'success', true);
-  updateCardStatus('user' + type.charAt(0).toUpperCase() + type.slice(1), `Đã migrate ${ok}/${entries.length}`);
-}
-
-/* ========== DELETE FUNCTIONS ========== */
-
-async function deleteRtdbNode(node) {
-  if (!confirm(`Xóa toàn bộ RTDB "${node}"? Không thể khôi phục!`)) return;
-  try {
-    await remove(ref(rtdb, node));
-    log(`🗑️ Đã xóa RTDB "${node}"`, 'warn', true);
-  } catch (e) {
-    log(`❌ Lỗi xóa: ${e.message}`, 'error');
-  }
-}
-
-async function deleteStaticReports() {
-  if (!confirm('Xóa các reports static (speed_limit, camera) khỏi RTDB?\n(Giữ nguyên các reports động)')) return;
-  const data = dataSnapshot.reports;
-  const entries = Object.entries(data).filter(([k, v]) => v.type === 'speed_limit' || v.type === 'camera');
-  let ok = 0;
-  for (const [key] of entries) {
-    try {
-      await remove(ref(rtdb, `reports/${key}`));
-      ok++;
-    } catch (e) { log(`  ❌ ${key}: ${e.message}`, 'error'); }
-  }
-  log(`🗑️ Đã xóa ${ok}/${entries.length} static reports khỏi RTDB`, 'warn', true);
-}
-
-async function deleteUserNode(type) {
-  if (!confirm(`Xóa toàn bộ RTDB users/{uid}/${type}?`)) return;
-  try {
-    await remove(ref(rtdb, `users/${currentUser.uid}/${type}`));
-    log(`🗑️ Đã xóa RTDB users/{uid}/${type}`, 'warn', true);
-  } catch (e) {
-    log(`❌ Lỗi xóa: ${e.message}`, 'error');
-  }
-}
-
-/* ========== UI HELPERS ========== */
-
-function updateCardStatus(id, text) {
-  const el = document.getElementById(`status-${id}`);
-  if (el) {
-    el.textContent = text;
-    el.style.color = '#10b981';
-  }
-}
-
-window.runMigrate = async function(cardId) {
-  const btn = document.querySelector(`#card-${cardId} .btn-migrate`);
-  if (btn) btn.disabled = true;
-  
-  if (cardId === 'communityPois') await migrateCommunityPois();
-  else if (cardId === 'staticReports') await migrateStaticReports();
-  else if (cardId === 'avoid_zones') await migrateAvoidZones();
-  else if (cardId === 'userSavedPlaces') await migrateUserCollection('savedPlaces', dataSnapshot.userSavedPlaces);
-  else if (cardId === 'userHistory') await migrateUserCollection('history', dataSnapshot.userHistory);
-  else if (cardId === 'userSavedRoutes') await migrateUserCollection('savedRoutes', dataSnapshot.userSavedRoutes);
-  
-  if (btn) btn.disabled = false;
-};
-
-window.runDelete = async function(cardId) {
-  if (cardId === 'communityPois') await deleteRtdbNode('communityPois');
-  else if (cardId === 'staticReports') await deleteStaticReports();
-  else if (cardId === 'avoid_zones') await deleteRtdbNode('avoid_zones');
-  else if (cardId === 'userSavedPlaces') await deleteUserNode('savedPlaces');
-  else if (cardId === 'userHistory') await deleteUserNode('history');
-  else if (cardId === 'userSavedRoutes') await deleteUserNode('savedRoutes');
-};
-
-/* ========== MIGRATE ALL ========== */
-window.migrateAll = async function() {
-  if (!confirm('Migrate TẤT CẢ data (trừ dynamic reports)?\n\nQuá trình có thể mất 30s-2 phút.')) return;
-  const btn = document.getElementById('btnMigrateAll');
-  btn.disabled = true;
-  log('\n═══════════════════════════════════', 'info', true);
-  log('⚡ BẮT ĐẦU MIGRATE ALL', 'info', true);
-  log('═══════════════════════════════════', 'info', true);
-  
-  try {
-    if (Object.keys(dataSnapshot.communityPois).length) await migrateCommunityPois();
-    if (Object.keys(dataSnapshot.reports).filter(k => {
-      const v = dataSnapshot.reports[k];
-      return v.type === 'speed_limit' || v.type === 'camera';
-    }).length) await migrateStaticReports();
-    if (Object.keys(dataSnapshot.avoid_zones).length) await migrateAvoidZones();
-    if (Object.keys(dataSnapshot.userSavedPlaces).length) await migrateUserCollection('savedPlaces', dataSnapshot.userSavedPlaces);
-    if (Object.keys(dataSnapshot.userHistory).length) await migrateUserCollection('history', dataSnapshot.userHistory);
-    if (Object.keys(dataSnapshot.userSavedRoutes).length) await migrateUserCollection('savedRoutes', dataSnapshot.userSavedRoutes);
-    
-    log('\n═══════════════════════════════════', 'success', true);
-    log('✅ MIGRATE ALL HOÀN TẤT!', 'success', true);
-    log('═══════════════════════════════════', 'success', true);
-    log('\n👉 Giờ có thể xóa data cũ bằng nút "🗑️ Xóa data cũ" ở mỗi card.', 'warn', true);
-  } catch (e) {
-    log('❌ Lỗi: ' + e.message, 'error', true);
-  }
-  btn.disabled = false;
-};
-
-/* ========== INIT ========== */
-log('🛠️ Migration Tool đã sẵn sàng. Đăng nhập để bắt đầu.', 'info', true);
 </script>
 </body>
 </html>
