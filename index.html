@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>So sánh Nearby: TomTom vs Geoapify</title>
+<title>So sánh Nearby: TomTom vs Geoapify vs Mapbox</title>
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
@@ -17,11 +17,12 @@
     h1 { font-size: 1.2rem; color: #60a5fa; }
     .desc { font-size: 0.85rem; color: #94a3b8; line-height: 1.4; margin-bottom: 10px; }
     
-    .legend { display: flex; gap: 15px; background: #0f172a; padding: 10px; border-radius: 8px; font-size: 0.85rem; font-weight: bold; margin-bottom: 10px;}
+    .legend { display: flex; gap: 12px; flex-wrap: wrap; background: #0f172a; padding: 10px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; margin-bottom: 10px;}
     .legend-item { display: flex; align-items: center; gap: 6px; }
     .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; }
     .dot.tomtom { background: #ef4444; }
     .dot.geoapify { background: #3b82f6; }
+    .dot.mapbox { background: #eab308; }
     .dot.center { background: #10b981; }
 
     .btn-group { display: flex; flex-direction: column; gap: 10px; }
@@ -45,17 +46,19 @@
     .stats-val { font-weight: bold; font-family: monospace; font-size: 1rem; }
     .val-tomtom { color: #ef4444; }
     .val-geoapify { color: #3b82f6; }
+    .val-mapbox { color: #eab308; }
 </style>
 </head>
 <body>
 
 <div id="sidebar">
     <h1><i class="fas fa-street-view"></i> Test Nearby APIs</h1>
-    <p class="desc">So sánh dữ liệu địa điểm giữa TomTom và Geoapify.</p>
+    <p class="desc">So sánh dữ liệu địa điểm giữa 3 API lớn nhất.</p>
     
     <div class="legend">
         <div class="legend-item"><div class="dot tomtom"></div> TomTom</div>
         <div class="legend-item"><div class="dot geoapify"></div> Geoapify</div>
+        <div class="legend-item"><div class="dot mapbox"></div> Mapbox</div>
         <div class="legend-item"><div class="dot center"></div> Tâm</div>
     </div>
 
@@ -73,6 +76,7 @@
         <h3 style="font-size:1rem; margin-bottom:10px; color:#94a3b8;">Kết quả trả về:</h3>
         <div class="stats-row"><span>TomTom (Đỏ):</span> <span class="stats-val val-tomtom" id="countTomTom">0</span></div>
         <div class="stats-row"><span>Geoapify (Xanh):</span> <span class="stats-val val-geoapify" id="countGeoapify">0</span></div>
+        <div class="stats-row"><span>Mapbox (Vàng):</span> <span class="stats-val val-mapbox" id="countMapbox">0</span></div>
     </div>
 </div>
 
@@ -82,25 +86,25 @@
     // ===== CẤU HÌNH =====
     const TOMTOM_KEY = 'tG84Z1Yh4rauGWjz6pRn98rrWymLjTru';
     const GEOAPIFY_KEY = '4e7d216f24a14d54a8e667e28ca80989';
+    const MAPBOX_KEY = 'pk.eyJ1IjoibWluaGFkb2YyIiwiYSI6ImNtdnMwNDBhdzAwbnozNXExaHczb3Znd2MifQ.iVKGNbnj_pUxT6B_gqazEw';
     
-    // Tâm bản đồ mặc định (sẽ bị thay đổi khi bấm Định vị)
     let CENTER_LAT = 21.0285;
     let CENTER_LNG = 105.8542;
     const RADIUS = 1500; // Bán kính 1.5km
 
-    // Ánh xạ danh mục
+    // Ánh xạ danh mục cho cả 3 API
     const CATEGORIES = {
-        'cafe': { tomtom: '7315', geoapify: 'catering.cafe' },
-        'restaurant': { tomtom: '7314', geoapify: 'catering.restaurant' },
-        'hotel': { tomtom: '7314', geoapify: 'accommodation.hotel' },
-        'gas_station': { tomtom: '7313', geoapify: 'service.vehicle.fuel' }
+        'cafe': { tomtom: '7315', geoapify: 'catering.cafe', mapbox: 'cafe' },
+        'restaurant': { tomtom: '7314', geoapify: 'catering.restaurant', mapbox: 'restaurant' },
+        'hotel': { tomtom: '7314', geoapify: 'accommodation.hotel', mapbox: 'hotel' },
+        'gas_station': { tomtom: '7313', geoapify: 'service.vehicle.fuel', mapbox: 'gas station' }
     };
 
     let tomtomMarkers = [];
     let geoapifyMarkers = [];
-    let centerMarker = null; // Marker màu xanh ở giữa
+    let mapboxMarkers = [];
+    let centerMarker = null;
 
-    // Khởi tạo bản đồ
     const map = new maplibregl.Map({
         container: 'map',
         style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -109,25 +113,16 @@
     });
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-    // Hàm vẽ lại điểm tâm bản đồ
     function drawCenterMarker() {
         if (centerMarker) centerMarker.remove();
         const centerEl = document.createElement('div');
         centerEl.innerHTML = `<div style="background:#10b981; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.5);"></div>`;
         centerMarker = new maplibregl.Marker({ element: centerEl }).setLngLat([CENTER_LNG, CENTER_LAT]).addTo(map);
     }
-
-    // Khởi tạo điểm tâm ban đầu
     drawCenterMarker();
 
-    // Hàm Định vị GPS
     function locateMe() {
-        if (!navigator.geolocation) {
-            alert("Trình duyệt của bạn không hỗ trợ GPS!");
-            return;
-        }
-        
-        // Hiệu ứng loading trên nút
+        if (!navigator.geolocation) return alert("Trình duyệt không hỗ trợ GPS!");
         const btn = document.querySelector('button.locate');
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tìm...';
         
@@ -135,17 +130,13 @@
             (pos) => {
                 CENTER_LAT = pos.coords.latitude;
                 CENTER_LNG = pos.coords.longitude;
-                
-                // Bay tới vị trí mới
                 map.flyTo({ center: [CENTER_LNG, CENTER_LAT], zoom: 16 });
                 drawCenterMarker();
-                clearMarkers(); // Xoá kết quả cũ vì đã đổi vị trí
-                
+                clearMarkers();
                 btn.innerHTML = '<i class="fas fa-location-arrow"></i> Định vị tôi (GPS)';
             },
             (err) => {
-                alert("Không lấy được vị trí. Hãy kiểm tra quyền truy cập GPS.");
-                console.error(err);
+                alert("Không lấy được vị trí.");
                 btn.innerHTML = '<i class="fas fa-location-arrow"></i> Định vị tôi (GPS)';
             },
             { enableHighAccuracy: true, timeout: 5000 }
@@ -155,8 +146,10 @@
     function clearMarkers() {
         tomtomMarkers.forEach(m => m.remove());
         geoapifyMarkers.forEach(m => m.remove());
+        mapboxMarkers.forEach(m => m.remove());
         tomtomMarkers = [];
         geoapifyMarkers = [];
+        mapboxMarkers = [];
         document.getElementById('statsBox').style.display = 'none';
     }
 
@@ -183,6 +176,7 @@
         btnBox.style.display = 'block';
         document.getElementById('countTomTom').textContent = '...';
         document.getElementById('countGeoapify').textContent = '...';
+        document.getElementById('countMapbox').textContent = '...';
 
         const cat = CATEGORIES[type];
         const iconLabel = type === 'cafe' ? 'fa-coffee' : type === 'hotel' ? 'fa-hotel' : type === 'restaurant' ? 'fa-utensils' : 'fa-gas-pump';
@@ -211,7 +205,6 @@
                 document.getElementById('countTomTom').textContent = '0';
             }
         } catch (e) {
-            console.error('TomTom Error:', e);
             document.getElementById('countTomTom').textContent = 'Lỗi';
         }
 
@@ -239,8 +232,38 @@
                 document.getElementById('countGeoapify').textContent = '0';
             }
         } catch (e) {
-            console.error('Geoapify Error:', e);
             document.getElementById('countGeoapify').textContent = 'Lỗi';
+        }
+
+        // ==========================================
+        // 3. GỌI MAPBOX (Tính Bounding Box)
+        // ==========================================
+        try {
+            const latDelta = RADIUS / 111320;
+            const lngDelta = RADIUS / (111320 * Math.cos(CENTER_LAT * Math.PI / 180));
+            const bbox = `${CENTER_LNG - lngDelta},${CENTER_LAT - latDelta},${CENTER_LNG + lngDelta},${CENTER_LAT + latDelta}`;
+            
+            const mbUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(cat.mapbox)}.json?access_token=${MAPBOX_KEY}&bbox=${bbox}&limit=30&language=vi&types=poi`;
+            const res = await fetch(mbUrl);
+            const data = await res.json();
+            
+            if (data.features) {
+                data.features.forEach(poi => {
+                    const name = poi.text || poi.place_name;
+                    const [lng, lat] = poi.center;
+                    
+                    const el = createPin('#eab308', iconLabel);
+                    const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b style="color:#eab308;">Mapbox</b><br>${name}`);
+                    const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
+                    mapboxMarkers.push(marker);
+                });
+                document.getElementById('countMapbox').textContent = data.features.length;
+            } else {
+                document.getElementById('countMapbox').textContent = '0';
+            }
+        } catch (e) {
+            console.error(e);
+            document.getElementById('countMapbox').textContent = 'Lỗi';
         }
     }
 </script>
