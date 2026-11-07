@@ -64,11 +64,12 @@
   <!-- FABs -->
   <button class="fab-menu" id="mainMenuBtn" onclick="openMenu()"><i class="fas fa-bars"></i></button>
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
+  
   <button class="fab-layers" id="btnLayerMenu" onclick="event.stopPropagation(); toggleLayerMenu()" title="Lớp bản đồ">
     <i class="fas fa-layer-group"></i>
   </button>
   
-  <!-- NÚT LA BÀN MỚI (SVG 3D) -->
+  <!-- NÚT LA BÀN -->
   <button class="fab-compass" id="btnCompass" onclick="resetNorth()" title="La bàn — Bấm để về hướng Bắc">
     <div class="compass-bg"></div>
     <svg id="compassNeedle" viewBox="0 0 24 24" class="compass-needle">
@@ -84,16 +85,16 @@
     <i class="fas fa-bed"></i>
   </button>
 
-  <!-- Layer Menu -->
+  <!-- Layer Menu (ĐÃ SỬA LỖI ACTIVE) -->
   <div class="layer-menu" id="layerMenu">
-    <button class="layer-option" onclick="changeLayer('trackasia-maplibre', this)">
+    <button class="layer-option active" onclick="changeLayer('trackasia-maplibre', this)">
       <div class="layer-title"><i class="fas fa-map"></i> 1. TrackAsia + MapLibre</div>
       <div class="layer-desc">Vector TrackAsia</div>
     </button>
-    <button class="layer-option active" onclick="changeLayer('trackasia-maplibre', this)">
-  <div class="layer-title"><i class="fas fa-map"></i> 1. TrackAsia + MapLibre</div>
-  <div class="layer-desc">Vector TrackAsia</div>
-</button>
+    <button class="layer-option" onclick="changeLayer('maptiler', this)">
+      <div class="layer-title"><i class="fas fa-map-marked-alt"></i> 2. MapTiler Streets V4 + MapLibre</div>
+      <div class="layer-desc">Key: aEzMCP0ANRz52vd1RvrW</div>
+    </button>
     <button class="layer-option" onclick="changeLayer('satellite', this)">
       <div class="layer-title"><i class="fas fa-satellite"></i> 3. Vệ tinh</div>
       <div class="layer-desc">MapTiler Hybrid</div>
@@ -179,7 +180,7 @@
     <button class="report-btn accident" onclick="submitReport('accident')"><i class="fas fa-car-crash" style="color:#ef4444;"></i> Tai nạn</button>
     <button class="report-btn traffic" onclick="submitReport('traffic')"><i class="fas fa-traffic-light" style="color:#f97316;"></i> Kẹt xe</button>
     
-    <!-- NÚT BIỂN BÁO MỚI -->
+    <!-- NÚT BIỂN BÁO -->
     <button class="report-btn" onclick="openSignsMenu()" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none;"><i class="fas fa-triangle-exclamation" style="color:white;"></i> Biển báo</button>
     
     <button class="report-btn pothole" onclick="submitReport('pothole')"><i class="fas fa-exclamation-circle" style="color:#f59e0b;"></i> Ổ gà</button>
