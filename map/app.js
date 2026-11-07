@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (Full - Worker Proxy + Signs Menu)
+   DriveKit — app.js (Full - Worker Proxy + Signs Menu + Waypoints Fix)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -930,20 +930,89 @@ function renderAvoidZonesOnMap() {
   if (map.getLayer('avoid-zones-line')) map.removeLayer('avoid-zones-line');
   if (map.getSource('avoid-zones')) map.removeSource('avoid-zones');
   if (allAvoidZones.length === 0) return;
-  const features = allAvoidZones.filter(z => z.lat1 && z.lng1 && z.lat2 && z.lng2).map(zone => ({ type: 'Feature', properties: { name: zone.name || 'Tuyến đường cấm' }, geometry: { type: 'LineString', coordinates: [[zone.lng1, zone.lat1], [zone.lng2, zone.lat2]] } }));
-  if (features.length === 0) return;
-  map.addSource('avoid-zones', { type: 'geojson', data: { type: 'FeatureCollection', features } });
-  map.addLayer({ id: 'avoid-zones-line', type: 'line', source: 'avoid-zones', paint: { 'line-color': '#ef4444', 'line-width': 8, 'line-opacity': 0.85, 'line-dasharray': [2, 2] } });
+
+  const features = [];
+
   allAvoidZones.forEach(zone => {
     if (!zone.lat1 || !zone.lng1) return;
-    const midLat = (zone.lat1 + zone.lat2) / 2;
-    const midLng = (zone.lng1 + zone.lng2) / 2;
+    
+    let coordsForMarker = [];
+    let hasWaypoints = false;
+
+    // 1. Ưu tiên vẽ theo mảng waypoints (đường ngoằn ngoèo)
+    if (zone.waypoints) {
+      try {
+        const wps = typeof zone.waypoints === 'string' ? JSON.parse(zone.waypoints) : zone.waypoints;
+        
+        if (Array.isArray(wps) && wps.length > 0) {
+          const isMulti = Array.isArray(wps[0][0]);
+          
+          if (isMulti) {
+            wps.forEach(seg => {
+              if (seg && seg.length > 1) {
+                features.push({
+                  type: 'Feature',
+                  properties: { name: zone.name },
+                  geometry: { type: 'LineString', coordinates: seg.map(p => [p[1], p[0]]) }
+                });
+              }
+            });
+            coordsForMarker = wps[0];
+          } else {
+            features.push({
+              type: 'Feature',
+              properties: { name: zone.name },
+              geometry: { type: 'LineString', coordinates: wps.map(p => [p[1], p[0]]) }
+            });
+            coordsForMarker = wps;
+          }
+          hasWaypoints = true;
+        }
+      } catch (e) {
+        console.warn('Lỗi parse waypoints:', zone.name, e);
+      }
+    }
+    
+    // 2. Fallback: Nếu không có waypoints thì mới nối đường chim bay
+    if (!hasWaypoints) {
+      features.push({
+        type: 'Feature',
+        properties: { name: zone.name },
+        geometry: { type: 'LineString', coordinates: [[zone.lng1, zone.lat1], [zone.lng2, zone.lat2]] }
+      });
+    }
+
+    // 3. Đặt Marker ở giữa đường vẽ
+    let midLat = (zone.lat1 + zone.lat2) / 2;
+    let midLng = (zone.lng1 + zone.lng2) / 2;
+    
+    if (coordsForMarker && coordsForMarker.length > 0) {
+      const midIdx = Math.floor(coordsForMarker.length / 2);
+      midLat = coordsForMarker[midIdx][0];
+      midLng = coordsForMarker[midIdx][1];
+    }
+
     const el = document.createElement('div');
     el.className = 'avoid-zone-pin';
     el.innerHTML = `<i class="fas fa-ban"></i>`;
     const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b>🚫 ${escapeHtml(zone.name || 'Tuyến đường cấm')}</b>`);
     const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([midLng, midLat]).setPopup(popup).addTo(map);
     avoidZoneMarkers.push(marker);
+  });
+
+  if (features.length === 0) return;
+
+  map.addSource('avoid-zones', { type: 'geojson', data: { type: 'FeatureCollection', features } });
+  map.addLayer({ 
+    id: 'avoid-zones-line', 
+    type: 'line', 
+    source: 'avoid-zones', 
+    paint: { 
+      'line-color': '#ef4444', 
+      'line-width': 8, 
+      'line-opacity': 0.85, 
+      'line-dasharray': [2, 2] 
+    } 
   });
 }
 
