@@ -17,21 +17,24 @@
     h1 { font-size: 1.2rem; color: #60a5fa; }
     .desc { font-size: 0.85rem; color: #94a3b8; line-height: 1.4; margin-bottom: 10px; }
     
-    .legend { display: flex; gap: 15px; background: #0f172a; padding: 10px; border-radius: 8px; font-size: 0.85rem; font-weight: bold; }
+    .legend { display: flex; gap: 15px; background: #0f172a; padding: 10px; border-radius: 8px; font-size: 0.85rem; font-weight: bold; margin-bottom: 10px;}
     .legend-item { display: flex; align-items: center; gap: 6px; }
     .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; }
     .dot.tomtom { background: #ef4444; }
     .dot.geoapify { background: #3b82f6; }
+    .dot.center { background: #10b981; }
 
     .btn-group { display: flex; flex-direction: column; gap: 10px; }
     button {
         padding: 12px; border: none; border-radius: 8px;
         background: #334155; color: white; font-weight: bold; font-size: 0.95rem;
-        cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 10px;
+        cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 10px; justify-content: center;
     }
     button:hover { background: #475569; }
     button.primary { background: #3b82f6; }
     button.primary:hover { background: #2563eb; }
+    button.locate { background: #10b981; margin-bottom: 5px; border: 1px solid #059669;}
+    button.locate:hover { background: #059669; }
 
     .stats-box {
         background: #0f172a; border: 1px solid #334155; border-radius: 8px;
@@ -48,14 +51,17 @@
 
 <div id="sidebar">
     <h1><i class="fas fa-street-view"></i> Test Nearby APIs</h1>
-    <p class="desc">So sánh trực tiếp dữ liệu địa điểm (POI) giữa TomTom và Geoapify. Tâm bản đồ đang ở Hồ Hoàn Kiếm, Hà Nội.</p>
+    <p class="desc">So sánh dữ liệu địa điểm giữa TomTom và Geoapify.</p>
     
     <div class="legend">
-        <div class="legend-item"><div class="dot tomtom"></div> TomTom (Đỏ)</div>
-        <div class="legend-item"><div class="dot geoapify"></div> Geoapify (Xanh)</div>
+        <div class="legend-item"><div class="dot tomtom"></div> TomTom</div>
+        <div class="legend-item"><div class="dot geoapify"></div> Geoapify</div>
+        <div class="legend-item"><div class="dot center"></div> Tâm</div>
     </div>
 
     <div class="btn-group">
+        <button class="locate" onclick="locateMe()"><i class="fas fa-location-arrow"></i> Định vị tôi (GPS)</button>
+        <hr style="border: 0; border-top: 1px solid #334155; margin: 5px 0;">
         <button class="primary" onclick="searchBoth('cafe')"><i class="fas fa-coffee"></i> Tìm Quán Cafe</button>
         <button class="primary" onclick="searchBoth('restaurant')"><i class="fas fa-utensils"></i> Tìm Nhà hàng</button>
         <button class="primary" onclick="searchBoth('hotel')"><i class="fas fa-hotel"></i> Tìm Khách sạn</button>
@@ -77,12 +83,12 @@
     const TOMTOM_KEY = 'tG84Z1Yh4rauGWjz6pRn98rrWymLjTru';
     const GEOAPIFY_KEY = '4e7d216f24a14d54a8e667e28ca80989';
     
-    // Tâm bản đồ: Hồ Hoàn Kiếm, Hà Nội
-    const CENTER_LAT = 21.0285;
-    const CENTER_LNG = 105.8542;
+    // Tâm bản đồ mặc định (sẽ bị thay đổi khi bấm Định vị)
+    let CENTER_LAT = 21.0285;
+    let CENTER_LNG = 105.8542;
     const RADIUS = 1500; // Bán kính 1.5km
 
-    // Ánh xạ danh mục giữa TomTom và Geoapify
+    // Ánh xạ danh mục
     const CATEGORIES = {
         'cafe': { tomtom: '7315', geoapify: 'catering.cafe' },
         'restaurant': { tomtom: '7314', geoapify: 'catering.restaurant' },
@@ -92,8 +98,9 @@
 
     let tomtomMarkers = [];
     let geoapifyMarkers = [];
+    let centerMarker = null; // Marker màu xanh ở giữa
 
-    // Khởi tạo bản đồ (Dùng style tối cho giống App DriveKit)
+    // Khởi tạo bản đồ
     const map = new maplibregl.Map({
         container: 'map',
         style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -102,10 +109,48 @@
     });
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-    // Tạo điểm tâm bản đồ
-    const centerEl = document.createElement('div');
-    centerEl.innerHTML = `<div style="background:#10b981; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.5);"></div>`;
-    new maplibregl.Marker({ element: centerEl }).setLngLat([CENTER_LNG, CENTER_LAT]).addTo(map);
+    // Hàm vẽ lại điểm tâm bản đồ
+    function drawCenterMarker() {
+        if (centerMarker) centerMarker.remove();
+        const centerEl = document.createElement('div');
+        centerEl.innerHTML = `<div style="background:#10b981; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.5);"></div>`;
+        centerMarker = new maplibregl.Marker({ element: centerEl }).setLngLat([CENTER_LNG, CENTER_LAT]).addTo(map);
+    }
+
+    // Khởi tạo điểm tâm ban đầu
+    drawCenterMarker();
+
+    // Hàm Định vị GPS
+    function locateMe() {
+        if (!navigator.geolocation) {
+            alert("Trình duyệt của bạn không hỗ trợ GPS!");
+            return;
+        }
+        
+        // Hiệu ứng loading trên nút
+        const btn = document.querySelector('button.locate');
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tìm...';
+        
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                CENTER_LAT = pos.coords.latitude;
+                CENTER_LNG = pos.coords.longitude;
+                
+                // Bay tới vị trí mới
+                map.flyTo({ center: [CENTER_LNG, CENTER_LAT], zoom: 16 });
+                drawCenterMarker();
+                clearMarkers(); // Xoá kết quả cũ vì đã đổi vị trí
+                
+                btn.innerHTML = '<i class="fas fa-location-arrow"></i> Định vị tôi (GPS)';
+            },
+            (err) => {
+                alert("Không lấy được vị trí. Hãy kiểm tra quyền truy cập GPS.");
+                console.error(err);
+                btn.innerHTML = '<i class="fas fa-location-arrow"></i> Định vị tôi (GPS)';
+            },
+            { enableHighAccuracy: true, timeout: 5000 }
+        );
+    }
 
     function clearMarkers() {
         tomtomMarkers.forEach(m => m.remove());
