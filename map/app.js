@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (Full - Voice Settings + Avoid Zones + Valhalla)
+   DriveKit — app.js (Full - Voice Settings + Avoid Zones + Real-time HUD)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -145,7 +145,7 @@ let warnedReports = new Set();
 let warnedAvoidZones = new Set();
 let warnedPois = new Set();
 
-let voiceEnabled = true; // Cờ tổng (có thể map với công tắc tổng nếu cần)
+let voiceEnabled = true;
 let voiceRouteSteps = null;
 let voiceStepIndex = 0;
 let voiceCheckTimer = null;
@@ -1563,6 +1563,36 @@ function updateNextManeuverHUD(lat, lng) {
   }
 }
 
+function updateRemainingHUD() {
+  if (!lastUserPos || !endPoint || !currentRouteCoords || currentRouteCoords.length === 0) return;
+
+  let remainDist = 0;
+  const userLat = lastUserPos.lat;
+  const userLng = lastUserPos.lng;
+
+  remainDist += calcDist(userLat, userLng, currentRouteCoords[0][0], currentRouteCoords[0][1]);
+
+  for (let i = 0; i < currentRouteCoords.length - 1; i++) {
+    remainDist += calcDist(currentRouteCoords[i][0], currentRouteCoords[i][1], currentRouteCoords[i+1][0], currentRouteCoords[i+1][1]);
+  }
+
+  document.getElementById('hudRemainDist').textContent = (remainDist / 1000).toFixed(1) + ' km';
+
+  let speed = smoothedSpeed * 3.6;
+  
+  if (speed < 10) {
+    const totalDist = currentRouteData.distance || 1;
+    const totalDur = currentRouteData.duration || 1;
+    speed = (totalDist / 1000) / (totalDur / 3600); 
+    if (speed < 10) speed = 30; 
+  }
+
+  const remainSec = remainDist / (speed / 3.6);
+  const remainMin = Math.max(1, Math.round(remainSec / 60));
+  
+  document.getElementById('hudRemainTime').textContent = remainMin + ' phút';
+}
+
 function checkArrival(lat, lng) {
   if (arrivalHandled || !endPoint || !currentRouteCoords.length) return;
   const distToEnd = calcDist(lat, lng, endPoint.lat, endPoint.lng);
@@ -2185,6 +2215,7 @@ function startWatching() {
     updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
     checkPoiProximity(lastUserPos.lat, lastUserPos.lng); 
     checkAvoidZoneProximity(lastUserPos.lat, lastUserPos.lng);
+    updateRemainingHUD();
   }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
 }
 
