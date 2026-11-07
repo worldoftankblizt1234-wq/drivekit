@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (Full - Worker Proxy + Signs + Time/Vehicle Checks)
+   DriveKit — app.js (Full - Worker Proxy + Nearby Search + Signs)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -30,9 +30,11 @@ const MAPTILER_STYLE = `https://api.maptiler.com/maps/streets-v4/style.json?key=
 const TRACKASIA_STYLE = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
 
 /* ========== WORKER API WRAPPERS ========== */
-async function apiSearch(query) {
+async function apiSearch(query, lat = null, lng = null) {
   try {
-    const r = await fetch(`${WORKER_URL}/api/search?q=${encodeURIComponent(query)}`);
+    let url = `${WORKER_URL}/api/search?q=${encodeURIComponent(query)}`;
+    if (lat && lng) url += `&lat=${lat}&lng=${lng}`;
+    const r = await fetch(url);
     if (!r.ok) return [];
     const j = await r.json();
     return j.results || [];
@@ -179,7 +181,7 @@ const LIVE_HEARTBEAT_TIMEOUT = 120000;
 let isViewingLiveTrack = false;
 let touchMarker = null;
 
-// Biến lưu thông số xe hiện tại của User (Có thể mở rộng thành UI chọn sau này)
+// Biến lưu thông số xe hiện tại của User
 let userVehicleSpecs = { type: 'car', seats: 5, axles: 2 }; 
 
 const POI_TAG_CONFIG = {
@@ -539,20 +541,15 @@ function recomputeSavedRoutes() { allSavedRoutes = [..._fsSavedRoutes].sort((a, 
 /* ========== LOGIC THỜI GIAN & LOẠI XE ========== */
 function isZoneCurrentlyActive(zone) {
   const now = new Date();
-  
-  // 1. Kiểm tra Ngày hiệu lực (YYYY-MM-DD)
   const todayStr = now.toISOString().split('T')[0];
   if (zone.startDate && todayStr < zone.startDate) return false;
   if (zone.endDate && todayStr > zone.endDate) return false;
 
-  // 2. Kiểm tra Khung giờ (HH:mm)
   if (zone.timeStart && zone.timeEnd) {
-    const currentTimeStr = now.toTimeString().slice(0, 5); // "14:30"
-    
+    const currentTimeStr = now.toTimeString().slice(0, 5);
     if (zone.timeStart <= zone.timeEnd) {
       if (currentTimeStr < zone.timeStart || currentTimeStr > zone.timeEnd) return false;
     } else {
-      // Cấm qua đêm (VD: 17:00 - 05:00)
       if (currentTimeStr < zone.timeStart && currentTimeStr > zone.timeEnd) return false;
     }
   }
@@ -562,17 +559,13 @@ function isZoneCurrentlyActive(zone) {
 function isVehicleBannedByZone(zone) {
   const vType = userVehicleSpecs.type;
   const banned = zone.bannedVehicles || [];
-  
-  // Nếu mảng banned rỗng => Cấm tất cả
   if (banned.length === 0) return true;
   
-  // Nếu loại xe hiện tại nằm trong danh sách cấm
   if (banned.includes(vType)) {
-    // Kiểm tra thông số chi tiết (nếu có)
     if (vType === 'car' && zone.carSeats && zone.carSeats.length > 0) {
       const isMatchSeat = zone.carSeats.includes(userVehicleSpecs.seats.toString()) || 
                          (userVehicleSpecs.seats >= 9 && zone.carSeats.includes('9'));
-      if (!isMatchSeat) return false; // Cấm xe hơi, nhưng không cấm số chỗ này
+      if (!isMatchSeat) return false;
     }
     if (vType === 'truck' && zone.truckAxles && zone.truckAxles.length > 0) {
       if (!zone.truckAxles.includes(userVehicleSpecs.axles.toString())) return false;
@@ -587,11 +580,7 @@ function checkRouteAgainstAvoidZones(routeCoords) {
   
   for (const zone of allAvoidZones) {
     if (!zone.lat1 || !zone.lng1) continue;
-    
-    // Nếu không nằm trong thời gian cấm -> Bỏ qua
     if (!isZoneCurrentlyActive(zone)) continue;
-    
-    // Nếu xe hiện tại không bị cấm bởi vùng này -> Bỏ qua
     if (!isVehicleBannedByZone(zone)) continue;
 
     const zoneMidLat = (zone.lat1 + zone.lat2) / 2;
@@ -640,18 +629,22 @@ function updateUIState() {
   const fabQuickPin = document.getElementById('btnQuickPin');
   const fabReport = document.getElementById('btnReport');
   const fabRestStop = document.getElementById('btnRestStopFilter');
+  const fabNearby = document.getElementById('btnNearby');
   if (isDirOpen || isSearchBoxShow) {
-    fabLocate.style.display = 'none'; fabDir.style.display = 'none';
-    fabLayers.style.display = 'none'; fabQuickPin.style.display = 'none';
-    fabReport.style.display = 'none'; fabRestStop.style.display = 'none';
+    if(fabLocate) fabLocate.style.display = 'none'; if(fabDir) fabDir.style.display = 'none';
+    if(fabLayers) fabLayers.style.display = 'none'; if(fabQuickPin) fabQuickPin.style.display = 'none';
+    if(fabReport) fabReport.style.display = 'none'; if(fabRestStop) fabRestStop.style.display = 'none';
+    if(fabNearby) fabNearby.style.display = 'none';
   } else if (isNav) {
-    fabLocate.style.display = 'none'; fabDir.style.display = 'none';
-    fabLayers.style.display = 'none'; fabQuickPin.style.display = 'none';
-    fabReport.style.display = 'flex'; fabRestStop.style.display = 'none';
+    if(fabLocate) fabLocate.style.display = 'none'; if(fabDir) fabDir.style.display = 'none';
+    if(fabLayers) fabLayers.style.display = 'none'; if(fabQuickPin) fabQuickPin.style.display = 'none';
+    if(fabReport) fabReport.style.display = 'flex'; if(fabRestStop) fabRestStop.style.display = 'none';
+    if(fabNearby) fabNearby.style.display = 'none';
   } else {
-    fabLocate.style.display = 'flex'; fabDir.style.display = 'flex';
-    fabLayers.style.display = 'flex'; fabQuickPin.style.display = 'flex';
-    fabReport.style.display = 'flex'; fabRestStop.style.display = 'flex';
+    if(fabLocate) fabLocate.style.display = 'flex'; if(fabDir) fabDir.style.display = 'flex';
+    if(fabLayers) fabLayers.style.display = 'flex'; if(fabQuickPin) fabQuickPin.style.display = 'flex';
+    if(fabReport) fabReport.style.display = 'flex'; if(fabRestStop) fabRestStop.style.display = 'flex';
+    if(fabNearby) fabNearby.style.display = 'flex';
   }
 }
 
@@ -999,7 +992,6 @@ function renderAvoidZonesOnMap() {
     let coordsForMarker = [];
     let hasWaypoints = false;
 
-    // 1. Ưu tiên vẽ theo mảng waypoints
     if (zone.waypoints) {
       try {
         const wps = typeof zone.waypoints === 'string' ? JSON.parse(zone.waypoints) : zone.waypoints;
@@ -1029,7 +1021,6 @@ function renderAvoidZonesOnMap() {
       } catch (e) { console.warn('Lỗi parse waypoints:', zone.name, e); }
     }
     
-    // 2. Fallback
     if (!hasWaypoints) {
       features.push({
         type: 'Feature',
@@ -1038,7 +1029,6 @@ function renderAvoidZonesOnMap() {
       });
     }
 
-    // 3. Đặt Marker
     let midLat = (zone.lat1 + zone.lat2) / 2;
     let midLng = (zone.lng1 + zone.lng2) / 2;
     if (coordsForMarker && coordsForMarker.length > 0) {
@@ -1072,6 +1062,69 @@ function renderAvoidZonesOnMap() {
     } 
   });
 }
+
+/* ========== NEARBY SEARCH ========== */
+window.openNearbyMenu = function() {
+  document.getElementById('nearbyModal').classList.add('open');
+};
+window.closeNearbyMenu = function() {
+  document.getElementById('nearbyModal').classList.remove('open');
+};
+window.searchNearby = async function(keyword) {
+  closeNearbyMenu();
+  
+  const lat = lastUserPos ? lastUserPos.lat : map.getCenter().lat;
+  const lng = lastUserPos ? lastUserPos.lng : map.getCenter().lng;
+
+  const box = document.getElementById('suggestionsBox');
+  box.classList.add('show');
+  document.getElementById('topSearchInput').value = `Tìm ${keyword}...`;
+  document.getElementById('searchClearBtn').classList.remove('hidden');
+  box.innerHTML = `<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang tìm ${keyword} gần đây...</div>`;
+
+  const results = await apiSearch(keyword, lat, lng);
+
+  const nearbyResults = results.map(r => {
+    return { ...r, _dist: calcDist(lat, lng, r.lat, r.lng) };
+  }).filter(r => r._dist <= 15000).sort((a, b) => a._dist - b._dist);
+
+  box.innerHTML = '';
+
+  if (nearbyResults.length === 0) {
+    box.innerHTML = `<div class="sug-item" style="color:var(--danger)">Không tìm thấy ${keyword} nào trong bán kính 15km.</div>`;
+    return;
+  }
+
+  const title = document.createElement('div');
+  title.className = 'sug-section-title';
+  title.innerHTML = `<i class="fas fa-street-view"></i> ${keyword.toUpperCase()} GẦN NHẤT`;
+  box.appendChild(title);
+
+  nearbyResults.forEach(r => {
+    const distStr = r._dist > 1000 ? (r._dist / 1000).toFixed(1) + ' km' : Math.round(r._dist) + ' m';
+    const div = document.createElement('div');
+    div.className = 'sug-item';
+    div.innerHTML = `
+      <i class="fas fa-map-marker-alt" style="color:var(--primary); font-size:1.2rem;"></i>
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:700; white-space:normal; word-break:break-word;">${escapeHtml(r.name)}</div>
+        <div style="font-size:0.75rem; color:var(--warning); font-weight:700; margin-top:2px;">
+          <i class="fas fa-route"></i> Cách đây ${distStr}
+        </div>
+      </div>`;
+    div.onclick = () => {
+      selectLocation(r.lat, r.lng, r.name);
+      map.flyTo({ center: [r.lng, r.lat], zoom: 16 });
+    };
+    box.appendChild(div);
+  });
+
+  renderSearchResultMarkers(nearbyResults, keyword);
+  
+  if (nearbyResults.length > 0) {
+    map.flyTo({ center: [lng, lat], zoom: 14 });
+  }
+};
 
 /* ========== REPORT & SIGNS ========== */
 window.openReportMenu = function() { document.getElementById('reportModal').classList.add('open'); };
@@ -1177,7 +1230,6 @@ window.fetchAndShowRouteOptions = async function() {
   try {
     let routes = await apiRoute(startPoint, endPoint, currentVehicleMode);
     
-    // Cập nhật thông số xe tạm thời dựa trên mode đang chọn
     userVehicleSpecs.type = currentVehicleMode === 'truck' ? 'truck' : (currentVehicleMode === 'motorcycle' ? 'motorcycle' : 'car');
 
     const check = checkRouteAgainstAvoidZones(routes[0].geometry.coordinates);
