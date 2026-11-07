@@ -97,12 +97,12 @@
     let CENTER_LNG = 105.8542;
     const RADIUS = 1500; // Bán kính 1.5km
 
-    // Ánh xạ danh mục
+    // Ánh xạ danh mục (MapTiler dùng tiếng Việt để dễ tìm hơn)
     const CATEGORIES = {
-        'cafe': { tomtom: '7315', geoapify: 'catering.cafe', mapbox: 'cafe', maptiler: 'cafe' },
-        'restaurant': { tomtom: '7314', geoapify: 'catering.restaurant', mapbox: 'restaurant', maptiler: 'restaurant' },
-        'hotel': { tomtom: '7314', geoapify: 'accommodation.hotel', mapbox: 'hotel', maptiler: 'hotel' },
-        'gas_station': { tomtom: '7313', geoapify: 'service.vehicle.fuel', mapbox: 'gas station', maptiler: 'gas station' }
+        'cafe': { tomtom: '7315', geoapify: 'catering.cafe', mapbox: 'cafe', maptiler: 'quán cà phê' },
+        'restaurant': { tomtom: '7314', geoapify: 'catering.restaurant', mapbox: 'restaurant', maptiler: 'nhà hàng' },
+        'hotel': { tomtom: '7314', geoapify: 'accommodation.hotel', mapbox: 'hotel', maptiler: 'khách sạn' },
+        'gas_station': { tomtom: '7313', geoapify: 'service.vehicle.fuel', mapbox: 'gas station', maptiler: 'trạm xăng' }
     };
 
     let tomtomMarkers = [], geoapifyMarkers = [], mapboxMarkers = [], maptilerMarkers = [];
@@ -117,7 +117,6 @@
     });
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-    // Hàm tính khoảng cách (Mét) để lọc MapTiler
     function calcDist(lat1, lng1, lat2, lng2) {
         const R = 6371e3;
         const p1 = lat1 * Math.PI/180, p2 = lat2 * Math.PI/180;
@@ -232,31 +231,34 @@
             } else document.getElementById('countMapbox').textContent = '0';
         } catch (e) { document.getElementById('countMapbox').textContent = 'Lỗi'; }
 
-        // 4. MAPTILER
+        // 4. MAPTILER (Đã sửa lỗi)
         try {
-            // Gọi tìm kiếm ưu tiên vị trí hiện tại (proximity)
-            const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(cat.maptiler)}.json?key=${MAPTILER_KEY}&language=vi&limit=30&proximity=${CENTER_LNG},${CENTER_LAT}&types=poi&boundary.country=vn`;
+            const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(cat.maptiler)}.json?key=${MAPTILER_KEY}&language=vi&limit=30&proximity=${CENTER_LNG},${CENTER_LAT}&country=vn`;
             const res = await fetch(url);
-            const data = await res.json();
             
-            let count = 0;
-            if (data.features) {
-                data.features.forEach(poi => {
-                    const lat = poi.center[1], lng = poi.center[0];
-                    // Tự lọc bán kính vì MapTiler không hỗ trợ radius
-                    if (calcDist(CENTER_LAT, CENTER_LNG, lat, lng) <= RADIUS) {
-                        const name = poi.text || poi.place_name_vi || poi.place_name;
-                        const el = createPin('#eab308', iconLabel);
-                        const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b style="color:#eab308;">MapTiler</b><br>${name}`);
-                        maptilerMarkers.push(new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).setPopup(popup).addTo(map));
-                        count++;
-                    }
-                });
+            if (!res.ok) {
+                console.error('MapTiler Error:', res.status);
+                document.getElementById('countMapTiler').textContent = 'Lỗi ' + res.status;
+            } else {
+                const data = await res.json();
+                let count = 0;
+                if (data.features) {
+                    data.features.forEach(poi => {
+                        const lat = poi.center[1], lng = poi.center[0];
+                        if (calcDist(CENTER_LAT, CENTER_LNG, lat, lng) <= RADIUS) {
+                            const name = poi.text || poi.place_name_vi || poi.place_name;
+                            const el = createPin('#eab308', iconLabel);
+                            const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b style="color:#eab308;">MapTiler</b><br>${name}`);
+                            maptilerMarkers.push(new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).setPopup(popup).addTo(map));
+                            count++;
+                        }
+                    });
+                }
+                document.getElementById('countMapTiler').textContent = count;
             }
-            document.getElementById('countMapTiler').textContent = count;
         } catch (e) { 
-            console.error(e);
-            document.getElementById('countMapTiler').textContent = 'Lỗi'; 
+            console.error('MapTiler Fetch Error:', e);
+            document.getElementById('countMapTiler').textContent = 'Lỗi mạng'; 
         }
     }
 </script>
