@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>So sánh Nearby: TomTom vs Geoapify vs Mapbox</title>
+<title>So sánh 4 Nearby APIs</title>
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
@@ -17,12 +17,13 @@
     h1 { font-size: 1.2rem; color: #60a5fa; }
     .desc { font-size: 0.85rem; color: #94a3b8; line-height: 1.4; margin-bottom: 10px; }
     
-    .legend { display: flex; gap: 12px; flex-wrap: wrap; background: #0f172a; padding: 10px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; margin-bottom: 10px;}
-    .legend-item { display: flex; align-items: center; gap: 6px; }
-    .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; }
+    .legend { display: flex; gap: 10px; flex-wrap: wrap; background: #0f172a; padding: 10px; border-radius: 8px; font-size: 0.75rem; font-weight: bold; margin-bottom: 10px;}
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; }
     .dot.tomtom { background: #ef4444; }
     .dot.geoapify { background: #3b82f6; }
-    .dot.mapbox { background: #eab308; }
+    .dot.mapbox { background: #a855f7; }
+    .dot.maptiler { background: #eab308; }
     .dot.center { background: #10b981; }
 
     .btn-group { display: flex; flex-direction: column; gap: 10px; }
@@ -39,72 +40,75 @@
 
     .stats-box {
         background: #0f172a; border: 1px solid #334155; border-radius: 8px;
-        padding: 15px; font-size: 0.9rem; margin-top: 10px; display: none;
+        padding: 15px; font-size: 0.85rem; margin-top: 10px; display: none;
     }
     .stats-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
     .stats-row:last-child { margin-bottom: 0; }
     .stats-val { font-weight: bold; font-family: monospace; font-size: 1rem; }
     .val-tomtom { color: #ef4444; }
     .val-geoapify { color: #3b82f6; }
-    .val-mapbox { color: #eab308; }
+    .val-mapbox { color: #a855f7; }
+    .val-maptiler { color: #eab308; }
 </style>
 </head>
 <body>
 
 <div id="sidebar">
     <h1><i class="fas fa-street-view"></i> Test Nearby APIs</h1>
-    <p class="desc">So sánh dữ liệu địa điểm giữa 3 API lớn nhất.</p>
+    <p class="desc">So sánh dữ liệu địa điểm giữa 4 API.</p>
     
     <div class="legend">
         <div class="legend-item"><div class="dot tomtom"></div> TomTom</div>
         <div class="legend-item"><div class="dot geoapify"></div> Geoapify</div>
         <div class="legend-item"><div class="dot mapbox"></div> Mapbox</div>
+        <div class="legend-item"><div class="dot maptiler"></div> MapTiler</div>
         <div class="legend-item"><div class="dot center"></div> Tâm</div>
     </div>
 
     <div class="btn-group">
         <button class="locate" onclick="locateMe()"><i class="fas fa-location-arrow"></i> Định vị tôi (GPS)</button>
         <hr style="border: 0; border-top: 1px solid #334155; margin: 5px 0;">
-        <button class="primary" onclick="searchBoth('cafe')"><i class="fas fa-coffee"></i> Tìm Quán Cafe</button>
-        <button class="primary" onclick="searchBoth('restaurant')"><i class="fas fa-utensils"></i> Tìm Nhà hàng</button>
-        <button class="primary" onclick="searchBoth('hotel')"><i class="fas fa-hotel"></i> Tìm Khách sạn</button>
-        <button class="primary" onclick="searchBoth('gas_station')"><i class="fas fa-gas-pump"></i> Tìm Trạm xăng</button>
+        <button class="primary" onclick="searchAll('cafe')"><i class="fas fa-coffee"></i> Tìm Quán Cafe</button>
+        <button class="primary" onclick="searchAll('restaurant')"><i class="fas fa-utensils"></i> Tìm Nhà hàng</button>
+        <button class="primary" onclick="searchAll('hotel')"><i class="fas fa-hotel"></i> Tìm Khách sạn</button>
+        <button class="primary" onclick="searchAll('gas_station')"><i class="fas fa-gas-pump"></i> Tìm Trạm xăng</button>
         <button onclick="clearMarkers()" style="margin-top: 10px; background: #ef4444;"><i class="fas fa-trash"></i> Xóa tất cả Marker</button>
     </div>
 
     <div class="stats-box" id="statsBox">
         <h3 style="font-size:1rem; margin-bottom:10px; color:#94a3b8;">Kết quả trả về:</h3>
-        <div class="stats-row"><span>TomTom (Đỏ):</span> <span class="stats-val val-tomtom" id="countTomTom">0</span></div>
-        <div class="stats-row"><span>Geoapify (Xanh):</span> <span class="stats-val val-geoapify" id="countGeoapify">0</span></div>
-        <div class="stats-row"><span>Mapbox (Vàng):</span> <span class="stats-val val-mapbox" id="countMapbox">0</span></div>
+        <div class="stats-row"><span>TomTom:</span> <span class="stats-val val-tomtom" id="countTomTom">0</span></div>
+        <div class="stats-row"><span>Geoapify:</span> <span class="stats-val val-geoapify" id="countGeoapify">0</span></div>
+        <div class="stats-row"><span>Mapbox:</span> <span class="stats-val val-mapbox" id="countMapbox">0</span></div>
+        <div class="stats-row"><span>MapTiler:</span> <span class="stats-val val-maptiler" id="countMapTiler">0</span></div>
     </div>
 </div>
 
 <div id="map"></div>
 
 <script>
-    // ===== CẤU HÌNH =====
+    // ===== CẤU HÌNH API KEYS =====
     const TOMTOM_KEY = 'tG84Z1Yh4rauGWjz6pRn98rrWymLjTru';
     const GEOAPIFY_KEY = '4e7d216f24a14d54a8e667e28ca80989';
     const MAPBOX_KEY = 'pk.eyJ1IjoibWluaGFkb2YyIiwiYSI6ImNtdnMwNDBhdzAwbnozNXExaHczb3Znd2MifQ.iVKGNbnj_pUxT6B_gqazEw';
+    const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
     
     let CENTER_LAT = 21.0285;
     let CENTER_LNG = 105.8542;
     const RADIUS = 1500; // Bán kính 1.5km
 
-    // Ánh xạ danh mục cho cả 3 API
+    // Ánh xạ danh mục
     const CATEGORIES = {
-        'cafe': { tomtom: '7315', geoapify: 'catering.cafe', mapbox: 'cafe' },
-        'restaurant': { tomtom: '7314', geoapify: 'catering.restaurant', mapbox: 'restaurant' },
-        'hotel': { tomtom: '7314', geoapify: 'accommodation.hotel', mapbox: 'hotel' },
-        'gas_station': { tomtom: '7313', geoapify: 'service.vehicle.fuel', mapbox: 'gas station' }
+        'cafe': { tomtom: '7315', geoapify: 'catering.cafe', mapbox: 'cafe', maptiler: 'cafe' },
+        'restaurant': { tomtom: '7314', geoapify: 'catering.restaurant', mapbox: 'restaurant', maptiler: 'restaurant' },
+        'hotel': { tomtom: '7314', geoapify: 'accommodation.hotel', mapbox: 'hotel', maptiler: 'hotel' },
+        'gas_station': { tomtom: '7313', geoapify: 'service.vehicle.fuel', mapbox: 'gas station', maptiler: 'gas station' }
     };
 
-    let tomtomMarkers = [];
-    let geoapifyMarkers = [];
-    let mapboxMarkers = [];
+    let tomtomMarkers = [], geoapifyMarkers = [], mapboxMarkers = [], maptilerMarkers = [];
     let centerMarker = null;
 
+    // Khởi tạo bản đồ
     const map = new maplibregl.Map({
         container: 'map',
         style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -112,6 +116,15 @@
         zoom: 15
     });
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    // Hàm tính khoảng cách (Mét) để lọc MapTiler
+    function calcDist(lat1, lng1, lat2, lng2) {
+        const R = 6371e3;
+        const p1 = lat1 * Math.PI/180, p2 = lat2 * Math.PI/180;
+        const dp = (lat2-lat1) * Math.PI/180, dl = (lng2-lng1) * Math.PI/180;
+        const a = Math.sin(dp/2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
 
     function drawCenterMarker() {
         if (centerMarker) centerMarker.remove();
@@ -147,123 +160,103 @@
         tomtomMarkers.forEach(m => m.remove());
         geoapifyMarkers.forEach(m => m.remove());
         mapboxMarkers.forEach(m => m.remove());
-        tomtomMarkers = [];
-        geoapifyMarkers = [];
-        mapboxMarkers = [];
+        maptilerMarkers.forEach(m => m.remove());
+        tomtomMarkers = []; geoapifyMarkers = []; mapboxMarkers = []; maptilerMarkers = [];
         document.getElementById('statsBox').style.display = 'none';
     }
 
     function createPin(color, label) {
         const el = document.createElement('div');
-        el.style.width = '24px';
-        el.style.height = '24px';
-        el.style.background = color;
-        el.style.borderRadius = '50%';
-        el.style.border = '2px solid white';
-        el.style.boxShadow = '0 3px 6px rgba(0,0,0,0.4)';
-        el.style.display = 'flex';
-        el.style.alignItems = 'center';
-        el.style.justifyContent = 'center';
-        el.style.fontSize = '10px';
-        el.style.color = 'white';
+        el.style.width = '24px'; el.style.height = '24px';
+        el.style.background = color; el.style.borderRadius = '50%';
+        el.style.border = '2px solid white'; el.style.boxShadow = '0 3px 6px rgba(0,0,0,0.4)';
+        el.style.display = 'flex'; el.style.alignItems = 'center'; el.style.justifyContent = 'center';
+        el.style.fontSize = '10px'; el.style.color = 'white';
         el.innerHTML = `<i class="fas ${label}"></i>`;
         return el;
     }
 
-    async function searchBoth(type) {
+    async function searchAll(type) {
         clearMarkers();
-        const btnBox = document.getElementById('statsBox');
-        btnBox.style.display = 'block';
-        document.getElementById('countTomTom').textContent = '...';
-        document.getElementById('countGeoapify').textContent = '...';
-        document.getElementById('countMapbox').textContent = '...';
+        document.getElementById('statsBox').style.display = 'block';
+        ['TomTom', 'Geoapify', 'Mapbox', 'MapTiler'].forEach(k => document.getElementById('count' + k).textContent = '...');
 
         const cat = CATEGORIES[type];
         const iconLabel = type === 'cafe' ? 'fa-coffee' : type === 'hotel' ? 'fa-hotel' : type === 'restaurant' ? 'fa-utensils' : 'fa-gas-pump';
 
-        // ==========================================
-        // 1. GỌI TOMTOM
-        // ==========================================
+        // 1. TOMTOM
         try {
-            const ttUrl = `https://api.tomtom.com/search/2/nearbySearch/.json?key=${TOMTOM_KEY}&lat=${CENTER_LAT}&lon=${CENTER_LNG}&radius=${RADIUS}&categorySet=${cat.tomtom}&limit=30`;
-            const res = await fetch(ttUrl);
+            const url = `https://api.tomtom.com/search/2/nearbySearch/.json?key=${TOMTOM_KEY}&lat=${CENTER_LAT}&lon=${CENTER_LNG}&radius=${RADIUS}&categorySet=${cat.tomtom}&limit=30`;
+            const res = await fetch(url);
             const data = await res.json();
-            
             if (data.results) {
                 data.results.forEach(poi => {
-                    const name = poi.poi?.name || 'Không tên';
-                    const lat = poi.position.lat;
-                    const lng = poi.position.lon;
-                    
                     const el = createPin('#ef4444', iconLabel);
-                    const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b style="color:#ef4444;">TomTom</b><br>${name}`);
-                    const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
-                    tomtomMarkers.push(marker);
+                    const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b style="color:#ef4444;">TomTom</b><br>${poi.poi?.name || 'Không tên'}`);
+                    tomtomMarkers.push(new maplibregl.Marker({ element: el }).setLngLat([poi.position.lon, poi.position.lat]).setPopup(popup).addTo(map));
                 });
                 document.getElementById('countTomTom').textContent = data.results.length;
-            } else {
-                document.getElementById('countTomTom').textContent = '0';
-            }
-        } catch (e) {
-            document.getElementById('countTomTom').textContent = 'Lỗi';
-        }
+            } else document.getElementById('countTomTom').textContent = '0';
+        } catch (e) { document.getElementById('countTomTom').textContent = 'Lỗi'; }
 
-        // ==========================================
-        // 2. GỌI GEOAPIFY
-        // ==========================================
+        // 2. GEOAPIFY
         try {
-            const geoUrl = `https://api.geoapify.com/v2/places?categories=${cat.geoapify}&filter=circle:${CENTER_LNG},${CENTER_LAT},${RADIUS}&bias=proximity:${CENTER_LNG},${CENTER_LAT}&limit=30&apiKey=${GEOAPIFY_KEY}`;
-            const res = await fetch(geoUrl);
+            const url = `https://api.geoapify.com/v2/places?categories=${cat.geoapify}&filter=circle:${CENTER_LNG},${CENTER_LAT},${RADIUS}&bias=proximity:${CENTER_LNG},${CENTER_LAT}&limit=30&apiKey=${GEOAPIFY_KEY}`;
+            const res = await fetch(url);
             const data = await res.json();
-            
             if (data.features) {
                 data.features.forEach(poi => {
-                    const name = poi.properties.name || poi.properties.address_line1 || 'Không tên';
-                    const lat = poi.properties.lat;
-                    const lng = poi.properties.lon;
-                    
                     const el = createPin('#3b82f6', iconLabel);
-                    const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b style="color:#3b82f6;">Geoapify</b><br>${name}`);
-                    const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
-                    geoapifyMarkers.push(marker);
+                    const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b style="color:#3b82f6;">Geoapify</b><br>${poi.properties.name || 'Không tên'}`);
+                    geoapifyMarkers.push(new maplibregl.Marker({ element: el }).setLngLat([poi.properties.lon, poi.properties.lat]).setPopup(popup).addTo(map));
                 });
                 document.getElementById('countGeoapify').textContent = data.features.length;
-            } else {
-                document.getElementById('countGeoapify').textContent = '0';
-            }
-        } catch (e) {
-            document.getElementById('countGeoapify').textContent = 'Lỗi';
-        }
+            } else document.getElementById('countGeoapify').textContent = '0';
+        } catch (e) { document.getElementById('countGeoapify').textContent = 'Lỗi'; }
 
-        // ==========================================
-        // 3. GỌI MAPBOX (Tính Bounding Box)
-        // ==========================================
+        // 3. MAPBOX
         try {
             const latDelta = RADIUS / 111320;
             const lngDelta = RADIUS / (111320 * Math.cos(CENTER_LAT * Math.PI / 180));
             const bbox = `${CENTER_LNG - lngDelta},${CENTER_LAT - latDelta},${CENTER_LNG + lngDelta},${CENTER_LAT + latDelta}`;
-            
-            const mbUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(cat.mapbox)}.json?access_token=${MAPBOX_KEY}&bbox=${bbox}&limit=30&language=vi&types=poi`;
-            const res = await fetch(mbUrl);
+            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(cat.mapbox)}.json?access_token=${MAPBOX_KEY}&bbox=${bbox}&limit=30&language=vi&types=poi`;
+            const res = await fetch(url);
             const data = await res.json();
-            
             if (data.features) {
                 data.features.forEach(poi => {
-                    const name = poi.text || poi.place_name;
-                    const [lng, lat] = poi.center;
-                    
-                    const el = createPin('#eab308', iconLabel);
-                    const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b style="color:#eab308;">Mapbox</b><br>${name}`);
-                    const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
-                    mapboxMarkers.push(marker);
+                    const el = createPin('#a855f7', iconLabel);
+                    const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b style="color:#a855f7;">Mapbox</b><br>${poi.text || poi.place_name}`);
+                    mapboxMarkers.push(new maplibregl.Marker({ element: el }).setLngLat(poi.center).setPopup(popup).addTo(map));
                 });
                 document.getElementById('countMapbox').textContent = data.features.length;
-            } else {
-                document.getElementById('countMapbox').textContent = '0';
+            } else document.getElementById('countMapbox').textContent = '0';
+        } catch (e) { document.getElementById('countMapbox').textContent = 'Lỗi'; }
+
+        // 4. MAPTILER
+        try {
+            // Gọi tìm kiếm ưu tiên vị trí hiện tại (proximity)
+            const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(cat.maptiler)}.json?key=${MAPTILER_KEY}&language=vi&limit=30&proximity=${CENTER_LNG},${CENTER_LAT}&types=poi&boundary.country=vn`;
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            let count = 0;
+            if (data.features) {
+                data.features.forEach(poi => {
+                    const lat = poi.center[1], lng = poi.center[0];
+                    // Tự lọc bán kính vì MapTiler không hỗ trợ radius
+                    if (calcDist(CENTER_LAT, CENTER_LNG, lat, lng) <= RADIUS) {
+                        const name = poi.text || poi.place_name_vi || poi.place_name;
+                        const el = createPin('#eab308', iconLabel);
+                        const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b style="color:#eab308;">MapTiler</b><br>${name}`);
+                        maptilerMarkers.push(new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).setPopup(popup).addTo(map));
+                        count++;
+                    }
+                });
             }
-        } catch (e) {
+            document.getElementById('countMapTiler').textContent = count;
+        } catch (e) { 
             console.error(e);
-            document.getElementById('countMapbox').textContent = 'Lỗi';
+            document.getElementById('countMapTiler').textContent = 'Lỗi'; 
         }
     }
 </script>
