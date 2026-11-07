@@ -145,10 +145,7 @@ body.light-mode #map { background: #f1f5f9; }
   border-left-color: var(--card) !important;
   border-right-color: var(--card) !important;
 }
-/* Ẩn nút X mặc định của MapLibre */
-.maplibregl-popup-close-button {
-  display: none !important;
-}
+.maplibregl-popup-close-button { display: none !important; }
 
 /* ---------- HUD TOP ---------- */
 .hud-top {
