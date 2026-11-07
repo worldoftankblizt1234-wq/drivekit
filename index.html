@@ -11,6 +11,7 @@
     <!-- vConsole dành cho Mobile Debug -->
     <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
     <script>
+        // Khởi tạo vConsole (hiển thị nút debug màu xanh trên điện thoại)
         var vConsole = new window.VConsole();
     </script>
 
@@ -73,7 +74,7 @@
         // --- KHỞI TẠO BẢN ĐỒ VỚI MAPTILER ---
         const map = L.map('map').setView([DEFAULT_LAT, DEFAULT_LNG], 14);
         
-        // Sử dụng MapTiler làm bản đồ nền (Raster Tiles)
+        // Sử dụng MapTiler làm bản đồ nền
         L.tileLayer(`https://api.maptiler.com/maps/streets-v4/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`, {
             tileSize: 512,
             zoomOffset: -1,
@@ -161,7 +162,7 @@
             searchFoursquare(currentLatLng.lat, currentLatLng.lng);
         });
 
-        // --- GỌI API FOURSQUARE QUA PROXY ---
+        // --- GỌI API FOURSQUARE QUA PROXY MỚI ---
         async function searchFoursquare(lat, lng) {
             const query = document.getElementById('search-query').value || 'cafe';
             resultsList.innerHTML = '';
@@ -170,8 +171,13 @@
             resultMarkers.forEach(marker => map.removeLayer(marker));
             resultMarkers = [];
 
+            // 1. Endpoint gốc của Foursquare
             const targetUrl = `https://places-api.foursquare.com/places/search?query=${encodeURIComponent(query)}&ll=${lat},${lng}&radius=${RADIUS}&limit=20`;
-            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+            
+            // 2. Đi qua CORS Proxy mới (codetabs.com) - Miễn phí, không cần API key, hỗ trợ gửi header
+            const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
+
+            console.log('Đang gọi Foursquare qua Codetabs Proxy...');
 
             try {
                 const response = await fetch(proxyUrl, {
@@ -183,10 +189,12 @@
                     }
                 });
 
+                console.log('Status phản hồi:', response.status);
+
                 if (!response.ok) {
                     const errText = await response.text();
                     console.error('Lỗi từ API:', errText);
-                    throw new Error(`Lỗi API: ${response.status}`);
+                    throw new Error(`Lỗi API: ${response.status} (Xem vConsole)`);
                 }
 
                 const data = await response.json();
@@ -199,10 +207,12 @@
                     const pAddress = place.location.formatted_address || 'Không có địa chỉ';
                     const pDistance = place.distance;
 
+                    // Thêm marker đỏ
                     const marker = L.marker([pLat, pLng]).addTo(map)
                         .bindPopup(`<b>${pName}</b><br>${pAddress}<br>Cách ${pDistance}m`);
                     resultMarkers.push(marker);
 
+                    // Thêm vào danh sách
                     const li = document.createElement('li');
                     li.innerHTML = `
                         <div class="place-name">${pName}</div>
