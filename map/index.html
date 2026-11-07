@@ -81,11 +81,17 @@
   <button class="fab-layers" id="btnQuickPin" onclick="event.stopPropagation(); openQuickPin()" style="bottom: calc(140px + var(--safe-bottom)); right: 16px; left: auto; background: var(--success); color: white; border: none; box-shadow: 0 4px 15px rgba(16,185,129,0.4);" title="Ghim nhanh vị trí">
     <i class="fas fa-map-marker-alt"></i>
   </button>
-  <button class="fab-rest-stop-filter" id="btnRestStopFilter" onclick="toggleRestStopFilter()" title="Hiện/ẩn trạm dừng nghỉ">
+  
+  <button class="fab-rest-stop-filter" id="btnRestStopFilter" onclick="toggleRestStopFilter()" title="Hiện/ẩn trạm dừng nghỉ" style="bottom: calc(200px + var(--safe-bottom));">
     <i class="fas fa-bed"></i>
   </button>
 
-  <!-- Layer Menu (ĐÃ SỬA LỖI ACTIVE) -->
+  <!-- NÚT KHÁM PHÁ XUNG QUANH -->
+  <button class="fab-layers" id="btnNearby" onclick="openNearbyMenu()" style="bottom: calc(260px + var(--safe-bottom)); right: 16px; left: auto; background: var(--primary); color: white; border: none; box-shadow: 0 4px 15px rgba(59,130,246,0.4);" title="Khám phá xung quanh">
+    <i class="fas fa-street-view"></i>
+  </button>
+
+  <!-- Layer Menu -->
   <div class="layer-menu" id="layerMenu">
     <button class="layer-option active" onclick="changeLayer('trackasia-maplibre', this)">
       <div class="layer-title"><i class="fas fa-map"></i> 1. TrackAsia + MapLibre</div>
@@ -93,7 +99,7 @@
     </button>
     <button class="layer-option" onclick="changeLayer('maptiler', this)">
       <div class="layer-title"><i class="fas fa-map-marked-alt"></i> 2. MapTiler Streets V4 + MapLibre</div>
-      <div class="layer-desc">3D</div>
+      <div class="layer-desc">Key: aEzMCP0ANRz52vd1RvrW</div>
     </button>
     <button class="layer-option" onclick="changeLayer('satellite', this)">
       <div class="layer-title"><i class="fas fa-satellite"></i> 3. Vệ tinh</div>
@@ -232,6 +238,32 @@
     <button class="report-btn" onclick="submitSpeedLimit(100)">100</button>
     <button class="report-btn" onclick="submitSpeedLimit(110)">110</button>
     <button class="report-btn" onclick="submitSpeedLimit(120)">120</button>
+  </div>
+</div>
+
+<!-- ========== NEARBY MENU MODAL ========== -->
+<div class="report-modal" id="nearbyModal" style="z-index: 2600;">
+  <div class="report-header" style="background: linear-gradient(135deg, #3b82f6, #2563eb);">
+    <h2>Khám phá xung quanh</h2>
+    <button class="report-close" onclick="closeNearbyMenu()"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="report-body" style="grid-template-columns: repeat(2, 1fr); gap:16px; padding:24px;">
+    <button class="report-btn" onclick="searchNearby('khách sạn')" style="padding:20px; background:rgba(59,130,246,0.1); border-color:#3b82f6;">
+      <i class="fas fa-hotel" style="color:#3b82f6; font-size:2.5rem;"></i> 
+      <span style="font-size:1.1rem; margin-top:8px;">Khách sạn</span>
+    </button>
+    <button class="report-btn" onclick="searchNearby('quán ăn')" style="padding:20px; background:rgba(245,158,11,0.1); border-color:#f59e0b;">
+      <i class="fas fa-bowl-food" style="color:#f59e0b; font-size:2.5rem;"></i> 
+      <span style="font-size:1.1rem; margin-top:8px;">Quán ăn</span>
+    </button>
+    <button class="report-btn" onclick="searchNearby('nhà hàng')" style="padding:20px; background:rgba(239,68,68,0.1); border-color:#ef4444;">
+      <i class="fas fa-utensils" style="color:#ef4444; font-size:2.5rem;"></i> 
+      <span style="font-size:1.1rem; margin-top:8px;">Nhà hàng</span>
+    </button>
+    <button class="report-btn" onclick="searchNearby('du lịch')" style="padding:20px; background:rgba(16,185,129,0.1); border-color:#10b981;">
+      <i class="fas fa-camera-retro" style="color:#10b981; font-size:2.5rem;"></i> 
+      <span style="font-size:1.1rem; margin-top:8px;">Du lịch</span>
+    </button>
   </div>
 </div>
 
