@@ -28,6 +28,46 @@ button, input { font-family: inherit; outline: none; border: none; }
 button { cursor: pointer; }
 .hidden { display: none !important; }
 
+/* ---------- VOICE SETTINGS ---------- */
+.voice-setting-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-2);
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.voice-setting-title {
+  font-weight: 800;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.segmented-control {
+  display: flex;
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 4px;
+  border: 1px solid var(--border);
+}
+.seg-btn {
+  flex: 1;
+  padding: 8px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.8rem;
+  transition: 0.2s;
+}
+.seg-btn.active {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+}
+
 /* ---------- HIỆU ỨNG GỢN SÓNG KHI CLICK BẢN ĐỒ ---------- */
 .map-ripple {
   position: fixed; width: 20px; height: 20px; background: rgba(59, 130, 246, 0.6);
