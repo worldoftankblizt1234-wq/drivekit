@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (Full - Worker Proxy + Valhalla + Route Styles)
+   DriveKit — app.js (Full - Voice Settings + Avoid Zones + Valhalla)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -50,9 +50,18 @@ async function apiRoute(origin, dest, mode, bypassCache = false) {
     `${WORKER_URL}/api/route?fromLat=${origin.lat}&fromLng=${origin.lng}` +
     `&toLat=${dest.lat}&toLng=${dest.lng}&mode=${encodeURIComponent(mode)}${cacheParam}`
   );
-  if (!r.ok) throw new Error('Không tìm được tuyến');
+  
+  if (!r.ok) {
+    let errText = 'Lỗi kết nối máy chủ (HTTP ' + r.status + ')';
+    try {
+      const j = await r.json();
+      if (j.error) errText = j.error; 
+    } catch(e) {}
+    throw new Error(errText);
+  }
+  
   const j = await r.json();
-  if (!j.routes) throw new Error('Không có tuyến');
+  if (!j.routes) throw new Error('Không có tuyến đường trả về');
   return j.routes;
 }
 
@@ -123,8 +132,20 @@ let lastSnapIndex = 0;
 let smoothedSpeed = 0;
 let offRouteCount = 0;
 let isRerouting = false;
+
+// Voice Settings
+let voiceSettings = JSON.parse(localStorage.getItem('drivekit_voice_settings') || 'null') || {
+  volume: 100,
+  nav: 'always',
+  warning: 'always',
+  poi: 'vibrate',
+  avoid: 'always'
+};
 let warnedReports = new Set();
-let voiceEnabled = true;
+let warnedAvoidZones = new Set();
+let warnedPois = new Set();
+
+let voiceEnabled = true; // Cờ tổng (có thể map với công tắc tổng nếu cần)
 let voiceRouteSteps = null;
 let voiceStepIndex = 0;
 let voiceCheckTimer = null;
@@ -135,6 +156,7 @@ let arrivalHandled = false;
 const ARRIVAL_RADIUS_M = 20;
 let tempPinLatLng = null;
 let tempPinName = "";
+const ROUTE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 let tempPoiLatLng = null;
 let tempPoiTag = null;
 let restStopFilterActive = false;
@@ -204,6 +226,46 @@ const POI_TAG_CONFIG = {
   car_wash: { icon: 'fa-soap', label: 'Rửa xe', color: '#a855f7' }
 };
 const ZOOM_CONFIG = { communityPoi: 15, restStop: 13, savedPlace: 14, report: 14, savedPlaceAlwaysShow: ['home', 'company'] };
+
+/* ========== VOICE SETTINGS LOGIC ========== */
+window.openVoiceSettings = function() {
+  document.getElementById('profileModal').classList.remove('open');
+  document.getElementById('voiceSettingsModal').classList.add('open');
+  document.getElementById('voiceVolumeSlider').value = voiceSettings.volume;
+  document.getElementById('voiceVolLabel').textContent = voiceSettings.volume + '%';
+  updateVoiceSettingsUI();
+};
+
+window.closeVoiceSettings = function() {
+  document.getElementById('voiceSettingsModal').classList.remove('open');
+  localStorage.setItem('drivekit_voice_settings', JSON.stringify(voiceSettings));
+};
+
+window.updateVoiceVolumeLabel = function(val) {
+  voiceSettings.volume = parseInt(val);
+  document.getElementById('voiceVolLabel').textContent = val + '%';
+  localStorage.setItem('drivekit_voice_settings', JSON.stringify(voiceSettings));
+};
+
+window.setVoiceMode = function(category, mode) {
+  voiceSettings[category] = mode;
+  localStorage.setItem('drivekit_voice_settings', JSON.stringify(voiceSettings));
+  updateVoiceSettingsUI();
+};
+
+function updateVoiceSettingsUI() {
+  ['nav', 'warning', 'poi', 'avoid'].forEach(cat => {
+    const container = document.getElementById('seg-' + cat);
+    if (!container) return;
+    const btns = container.querySelectorAll('.seg-btn');
+    btns.forEach(btn => btn.classList.remove('active'));
+    
+    const mode = voiceSettings[cat];
+    if (mode === 'never') btns[0].classList.add('active');
+    if (mode === 'always') btns[1].classList.add('active');
+    if (mode === 'vibrate') btns[2].classList.add('active');
+  });
+}
 
 /* ========== HELPER: TOAST & POPUP ========== */
 function showCustomToast(message, type = 'info') {
@@ -386,6 +448,7 @@ function initAppUI() {
   initMap();
   initDataSubscriptions();
   loadSharedLinksFromStorage();
+  updateVoiceSettingsUI();
   if (lastUserPos) {
     if (!startPoint) {
       startPoint = { lat: lastUserPos.lat, lng: lastUserPos.lng, name: 'Vị trí của tôi' };
@@ -585,13 +648,38 @@ function checkRouteAgainstAvoidZones(routeCoords) {
     if (!isZoneCurrentlyActive(zone)) continue;
     if (!isVehicleBannedByZone(zone)) continue;
 
-    const zoneMidLat = (zone.lat1 + zone.lat2) / 2;
-    const zoneMidLng = (zone.lng1 + zone.lng2) / 2;
-    
-    for (let i = 0; i < routeCoords.length; i += 5) {
-      const lat = routeCoords[i][1], lng = routeCoords[i][0];
-      if (calcDist(lat, lng, zoneMidLat, zoneMidLng) < 50) {
-        return { blocked: true, zoneName: zone.name };
+    let segments = [];
+    if (zone.waypoints) {
+      try {
+        const wps = typeof zone.waypoints === 'string' ? JSON.parse(zone.waypoints) : zone.waypoints;
+        if (Array.isArray(wps) && wps.length > 0) {
+          const isMulti = Array.isArray(wps[0][0]);
+          if (isMulti) {
+             wps.forEach(seg => {
+               for (let i = 0; i < seg.length - 1; i++) {
+                 segments.push({ a: { lat: seg[i][0], lng: seg[i][1] }, b: { lat: seg[i+1][0], lng: seg[i+1][1] } });
+               }
+             });
+          } else {
+             for (let i = 0; i < wps.length - 1; i++) {
+               segments.push({ a: { lat: wps[i][0], lng: wps[i][1] }, b: { lat: wps[i+1][0], lng: wps[i+1][1] } });
+             }
+          }
+        }
+      } catch(e) { console.warn('Lỗi parse waypoints', e); }
+    }
+    if (segments.length === 0) {
+      segments.push({ a: { lat: zone.lat1, lng: zone.lng1 }, b: { lat: zone.lat2, lng: zone.lng2 } });
+    }
+
+    for (let i = 0; i < routeCoords.length; i += 3) { 
+      const p = { lat: routeCoords[i][1], lng: routeCoords[i][0] };
+      for (const seg of segments) {
+        const closestPt = getClosestPointOnSegment(p, seg.a, seg.b);
+        const dist = calcDist(p.lat, p.lng, closestPt.lat, closestPt.lng);
+        if (dist < 30) { 
+          return { blocked: true, zoneName: zone.name };
+        }
       }
     }
   }
@@ -608,7 +696,7 @@ function recomputeAvoidZones() {
   if (addedZones.length > 0 && document.body.classList.contains('navigating')) {
     const check = checkRouteAgainstAvoidZones(currentRouteCoords);
     if (check.blocked) {
-      speak("Phát hiện tuyến đường cấm mới trên lộ trình. Đang tự động tìm đường tránh.");
+      speak("Phát hiện tuyến đường cấm mới trên lộ trình. Đang tự động tìm đường tránh.", 'avoid');
       showCustomToast("🚫 Lộ trình bị chặn bởi tuyến cấm mới. Đang Reroute...", "danger");
       localStorage.removeItem('alternativeRoutes');
       if (lastUserPos) autoReroute(lastUserPos.lat, lastUserPos.lng, true);
@@ -1245,22 +1333,31 @@ window.fetchAndShowRouteOptions = async function() {
     
     userVehicleSpecs.type = currentVehicleMode === 'truck' ? 'truck' : (currentVehicleMode === 'motorcycle' ? 'motorcycle' : 'car');
 
-    const check = checkRouteAgainstAvoidZones(routes[0].geometry.coordinates);
-    if (check.blocked) {
-      speak(`Cảnh báo, tuyến đường hiện tại đi qua khu vực cấm ${check.zoneName}. Đang tìm đường tránh...`);
-      showCustomToast(`🚫 Tuyến cấm: ${check.zoneName}. Đang tìm đường khác!`, 'danger');
-      routes = await apiRoute(startPoint, endPoint, currentVehicleMode, true);
+    let hasBlocked = false;
+    let blockedName = '';
+    
+    routes = routes.filter(r => {
+      const check = checkRouteAgainstAvoidZones(r.geometry.coordinates);
+      if (check.blocked) {
+        hasBlocked = true;
+        blockedName = check.zoneName;
+        return false;
+      }
+      return true;
+    });
+
+    if (hasBlocked) {
+      showCustomToast(`🚫 Đã loại bỏ tuyến đi qua vùng cấm: ${blockedName}`, 'warning');
     }
 
-    routes = routes.filter(r => {
-      const coords = r.geometry?.coordinates;
-      if (!coords || coords.length < 2) return false;
-      return coords.every(c => c[0] >= -90 && c[0] <= 90 && c[1] >= -180 && c[1] <= 180 && !(c[0] === 0 && c[1] === 0));
-    });
     if (routes.length === 0) {
-      bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Không tìm được tuyến đường hợp lệ.</p></div>`;
+      bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);">
+        <i class="fas fa-ban" style="font-size:2rem; margin-bottom:10px;"></i>
+        <p>Không tìm thấy tuyến đường nào tránh được vùng cấm.<br><b>${blockedName}</b></p>
+      </div>`;
       return;
     }
+
     routes.sort((a, b) => currentSortMode === 'shortest' ? a.distance - b.distance : a.duration - b.duration);
     routes = routes.slice(0, 5);
     alternativeRoutesData = routes;
@@ -1281,7 +1378,6 @@ window.fetchAndShowRouteOptions = async function() {
         type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: r.geometry.coordinates.map(c => [c[1], c[0]]) } }
       });
       
-      // ĐỔI MÀU: Tuyến chính nét liền xanh đậm, Tuyến phụ nét đứt xanh nhạt
       map.addLayer({
         id: `alt-route-layer-${index}`, type: 'line', source: `alt-route-source-${index}`,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
@@ -1322,7 +1418,13 @@ window.fetchAndShowRouteOptions = async function() {
     bodyEl.innerHTML = html;
   } catch (error) {
     console.error('Lỗi lấy tuyến:', error);
-    bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>Có lỗi xảy ra khi tìm tuyến.</p><div style="font-size:0.8rem; margin-top:12px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; text-align:left;"><b>Lỗi:</b> ${error.message || ''}</div></div>`;
+    bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);">
+      <i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i>
+      <p>Có lỗi xảy ra khi tìm tuyến.</p>
+      <div style="font-size:0.8rem; margin-top:12px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; text-align:left; word-break:break-word;">
+        <b>Lỗi chi tiết:</b><br>${error.message || 'Không rõ nguyên nhân'}
+      </div>
+    </div>`;
   }
 };
 
@@ -1335,11 +1437,10 @@ window.selectRouteOption = function(index) {
 
   const unselectedRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(unselectedRoutes));
+  
   alternativeRoutesData.forEach((_, i) => {
-    if (i !== index) {
-      if (map.getLayer(`alt-route-layer-${i}`)) map.removeLayer(`alt-route-layer-${i}`);
-      if (map.getSource(`alt-route-source-${i}`)) map.removeSource(`alt-route-source-${i}`);
-    }
+    if (map.getLayer(`alt-route-layer-${i}`)) map.removeLayer(`alt-route-layer-${i}`);
+    if (map.getSource(`alt-route-source-${i}`)) map.removeSource(`alt-route-source-${i}`);
   });
   if (window._routeBadges) { window._routeBadges.forEach(m => m.remove()); window._routeBadges = []; }
 
@@ -1372,6 +1473,8 @@ function startNavigationHUD() {
 
     voiceRouteSteps = currentRouteData.legs[0].steps;
     voiceStepIndex = 0; lastSnapIndex = 0; tripStartTime = Date.now(); arrivalHandled = false;
+    warnedReports.clear(); warnedAvoidZones.clear(); warnedPois.clear();
+    
     const dist = currentRouteData.distance || 0;
     const dur = currentRouteData.duration || 0;
 
@@ -1426,7 +1529,7 @@ window.switchToRoute = function(index) {
   document.getElementById('hudRemainDist').textContent = (selectedRoute.distance / 1000).toFixed(1) + ' km';
   document.getElementById('hudRemainTime').textContent = Math.round(selectedRoute.duration / 60) + ' phút';
   closeRouteOptions();
-  speak('Đã đổi tuyến đường mới.');
+  speak('Đã đổi tuyến đường mới.', 'nav');
 };
 
 function updateNextManeuverHUD(lat, lng) {
@@ -1472,7 +1575,7 @@ function triggerArrival() {
   document.getElementById('hudNextDist').textContent = '';
   document.getElementById('hudNextArrow').innerHTML = '🏁';
   document.getElementById('hudNextStopDist').textContent = '0 m';
-  speak('Bạn đã đến nơi. Chuyến đi kết thúc.');
+  speak('Bạn đã đến nơi. Chuyến đi kết thúc.', 'nav');
   showArrivalToast();
   setTimeout(() => { if (document.getElementById('hud').classList.contains('hidden')) return; openEndTripModal(); }, 3000);
 }
@@ -1563,12 +1666,19 @@ window.endTrip = async function(save) {
   if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
   if (voiceCheckTimer) { clearInterval(voiceCheckTimer); voiceCheckTimer = null; }
   if (window.speechSynthesis) speechSynthesis.cancel();
+  
   if (map.getLayer('current-route-layer')) map.removeLayer('current-route-layer');
   if (map.getSource('current-route-source')) map.removeSource('current-route-source');
+  
   if (window._routeBadges) { window._routeBadges.forEach(m => m.remove()); window._routeBadges = []; }
+  alternativeRoutesData.forEach((_, i) => {
+    if (map.getLayer(`alt-route-layer-${i}`)) map.removeLayer(`alt-route-layer-${i}`);
+    if (map.getSource(`alt-route-source-${i}`)) map.removeSource(`alt-route-source-${i}`);
+  });
+
   currentRouteCoords = []; currentRouteData = null; alternativeRoutesData = []; voiceRouteSteps = null;
   voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0; isRerouting = false;
-  tripStartTime = null; arrivalHandled = false; warnedReports.clear();
+  tripStartTime = null; arrivalHandled = false; warnedReports.clear(); warnedAvoidZones.clear(); warnedPois.clear();
   localStorage.removeItem('alternativeRoutes');
   document.body.classList.remove('navigating');
   document.getElementById('hud').classList.add('hidden');
@@ -2068,15 +2178,18 @@ function startWatching() {
     lastUserPos = newPos;
     animateMarkerTo(lastUserPos);
     if (map) map.easeTo({ center: [lastUserPos.lng, lastUserPos.lat], duration: 500 });
+    
     checkReportProximity(lastUserPos.lat, lastUserPos.lng);
     checkOffRoute(lastUserPos.lat, lastUserPos.lng);
     checkArrival(lastUserPos.lat, lastUserPos.lng);
     updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
+    checkPoiProximity(lastUserPos.lat, lastUserPos.lng); 
+    checkAvoidZoneProximity(lastUserPos.lat, lastUserPos.lng);
   }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
 }
 
 function checkReportProximity(lat, lng) {
-  if (!voiceEnabled) return;
+  if (voiceSettings.warning === 'never') return;
   const now = Date.now();
   for (const key in allReports) {
     const rep = allReports[key];
@@ -2090,21 +2203,89 @@ function checkReportProximity(lat, lng) {
       else if (rep.type === 'traffic') msg = 'kẹt xe';
       else if (rep.type === 'flood') msg = 'ngập nước';
       else if (rep.type === 'pothole') msg = 'ổ gà';
-      speak(`Chú ý, phía trước có ${msg}`);
+      speak(`Chú ý, phía trước có ${msg}`, 'warning');
     }
   }
 }
 
-function speak(text) {
-  if (!voiceEnabled || !window.speechSynthesis) return;
+function checkPoiProximity(lat, lng) {
+  if (voiceSettings.poi === 'never' || !allRestStops) return;
+  const allPois = [...allRestStops, ...allCommunityPois.filter(p => p.tag === 'gas_station')];
+  
+  allPois.forEach(poi => {
+    if (warnedPois.has(poi.id)) return;
+    if (calcDist(lat, lng, poi.lat, poi.lng) < 300) {
+      warnedPois.add(poi.id);
+      const type = poi.tag === 'gas_station' ? 'Trạm xăng' : 'Trạm dừng nghỉ';
+      speak(`Sắp tới ${type}: ${poi.name}`, 'poi');
+    }
+  });
+}
+
+function checkAvoidZoneProximity(lat, lng) {
+  if (!allAvoidZones || allAvoidZones.length === 0) return;
+  
+  for (const zone of allAvoidZones) {
+    if (!zone.lat1 || !zone.lng1) continue;
+    if (!isZoneCurrentlyActive(zone)) continue;
+    if (!isVehicleBannedByZone(zone)) continue;
+
+    let segments = [];
+    if (zone.waypoints) {
+      try {
+        const wps = typeof zone.waypoints === 'string' ? JSON.parse(zone.waypoints) : zone.waypoints;
+        if (Array.isArray(wps) && wps.length > 0) {
+          const isMulti = Array.isArray(wps[0][0]);
+          if (isMulti) {
+             wps.forEach(seg => {
+               for (let i = 0; i < seg.length - 1; i++) segments.push({ a: { lat: seg[i][0], lng: seg[i][1] }, b: { lat: seg[i+1][0], lng: seg[i+1][1] } });
+             });
+          } else {
+             for (let i = 0; i < wps.length - 1; i++) segments.push({ a: { lat: wps[i][0], lng: wps[i][1] }, b: { lat: wps[i+1][0], lng: wps[i+1][1] } });
+          }
+        }
+      } catch(e) {}
+    }
+    if (segments.length === 0) segments.push({ a: { lat: zone.lat1, lng: zone.lng1 }, b: { lat: zone.lat2, lng: zone.lng2 } });
+
+    for (const seg of segments) {
+      const closestPt = getClosestPointOnSegment({ lat, lng }, seg.a, seg.b);
+      const dist = calcDist(lat, lng, closestPt.lat, closestPt.lng);
+      
+      if (dist < 50) {
+        if (!warnedAvoidZones.has(zone.id)) {
+          warnedAvoidZones.add(zone.id);
+          speak(`Chú ý, phía trước là khu vực cấm: ${zone.name}`, 'avoid');
+          showCustomToast(`🚫 Đi vào vùng cấm: ${zone.name}`, 'danger');
+          if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        }
+        break; 
+      }
+    }
+  }
+}
+
+function speak(text, category = 'nav') {
+  const mode = voiceSettings[category];
+  if (mode === 'never') return;
+
+  if (mode === 'vibrate') {
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    return;
+  }
+
+  if (!window.speechSynthesis) return;
   speechSynthesis.cancel();
+  
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'vi-VN';
+  let vol = voiceSettings.volume / 100;
+  u.volume = Math.min(Math.max(vol, 0), 1); 
   speechSynthesis.speak(u);
 }
 
 function startVoice() {
-  speak('Bắt đầu dẫn đường.');
+  speak('Bắt đầu dẫn đường.', 'nav');
   document.getElementById('hudBtnVoice').classList.add('active');
   voiceCheckTimer = setInterval(() => {
     if (!lastUserPos || !voiceRouteSteps) return;
@@ -2112,7 +2293,7 @@ function startVoice() {
       const step = voiceRouteSteps[i];
       if (!step?.maneuver?.location) continue;
       const d = calcDist(lastUserPos.lat, lastUserPos.lng, step.maneuver.location[1], step.maneuver.location[0]);
-      if (d < 50) { speak(step.maneuver.instruction); voiceStepIndex = i + 1; break; }
+      if (d < 50) { speak(step.maneuver.instruction, 'nav'); voiceStepIndex = i + 1; break; }
     }
   }, 3000);
 }
