@@ -1,34 +1,231 @@
 <!DOCTYPE html>
-<html>
-<body>
-    <h2>Kiểm tra Foursquare API Key</h2>
-    <button onclick="testKey()">Bấm để Test Key</button>
-    <pre id="result" style="background: #eee; padding: 10px; margin-top: 10px;">Chưa có kết quả...</pre>
-
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tìm kiếm xung quanh - Foursquare & MapTiler</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- vConsole dành cho Mobile Debug -->
+    <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
     <script>
-        async function testKey() {
-            const key = 'OZ4V35PQYDWISQTVSR4PUQ4TAJDDRBKY4SON2UGWL333DX33';
-            const url = 'https://places-api.foursquare.com/places/search?query=cafe&ll=21.0285,105.8542&limit=2';
-            const resultEl = document.getElementById('result');
+        var vConsole = new window.VConsole();
+    </script>
+
+    <style>
+        html, body { margin: 0; padding: 0; height: 100%; width: 100%; font-family: Arial, sans-serif; }
+        #map { height: 100vh; width: 100%; z-index: 1; background-color: #e5e5e5; }
+        #ui-panel {
+            position: absolute; top: 10px; left: 10px; z-index: 1000;
+            background: white; padding: 15px; border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); width: 300px; max-height: 85vh; overflow-y: auto;
+        }
+        h3 { margin-top: 0; font-size: 16px; color: #333; }
+        .btn-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        button {
+            padding: 10px; cursor: pointer; border: none; border-radius: 5px;
+            background-color: #007bff; color: white; font-weight: bold; flex: 1; transition: 0.2s; font-size: 13px;
+        }
+        button:hover { background-color: #0056b3; }
+        button.active { background-color: #28a745; }
+        input[type="text"] {
+            width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box;
+        }
+        #results-list { list-style: none; padding: 0; margin: 0; font-size: 14px; }
+        #results-list li { padding: 8px 0; border-bottom: 1px solid #eee; cursor: pointer; }
+        #results-list li:hover { background-color: #f9f9f9; }
+        .place-name { font-weight: bold; color: #007bff; }
+        .place-distance { color: #666; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-panel">
+        <h3>Tìm kiếm xung quanh</h3>
+        <div class="btn-group">
+            <button id="btn-locate">📍 Vị trí của tôi</button>
+            <button id="btn-pick">🎯 Chọn điểm khác</button>
+        </div>
+        <input type="text" id="search-query" placeholder="Nhập từ khóa (VD: cafe, hotel...)" value="cafe">
+        <button id="btn-search" style="width: 100%; margin-bottom: 15px;">Tìm kiếm</button>
+        <div id="status-msg" style="color: #e67e22; font-size: 13px; margin-bottom: 10px;"></div>
+        <ul id="results-list"></ul>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // ==========================================
+        // CẤU HÌNH API KEY
+        // ==========================================
+        const FSQ_API_KEY = 'OZ4V35PQYDWISQTVSR4PUQ4TAJDDRBKY4SON2UGWL333DX33'; 
+        const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
+        
+        const DEFAULT_LAT = 21.0285; // Hồ Hoàn Kiếm
+        const DEFAULT_LNG = 105.8542;
+        const RADIUS = 2000; // Bán kính 2km
+
+        // --- KHỞI TẠO BẢN ĐỒ VỚI MAPTILER ---
+        const map = L.map('map').setView([DEFAULT_LAT, DEFAULT_LNG], 14);
+        
+        // Sử dụng MapTiler làm bản đồ nền (Raster Tiles)
+        L.tileLayer(`https://api.maptiler.com/maps/streets-v4/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`, {
+            tileSize: 512,
+            zoomOffset: -1,
+            minZoom: 1,
+            attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
+            crossOrigin: true
+        }).addTo(map);
+
+        // Fix lỗi bản đồ xám khi mới load trang
+        setTimeout(() => { map.invalidateSize(); }, 500);
+
+        // Marker màu xanh (Tâm tìm kiếm)
+        const centerIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: "<div style='background-color:#007bff; width:15px; height:15px; border-radius:50%; border:3px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);'></div>",
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        });
+        let centerMarker = L.marker([DEFAULT_LAT, DEFAULT_LNG], { icon: centerIcon }).addTo(map);
+
+        let resultMarkers = [];
+        let isPickingMode = false;
+        
+        const btnPick = document.getElementById('btn-pick');
+        const statusMsg = document.getElementById('status-msg');
+        const resultsList = document.getElementById('results-list');
+
+        // --- CHỨC NĂNG 1: VỊ TRÍ CỦA TÔI ---
+        document.getElementById('btn-locate').addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                alert("Trình duyệt không hỗ trợ định vị GPS.");
+                return;
+            }
+            statusMsg.innerText = "Đang lấy vị trí...";
             
-            resultEl.innerText = 'Đang gọi API...';
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    map.setView([lat, lng], 15);
+                    centerMarker.setLatLng([lat, lng]);
+                    statusMsg.innerText = "Đã lấy vị trí hiện tại.";
+                    
+                    if (isPickingMode) togglePickMode();
+                    searchFoursquare(lat, lng);
+                },
+                (error) => {
+                    console.error('Lỗi GPS:', error);
+                    statusMsg.innerText = "Lỗi định vị: " + error.message;
+                }
+            );
+        });
+
+        // --- CHỨC NĂNG 2: CHỌN ĐIỂM KHÁC (CLICK BẢN ĐỒ) ---
+        btnPick.addEventListener('click', togglePickMode);
+
+        function togglePickMode() {
+            isPickingMode = !isPickingMode;
+            if (isPickingMode) {
+                btnPick.classList.add('active');
+                btnPick.innerText = "🎯 Đang chọn...";
+                statusMsg.innerText = "Hãy click lên bản đồ để đặt tâm xanh.";
+            } else {
+                btnPick.classList.remove('active');
+                btnPick.innerText = "🎯 Chọn điểm khác";
+            }
+        }
+
+        map.on('click', function(e) {
+            if (isPickingMode) {
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+                
+                centerMarker.setLatLng([lat, lng]);
+                statusMsg.innerText = `Đã chọn: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                
+                togglePickMode();
+                searchFoursquare(lat, lng);
+            }
+        });
+
+        document.getElementById('btn-search').addEventListener('click', () => {
+            const currentLatLng = centerMarker.getLatLng();
+            searchFoursquare(currentLatLng.lat, currentLatLng.lng);
+        });
+
+        // --- GỌI API FOURSQUARE QUA PROXY ---
+        async function searchFoursquare(lat, lng) {
+            const query = document.getElementById('search-query').value || 'cafe';
+            resultsList.innerHTML = '';
+            statusMsg.innerText = "Đang tìm kiếm...";
+            
+            resultMarkers.forEach(marker => map.removeLayer(marker));
+            resultMarkers = [];
+
+            const targetUrl = `https://places-api.foursquare.com/places/search?query=${encodeURIComponent(query)}&ll=${lat},${lng}&radius=${RADIUS}&limit=20`;
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
             try {
-                const res = await fetch(url, {
+                const response = await fetch(proxyUrl, {
                     method: 'GET',
                     headers: {
-                        'Authorization': 'Bearer ' + key,
+                        'Authorization': `Bearer ${FSQ_API_KEY}`, 
                         'X-Places-Api-Version': '2025-06-17',
                         'Accept': 'application/json'
                     }
                 });
-                
-                const text = await res.text();
-                resultEl.innerText = 'Status Code: ' + res.status + '\n\nDữ liệu:\n' + text;
-            } catch (e) {
-                resultEl.innerText = 'Lỗi Fetch: ' + e.message;
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    console.error('Lỗi từ API:', errText);
+                    throw new Error(`Lỗi API: ${response.status}`);
+                }
+
+                const data = await response.json();
+                statusMsg.innerText = `Tìm thấy ${data.results.length} địa điểm.`;
+
+                data.results.forEach(place => {
+                    const pLat = place.geocodes.main.latitude;
+                    const pLng = place.geocodes.main.longitude;
+                    const pName = place.name;
+                    const pAddress = place.location.formatted_address || 'Không có địa chỉ';
+                    const pDistance = place.distance;
+
+                    const marker = L.marker([pLat, pLng]).addTo(map)
+                        .bindPopup(`<b>${pName}</b><br>${pAddress}<br>Cách ${pDistance}m`);
+                    resultMarkers.push(marker);
+
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <div class="place-name">${pName}</div>
+                        <div class="place-distance">📍 Cách ${pDistance}m</div>
+                    `;
+                    
+                    li.addEventListener('click', () => {
+                        map.setView([pLat, pLng], 17);
+                        marker.openPopup();
+                    });
+                    
+                    resultsList.appendChild(li);
+                });
+
+            } catch (error) {
+                console.error("CHI TIẾT LỖI FETCH:", error);
+                statusMsg.innerHTML = `<span style="color:red">Lỗi: ${error.message}. Mở vConsole xem chi tiết.</span>`;
             }
         }
+
+        // Tự động tìm kiếm lần đầu khi mở bản đồ
+        searchFoursquare(DEFAULT_LAT, DEFAULT_LNG);
+
     </script>
 </body>
 </html>
