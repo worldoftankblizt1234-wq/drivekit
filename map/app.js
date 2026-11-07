@@ -30,10 +30,13 @@ const MAPTILER_STYLE = `https://api.maptiler.com/maps/streets-v4/style.json?key=
 const TRACKASIA_STYLE = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
 
 /* ========== WORKER API WRAPPERS ========== */
-async function apiSearch(query, lat = null, lng = null) {
+async function apiSearch(query, lat = null, lng = null, radius = null) {
   try {
     let url = `${WORKER_URL}/api/search?q=${encodeURIComponent(query)}`;
-    if (lat && lng) url += `&lat=${lat}&lng=${lng}`;
+    if (lat && lng) {
+      url += `&lat=${lat}&lng=${lng}`;
+      if (radius) url += `&radius=${radius}`;
+    }
     const r = await fetch(url);
     if (!r.ok) return [];
     const j = await r.json();
@@ -1080,18 +1083,32 @@ window.searchNearby = async function(keyword) {
   box.classList.add('show');
   document.getElementById('topSearchInput').value = `Tìm ${keyword}...`;
   document.getElementById('searchClearBtn').classList.remove('hidden');
-  box.innerHTML = `<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang tìm ${keyword} gần đây...</div>`;
+  box.innerHTML = `<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang quét ${keyword} xung quanh...</div>`;
 
-  const results = await apiSearch(keyword, lat, lng);
+  // Mở rộng từ khóa để tìm được nhiều kết quả hơn
+  let searchQuery = keyword;
+  if (keyword === 'khách sạn') searchQuery = 'khách sạn homestay nhà nghỉ resort';
+  if (keyword === 'quán ăn') searchQuery = 'quán ăn nhà hàng cafe';
+  if (keyword === 'du lịch') searchQuery = 'du lịch khu du lịch điểm tham quan';
 
-  const nearbyResults = results.map(r => {
+  // Lần 1: Tìm trong bán kính 3km (3000m)
+  let results = await apiSearch(searchQuery, lat, lng, 3000);
+  let nearbyResults = results.map(r => {
     return { ...r, _dist: calcDist(lat, lng, r.lat, r.lng) };
-  }).filter(r => r._dist <= 15000).sort((a, b) => a._dist - b._dist);
+  }).filter(r => r._dist <= 3000).sort((a, b) => a._dist - b._dist);
+
+  // Lần 2: Nếu 3km không có hoặc quá ít (dưới 3 cái), mở rộng lên 10km
+  if (nearbyResults.length < 3) {
+    results = await apiSearch(searchQuery, lat, lng, 10000);
+    nearbyResults = results.map(r => {
+      return { ...r, _dist: calcDist(lat, lng, r.lat, r.lng) };
+    }).filter(r => r._dist <= 10000).sort((a, b) => a._dist - b._dist);
+  }
 
   box.innerHTML = '';
 
   if (nearbyResults.length === 0) {
-    box.innerHTML = `<div class="sug-item" style="color:var(--danger)">Không tìm thấy ${keyword} nào trong bán kính 15km.</div>`;
+    box.innerHTML = `<div class="sug-item" style="color:var(--danger)">Không tìm thấy ${keyword} nào gần đây.</div>`;
     return;
   }
 
