@@ -28,9 +28,14 @@
         }
         button:hover { background-color: #0056b3; }
         button.active { background-color: #28a745; }
-        input[type="text"] {
-            width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box;
+        
+        /* Style cho Dropdown chọn danh mục */
+        select {
+            width: 100%; padding: 10px; margin-bottom: 10px; 
+            border: 1px solid #ccc; border-radius: 5px; 
+            box-sizing: border-box; font-size: 14px; background-color: white;
         }
+
         .legend { display: flex; gap: 15px; font-size: 13px; margin-bottom: 10px; }
         .legend-item { display: flex; align-items: center; gap: 5px; }
         .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 2px solid white; box-shadow: 0 0 3px rgba(0,0,0,0.4); }
@@ -50,6 +55,14 @@
             <button id="btn-pick">🎯 Chọn điểm khác</button>
         </div>
         
+        <!-- Dropdown chọn danh mục -->
+        <select id="search-category">
+            <option value="cafe" data-tomtom="9376">Quán Cà phê</option>
+            <option value="hotel" data-tomtom="7314">Khách sạn</option>
+            <option value="hospital" data-tomtom="7321">Bệnh viện</option>
+            <option value="bank" data-tomtom="9368">Ngân hàng</option>
+        </select>
+
         <div class="legend">
             <div class="legend-item"><span class="dot" style="background:#dc3545;"></span> TomTom</div>
             <div class="legend-item"><span class="dot" style="background:#007bff;"></span> Foursquare</div>
@@ -97,7 +110,7 @@
         });
         let centerMarker = L.marker([DEFAULT_LAT, DEFAULT_LNG], { icon: centerIcon }).addTo(map);
 
-        let allMarkers = []; // Mảng chứa tất cả marker kết quả
+        let allMarkers = [];
         let isPickingMode = false;
         
         const btnPick = document.getElementById('btn-pick');
@@ -163,21 +176,25 @@
             allMarkers.forEach(m => map.removeLayer(m));
             allMarkers = [];
 
-            // Chạy song song 2 API
+            // Lấy giá trị từ Dropdown
+            const selectEl = document.getElementById('search-category');
+            const queryText = selectEl.value; // VD: cafe, hotel...
+            const tomtomCategory = selectEl.options[selectEl.selectedIndex].getAttribute('data-tomtom'); // VD: 9376
+
+            // Chạy song song 2 API với danh mục đã chọn
             await Promise.all([
-                searchTomTom(lat, lng),
-                searchFoursquare(lat, lng)
+                searchTomTom(lat, lng, tomtomCategory),
+                searchFoursquare(lat, lng, queryText)
             ]);
 
             statusMsg.innerText = "Hoàn tất! Xem kết quả bên dưới.";
         }
 
         // --- 1. TOMTOM NEARBY SEARCH ---
-        async function searchTomTom(lat, lng) {
-            // TomTom Nearby Search không có tham số query, dùng categorySet=CAFE_PUB cho quán cà phê
-            const url = `https://api.tomtom.com/search/2/nearbySearch/.json?key=${TOMTOM_API_KEY}&lat=${lat}&lon=${lng}&radius=${RADIUS}&limit=20&categorySet=CAFE_PUB&language=vi-VN`;
+        async function searchTomTom(lat, lng, categoryId) {
+            const url = `https://api.tomtom.com/search/2/nearbySearch/.json?key=${TOMTOM_API_KEY}&lat=${lat}&lon=${lng}&radius=${RADIUS}&limit=20&categorySet=${categoryId}&language=vi-VN`;
 
-            console.log('Gọi TomTom:', url);
+            console.log('Gọi TomTom với Category:', categoryId);
 
             try {
                 const res = await fetch(url);
@@ -194,20 +211,13 @@
                     const pLng = place.position.lon;
                     const pName = place.poi.name;
                     const pAddress = place.address.freeformAddress;
-                    const dist = Math.round(place.dist); // mét
+                    const dist = Math.round(place.dist);
 
-                    // Marker đỏ
                     const marker = L.circleMarker([pLat, pLng], {
-                        radius: 8,
-                        fillColor: "#dc3545",
-                        color: "#fff",
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.9
+                        radius: 8, fillColor: "#dc3545", color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.9
                     }).addTo(map).bindPopup(`<b>[TomTom] ${pName}</b><br>${pAddress}<br>${dist}m`);
 
                     allMarkers.push(marker);
-
                     addToList(pName, pAddress, dist, 'TomTom', '#dc3545', marker);
                 });
                 console.log(`TomTom: ${data.results.length} kết quả`);
@@ -217,8 +227,8 @@
         }
 
         // --- 2. FOURSQUARE NEARBY SEARCH ---
-        async function searchFoursquare(lat, lng) {
-            const targetUrl = `https://places-api.foursquare.com/places/search?query=cafe&ll=${lat},${lng}&radius=${RADIUS}&limit=20`;
+        async function searchFoursquare(lat, lng, queryText) {
+            const targetUrl = `https://places-api.foursquare.com/places/search?query=${queryText}&ll=${lat},${lng}&radius=${RADIUS}&limit=20`;
             const params = new URLSearchParams({ key: CORSPROXY_KEY, url: targetUrl });
             const proxyUrl = 'https://corsproxy.io/?' + params.toString();
 
@@ -241,28 +251,20 @@
                 }
 
                 data.results.forEach(place => {
-                    // Xử lý tọa độ linh hoạt
                     const pLat = place.geocodes?.primary?.latitude || place.geocodes?.main?.latitude || place.latitude;
                     const pLng = place.geocodes?.primary?.longitude || place.geocodes?.main?.longitude || place.longitude;
                     
-                    if (!pLat || !pLng) return; // Bỏ qua nếu thiếu tọa độ
+                    if (!pLat || !pLng) return;
 
                     const pName = place.name;
                     const pAddress = place.location?.formatted_address || 'Không có địa chỉ';
                     const dist = place.distance || 0;
 
-                    // Marker xanh
                     const marker = L.circleMarker([pLat, pLng], {
-                        radius: 8,
-                        fillColor: "#007bff",
-                        color: "#fff",
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.9
+                        radius: 8, fillColor: "#007bff", color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.9
                     }).addTo(map).bindPopup(`<b>[Foursquare] ${pName}</b><br>${pAddress}<br>${dist}m`);
 
                     allMarkers.push(marker);
-
                     addToList(pName, pAddress, dist, 'FSQ', '#007bff', marker);
                 });
                 console.log(`Foursquare: ${data.results.length} kết quả`);
