@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>So sánh Nearby: TomTom vs Foursquare</title>
+    <title>So sánh Nearby: TomTom vs Foursquare vs Overture</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -35,18 +35,15 @@
             box-sizing: border-box; font-size: 14px; background-color: white;
         }
 
-        /* Style cho phần Bán kính */
         .radius-container {
             margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px; border: 1px solid #ddd;
         }
         .radius-header {
             display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #333;
         }
-        input[type="range"] {
-            width: 100%; cursor: pointer;
-        }
+        input[type="range"] { width: 100%; cursor: pointer; }
 
-        .legend { display: flex; gap: 15px; font-size: 13px; margin-bottom: 10px; }
+        .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; margin-bottom: 10px; }
         .legend-item { display: flex; align-items: center; gap: 5px; }
         .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 2px solid white; box-shadow: 0 0 3px rgba(0,0,0,0.4); }
         #results-list { list-style: none; padding: 0; margin: 0; font-size: 13px; }
@@ -66,13 +63,12 @@
         </div>
         
         <select id="search-category">
-            <option value="cafe" data-tomtom="9376">Quán Cà phê</option>
-            <option value="hotel" data-tomtom="7314">Khách sạn</option>
-            <option value="hospital" data-tomtom="7321">Bệnh viện</option>
-            <option value="bank" data-tomtom="9368">Ngân hàng</option>
+            <option value="cafe" data-tomtom="9376" data-overture="coffee_shop">Quán Cà phê</option>
+            <option value="hotel" data-tomtom="7314" data-overture="hotel">Khách sạn</option>
+            <option value="hospital" data-tomtom="7321" data-overture="hospital">Bệnh viện</option>
+            <option value="bank" data-tomtom="9368" data-overture="bank">Ngân hàng</option>
         </select>
 
-        <!-- Thanh trượt bán kính -->
         <div class="radius-container">
             <div class="radius-header">
                 <span>Bán kính:</span>
@@ -84,9 +80,10 @@
         <div class="legend">
             <div class="legend-item"><span class="dot" style="background:#dc3545;"></span> TomTom</div>
             <div class="legend-item"><span class="dot" style="background:#007bff;"></span> Foursquare</div>
+            <div class="legend-item"><span class="dot" style="background:#28a745;"></span> Overture</div>
         </div>
 
-        <button id="btn-search" style="width: 100%; margin-bottom: 15px;">Tìm kiếm cả hai</button>
+        <button id="btn-search" style="width: 100%; margin-bottom: 15px;">Tìm kiếm cả 3</button>
 
         <div id="status-msg" style="color: #e67e22; font-size: 13px; margin-bottom: 10px;"></div>
         <ul id="results-list"></ul>
@@ -105,10 +102,13 @@
         const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
         const CORSPROXY_KEY = '68c61444'; 
         
+        // 👇 KEY OVERTURE MAPS API CỦA BẠN
+        const OVERTURE_API_KEY = 'ovt_ZW1frNrqW0mBq7rg3UZDxOPFfs5RGrdzjBvWZty3ZLFUBgeXyqQucOx1xASORNwl';
+        
         const DEFAULT_LAT = 21.0285; // Hồ Hoàn Kiếm
         const DEFAULT_LNG = 105.8542;
         
-        let currentRadius = 2000; // Bán kính mặc định (mét)
+        let currentRadius = 2000;
 
         // --- KHỞI TẠO BẢN ĐỒ ---
         const map = L.map('map').setView([DEFAULT_LAT, DEFAULT_LNG], 14);
@@ -129,14 +129,10 @@
         });
         let centerMarker = L.marker([DEFAULT_LAT, DEFAULT_LNG], { icon: centerIcon }).addTo(map);
 
-        // Vòng tròn hiển thị bán kính
+        // Vòng tròn bán kính
         let searchCircle = L.circle([DEFAULT_LAT, DEFAULT_LNG], {
             radius: currentRadius,
-            color: '#ffc107', // Màu vàng giống tâm
-            weight: 2,
-            fillColor: '#ffc107',
-            fillOpacity: 0.1,
-            interactive: false // Không cản trở việc click bản đồ
+            color: '#ffc107', weight: 2, fillColor: '#ffc107', fillOpacity: 0.1, interactive: false
         }).addTo(map);
 
         let allMarkers = [];
@@ -152,10 +148,10 @@
         radiusSlider.addEventListener('input', (e) => {
             currentRadius = parseInt(e.target.value);
             radiusValue.innerText = currentRadius + ' m';
-            searchCircle.setRadius(currentRadius); // Cập nhật vòng tròn ngay lập tức
+            searchCircle.setRadius(currentRadius);
         });
 
-        // --- CHỨC NĂNG VỊ TRÍ CỦA TÔI ---
+        // --- VỊ TRÍ CỦA TÔI ---
         document.getElementById('btn-locate').addEventListener('click', () => {
             if (!navigator.geolocation) return alert("Không hỗ trợ GPS");
             statusMsg.innerText = "Đang lấy vị trí...";
@@ -168,7 +164,7 @@
                     
                     map.setView(newLatLng, 15);
                     centerMarker.setLatLng(newLatLng);
-                    searchCircle.setLatLng(newLatLng); // Di chuyển vòng tròn theo
+                    searchCircle.setLatLng(newLatLng);
                     
                     statusMsg.innerText = "Đã lấy vị trí.";
                     if (isPickingMode) togglePickMode();
@@ -200,7 +196,7 @@
                 const newLatLng = [lat, lng];
                 
                 centerMarker.setLatLng(newLatLng);
-                searchCircle.setLatLng(newLatLng); // Di chuyển vòng tròn theo
+                searchCircle.setLatLng(newLatLng);
                 
                 statusMsg.innerText = `Đã chọn: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
                 togglePickMode();
@@ -214,7 +210,7 @@
             searchAll(currentLatLng.lat, currentLatLng.lng);
         });
 
-        // --- HÀM GỌI CẢ HAI API ---
+        // --- HÀM GỌI CẢ 3 API ---
         async function searchAll(lat, lng) {
             resultsList.innerHTML = '';
             statusMsg.innerText = "Đang tìm kiếm...";
@@ -225,11 +221,12 @@
             const selectEl = document.getElementById('search-category');
             const queryText = selectEl.value;
             const tomtomCategory = selectEl.options[selectEl.selectedIndex].getAttribute('data-tomtom');
+            const overtureCategory = selectEl.options[selectEl.selectedIndex].getAttribute('data-overture');
 
-            // Truyền currentRadius vào API
             await Promise.all([
                 searchTomTom(lat, lng, tomtomCategory, currentRadius),
-                searchFoursquare(lat, lng, queryText, currentRadius)
+                searchFoursquare(lat, lng, queryText, currentRadius),
+                searchOverture(lat, lng, overtureCategory, currentRadius)
             ]);
 
             statusMsg.innerText = "Hoàn tất! Xem kết quả bên dưới.";
@@ -243,7 +240,6 @@
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`TomTom HTTP ${res.status}`);
                 const data = await res.json();
-
                 if (!data.results || data.results.length === 0) return;
 
                 data.results.forEach(place => {
@@ -280,16 +276,13 @@
                         'Accept': 'application/json'
                     }
                 });
-
                 if (!res.ok) throw new Error(`Foursquare HTTP ${res.status}`);
                 const data = await res.json();
-
                 if (!data.results || data.results.length === 0) return;
 
                 data.results.forEach(place => {
                     const pLat = place.geocodes?.primary?.latitude || place.geocodes?.main?.latitude || place.latitude;
                     const pLng = place.geocodes?.primary?.longitude || place.geocodes?.main?.longitude || place.longitude;
-                    
                     if (!pLat || !pLng) return;
 
                     const pName = place.name;
@@ -308,7 +301,71 @@
             }
         }
 
-        // --- HÀM THÊM VÀO DANH SÁCH BÊN TRÁI ---
+        // --- 3. OVERTURE MAPS NEARBY SEARCH ---
+        async function searchOverture(lat, lng, category, radius) {
+            // Overture API dùng tham số 'categories' cho bộ lọc danh mục
+            const url = `https://api.overturemapsapi.com/places?lat=${lat}&lng=${lng}&radius=${radius}&categories=${category}&limit=20`;
+
+            console.log('Gọi Overture:', url);
+
+            try {
+                const res = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'x-api-key': OVERTURE_API_KEY,
+                        'Accept': 'application/json'
+                    }
+                });
+                if (!res.ok) throw new Error(`Overture HTTP ${res.status}`);
+                const data = await res.json();
+
+                // Overture trả về một mảng GeoJSON features
+                if (!Array.isArray(data) || data.length === 0) {
+                    console.log('Overture không tìm thấy kết quả.');
+                    return;
+                }
+
+                data.forEach(place => {
+                    // Cấu trúc GeoJSON: geometry.coordinates = [lng, lat]
+                    const coords = place.geometry?.coordinates;
+                    if (!coords || coords.length < 2) return;
+                    
+                    const pLng = coords[0];
+                    const pLat = coords[1];
+                    
+                    const props = place.properties || {};
+                    const pName = props.names?.primary || 'Không có tên';
+                    const pAddress = props.addresses?.[0]?.freeform || 'Không có địa chỉ';
+                    
+                    // Tính khoảng cách (mét) bằng công thức Haversine đơn giản
+                    const dist = getDistanceFromLatLonInM(lat, lng, pLat, pLng);
+
+                    const marker = L.circleMarker([pLat, pLng], {
+                        radius: 8, fillColor: "#28a745", color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.9
+                    }).addTo(map).bindPopup(`<b>[Overture] ${pName}</b><br>${pAddress}<br>${Math.round(dist)}m`);
+
+                    allMarkers.push(marker);
+                    addToList(pName, pAddress, Math.round(dist), 'Overture', '#28a745', marker);
+                });
+                console.log(`Overture: ${data.length} kết quả`);
+            } catch (err) {
+                console.error('Lỗi Overture:', err);
+            }
+        }
+
+        // Hàm tính khoảng cách (Haversine) - dùng cho Overture vì API không trả về 'distance'
+        function getDistanceFromLatLonInM(lat1, lon1, lat2, lon2) {
+            const R = 6371000; // Bán kính Trái Đất (m)
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180; 
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                      Math.sin(dLon/2) * Math.sin(dLon/2); 
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            return R * c;
+        }
+
+        // --- THÊM VÀO DANH SÁCH ---
         function addToList(name, address, dist, source, color, marker) {
             const li = document.createElement('li');
             li.innerHTML = `
