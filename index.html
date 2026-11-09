@@ -3,384 +3,193 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>So sánh Nearby: TomTom vs Foursquare vs Overture</title>
+    <title>Demo Nearby - MapTiler + Python API</title>
     
-    <!-- Leaflet CSS -->
+    <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
-    <!-- vConsole -->
+    <!-- vConsole để debug -->
     <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
     <script>var vConsole = new window.VConsole();</script>
 
     <style>
-        html, body { margin: 0; padding: 0; height: 100%; width: 100%; font-family: Arial, sans-serif; }
-        #map { height: 100vh; width: 100%; z-index: 1; background-color: #e5e5e5; }
-        #ui-panel {
-            position: absolute; top: 10px; left: 10px; z-index: 1000;
-            background: white; padding: 15px; border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3); width: 300px; max-height: 85vh; overflow-y: auto;
-        }
-        h3 { margin-top: 0; font-size: 16px; color: #333; }
-        .btn-group { display: flex; gap: 10px; margin-bottom: 15px; }
-        button {
-            padding: 10px; cursor: pointer; border: none; border-radius: 5px;
-            background-color: #007bff; color: white; font-weight: bold; flex: 1; transition: 0.2s; font-size: 13px;
-        }
-        button:hover { background-color: #0056b3; }
-        button.active { background-color: #28a745; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: Arial, sans-serif; }
+        #map { height: 100%; width: 100%; background: #e5e5e5; }
         
-        select {
+        .panel { 
+            position: absolute; top: 10px; left: 10px; z-index: 1000; 
+            background: white; padding: 15px; border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 280px; 
+        }
+        select, button { 
             width: 100%; padding: 10px; margin-bottom: 10px; 
-            border: 1px solid #ccc; border-radius: 5px; 
-            box-sizing: border-box; font-size: 14px; background-color: white;
+            box-sizing: border-box; border-radius: 8px; 
+            border: 1px solid #ccc; font-size: 14px; font-weight: bold;
         }
+        button { background: #3b82f6; color: white; border: none; cursor: pointer; }
+        button:hover { background: #2563eb; }
+        
+        .rad-container { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+        .rad-container input { flex: 1; }
+        .rad-container span { font-size: 13px; font-weight: bold; color: #3b82f6; min-width: 40px; }
 
-        .radius-container {
-            margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px; border: 1px solid #ddd;
+        /* Bottom Sheet */
+        #sheet { 
+            position: fixed; bottom: 0; left: 0; right: 0; background: white; 
+            border-radius: 20px 20px 0 0; box-shadow: 0 -5px 20px rgba(0,0,0,0.2); 
+            transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            z-index: 2000; max-height: 60vh; display: flex; flex-direction: column; 
         }
-        .radius-header {
-            display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #333;
+        #sheet.open { transform: translateY(0); }
+        .sheet-header { 
+            padding: 15px; font-weight: bold; text-align: center; 
+            border-bottom: 1px solid #eee; cursor: pointer; 
+            color: #333; font-size: 15px; display: flex; justify-content: space-between;
         }
-        input[type="range"] { width: 100%; cursor: pointer; }
-
-        .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; margin-bottom: 10px; }
-        .legend-item { display: flex; align-items: center; gap: 5px; }
-        .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 2px solid white; box-shadow: 0 0 3px rgba(0,0,0,0.4); }
-        #results-list { list-style: none; padding: 0; margin: 0; font-size: 13px; }
-        #results-list li { padding: 6px 0; border-bottom: 1px solid #eee; cursor: pointer; }
-        #results-list li:hover { background-color: #f9f9f9; }
-        .place-name { font-weight: bold; }
-        .place-source { font-size: 11px; padding: 1px 4px; border-radius: 3px; color: white; margin-right: 5px; }
+        .sheet-list { overflow-y: auto; padding: 10px 15px; flex: 1; }
+        .item { 
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 12px 0; border-bottom: 1px solid #eee; cursor: pointer; 
+        }
+        .item:active { background: #f9f9f9; }
+        .item-name { font-weight: bold; font-size: 14px; color: #333; }
+        .item-dist { color: #ef4444; font-size: 13px; font-weight: bold; margin-top: 4px; }
+        .btn-dir {
+            background: #3b82f6; color: white; border: none; padding: 8px 12px;
+            border-radius: 50%; width: 36px; height: 36px; cursor: pointer;
+        }
     </style>
 </head>
 <body>
 
-    <div id="ui-panel">
-        <h3>Tìm địa điểm xung quanh</h3>
-        <div class="btn-group">
-            <button id="btn-locate">📍 Vị trí của tôi</button>
-            <button id="btn-pick">🎯 Chọn điểm khác</button>
-        </div>
-        
-        <select id="search-category">
-            <option value="cafe" data-tomtom="9376" data-overture="coffee_shop">Quán Cà phê</option>
-            <option value="hotel" data-tomtom="7314" data-overture="hotel">Khách sạn</option>
-            <option value="hospital" data-tomtom="7321" data-overture="hospital">Bệnh viện</option>
-            <option value="bank" data-tomtom="9368" data-overture="bank">Ngân hàng</option>
+    <div class="panel">
+        <h3 style="margin-top:0; text-align:center; color:#333;">Khám phá (Max 1km)</h3>
+        <select id="category">
+            <option value="restaurant">Nhà hàng / Quán ăn</option>
+            <option value="cafe">Quán cà phê</option>
+            <option value="hotel">Khách sạn</option>
+            <option value="hospital">Bệnh viện</option>
+            <option value="bank">Ngân hàng</option>
         </select>
-
-        <div class="radius-container">
-            <div class="radius-header">
-                <span>Bán kính:</span>
-                <span id="radius-value" style="color: #007bff;">2000 m</span>
-            </div>
-            <input type="range" id="radius-slider" min="500" max="10000" step="500" value="2000">
+        
+        <div class="rad-container">
+            <input type="range" id="radius" min="0.1" max="1" step="0.1" value="1">
+            <span id="radVal">1.0 km</span>
         </div>
 
-        <div class="legend">
-            <div class="legend-item"><span class="dot" style="background:#dc3545;"></span> TomTom</div>
-            <div class="legend-item"><span class="dot" style="background:#007bff;"></span> Foursquare</div>
-            <div class="legend-item"><span class="dot" style="background:#28a745;"></span> Overture</div>
-        </div>
-
-        <button id="btn-search" style="width: 100%; margin-bottom: 15px;">Tìm kiếm cả 3</button>
-
-        <div id="status-msg" style="color: #e67e22; font-size: 13px; margin-bottom: 10px;"></div>
-        <ul id="results-list"></ul>
+        <button onclick="fetchNearby()">Tìm kiếm</button>
+        <div id="status" style="font-size:12px; color:#e67e22; margin-top:10px; text-align:center;">Click bản đồ để chọn tâm</div>
     </div>
 
     <div id="map"></div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
+    <div id="sheet">
+        <div class="sheet-header" onclick="document.getElementById('sheet').classList.remove('open')">
+            <span>Kết quả tìm kiếm</span>
+            <span>▼</span>
+        </div>
+        <div class="sheet-list" id="resultList"></div>
+    </div>
+
     <script>
-        // ==========================================
-        // CẤU HÌNH API KEY
-        // ==========================================
-        const TOMTOM_API_KEY = 'tG84Z1Yh4rauGWjz6pRn98rrWymLjTru';
-        const FSQ_API_KEY = 'OZ4V35PQYDWISQTVSR4PUQ4TAJDDRBKY4SON2UGWL333DX33';
+        // ==============================
+        // CẤU HÌNH MAPTILER
+        // ==============================
         const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
-        const CORSPROXY_KEY = '68c61444'; 
         
-        // 👇 KEY OVERTURE MAPS API CỦA BẠN
-        const OVERTURE_API_KEY = 'ovt_ZW1frNrqW0mBq7rg3UZDxOPFfs5RGrdzjBvWZty3ZLFUBgeXyqQucOx1xASORNwl';
-        
-        const DEFAULT_LAT = 21.0285; // Hồ Hoàn Kiếm
-        const DEFAULT_LNG = 105.8542;
-        
-        let currentRadius = 2000;
+        let centerLat = 10.96976;
+        let centerLng = 106.89238;
 
-        // --- KHỞI TẠO BẢN ĐỒ ---
-        const map = L.map('map').setView([DEFAULT_LAT, DEFAULT_LNG], 14);
-        
+        // Khởi tạo bản đồ MapTiler (Raster)
+        const map = L.map('map').setView([centerLat, centerLng], 15);
         L.tileLayer(`https://api.maptiler.com/maps/streets-v4/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`, {
-            tileSize: 512, zoomOffset: -1, minZoom: 1,
-            attribution: '&copy; MapTiler &copy; OpenStreetMap contributors',
-            crossOrigin: true
+            tileSize: 512,
+            zoomOffset: -1,
+            attribution: '&copy; MapTiler &copy; OpenStreetMap'
         }).addTo(map);
 
-        setTimeout(() => { map.invalidateSize(); }, 500);
+        // Marker tâm
+        let centerMarker = L.marker([centerLat, centerLng]).addTo(map).bindPopup("Tâm tìm kiếm").openPopup();
+        let resultMarkers = [];
 
-        // Icon tâm
-        const centerIcon = L.divIcon({
-            className: 'custom-div-icon',
-            html: "<div style='background-color:#ffc107; width:15px; height:15px; border-radius:50%; border:3px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);'></div>",
-            iconSize: [20, 20], iconAnchor: [10, 10]
-        });
-        let centerMarker = L.marker([DEFAULT_LAT, DEFAULT_LNG], { icon: centerIcon }).addTo(map);
-
-        // Vòng tròn bán kính
-        let searchCircle = L.circle([DEFAULT_LAT, DEFAULT_LNG], {
-            radius: currentRadius,
-            color: '#ffc107', weight: 2, fillColor: '#ffc107', fillOpacity: 0.1, interactive: false
-        }).addTo(map);
-
-        let allMarkers = [];
-        let isPickingMode = false;
-        
-        const btnPick = document.getElementById('btn-pick');
-        const statusMsg = document.getElementById('status-msg');
-        const resultsList = document.getElementById('results-list');
-        const radiusSlider = document.getElementById('radius-slider');
-        const radiusValue = document.getElementById('radius-value');
-
-        // --- XỬ LÝ THANH TRƯỢT BÁN KÍNH ---
-        radiusSlider.addEventListener('input', (e) => {
-            currentRadius = parseInt(e.target.value);
-            radiusValue.innerText = currentRadius + ' m';
-            searchCircle.setRadius(currentRadius);
+        // Sự kiện kéo thanh trượt
+        document.getElementById('radius').addEventListener('input', (e) => {
+            document.getElementById('radVal').innerText = parseFloat(e.target.value).toFixed(1) + ' km';
         });
 
-        // --- VỊ TRÍ CỦA TÔI ---
-        document.getElementById('btn-locate').addEventListener('click', () => {
-            if (!navigator.geolocation) return alert("Không hỗ trợ GPS");
-            statusMsg.innerText = "Đang lấy vị trí...";
+        // Sự kiện click bản đồ để đổi tâm
+        map.on('click', (e) => {
+            centerLat = e.latlng.lat;
+            centerLng = e.latlng.lng;
+            centerMarker.setLatLng([centerLat, centerLng]);
+            centerMarker.openPopup();
+        });
+
+        // GỌI API PYTHON
+        async function fetchNearby() {
+            const radius = document.getElementById('radius').value;
+            const category = document.getElementById('category').value;
+            const statusEl = document.getElementById('status');
             
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-                    const newLatLng = [lat, lng];
-                    
-                    map.setView(newLatLng, 15);
-                    centerMarker.setLatLng(newLatLng);
-                    searchCircle.setLatLng(newLatLng);
-                    
-                    statusMsg.innerText = "Đã lấy vị trí.";
-                    if (isPickingMode) togglePickMode();
-                    searchAll(lat, lng);
-                },
-                (error) => { statusMsg.innerText = "Lỗi GPS: " + error.message; }
-            );
-        });
+            statusEl.innerText = "Đang tìm kiếm...";
+            resultMarkers.forEach(m => map.removeLayer(m));
+            resultMarkers = [];
 
-        // --- CHỌN ĐIỂM KHÁC ---
-        btnPick.addEventListener('click', togglePickMode);
-
-        function togglePickMode() {
-            isPickingMode = !isPickingMode;
-            if (isPickingMode) {
-                btnPick.classList.add('active');
-                btnPick.innerText = "🎯 Đang chọn...";
-                statusMsg.innerText = "Click lên bản đồ để đặt tâm.";
-            } else {
-                btnPick.classList.remove('active');
-                btnPick.innerText = "🎯 Chọn điểm khác";
-            }
-        }
-
-        map.on('click', function(e) {
-            if (isPickingMode) {
-                const lat = e.latlng.lat;
-                const lng = e.latlng.lng;
-                const newLatLng = [lat, lng];
-                
-                centerMarker.setLatLng(newLatLng);
-                searchCircle.setLatLng(newLatLng);
-                
-                statusMsg.innerText = `Đã chọn: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-                togglePickMode();
-                searchAll(lat, lng);
-            }
-        });
-
-        // --- NÚT TÌM KIẾM ---
-        document.getElementById('btn-search').addEventListener('click', () => {
-            const currentLatLng = centerMarker.getLatLng();
-            searchAll(currentLatLng.lat, currentLatLng.lng);
-        });
-
-        // --- HÀM GỌI CẢ 3 API ---
-        async function searchAll(lat, lng) {
-            resultsList.innerHTML = '';
-            statusMsg.innerText = "Đang tìm kiếm...";
-            
-            allMarkers.forEach(m => map.removeLayer(m));
-            allMarkers = [];
-
-            const selectEl = document.getElementById('search-category');
-            const queryText = selectEl.value;
-            const tomtomCategory = selectEl.options[selectEl.selectedIndex].getAttribute('data-tomtom');
-            const overtureCategory = selectEl.options[selectEl.selectedIndex].getAttribute('data-overture');
-
-            await Promise.all([
-                searchTomTom(lat, lng, tomtomCategory, currentRadius),
-                searchFoursquare(lat, lng, queryText, currentRadius),
-                searchOverture(lat, lng, overtureCategory, currentRadius)
-            ]);
-
-            statusMsg.innerText = "Hoàn tất! Xem kết quả bên dưới.";
-        }
-
-        // --- 1. TOMTOM NEARBY SEARCH ---
-        async function searchTomTom(lat, lng, categoryId, radius) {
-            const url = `https://api.tomtom.com/search/2/nearbySearch/.json?key=${TOMTOM_API_KEY}&lat=${lat}&lon=${lng}&radius=${radius}&limit=20&categorySet=${categoryId}&language=vi-VN`;
+            const url = `https://potential-space-trout-p7r7pgrjwjvw26g6j-8000.app.github.dev/api/nearby?lat=${centerLat}&lon=${centerLng}&radius=${radius}&category=${category}`;
+            console.log("Fetching:", url);
 
             try {
                 const res = await fetch(url);
-                if (!res.ok) throw new Error(`TomTom HTTP ${res.status}`);
-                const data = await res.json();
-                if (!data.results || data.results.length === 0) return;
-
-                data.results.forEach(place => {
-                    const pLat = place.position.lat;
-                    const pLng = place.position.lon;
-                    const pName = place.poi.name;
-                    const pAddress = place.address.freeformAddress;
-                    const dist = Math.round(place.dist);
-
-                    const marker = L.circleMarker([pLat, pLng], {
-                        radius: 8, fillColor: "#dc3545", color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.9
-                    }).addTo(map).bindPopup(`<b>[TomTom] ${pName}</b><br>${pAddress}<br>${dist}m`);
-
-                    allMarkers.push(marker);
-                    addToList(pName, pAddress, dist, 'TomTom', '#dc3545', marker);
-                });
-            } catch (err) {
-                console.error('Lỗi TomTom:', err);
-            }
-        }
-
-        // --- 2. FOURSQUARE NEARBY SEARCH ---
-        async function searchFoursquare(lat, lng, queryText, radius) {
-            const targetUrl = `https://places-api.foursquare.com/places/search?query=${queryText}&ll=${lat},${lng}&radius=${radius}&limit=20`;
-            const params = new URLSearchParams({ key: CORSPROXY_KEY, url: targetUrl });
-            const proxyUrl = 'https://corsproxy.io/?' + params.toString();
-
-            try {
-                const res = await fetch(proxyUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${FSQ_API_KEY}`, 
-                        'X-Places-Api-Version': '2025-06-17',
-                        'Accept': 'application/json'
-                    }
-                });
-                if (!res.ok) throw new Error(`Foursquare HTTP ${res.status}`);
-                const data = await res.json();
-                if (!data.results || data.results.length === 0) return;
-
-                data.results.forEach(place => {
-                    const pLat = place.geocodes?.primary?.latitude || place.geocodes?.main?.latitude || place.latitude;
-                    const pLng = place.geocodes?.primary?.longitude || place.geocodes?.main?.longitude || place.longitude;
-                    if (!pLat || !pLng) return;
-
-                    const pName = place.name;
-                    const pAddress = place.location?.formatted_address || 'Không có địa chỉ';
-                    const dist = place.distance || 0;
-
-                    const marker = L.circleMarker([pLat, pLng], {
-                        radius: 8, fillColor: "#007bff", color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.9
-                    }).addTo(map).bindPopup(`<b>[Foursquare] ${pName}</b><br>${pAddress}<br>${dist}m`);
-
-                    allMarkers.push(marker);
-                    addToList(pName, pAddress, dist, 'FSQ', '#007bff', marker);
-                });
-            } catch (err) {
-                console.error('Lỗi Foursquare:', err);
-            }
-        }
-
-        // --- 3. OVERTURE MAPS NEARBY SEARCH ---
-        async function searchOverture(lat, lng, category, radius) {
-            // Overture API dùng tham số 'categories' cho bộ lọc danh mục
-            const url = `https://api.overturemapsapi.com/places?lat=${lat}&lng=${lng}&radius=${radius}&categories=${category}&limit=20`;
-
-            console.log('Gọi Overture:', url);
-
-            try {
-                const res = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'x-api-key': OVERTURE_API_KEY,
-                        'Accept': 'application/json'
-                    }
-                });
-                if (!res.ok) throw new Error(`Overture HTTP ${res.status}`);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
                 const data = await res.json();
 
-                // Overture trả về một mảng GeoJSON features
-                if (!Array.isArray(data) || data.length === 0) {
-                    console.log('Overture không tìm thấy kết quả.');
+                if (data.length === 0) {
+                    statusEl.innerText = "Không tìm thấy địa điểm nào.";
                     return;
                 }
 
-                data.forEach(place => {
-                    // Cấu trúc GeoJSON: geometry.coordinates = [lng, lat]
-                    const coords = place.geometry?.coordinates;
-                    if (!coords || coords.length < 2) return;
-                    
-                    const pLng = coords[0];
-                    const pLat = coords[1];
-                    
-                    const props = place.properties || {};
-                    const pName = props.names?.primary || 'Không có tên';
-                    const pAddress = props.addresses?.[0]?.freeform || 'Không có địa chỉ';
-                    
-                    // Tính khoảng cách (mét) bằng công thức Haversine đơn giản
-                    const dist = getDistanceFromLatLonInM(lat, lng, pLat, pLng);
+                statusEl.innerText = `Tìm thấy ${data.length} địa điểm.`;
+                document.getElementById('resultList').innerHTML = '';
+                
+                data.forEach(p => {
+                    // Vẽ Marker (Màu đỏ)
+                    const marker = L.circleMarker([p.lat, p.lon], {
+                        radius: 8, fillColor: "#ef4444", color: "#fff", weight: 2, fillOpacity: 1
+                    }).addTo(map).bindPopup(`<b>${p.name}</b><br>${p.distance_km.toFixed(2)} km`);
+                    resultMarkers.push(marker);
 
-                    const marker = L.circleMarker([pLat, pLng], {
-                        radius: 8, fillColor: "#28a745", color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.9
-                    }).addTo(map).bindPopup(`<b>[Overture] ${pName}</b><br>${pAddress}<br>${Math.round(dist)}m`);
+                    // Thêm vào danh sách
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'item';
+                    itemDiv.innerHTML = `
+                        <div>
+                            <div class="item-name">${p.name}</div>
+                            <div class="item-dist">📍 ${p.distance_km.toFixed(2)} km</div>
+                        </div>
+                        <button class="btn-dir" title="Chỉ đường"><i class="fas fa-diamond-turn-right"></i></button>
+                    `;
+                    
+                    // Click vào item -> bay tới
+                    itemDiv.onclick = () => {
+                        map.flyTo([p.lat, p.lon], 17);
+                        marker.openPopup();
+                    };
 
-                    allMarkers.push(marker);
-                    addToList(pName, pAddress, Math.round(dist), 'Overture', '#28a745', marker);
+                    document.getElementById('resultList').appendChild(itemDiv);
                 });
-                console.log(`Overture: ${data.length} kết quả`);
+
+                // Hiện Bottom Sheet
+                document.getElementById('sheet').classList.add('open');
+                // Zoom map bao quát
+                map.flyTo([centerLat, centerLng], 15);
+
             } catch (err) {
-                console.error('Lỗi Overture:', err);
+                console.error(err);
+                statusEl.innerHTML = `<span style="color:red">Lỗi: ${err.message} (Xem vConsole)</span>`;
+                alert("Lỗi kết nối API. Hãy chắc chắn server Python đã bật CORS (Access-Control-Allow-Origin: *).");
             }
         }
-
-        // Hàm tính khoảng cách (Haversine) - dùng cho Overture vì API không trả về 'distance'
-        function getDistanceFromLatLonInM(lat1, lon1, lat2, lon2) {
-            const R = 6371000; // Bán kính Trái Đất (m)
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180; 
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-                      Math.sin(dLon/2) * Math.sin(dLon/2); 
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-            return R * c;
-        }
-
-        // --- THÊM VÀO DANH SÁCH ---
-        function addToList(name, address, dist, source, color, marker) {
-            const li = document.createElement('li');
-            li.innerHTML = `
-                <div><span class="place-source" style="background:${color}">${source}</span><span class="place-name">${name}</span></div>
-                <div style="color:#666; font-size:11px; margin-top:2px;">📍 ${dist}m - ${address}</div>
-            `;
-            li.addEventListener('click', () => {
-                map.setView(marker.getLatLng(), 17);
-                marker.openPopup();
-            });
-            resultsList.appendChild(li);
-        }
-
-        // Chạy lần đầu
-        searchAll(DEFAULT_LAT, DEFAULT_LNG);
     </script>
 </body>
 </html>
