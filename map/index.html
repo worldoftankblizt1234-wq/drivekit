@@ -87,7 +87,7 @@
   </button>
 
   <!-- NÚT KHÁM PHÁ XUNG QUANH -->
-  <button class="fab-layers" id="btnNearby" onclick="openNearbyMenu()" style="bottom: calc(260px + var(--safe-bottom)); right: 16px; left: auto; background: var(--primary); color: white; border: none; box-shadow: 0 4px 15px rgba(59,130,246,0.4);" title="Khám phá xung quanh">
+  <button class="fab-layers" id="btnNearbySearch" onclick="openNearbySearchPanel()" style="bottom: calc(260px + var(--safe-bottom)); right: 16px; left: auto; background: var(--warning); color: white; border: none; box-shadow: 0 4px 15px rgba(245,158,11,0.4);" title="Tìm kiếm xung quanh">
     <i class="fas fa-street-view"></i>
   </button>
 
@@ -240,29 +240,195 @@
   </div>
 </div>
 
-<!-- ========== NEARBY MENU MODAL ========== -->
-<div class="report-modal" id="nearbyModal" style="z-index: 2600;">
-  <div class="report-header" style="background: linear-gradient(135deg, #3b82f6, #2563eb);">
-    <h2>Khám phá xung quanh</h2>
-    <button class="report-close" onclick="closeNearbyMenu()"><i class="fas fa-times"></i></button>
+<!-- ========== NEARBY SEARCH PANEL ========== -->
+<div class="report-modal" id="nearbySearchPanel" style="z-index: 2600;">
+  <div class="report-header" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+    <h2><i class="fas fa-street-view"></i> Tìm kiếm xung quanh</h2>
+    <button class="report-close" onclick="closeNearbySearchPanel()"><i class="fas fa-times"></i></button>
   </div>
-  <div class="report-body" style="grid-template-columns: repeat(2, 1fr); gap:16px; padding:24px;">
-    <button class="report-btn" onclick="searchNearby('khách sạn')" style="padding:20px; background:rgba(59,130,246,0.1); border-color:#3b82f6;">
-      <i class="fas fa-hotel" style="color:#3b82f6; font-size:2.5rem;"></i> 
-      <span style="font-size:1.1rem; margin-top:8px;">Khách sạn</span>
+  
+  <div class="report-body" style="display:flex; flex-direction:column; gap:16px; padding:20px;">
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-primary" onclick="setNearbyCenterToGPS()" style="flex:1; padding:12px; border-radius:10px; font-weight:700;">
+        <i class="fas fa-location-arrow"></i> Vị trí của tôi
+      </button>
+      <button class="btn btn-outline" id="btnPickOnMap" onclick="toggleNearbyPickMode()" style="flex:1; padding:12px; border-radius:10px; font-weight:700; border: 1px solid var(--border); color: var(--text);">
+        <i class="fas fa-map-marker-alt"></i> Chọn điểm khác
+      </button>
+    </div>
+
+    <div class="form-group">
+      <label>Danh mục tìm kiếm</label>
+      <select id="nearbyCategory" class="form-control" style="padding:12px; border-radius:10px; background:var(--bg-2); color:var(--text); border:1px solid var(--border); outline:none;">
+        <optgroup label="🔥 PHỔ BIẾN NHẤT">
+            <option value="restaurant">Nhà hàng</option>
+            <option value="cafe">Quán cà phê</option>
+            <option value="coffee_shop">Tiệm cà phê</option>
+            <option value="fast_food_restaurant">Đồ ăn nhanh</option>
+            <option value="gas_station">Cây xăng</option>
+            <option value="atm">ATM</option>
+            <option value="bank_or_credit_union">Ngân hàng</option>
+            <option value="hospital">Bệnh viện</option>
+            <option value="pharmacy_and_drug_store">Nhà thuốc</option>
+            <option value="superstore">Siêu thị</option>
+            <option value="convenience_store">Cửa hàng tiện lợi</option>
+            <option value="hotel">Khách sạn</option>
+            <option value="parking">Bãi đỗ xe</option>
+        </optgroup>
+        <optgroup label="🍔 ĂN UỐNG & GIẢI TRÍ">
+            <option value="food_and_drink">Đồ ăn & Thức uống</option>
+            <option value="bar">Quán Bar / Pub</option>
+            <option value="casual_eatery">Quán ăn bình dân</option>
+            <option value="food_court">Khu ẩm thực</option>
+            <option value="food_truck_stand">Xe bán đồ ăn</option>
+            <option value="brewery">Nhà máy bia</option>
+            <option value="winery">Nhà máy rượu vang</option>
+            <option value="distillery">Nhà máy chưng cất</option>
+            <option value="smoothie_juice_bar">Quán sinh tố / Nước ép</option>
+            <option value="nightlife_venue">Cuộc sống về đêm</option>
+            <option value="lounge">Quán Lounge</option>
+            <option value="comedy_club">Câu lạc bộ hài</option>
+        </optgroup>
+        <optgroup label="🛒 MUA SẮM & DỊCH VỤ">
+            <option value="shopping">Mua sắm (Chung)</option>
+            <option value="shopping_mall">Trung tâm thương mại</option>
+            <option value="department_store">Cửa hàng bách hóa</option>
+            <option value="electronics_store">Cửa hàng điện tử</option>
+            <option value="fashion_and_apparel_store">Cửa hàng thời trang</option>
+            <option value="hardware_home_and_garden_store">Cửa hàng đồ gia dụng</option>
+            <option value="books_music_and_video_store">Nhà sách / Băng đĩa</option>
+            <option value="toys_and_games_store">Cửa hàng đồ chơi</option>
+            <option value="sporting_goods_store">Cửa hàng đồ thể thao</option>
+            <option value="flowers_and_gifts_store">Cửa hàng hoa & Quà tặng</option>
+            <option value="animal_and_pet_store">Cửa hàng thú cưng</option>
+            <option value="second_hand_store">Cửa hàng đồ cũ</option>
+            <option value="market">Chợ</option>
+            <option value="farmers_market">Chợ nông sản</option>
+            <option value="laundry_service">Dịch vụ giặt ủi</option>
+            <option value="personal_or_beauty_service">Làm đẹp / Spa</option>
+            <option value="printing_service">Dịch vụ in ấn</option>
+            <option value="home_service">Dịch vụ tại nhà</option>
+        </optgroup>
+        <optgroup label="🏥 Y TẾ & SỨC KHỎE">
+            <option value="health_care">Chăm sóc sức khỏe</option>
+            <option value="pharmacy_and_drug_store">Nhà thuốc / Hiệu thuốc</option>
+            <option value="dental_clinic">Phòng khám nha khoa</option>
+            <option value="primary_care_or_general_clinic">Phòng khám đa khoa</option>
+            <option value="emergency_department">Khoa cấp cứu</option>
+            <option value="emergency_or_urgent_care_facility">Cơ sở cấp cứu</option>
+            <option value="vision_or_eye_care_clinic">Phòng khám mắt</option>
+            <option value="pediatric_clinic">Phòng khám nhi</option>
+            <option value="specialized_health_care">Chăm sóc sức khỏe chuyên khoa</option>
+            <option value="physical_medicine_and_rehabilitation">Vật lý trị liệu</option>
+            <option value="gym">Phòng Gym</option>
+            <option value="fitness_studio">Studio thể hình</option>
+            <option value="wellness_service">Dịch vụ chăm sóc sức khỏe</option>
+        </optgroup>
+        <optgroup label="🏨 LƯU TRÚ & DU LỊCH">
+            <option value="lodging">Nơi lưu trú (Chung)</option>
+            <option value="resort">Khu nghỉ dưỡng</option>
+            <option value="bed_and_breakfast">Homestay / B&B</option>
+            <option value="inn">Nhà nghỉ</option>
+            <option value="apartment">Căn hộ</option>
+            <option value="condominium">Chung cư</option>
+            <option value="campground">Khu cắm trại</option>
+            <option value="rv_park">Bãi đỗ xe RV</option>
+            <option value="travel_service">Dịch vụ du lịch</option>
+        </optgroup>
+        <optgroup label="🎭 VĂN HÓA & GIẢI TRÍ">
+            <option value="arts_and_entertainment">Nghệ thuật & Giải trí</option>
+            <option value="movie_theater">Rạp chiếu phim</option>
+            <option value="museum">Bảo tàng</option>
+            <option value="art_gallery">Triển lãm nghệ thuật</option>
+            <option value="theatre_venue">Nhà hát</option>
+            <option value="performing_arts_venue">Biểu diễn nghệ thuật</option>
+            <option value="music_venue">Địa điểm âm nhạc</option>
+            <option value="casino">Sòng bạc</option>
+            <option value="amusement_park">Công viên giải trí</option>
+            <option value="zoo">Sở thú</option>
+            <option value="aquarium">Thủy cung</option>
+            <option value="park">Công viên</option>
+            <option value="national_park">Vườn quốc gia</option>
+            <option value="beach">Bãi biển</option>
+            <option value="golf_course">Sân golf</option>
+            <option value="stadium_arena">Sân vận động</option>
+            <option value="skate_park">Công viên trượt ván</option>
+            <option value="library">Thư viện</option>
+        </optgroup>
+        <optgroup label="🚗 GIAO THÔNG & PHƯƠNG TIỆN">
+            <option value="travel_and_transportation">Giao thông & Vận tải</option>
+            <option value="ev_charging_station">Trạm sạc xe điện</option>
+            <option value="fueling_station">Trạm nhiên liệu</option>
+            <option value="auto_dealer">Đại lý ô tô</option>
+            <option value="vehicle_dealer">Đại lý xe</option>
+            <option value="vehicle_service">Dịch vụ sửa chữa xe</option>
+            <option value="automotive_service">Dịch vụ ô tô</option>
+            <option value="vehicle_parts_store">Cửa hàng phụ tùng xe</option>
+            <option value="airport">Sân bay</option>
+            <option value="train_station">Ga tàu hỏa</option>
+            <option value="taxi_or_ride_share_service">Dịch vụ Taxi / Gọi xe</option>
+            <option value="public_transit_facility_or_service">Giao thông công cộng</option>
+            <option value="marina">Bến du thuyền</option>
+        </optgroup>
+        <optgroup label="🏫 GIÁO DỤC">
+            <option value="education">Giáo dục</option>
+            <option value="college_university">Cao đẳng / Đại học</option>
+            <option value="high_school">Trường cấp 3</option>
+            <option value="middle_school">Trường cấp 2</option>
+            <option value="elementary_school">Trường tiểu học</option>
+            <option value="preschool">Trường mầm non</option>
+            <option value="specialty_school">Trường chuyên biệt</option>
+            <option value="tutoring_service">Dịch vụ gia sư</option>
+        </optgroup>
+        <optgroup label="🏛️ CƠ QUAN & CỘNG ĐỒNG">
+            <option value="community_and_government">Cộng đồng & Chính phủ</option>
+            <option value="police_station">Đồn cảnh sát</option>
+            <option value="fire_station">Trạm cứu hỏa</option>
+            <option value="government_office">Cơ quan chính phủ</option>
+            <option value="courthouse">Tòa án</option>
+            <option value="embassy">Đại sứ quán</option>
+            <option value="post_office">Bưu điện</option>
+            <option value="public_restroom">Nhà vệ sinh công cộng</option>
+            <option value="cemetery">Nghĩa trang</option>
+            <option value="place_of_worship">Nơi thờ tự (Chung)</option>
+            <option value="buddhist_place_of_worship">Chùa / Thiền viện</option>
+            <option value="christian_place_of_worship">Nhà thờ</option>
+            <option value="muslim_place_of_worship">Thánh đường Hồi giáo</option>
+            <option value="hindu_place_of_worship">Đền Hindu</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <div class="form-group" style="background:var(--bg-2); padding:16px; border-radius:10px; border:1px solid var(--border);">
+      <label style="display:flex; justify-content:space-between; margin-bottom:8px;">
+        <span>Bán kính tìm kiếm</span>
+        <span id="radiusLabel" style="color:var(--primary); font-weight:900;">2.0 km</span>
+      </label>
+      <input type="range" id="nearbyRadius" min="0.5" max="5.0" step="0.5" value="2.0" oninput="document.getElementById('radiusLabel').textContent = this.value + ' km'" style="width:100%; accent-color:var(--primary);">
+    </div>
+
+    <button class="btn btn-primary" onclick="fetchNearbyPlaces()" style="padding:16px; border-radius:10px; font-size:1.1rem; font-weight:800; margin-top:10px;">
+      <i class="fas fa-search"></i> TÌM KIẾM
     </button>
-    <button class="report-btn" onclick="searchNearby('quán ăn')" style="padding:20px; background:rgba(245,158,11,0.1); border-color:#f59e0b;">
-      <i class="fas fa-bowl-food" style="color:#f59e0b; font-size:2.5rem;"></i> 
-      <span style="font-size:1.1rem; margin-top:8px;">Quán ăn</span>
-    </button>
-    <button class="report-btn" onclick="searchNearby('nhà hàng')" style="padding:20px; background:rgba(239,68,68,0.1); border-color:#ef4444;">
-      <i class="fas fa-utensils" style="color:#ef4444; font-size:2.5rem;"></i> 
-      <span style="font-size:1.1rem; margin-top:8px;">Nhà hàng</span>
-    </button>
-    <button class="report-btn" onclick="searchNearby('du lịch')" style="padding:20px; background:rgba(16,185,129,0.1); border-color:#10b981;">
-      <i class="fas fa-camera-retro" style="color:#10b981; font-size:2.5rem;"></i> 
-      <span style="font-size:1.1rem; margin-top:8px;">Du lịch</span>
-    </button>
+  </div>
+</div>
+
+<!-- ========== NEARBY RESULTS BOTTOM SHEET ========== -->
+<div id="nearbyResultsOverlay" onclick="closeNearbyResultsSheet()" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:2700; display:none; opacity:0; transition:opacity 0.3s;"></div>
+<div id="nearbyResultsSheet" style="position:fixed; bottom:0; left:0; right:0; z-index:2800; background:var(--card); border-top-left-radius:20px; border-top-right-radius:20px; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.4,0,0.2,1); display:flex; flex-direction:column; max-height:70vh; box-shadow:0 -10px 40px rgba(0,0,0,0.3); border-top:1px solid var(--border);">
+  
+  <div class="sheet-swipe-hint" id="nearbyResultsSwipeHandle">
+    <div class="sheet-swipe-bar"></div>
+    <div class="sheet-swipe-text"><span>Vuốt xuống để đóng</span><i class="fas fa-chevron-down"></i></div>
+  </div>
+  
+  <div style="padding:0 20px 10px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border);">
+    <h3 style="font-size:1.1rem; font-weight:800; color:var(--text); margin:0;" id="nearbyResultsTitle">Kết quả</h3>
+    <span style="font-size:0.8rem; color:var(--text-muted); font-weight:700;" id="nearbyResultsCount">0 địa điểm</span>
+  </div>
+  
+  <div id="nearbyResultsList" style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px;">
+    <!-- Kết quả sẽ được đổ vào đây -->
   </div>
 </div>
 
@@ -295,7 +461,6 @@
     <button class="profile-btn" onclick="shareRoute()"><span><i class="fas fa-share-alt"></i> Chia sẻ lộ trình hiện tại</span><i class="fas fa-chevron-right"></i></button>
     <div class="profile-btn" style="cursor: default;"><span><i class="fas fa-moon"></i> Chế độ Sáng / Tối</span><label class="switch"><input type="checkbox" id="themeToggle" onchange="toggleTheme()"><span class="slider"></span></label></div>
     
-    <!-- CÀI ĐẶT GIỌNG NÓI -->
     <button class="profile-btn" onclick="openVoiceSettings()"><span><i class="fas fa-volume-up"></i> Cài đặt Giọng nói</span><i class="fas fa-chevron-right"></i></button>
 
     <div class="profile-card"><h3><i class="fas fa-bookmark"></i> Lộ trình đã lưu <button onclick="clearAllSavedRoutes()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button></h3><div class="history-list" id="savedRoutesList"><div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có lộ trình nào</div></div></div>
@@ -382,7 +547,6 @@
   </div>
   <div class="report-body" style="display:flex; flex-direction:column; gap:20px; padding:20px;">
     
-    <!-- Âm lượng -->
     <div class="form-group" style="background:var(--bg-2); padding:16px; border-radius:12px; border:1px solid var(--border);">
       <label style="display:flex; justify-content:space-between; font-weight:800; font-size:0.95rem;">
         <span>Âm lượng (Tối đa 200%)</span>
@@ -392,7 +556,6 @@
       <div style="font-size:0.7rem; color:var(--text-muted); margin-top:8px; font-style:italic;">*Một số trình duyệt có thể giới hạn âm lượng tối đa ở 100%.</div>
     </div>
 
-    <!-- Chế độ Dẫn đường -->
     <div class="voice-setting-row">
       <span class="voice-setting-title"><i class="fas fa-diamond-turn-right" style="color:#3b82f6;"></i> Dẫn đường</span>
       <div class="segmented-control" id="seg-nav">
@@ -402,7 +565,6 @@
       </div>
     </div>
 
-    <!-- Chế độ Cảnh báo -->
     <div class="voice-setting-row">
       <span class="voice-setting-title"><i class="fas fa-exclamation-triangle" style="color:#f59e0b;"></i> Cảnh báo</span>
       <div class="segmented-control" id="seg-warning">
@@ -412,7 +574,6 @@
       </div>
     </div>
 
-    <!-- Chế độ POI -->
     <div class="voice-setting-row">
       <span class="voice-setting-title"><i class="fas fa-gas-pump" style="color:#10b981;"></i> Trạm xăng / Dừng nghỉ</span>
       <div class="segmented-control" id="seg-poi">
@@ -422,7 +583,6 @@
       </div>
     </div>
 
-    <!-- Chế độ Đường cấm -->
     <div class="voice-setting-row">
       <span class="voice-setting-title"><i class="fas fa-ban" style="color:#ef4444;"></i> Đường cấm</span>
       <div class="segmented-control" id="seg-avoid">
