@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Demo Nearby - Full Category</title>
+    <title>Demo Nearby - MapTiler + API 5km</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -75,14 +75,13 @@
 <body>
 
     <div class="panel">
-        <h3>Tìm quanh đây (Max 1km)</h3>
+        <h3>Tìm quanh đây (Max 5km)</h3>
         
         <div class="btn-group">
             <button class="btn-locate" id="btnLocate"><i class="fas fa-location-arrow"></i> Vị trí</button>
             <button class="btn-pick" id="btnPick"><i class="fas fa-crosshairs"></i> Chọn điểm</button>
         </div>
 
-        <!-- FULL CATEGORY TỪ FILE CỦA BẠN -->
         <select id="category">
             <optgroup label="📍 Phổ biến nhất">
                 <option value="restaurant">Nhà hàng / Quán ăn</option>
@@ -106,44 +105,16 @@
                 <option value="park">Công viên</option>
             </optgroup>
 
-            <optgroup label="🏨 Lưu trú">
-                <option value="resort">Khu nghỉ dưỡng</option>
-                <option value="bed_and_breakfast">Homestay / B&B</option>
-                <option value="lodging">Nơi lưu trú khác</option>
-                <option value="campground">Khu cắm trại</option>
-            </optgroup>
-
             <optgroup label="🚗 Giao thông & Phương tiện">
                 <option value="ev_charging_station">Trạm sạc xe điện</option>
                 <option value="parking">Bãi đỗ xe</option>
-                <option value="airport">Sân bay</option>
-                <option value="train_station">Ga tàu</option>
                 <option value="vehicle_service">Dịch vụ sửa xe</option>
-            </optgroup>
-
-            <optgroup label="🛒 Mua sắm">
-                <option value="superstore">Siêu thị</option>
-                <option value="convenience_store">Cửa hàng tiện lợi</option>
-                <option value="shopping_mall">Trung tâm thương mại</option>
-                <option value="department_store">Cửa hàng bách hóa</option>
-            </optgroup>
-
-            <optgroup label="🏥 Y tế & Sức khỏe">
-                <option value="dental_clinic">Nha khoa</option>
-                <option value="primary_care_or_general_clinic">Phòng khám đa khoa</option>
-                <option value="gym">Phòng Gym</option>
-                <option value="fitness_studio">Studio thể hình</option>
-            </optgroup>
-
-            <optgroup label="🚓 Cơ quan chức năng">
-                <option value="police_station">Cảnh sát</option>
-                <option value="fire_station">Cứu hỏa</option>
-                <option value="government_office">Cơ quan hành chính</option>
             </optgroup>
         </select>
         
+        <!-- THANH TRƯỢT BÁN KÍNH TỪ 0.5 ĐẾN 5.0 KM -->
         <div class="rad-container">
-            <input type="range" id="radius" min="0.1" max="1" step="0.1" value="1">
+            <input type="range" id="radius" min="0.5" max="5.0" step="0.5" value="1.0">
             <span id="radVal">1.0 km</span>
         </div>
 
@@ -168,8 +139,8 @@
         let centerLng = 106.89238;
         let isPickingMode = false;
 
-        // Khởi tạo bản đồ
-        const map = L.map('map').setView([centerLat, centerLng], 15);
+        // Khởi tạo bản đồ MapTiler
+        const map = L.map('map').setView([centerLat, centerLng], 14);
         L.tileLayer(`https://api.maptiler.com/maps/streets-v4/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`, {
             tileSize: 512, zoomOffset: -1, attribution: '&copy; MapTiler &copy; OSM'
         }).addTo(map);
@@ -190,7 +161,7 @@
                 (pos) => {
                     centerLat = pos.coords.latitude;
                     centerLng = pos.coords.longitude;
-                    map.flyTo([centerLat, centerLng], 16);
+                    map.flyTo([centerLat, centerLng], 15);
                     centerMarker.setLatLng([centerLat, centerLng]).openPopup();
                     statusEl.innerText = "Đã lấy vị trí hiện tại.";
                     if (isPickingMode) togglePickMode();
@@ -216,7 +187,7 @@
             }
         }
 
-        // Click bản đồ
+        // Click bản đồ để chọn tâm
         map.on('click', (e) => {
             if (isPickingMode) {
                 centerLat = e.latlng.lat;
@@ -228,7 +199,7 @@
             }
         });
 
-        // Kéo thanh trượt
+        // Kéo thanh trượt cập nhật text
         document.getElementById('radius').addEventListener('input', (e) => {
             document.getElementById('radVal').innerText = parseFloat(e.target.value).toFixed(1) + ' km';
         });
@@ -242,8 +213,9 @@
             statusEl.innerText = "Đang tìm kiếm...";
             resultMarkers.forEach(m => map.removeLayer(m));
             resultMarkers = [];
-            document.getElementById('sheetTitle').innerText = `Kết quả: ${categoryName}`;
+            document.getElementById('sheetTitle').innerText = `Kết quả: ${categoryName} (${radius}km)`;
 
+            // Gọi API với radius là số km (VD: 5.0)
             const url = `https://potential-space-trout-p7r7pgrjwjvw26g6j-8000.app.github.dev/api/nearby?lat=${centerLat}&lon=${centerLng}&radius=${radius}&category=${category}`;
 
             try {
@@ -284,7 +256,14 @@
                 });
 
                 document.getElementById('sheet').classList.add('open');
-                map.flyTo([centerLat, centerLng], 15);
+                
+                // Tự động zoom vừa đủ để thấy hết kết quả
+                if (resultMarkers.length > 0) {
+                    const group = L.featureGroup(resultMarkers);
+                    map.fitBounds(group.getBounds().pad(0.1));
+                } else {
+                    map.flyTo([centerLat, centerLng], 14);
+                }
 
             } catch (err) {
                 console.error(err);
