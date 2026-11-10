@@ -9,30 +9,44 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
     <!-- vConsole để debug -->
     <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
     <script>var vConsole = new window.VConsole();</script>
 
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: Arial, sans-serif; }
-        #map { height: 100%; width: 100%; background: #e5e5e5; }
+        #map { height: 100%; width: 100%; background: #e5e5e5; z-index: 1; }
         
         .panel { 
             position: absolute; top: 10px; left: 10px; z-index: 1000; 
             background: white; padding: 15px; border-radius: 12px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 280px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 290px; 
         }
-        select, button { 
+        h3 { margin-top: 0; text-align: center; color: #333; font-size: 16px; }
+        
+        .btn-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        .btn-locate, .btn-pick {
+            flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: bold; font-size: 13px; cursor: pointer; transition: 0.2s;
+        }
+        .btn-locate { background: #3b82f6; color: white; }
+        .btn-locate:hover { background: #2563eb; }
+        .btn-pick { background: #e2e8f0; color: #334155; border: 1px solid #cbd5e1; }
+        .btn-pick.active { background: #10b981; color: white; border-color: #10b981; }
+
+        select, .btn-search { 
             width: 100%; padding: 10px; margin-bottom: 10px; 
             box-sizing: border-box; border-radius: 8px; 
             border: 1px solid #ccc; font-size: 14px; font-weight: bold;
         }
-        button { background: #3b82f6; color: white; border: none; cursor: pointer; }
-        button:hover { background: #2563eb; }
+        .btn-search { background: #3b82f6; color: white; border: none; cursor: pointer; }
+        .btn-search:hover { background: #2563eb; }
         
         .rad-container { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
         .rad-container input { flex: 1; }
-        .rad-container span { font-size: 13px; font-weight: bold; color: #3b82f6; min-width: 40px; }
+        .rad-container span { font-size: 13px; font-weight: bold; color: #3b82f6; min-width: 50px; text-align: right; }
 
         /* Bottom Sheet */
         #sheet { 
@@ -45,8 +59,9 @@
         .sheet-header { 
             padding: 15px; font-weight: bold; text-align: center; 
             border-bottom: 1px solid #eee; cursor: pointer; 
-            color: #333; font-size: 15px; display: flex; justify-content: space-between;
+            color: #333; font-size: 15px; display: flex; justify-content: space-between; align-items: center;
         }
+        .sheet-header:active { background: #f9f9f9; border-radius: 20px 20px 0 0; }
         .sheet-list { overflow-y: auto; padding: 10px 15px; flex: 1; }
         .item { 
             display: flex; justify-content: space-between; align-items: center; 
@@ -57,14 +72,21 @@
         .item-dist { color: #ef4444; font-size: 13px; font-weight: bold; margin-top: 4px; }
         .btn-dir {
             background: #3b82f6; color: white; border: none; padding: 8px 12px;
-            border-radius: 50%; width: 36px; height: 36px; cursor: pointer;
+            border-radius: 50%; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center;
         }
     </style>
 </head>
 <body>
 
     <div class="panel">
-        <h3 style="margin-top:0; text-align:center; color:#333;">Khám phá (Max 1km)</h3>
+        <h3>Tìm quanh đây (Max 1km)</h3>
+        
+        <!-- 2 Nút chọn vị trí -->
+        <div class="btn-group">
+            <button class="btn-locate" id="btnLocate"><i class="fas fa-location-arrow"></i> Vị trí</button>
+            <button class="btn-pick" id="btnPick"><i class="fas fa-crosshairs"></i> Chọn điểm</button>
+        </div>
+
         <select id="category">
             <option value="restaurant">Nhà hàng / Quán ăn</option>
             <option value="cafe">Quán cà phê</option>
@@ -78,8 +100,8 @@
             <span id="radVal">1.0 km</span>
         </div>
 
-        <button onclick="fetchNearby()">Tìm kiếm</button>
-        <div id="status" style="font-size:12px; color:#e67e22; margin-top:10px; text-align:center;">Click bản đồ để chọn tâm</div>
+        <button class="btn-search" onclick="fetchNearby()">Tìm kiếm</button>
+        <div id="status" style="font-size:12px; color:#e67e22; margin-top:10px; text-align:center;">Nhấp chọn điểm để đổi tâm</div>
     </div>
 
     <div id="map"></div>
@@ -87,7 +109,7 @@
     <div id="sheet">
         <div class="sheet-header" onclick="document.getElementById('sheet').classList.remove('open')">
             <span>Kết quả tìm kiếm</span>
-            <span>▼</span>
+            <i class="fas fa-chevron-down"></i>
         </div>
         <div class="sheet-list" id="resultList"></div>
     </div>
@@ -98,10 +120,12 @@
         // ==============================
         const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
         
+        // Tọa độ mặc định (Biên Hòa)
         let centerLat = 10.96976;
         let centerLng = 106.89238;
+        let isPickingMode = false;
 
-        // Khởi tạo bản đồ MapTiler (Raster)
+        // Khởi tạo bản đồ MapTiler
         const map = L.map('map').setView([centerLat, centerLng], 15);
         L.tileLayer(`https://api.maptiler.com/maps/streets-v4/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`, {
             tileSize: 512,
@@ -113,24 +137,92 @@
         let centerMarker = L.marker([centerLat, centerLng]).addTo(map).bindPopup("Tâm tìm kiếm").openPopup();
         let resultMarkers = [];
 
-        // Sự kiện kéo thanh trượt
+        // ==============================
+        // XỬ LÝ NÚT VỊ TRÍ VÀ CHỌN ĐIỂM
+        // ==============================
+        const btnLocate = document.getElementById('btnLocate');
+        const btnPick = document.getElementById('btnPick');
+        const statusEl = document.getElementById('status');
+
+        // Nút 1: Lấy vị trí GPS
+        btnLocate.addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                alert("Trình duyệt không hỗ trợ GPS.");
+                return;
+            }
+            
+            statusEl.innerText = "Đang lấy vị trí GPS...";
+            
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    centerLat = pos.coords.latitude;
+                    centerLng = pos.coords.longitude;
+                    
+                    map.flyTo([centerLat, centerLng], 16);
+                    centerMarker.setLatLng([centerLat, centerLng]);
+                    centerMarker.openPopup();
+                    
+                    statusEl.innerText = "Đã lấy vị trí hiện tại.";
+                    
+                    // Tắt chế độ chọn nếu đang bật
+                    if (isPickingMode) togglePickMode();
+                    
+                    // Tự động tìm kiếm
+                    fetchNearby();
+                },
+                (err) => {
+                    statusEl.innerHTML = `<span style="color:red">Lỗi GPS: ${err.message}</span>`;
+                },
+                { enableHighAccuracy: true, timeout: 5000 }
+            );
+        });
+
+        // Nút 2: Bật/tắt chế độ chọn điểm
+        btnPick.addEventListener('click', togglePickMode);
+
+        function togglePickMode() {
+            isPickingMode = !isPickingMode;
+            if (isPickingMode) {
+                btnPick.classList.add('active');
+                btnPick.innerHTML = `<i class="fas fa-check"></i> Đang chọn...`;
+                statusEl.innerText = "Hãy click lên bản đồ để đặt tâm.";
+            } else {
+                btnPick.classList.remove('active');
+                btnPick.innerHTML = `<i class="fas fa-crosshairs"></i> Chọn điểm`;
+                statusEl.innerText = "Nhấp chọn điểm để đổi tâm";
+            }
+        }
+
+        // Sự kiện click lên bản đồ
+        map.on('click', (e) => {
+            if (isPickingMode) {
+                centerLat = e.latlng.lat;
+                centerLng = e.latlng.lng;
+                
+                centerMarker.setLatLng([centerLat, centerLng]);
+                centerMarker.openPopup();
+                
+                statusEl.innerText = `Đã chọn: ${centerLat.toFixed(4)}, ${centerLng.toFixed(4)}`;
+                
+                // Tắt chế độ chọn
+                togglePickMode();
+                
+                // Tự động tìm kiếm
+                fetchNearby();
+            }
+        });
+
+        // Cập nhật text khi kéo thanh trượt
         document.getElementById('radius').addEventListener('input', (e) => {
             document.getElementById('radVal').innerText = parseFloat(e.target.value).toFixed(1) + ' km';
         });
 
-        // Sự kiện click bản đồ để đổi tâm
-        map.on('click', (e) => {
-            centerLat = e.latlng.lat;
-            centerLng = e.latlng.lng;
-            centerMarker.setLatLng([centerLat, centerLng]);
-            centerMarker.openPopup();
-        });
-
+        // ==============================
         // GỌI API PYTHON
+        // ==============================
         async function fetchNearby() {
             const radius = document.getElementById('radius').value;
             const category = document.getElementById('category').value;
-            const statusEl = document.getElementById('status');
             
             statusEl.innerText = "Đang tìm kiếm...";
             resultMarkers.forEach(m => map.removeLayer(m));
@@ -159,7 +251,7 @@
                     }).addTo(map).bindPopup(`<b>${p.name}</b><br>${p.distance_km.toFixed(2)} km`);
                     resultMarkers.push(marker);
 
-                    // Thêm vào danh sách
+                    // Thêm vào danh sách Bottom Sheet
                     const itemDiv = document.createElement('div');
                     itemDiv.className = 'item';
                     itemDiv.innerHTML = `
