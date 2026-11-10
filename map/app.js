@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (Full - Voice Settings + Avoid Zones + Real-time HUD)
+   DriveKit — app.js (Full - Nearby Search + Voice Settings + Valhalla)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -28,6 +28,9 @@ const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
 const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
 const MAPTILER_STYLE = `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`;
 const TRACKASIA_STYLE = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
+
+/* ========== NEARBY CONFIG ========== */
+const NEARBY_API_URL = 'https://potential-space-trout-p7r7pgrjwjvw26g6j-8000.app.github.dev/api/nearby';
 
 /* ========== WORKER API WRAPPERS ========== */
 async function apiSearch(query, lat = null, lng = null, radius = null) {
@@ -208,6 +211,12 @@ let touchMarker = null;
 // Biến lưu thông số xe hiện tại của User
 let userVehicleSpecs = { type: 'car', seats: 5, axles: 2 }; 
 
+// Biến cho Nearby Search
+let isNearbyPickingMode = false;
+let nearbyCenterMarker = null;
+let nearbyResultMarkers = [];
+let currentNearbyCenter = null;
+
 const POI_TAG_CONFIG = {
   supermarket: { icon: 'fa-shopping-cart', label: 'Siêu thị', color: '#10b981' },
   rest_stop: { icon: 'fa-bed', label: 'Trạm dừng nghỉ', color: '#3b82f6' },
@@ -266,6 +275,183 @@ function updateVoiceSettingsUI() {
     if (mode === 'vibrate') btns[2].classList.add('active');
   });
 }
+
+/* ========== NEARBY SEARCH LOGIC ========== */
+window.openNearbySearchPanel = function() {
+  document.getElementById('nearbySearchPanel').classList.add('open');
+  if (lastUserPos && !currentNearbyCenter) {
+    currentNearbyCenter = { lat: lastUserPos.lat, lon: lastUserPos.lng };
+    updateNearbyCenterMarker(currentNearbyCenter.lat, currentNearbyCenter.lon);
+  }
+};
+
+window.closeNearbySearchPanel = function() {
+  document.getElementById('nearbySearchPanel').classList.remove('open');
+  toggleNearbyPickMode(false);
+};
+
+window.setNearbyCenterToGPS = function() {
+  if (!navigator.geolocation) return alert('Thiết bị không hỗ trợ GPS');
+  const btn = event.target.closest('button');
+  const oldText = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lấy...';
+  
+  navigator.geolocation.getCurrentPosition(pos => {
+    btn.innerHTML = oldText;
+    const lat = pos.coords.latitude, lon = pos.coords.longitude;
+    currentNearbyCenter = { lat, lon };
+    updateNearbyCenterMarker(lat, lon);
+    map.flyTo({ center: [lon, lat], zoom: 15 });
+    fetchNearbyPlaces();
+  }, err => {
+    btn.innerHTML = oldText;
+    alert('Lỗi GPS: ' + err.message);
+  }, { enableHighAccuracy: true });
+};
+
+window.toggleNearbyPickMode = function(forceState) {
+  isNearbyPickingMode = forceState !== undefined ? forceState : !isNearbyPickingMode;
+  const btn = document.getElementById('btnPickOnMap');
+  
+  if (isNearbyPickingMode) {
+    btn.style.background = 'var(--success)';
+    btn.style.color = 'white';
+    btn.style.borderColor = 'var(--success)';
+    btn.innerHTML = '<i class="fas fa-crosshairs"></i> Đang chọn...';
+    showCustomToast('Bấm lên bản đồ để chọn tâm', 'info');
+    document.getElementById('nearbySearchPanel').classList.remove('open'); 
+  } else {
+    btn.style.background = 'transparent';
+    btn.style.color = 'var(--text)';
+    btn.style.borderColor = 'var(--border)';
+    btn.innerHTML = '<i class="fas fa-map-marker-alt"></i> Chọn điểm khác';
+  }
+};
+
+function updateNearbyCenterMarker(lat, lon) {
+  if (!nearbyCenterMarker) {
+    const el = document.createElement('div');
+    el.className = 'nearby-center-marker';
+    nearbyCenterMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
+      .setLngLat([lon, lat])
+      .addTo(map);
+  } else {
+    nearbyCenterMarker.setLngLat([lon, lat]);
+  }
+}
+
+window.fetchNearbyPlaces = async function() {
+  if (!currentNearbyCenter) return alert('Vui lòng chọn vị trí tâm trước!');
+  
+  const radius = document.getElementById('nearbyRadius').value;
+  const category = document.getElementById('nearbyCategory').value;
+  const btnSearch = event.target.closest('button');
+  const oldText = btnSearch.innerHTML;
+  btnSearch.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tìm...';
+  btnSearch.disabled = true;
+
+  nearbyResultMarkers.forEach(m => m.remove());
+  nearbyResultMarkers = [];
+
+  try {
+    const url = `${NEARBY_API_URL}?lat=${currentNearbyCenter.lat}&lon=${currentNearbyCenter.lon}&radius=${radius}&category=${category}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Lỗi kết nối máy chủ');
+    const data = await res.json();
+
+    const results = Array.isArray(data) ? data : (data.data || []);
+
+    if (results.length === 0) {
+      showCustomToast('Không tìm thấy địa điểm nào', 'warning');
+      closeNearbySearchPanel();
+      return;
+    }
+
+    const bounds = new maplibregl.LngLatBounds();
+    bounds.extend([currentNearbyCenter.lon, currentNearbyCenter.lat]);
+
+    results.forEach(place => {
+      bounds.extend([place.lon, place.lat]);
+      
+      const el = document.createElement('div');
+      el.innerHTML = `<div style="background:#ef4444;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);cursor:pointer;" onclick="flyToNearbyPlace(${place.lat}, ${place.lon}, '${escapeHtml(place.name)}')"><i class="fas fa-map-marker-alt"></i></div>`;
+      
+      const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat([place.lon, place.lat])
+        .addTo(map);
+        
+      nearbyResultMarkers.push(marker);
+    });
+
+    map.fitBounds(bounds, { padding: 50, maxZoom: 16 });
+    renderNearbyResultsSheet(results, category);
+    closeNearbySearchPanel();
+
+  } catch (err) {
+    console.error(err);
+    alert('Lỗi: ' + err.message);
+  } finally {
+    btnSearch.innerHTML = oldText;
+    btnSearch.disabled = false;
+  }
+};
+
+function renderNearbyResultsSheet(results, category) {
+  const list = document.getElementById('nearbyResultsList');
+  const title = document.getElementById('nearbyResultsTitle');
+  const count = document.getElementById('nearbyResultsCount');
+  
+  const select = document.getElementById('nearbyCategory');
+  const selectedText = select.options[select.selectedIndex].text;
+  title.textContent = selectedText;
+  count.textContent = `${results.length} địa điểm`;
+
+  list.innerHTML = '';
+  results.forEach(place => {
+    const div = document.createElement('div');
+    div.className = 'nearby-result-item';
+    div.innerHTML = `
+      <div class="nearby-result-icon"><i class="fas fa-map-marker-alt"></i></div>
+      <div class="nearby-result-info">
+        <div class="nearby-result-name">${escapeHtml(place.name)}</div>
+        <div class="nearby-result-distance"><i class="fas fa-route"></i> Cách đây ${place.distance_km} km</div>
+      </div>
+      <button class="nearby-result-btn" onclick="event.stopPropagation(); goToLongPressLocation(${place.lat}, ${place.lon}, '${escapeHtml(place.name)}'); closeNearbyResultsSheet();">
+        <i class="fas fa-directions"></i>
+      </button>
+    `;
+    div.onclick = () => flyToNearbyPlace(place.lat, place.lon, place.name);
+    list.appendChild(div);
+  });
+
+  const sheet = document.getElementById('nearbyResultsSheet');
+  const overlay = document.getElementById('nearbyResultsOverlay');
+  
+  overlay.style.display = 'block';
+  requestAnimationFrame(() => {
+    overlay.style.opacity = '1';
+    sheet.style.transform = 'translateY(0)';
+  });
+}
+
+window.closeNearbyResultsSheet = function() {
+  const sheet = document.getElementById('nearbyResultsSheet');
+  const overlay = document.getElementById('nearbyResultsOverlay');
+  
+  sheet.style.transform = 'translateY(100%)';
+  overlay.style.opacity = '0';
+  setTimeout(() => { overlay.style.display = 'none'; }, 300);
+};
+
+window.flyToNearbyPlace = function(lat, lon, name) {
+  map.flyTo({ center: [lon, lat], zoom: 17 });
+  const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`<b>${escapeHtml(name)}</b>`);
+  new maplibregl.Marker({ element: document.createElement('div') })
+    .setLngLat([lon, lat])
+    .setPopup(popup)
+    .addTo(map)
+    .togglePopup();
+};
 
 /* ========== HELPER: TOAST & POPUP ========== */
 function showCustomToast(message, type = 'info') {
@@ -709,18 +895,22 @@ function updateUIState() {
   const isNav = document.body.classList.contains('navigating');
   const isDirOpen = document.getElementById('dirSheet').classList.contains('open');
   const isSearchBoxShow = document.getElementById('suggestionsBox').classList.contains('show');
+  const isNearbyOpen = document.getElementById('nearbySearchPanel').classList.contains('open') || document.getElementById('nearbyResultsOverlay').style.display === 'block';
+  
   const searchBar = document.getElementById('searchBar');
   const mainMenuBtn = document.getElementById('mainMenuBtn');
   if (isNav) { searchBar.classList.add('hidden'); mainMenuBtn.classList.add('hidden'); }
   else { searchBar.classList.remove('hidden'); mainMenuBtn.classList.remove('hidden'); }
+  
   const fabLocate = document.getElementById('mainLocateBtn');
   const fabDir = document.getElementById('mainDirBtn');
   const fabLayers = document.getElementById('btnLayerMenu');
   const fabQuickPin = document.getElementById('btnQuickPin');
   const fabReport = document.getElementById('btnReport');
   const fabRestStop = document.getElementById('btnRestStopFilter');
-  const fabNearby = document.getElementById('btnNearby');
-  if (isDirOpen || isSearchBoxShow) {
+  const fabNearby = document.getElementById('btnNearbySearch');
+
+  if (isDirOpen || isSearchBoxShow || isNearbyOpen) {
     if(fabLocate) fabLocate.style.display = 'none'; if(fabDir) fabDir.style.display = 'none';
     if(fabLayers) fabLayers.style.display = 'none'; if(fabQuickPin) fabQuickPin.style.display = 'none';
     if(fabReport) fabReport.style.display = 'none'; if(fabRestStop) fabRestStop.style.display = 'none';
@@ -825,6 +1015,16 @@ function initMap() {
   });
 
   map.on('click', (e) => { 
+    if (isNearbyPickingMode) {
+      const lat = e.lngLat.lat, lon = e.lngLat.lng;
+      currentNearbyCenter = { lat, lon };
+      updateNearbyCenterMarker(lat, lon);
+      toggleNearbyPickMode(false);
+      document.getElementById('nearbySearchPanel').classList.add('open');
+      fetchNearbyPlaces();
+      return;
+    }
+
     if (document.getElementById('poiDetailSheet').classList.contains('open')) { closePoiDetail(); return; }
     if (touchMarker) { closePopupSmoothly(touchMarker); touchMarker = null; return; }
     if (document.getElementById('dirSheet').classList.contains('open') || document.getElementById('suggestionsBox').classList.contains('show')) {
@@ -1152,80 +1352,6 @@ function renderAvoidZonesOnMap() {
     } 
   });
 }
-
-/* ========== NEARBY SEARCH ========== */
-window.openNearbyMenu = function() {
-  document.getElementById('nearbyModal').classList.add('open');
-};
-window.closeNearbyMenu = function() {
-  document.getElementById('nearbyModal').classList.remove('open');
-};
-window.searchNearby = async function(keyword) {
-  closeNearbyMenu();
-  
-  const lat = lastUserPos ? lastUserPos.lat : map.getCenter().lat;
-  const lng = lastUserPos ? lastUserPos.lng : map.getCenter().lng;
-
-  const box = document.getElementById('suggestionsBox');
-  box.classList.add('show');
-  document.getElementById('topSearchInput').value = `Tìm ${keyword}...`;
-  document.getElementById('searchClearBtn').classList.remove('hidden');
-  box.innerHTML = `<div class="sug-item"><i class="fas fa-spinner fa-spin"></i> Đang quét ${keyword} xung quanh...</div>`;
-
-  let searchQuery = keyword;
-  if (keyword === 'khách sạn') searchQuery = 'khách sạn homestay nhà nghỉ resort';
-  if (keyword === 'quán ăn') searchQuery = 'quán ăn nhà hàng cafe';
-  if (keyword === 'du lịch') searchQuery = 'du lịch khu du lịch điểm tham quan';
-
-  let results = await apiSearch(searchQuery, lat, lng, 3000);
-  let nearbyResults = results.map(r => {
-    return { ...r, _dist: calcDist(lat, lng, r.lat, r.lng) };
-  }).filter(r => r._dist <= 3000).sort((a, b) => a._dist - b._dist);
-
-  if (nearbyResults.length < 3) {
-    results = await apiSearch(searchQuery, lat, lng, 10000);
-    nearbyResults = results.map(r => {
-      return { ...r, _dist: calcDist(lat, lng, r.lat, r.lng) };
-    }).filter(r => r._dist <= 10000).sort((a, b) => a._dist - b._dist);
-  }
-
-  box.innerHTML = '';
-
-  if (nearbyResults.length === 0) {
-    box.innerHTML = `<div class="sug-item" style="color:var(--danger)">Không tìm thấy ${keyword} nào gần đây.</div>`;
-    return;
-  }
-
-  const title = document.createElement('div');
-  title.className = 'sug-section-title';
-  title.innerHTML = `<i class="fas fa-street-view"></i> ${keyword.toUpperCase()} GẦN NHẤT`;
-  box.appendChild(title);
-
-  nearbyResults.forEach(r => {
-    const distStr = r._dist > 1000 ? (r._dist / 1000).toFixed(1) + ' km' : Math.round(r._dist) + ' m';
-    const div = document.createElement('div');
-    div.className = 'sug-item';
-    div.innerHTML = `
-      <i class="fas fa-map-marker-alt" style="color:var(--primary); font-size:1.2rem;"></i>
-      <div style="flex:1; min-width:0;">
-        <div style="font-weight:700; white-space:normal; word-break:break-word;">${escapeHtml(r.name)}</div>
-        <div style="font-size:0.75rem; color:var(--warning); font-weight:700; margin-top:2px;">
-          <i class="fas fa-route"></i> Cách đây ${distStr}
-        </div>
-      </div>`;
-    div.onclick = () => {
-      selectLocation(r.lat, r.lng, r.name);
-      map.flyTo({ center: [r.lng, r.lat], zoom: 16 });
-    };
-    box.appendChild(div);
-  });
-
-  renderSearchResultMarkers(nearbyResults, keyword);
-  
-  if (nearbyResults.length > 0) {
-    map.flyTo({ center: [lng, lat], zoom: 14 });
-  }
-};
 
 /* ========== REPORT & SIGNS ========== */
 window.openReportMenu = function() { document.getElementById('reportModal').classList.add('open'); };
@@ -2513,10 +2639,12 @@ function setupSwipeDown(sheetId, handleId, closeFn) {
 document.addEventListener('DOMContentLoaded', () => {
   setupSwipeDown('poiDetailSheet', 'poiDetailSwipeHandle', () => closePoiDetail());
   setupSwipeDown('poiSheet', 'poiSheetSwipeHandle', () => closePoiSheet());
+  setupSwipeDown('nearbyResultsSheet', 'nearbyResultsSwipeHandle', () => closeNearbyResultsSheet());
 });
 setTimeout(() => {
   setupSwipeDown('poiDetailSheet', 'poiDetailSwipeHandle', () => closePoiDetail());
   setupSwipeDown('poiSheet', 'poiSheetSwipeHandle', () => closePoiSheet());
+  setupSwipeDown('nearbyResultsSheet', 'nearbyResultsSwipeHandle', () => closeNearbyResultsSheet());
 }, 500);
 
 let zoomHintShown = false;
