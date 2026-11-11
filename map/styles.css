@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — styles.css (Full Cập Nhật UI/UX)
+   DriveKit — styles.css (Full Cập Nhật UI/UX + Sub-selectors)
    ===================================================== */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -494,6 +494,7 @@ body.light-mode .compass-bg { border-color: rgba(0,0,0,0.1); }
   transform: translateY(100%);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
+  max-height: 88vh; overflow-y: auto;
 }
 .dir-sheet.open { transform: translateY(0); }
 .dir-handle {
@@ -658,6 +659,40 @@ input:checked + .slider:before { transform: translateX(20px); }
   box-shadow: 0 3px 10px rgba(59,130,246,0.3);
 }
 .vehicle-mode-btn i { font-size: 1.15rem; }
+
+/* ---------- SUB SELECTOR CHO LOẠI XE ---------- */
+.sub-selector {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  animation: slideDown 0.2s ease-out;
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.sub-selector-label {
+  font-size: 0.7rem; font-weight: 800; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+}
+.sub-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.sub-option-btn {
+  padding: 7px 12px; min-width: 36px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text);
+  font-weight: 700; font-size: 0.8rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  transition: all 0.15s;
+}
+.sub-option-btn:hover { background: var(--card-2); }
+.sub-option-btn.active {
+  background: var(--primary); color: white;
+  border-color: transparent; box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+}
+.sub-option-btn:active { transform: scale(0.95); }
 
 /* ---------- SORT BAR ---------- */
 .sort-bar { display: flex; gap: 8px; margin-bottom: 12px; }
