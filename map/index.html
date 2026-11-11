@@ -64,11 +64,11 @@
   <!-- FABs -->
   <button class="fab-menu" id="mainMenuBtn" onclick="openMenu()"><i class="fas fa-bars"></i></button>
   <button class="fab-locate" id="mainLocateBtn" onclick="centerToLocation()"><i class="fas fa-location-arrow"></i></button>
-  
+
   <button class="fab-layers" id="btnLayerMenu" onclick="event.stopPropagation(); toggleLayerMenu()" title="Lớp bản đồ">
     <i class="fas fa-layer-group"></i>
   </button>
-  
+
   <!-- NÚT LA BÀN -->
   <button class="fab-compass" id="btnCompass" onclick="resetNorth()" title="La bàn — Bấm để về hướng Bắc">
     <div class="compass-bg"></div>
@@ -77,11 +77,11 @@
       <path d="M12 22L9 12H15L12 22Z" fill="#cbd5e1"/>
     </svg>
   </button>
-  
+
   <button class="fab-layers" id="btnQuickPin" onclick="event.stopPropagation(); openQuickPin()" style="bottom: calc(140px + var(--safe-bottom)); right: 16px; left: auto; background: var(--success); color: white; border: none; box-shadow: 0 4px 15px rgba(16,185,129,0.4);" title="Ghim nhanh vị trí">
     <i class="fas fa-map-marker-alt"></i>
   </button>
-  
+
   <button class="fab-rest-stop-filter" id="btnRestStopFilter" onclick="toggleRestStopFilter()" title="Hiện/ẩn trạm dừng nghỉ" style="bottom: calc(200px + var(--safe-bottom));">
     <i class="fas fa-bed"></i>
   </button>
@@ -129,15 +129,62 @@
       <input type="text" id="dirInputEnd" placeholder="Điểm đến" onclick="activateSearch('end')" />
       <button class="btn-clear-input hidden" id="btnClearEnd" onclick="event.stopPropagation(); clearPoint('end')"><i class="fas fa-times"></i></button>
     </div>
+
+    <!-- Vehicle mode buttons -->
     <div class="vehicle-selector">
       <button class="vehicle-mode-btn active" data-mode="driving" onclick="setVehicleMode('driving', this)"><i class="fas fa-car"></i> Ô tô</button>
       <button class="vehicle-mode-btn" data-mode="driving-traffic" onclick="setVehicleMode('driving-traffic', this)"><i class="fas fa-car-side"></i> Kẹt xe</button>
       <button class="vehicle-mode-btn" data-mode="hd" onclick="setVehicleMode('hd', this)"><i class="fas fa-motorcycle"></i> Xe CN</button>
       <button class="vehicle-mode-btn" data-mode="truck" onclick="setVehicleMode('truck', this)"><i class="fas fa-truck"></i> Xe tải</button>
+      <button class="vehicle-mode-btn" data-mode="bus" onclick="setVehicleMode('bus', this)"><i class="fas fa-bus"></i> Xe buýt</button>
       <button class="vehicle-mode-btn" data-mode="motorcycle" onclick="setVehicleMode('motorcycle', this)"><i class="fas fa-motorcycle"></i> Xe máy</button>
       <button class="vehicle-mode-btn" data-mode="walking" onclick="setVehicleMode('walking', this)"><i class="fas fa-walking"></i> Đi bộ</button>
       <button class="vehicle-mode-btn" data-mode="bicycle" onclick="setVehicleMode('bicycle', this)"><i class="fas fa-bicycle"></i> Xe đạp</button>
     </div>
+
+    <!-- Sub-selector: số chỗ ô tô -->
+    <div class="sub-selector" id="carSeatsSelector">
+      <div class="sub-selector-label"><i class="fas fa-chair" style="color:#3b82f6;"></i> Số chỗ ngồi</div>
+      <div class="sub-options">
+        <button class="sub-option-btn" onclick="setCarSeats(3, this)">3</button>
+        <button class="sub-option-btn" onclick="setCarSeats(4, this)">4</button>
+        <button class="sub-option-btn active" onclick="setCarSeats(5, this)">5</button>
+        <button class="sub-option-btn" onclick="setCarSeats(6, this)">6</button>
+        <button class="sub-option-btn" onclick="setCarSeats(7, this)">7</button>
+        <button class="sub-option-btn" onclick="setCarSeats(8, this)">8</button>
+        <button class="sub-option-btn" onclick="setCarSeats(9, this)">9</button>
+        <button class="sub-option-btn" onclick="setCarSeats(10, this)">10</button>
+        <button class="sub-option-btn" onclick="setCarSeats(11, this)">11</button>
+        <button class="sub-option-btn" onclick="setCarSeats(12, this)">12+</button>
+      </div>
+    </div>
+
+    <!-- Sub-selector: số trục xe tải -->
+    <div class="sub-selector hidden" id="truckAxlesSelector">
+      <div class="sub-selector-label"><i class="fas fa-truck" style="color:#f59e0b;"></i> Số trục xe</div>
+      <div class="sub-options">
+        <button class="sub-option-btn" onclick="setTruckAxles(1, this)">1</button>
+        <button class="sub-option-btn active" onclick="setTruckAxles(2, this)">2</button>
+        <button class="sub-option-btn" onclick="setTruckAxles(3, this)">3</button>
+        <button class="sub-option-btn" onclick="setTruckAxles(4, this)">4</button>
+        <button class="sub-option-btn" onclick="setTruckAxles(5, this)">5</button>
+        <button class="sub-option-btn" onclick="setTruckAxles(6, this)">6</button>
+        <button class="sub-option-btn" onclick="setTruckAxles(7, this)">7</button>
+        <button class="sub-option-btn" onclick="setTruckAxles(8, this)">8</button>
+        <button class="sub-option-btn" onclick="setTruckAxles(9, this)">9</button>
+        <button class="sub-option-btn" onclick="setTruckAxles(10, this)">10</button>
+      </div>
+    </div>
+
+    <!-- Sub-selector: loại xe buýt -->
+    <div class="sub-selector hidden" id="busTypeSelector">
+      <div class="sub-selector-label"><i class="fas fa-bus" style="color:#8b5cf6;"></i> Loại xe buýt</div>
+      <div class="sub-options">
+        <button class="sub-option-btn active" onclick="setBusType('regular', this)"><i class="fas fa-bus"></i> Thường</button>
+        <button class="sub-option-btn" onclick="setBusType('sleeper', this)"><i class="fas fa-bed"></i> Giường nằm</button>
+      </div>
+    </div>
+
     <div id="truckWarning" class="hidden" style="background: rgba(245, 158, 11, 0.15); border: 1px solid var(--warning); border-radius: 8px; padding: 10px; margin-bottom: 10px; display: flex; gap: 8px; align-items: flex-start;">
       <i class="fas fa-exclamation-triangle" style="color: var(--warning); font-size: 1.1rem; margin-top: 2px;"></i>
       <div style="font-size: 0.75rem; color: var(--text); line-height: 1.4;"><b style="color: var(--warning);">Lưu ý:</b> Vui lòng tự quan sát biển báo cấm tải trên thực tế!</div>
@@ -185,9 +232,9 @@
     <button class="report-btn police" onclick="submitReport('police')"><i class="fas fa-shield-alt" style="color:#3b82f6;"></i> CSGT</button>
     <button class="report-btn accident" onclick="submitReport('accident')"><i class="fas fa-car-crash" style="color:#ef4444;"></i> Tai nạn</button>
     <button class="report-btn traffic" onclick="submitReport('traffic')"><i class="fas fa-traffic-light" style="color:#f97316;"></i> Kẹt xe</button>
-    
+
     <button class="report-btn" onclick="openSignsMenu()" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none;"><i class="fas fa-triangle-exclamation" style="color:white;"></i> Biển báo</button>
-    
+
     <button class="report-btn pothole" onclick="submitReport('pothole')"><i class="fas fa-exclamation-circle" style="color:#f59e0b;"></i> Ổ gà</button>
     <button class="report-btn" onclick="submitReport('flood')"><i class="fas fa-water" style="color:#06b6d4;"></i> Ngập nước</button>
     <button class="report-btn" onclick="submitReport('bridge_collapse')"><i class="fas fa-road-circle-xmark" style="color:#dc2626;"></i> Sập cầu</button>
@@ -246,13 +293,13 @@
     <h2><i class="fas fa-street-view"></i> Tìm kiếm xung quanh</h2>
     <button class="report-close" onclick="closeNearbySearchPanel()"><i class="fas fa-times"></i></button>
   </div>
-  
+
   <div class="report-body" style="display:flex; flex-direction:column; gap:16px; padding:20px;">
     <div style="display:flex; gap:10px;">
-      <button class="btn btn-primary" onclick="setNearbyCenterToGPS()" style="flex:1; padding:12px; border-radius:10px; font-weight:700;">
+      <button class="btn btn-primary" onclick="setNearbyCenterToGPS()" style="flex:1; padding:12px; border-radius:10px; font-weight:700; background:var(--primary); color:white;">
         <i class="fas fa-location-arrow"></i> Vị trí của tôi
       </button>
-      <button class="btn btn-outline" id="btnPickOnMap" onclick="toggleNearbyPickMode()" style="flex:1; padding:12px; border-radius:10px; font-weight:700; border: 1px solid var(--border); color: var(--text);">
+      <button class="btn btn-outline" id="btnPickOnMap" onclick="toggleNearbyPickMode()" style="flex:1; padding:12px; border-radius:10px; font-weight:700; border: 1px solid var(--border); color: var(--text); background:transparent;">
         <i class="fas fa-map-marker-alt"></i> Chọn điểm khác
       </button>
     </div>
@@ -407,7 +454,7 @@
       <input type="range" id="nearbyRadius" min="0.5" max="5.0" step="0.5" value="2.0" oninput="document.getElementById('radiusLabel').textContent = this.value + ' km'" style="width:100%; accent-color:var(--primary);">
     </div>
 
-    <button class="btn btn-primary" onclick="fetchNearbyPlaces()" style="padding:16px; border-radius:10px; font-size:1.1rem; font-weight:800; margin-top:10px;">
+    <button class="btn btn-primary" onclick="fetchNearbyPlaces()" style="padding:16px; border-radius:10px; font-size:1.1rem; font-weight:800; margin-top:10px; background:var(--primary); color:white;">
       <i class="fas fa-search"></i> TÌM KIẾM
     </button>
   </div>
@@ -416,17 +463,17 @@
 <!-- ========== NEARBY RESULTS BOTTOM SHEET ========== -->
 <div id="nearbyResultsOverlay" onclick="closeNearbyResultsSheet()" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:2700; display:none; opacity:0; transition:opacity 0.3s;"></div>
 <div id="nearbyResultsSheet" style="position:fixed; bottom:0; left:0; right:0; z-index:2800; background:var(--card); border-top-left-radius:20px; border-top-right-radius:20px; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.4,0,0.2,1); display:flex; flex-direction:column; max-height:70vh; box-shadow:0 -10px 40px rgba(0,0,0,0.3); border-top:1px solid var(--border);">
-  
+
   <div class="sheet-swipe-hint" id="nearbyResultsSwipeHandle">
     <div class="sheet-swipe-bar"></div>
     <div class="sheet-swipe-text"><span>Vuốt xuống để đóng</span><i class="fas fa-chevron-down"></i></div>
   </div>
-  
+
   <div style="padding:0 20px 10px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border);">
     <h3 style="font-size:1.1rem; font-weight:800; color:var(--text); margin:0;" id="nearbyResultsTitle">Kết quả</h3>
     <span style="font-size:0.8rem; color:var(--text-muted); font-weight:700;" id="nearbyResultsCount">0 địa điểm</span>
   </div>
-  
+
   <div id="nearbyResultsList" style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px;">
     <!-- Kết quả sẽ được đổ vào đây -->
   </div>
@@ -457,16 +504,16 @@
         <button id="liveLeaveBtn" onclick="leaveLiveRoom()" style="display:none; width:100%; padding:12px; background:var(--danger); color:white; border:none; border-radius:10px; font-weight:800; cursor:pointer;"><i class="fas fa-sign-out-alt"></i> Rời phòng</button>
       </div>
     </div>
-    
+
     <button class="profile-btn" onclick="shareRoute()"><span><i class="fas fa-share-alt"></i> Chia sẻ lộ trình hiện tại</span><i class="fas fa-chevron-right"></i></button>
     <div class="profile-btn" style="cursor: default;"><span><i class="fas fa-moon"></i> Chế độ Sáng / Tối</span><label class="switch"><input type="checkbox" id="themeToggle" onchange="toggleTheme()"><span class="slider"></span></label></div>
-    
+
     <button class="profile-btn" onclick="openVoiceSettings()"><span><i class="fas fa-volume-up"></i> Cài đặt Giọng nói</span><i class="fas fa-chevron-right"></i></button>
 
     <div class="profile-card"><h3><i class="fas fa-bookmark"></i> Lộ trình đã lưu <button onclick="clearAllSavedRoutes()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button></h3><div class="history-list" id="savedRoutesList"><div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có lộ trình nào</div></div></div>
     <div class="profile-card"><h3><i class="fas fa-history"></i> Lịch sử chuyến đi <button onclick="clearAllHistory()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button></h3><div class="history-list" id="historyList"><div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có chuyến đi nào</div></div></div>
     <div class="profile-card"><h3><i class="fas fa-link"></i> Link đã chia sẻ <button onclick="clearAllSharedLinks()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button></h3><div class="history-list" id="sharedLinksList"><div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có link nào</div></div></div>
-    
+
     <button class="profile-btn logout" onclick="logout()"><span><i class="fas fa-sign-out-alt"></i> Đăng xuất</span></button>
   </div>
 </div>
@@ -546,7 +593,7 @@
     <button class="report-close" style="background:var(--bg-2); color:var(--text);" onclick="closeVoiceSettings()"><i class="fas fa-times"></i></button>
   </div>
   <div class="report-body" style="display:flex; flex-direction:column; gap:20px; padding:20px;">
-    
+
     <div class="form-group" style="background:var(--bg-2); padding:16px; border-radius:12px; border:1px solid var(--border);">
       <label style="display:flex; justify-content:space-between; font-weight:800; font-size:0.95rem;">
         <span>Âm lượng (Tối đa 200%)</span>
@@ -600,11 +647,11 @@
 <script>
   window.addEventListener('error', function (e) { var t = document.getElementById('loadingText'); if (t) t.textContent = 'Lỗi tải: ' + (e.message || 'không rõ'); });
   setTimeout(function () { var el = document.getElementById('loadingPercent'); if (el && el.textContent === '0%') { var t = document.getElementById('loadingText'); if (t) t.textContent = 'Không tải được ứng dụng.'; } }, 3500);
-  
-  if ('serviceWorker' in navigator) { 
-    window.addEventListener('load', () => { 
-      navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW error:', err)); 
-    }); 
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW error:', err));
+    });
   }
 </script>
 
