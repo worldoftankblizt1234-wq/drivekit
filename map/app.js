@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (Full - Nearby Search + Voice Settings + Valhalla)
+   DriveKit — app.js (Full - Nearby Search + Voice Settings + Valhalla + Vehicle Sub-selectors)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -47,22 +47,28 @@ async function apiSearch(query, lat = null, lng = null, radius = null) {
   } catch (e) { console.warn('Search error:', e); return []; }
 }
 
-async function apiRoute(origin, dest, mode, bypassCache = false) {
-  const cacheParam = bypassCache ? '&nocache=1' : '';
-  const r = await fetch(
-    `${WORKER_URL}/api/route?fromLat=${origin.lat}&fromLng=${origin.lng}` +
-    `&toLat=${dest.lat}&toLng=${dest.lng}&mode=${encodeURIComponent(mode)}${cacheParam}`
-  );
-  
+async function apiRoute(origin, dest, mode, bypassCache = false, specs = null) {
+  let url = `${WORKER_URL}/api/route?fromLat=${origin.lat}&fromLng=${origin.lng}` +
+    `&toLat=${dest.lat}&toLng=${dest.lng}&mode=${encodeURIComponent(mode)}`;
+
+  if (specs) {
+    if (specs.seats) url += `&seats=${specs.seats}`;
+    if (specs.axles) url += `&axles=${specs.axles}`;
+    if (specs.bus_type) url += `&bus_type=${encodeURIComponent(specs.bus_type)}`;
+  }
+  if (bypassCache) url += '&nocache=1';
+
+  const r = await fetch(url);
+
   if (!r.ok) {
     let errText = 'Lỗi kết nối máy chủ (HTTP ' + r.status + ')';
     try {
       const j = await r.json();
-      if (j.error) errText = j.error; 
+      if (j.error) errText = j.error;
     } catch(e) {}
     throw new Error(errText);
   }
-  
+
   const j = await r.json();
   if (!j.routes) throw new Error('Không có tuyến đường trả về');
   return j.routes;
@@ -208,8 +214,11 @@ const LIVE_HEARTBEAT_TIMEOUT = 120000;
 let isViewingLiveTrack = false;
 let touchMarker = null;
 
-// Biến lưu thông số xe hiện tại của User
-let userVehicleSpecs = { type: 'car', seats: 5, axles: 2 }; 
+/* ========== VEHICLE STATE ========== */
+let userVehicleSpecs = { type: 'car', seats: 5, axles: 2 };
+let currentCarSeats = 5;         // 3-11, 12 = "12+"
+let currentTruckAxles = 2;       // 1-10
+let currentBusType = 'regular';  // 'regular' | 'sleeper'
 
 // Biến cho Nearby Search
 let isNearbyPickingMode = false;
@@ -268,7 +277,7 @@ function updateVoiceSettingsUI() {
     if (!container) return;
     const btns = container.querySelectorAll('.seg-btn');
     btns.forEach(btn => btn.classList.remove('active'));
-    
+
     const mode = voiceSettings[cat];
     if (mode === 'never') btns[0].classList.add('active');
     if (mode === 'always') btns[1].classList.add('active');
@@ -295,7 +304,7 @@ window.setNearbyCenterToGPS = function() {
   const btn = event.target.closest('button');
   const oldText = btn.innerHTML;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lấy...';
-  
+
   navigator.geolocation.getCurrentPosition(pos => {
     btn.innerHTML = oldText;
     const lat = pos.coords.latitude, lon = pos.coords.longitude;
@@ -312,14 +321,14 @@ window.setNearbyCenterToGPS = function() {
 window.toggleNearbyPickMode = function(forceState) {
   isNearbyPickingMode = forceState !== undefined ? forceState : !isNearbyPickingMode;
   const btn = document.getElementById('btnPickOnMap');
-  
+
   if (isNearbyPickingMode) {
     btn.style.background = 'var(--success)';
     btn.style.color = 'white';
     btn.style.borderColor = 'var(--success)';
     btn.innerHTML = '<i class="fas fa-crosshairs"></i> Đang chọn...';
     showCustomToast('Bấm lên bản đồ để chọn tâm', 'info');
-    document.getElementById('nearbySearchPanel').classList.remove('open'); 
+    document.getElementById('nearbySearchPanel').classList.remove('open');
   } else {
     btn.style.background = 'transparent';
     btn.style.color = 'var(--text)';
@@ -342,7 +351,7 @@ function updateNearbyCenterMarker(lat, lon) {
 
 window.fetchNearbyPlaces = async function() {
   if (!currentNearbyCenter) return alert('Vui lòng chọn vị trí tâm trước!');
-  
+
   const radius = document.getElementById('nearbyRadius').value;
   const category = document.getElementById('nearbyCategory').value;
   const btnSearch = event.target.closest('button');
@@ -372,14 +381,14 @@ window.fetchNearbyPlaces = async function() {
 
     results.forEach(place => {
       bounds.extend([place.lon, place.lat]);
-      
+
       const el = document.createElement('div');
       el.innerHTML = `<div style="background:#ef4444;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);cursor:pointer;" onclick="flyToNearbyPlace(${place.lat}, ${place.lon}, '${escapeHtml(place.name)}')"><i class="fas fa-map-marker-alt"></i></div>`;
-      
+
       const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([place.lon, place.lat])
         .addTo(map);
-        
+
       nearbyResultMarkers.push(marker);
     });
 
@@ -400,7 +409,7 @@ function renderNearbyResultsSheet(results, category) {
   const list = document.getElementById('nearbyResultsList');
   const title = document.getElementById('nearbyResultsTitle');
   const count = document.getElementById('nearbyResultsCount');
-  
+
   const select = document.getElementById('nearbyCategory');
   const selectedText = select.options[select.selectedIndex].text;
   title.textContent = selectedText;
@@ -426,7 +435,7 @@ function renderNearbyResultsSheet(results, category) {
 
   const sheet = document.getElementById('nearbyResultsSheet');
   const overlay = document.getElementById('nearbyResultsOverlay');
-  
+
   overlay.style.display = 'block';
   requestAnimationFrame(() => {
     overlay.style.opacity = '1';
@@ -437,7 +446,7 @@ function renderNearbyResultsSheet(results, category) {
 window.closeNearbyResultsSheet = function() {
   const sheet = document.getElementById('nearbyResultsSheet');
   const overlay = document.getElementById('nearbyResultsOverlay');
-  
+
   sheet.style.transform = 'translateY(100%)';
   overlay.style.opacity = '0';
   setTimeout(() => { overlay.style.display = 'none'; }, 300);
@@ -811,10 +820,10 @@ function isVehicleBannedByZone(zone) {
   const vType = userVehicleSpecs.type;
   const banned = zone.bannedVehicles || [];
   if (banned.length === 0) return true;
-  
+
   if (banned.includes(vType)) {
     if (vType === 'car' && zone.carSeats && zone.carSeats.length > 0) {
-      const isMatchSeat = zone.carSeats.includes(userVehicleSpecs.seats.toString()) || 
+      const isMatchSeat = zone.carSeats.includes(userVehicleSpecs.seats.toString()) ||
                          (userVehicleSpecs.seats >= 9 && zone.carSeats.includes('9'));
       if (!isMatchSeat) return false;
     }
@@ -828,7 +837,7 @@ function isVehicleBannedByZone(zone) {
 
 function checkRouteAgainstAvoidZones(routeCoords) {
   if (!allAvoidZones || allAvoidZones.length === 0) return { blocked: false };
-  
+
   for (const zone of allAvoidZones) {
     if (!zone.lat1 || !zone.lng1) continue;
     if (!isZoneCurrentlyActive(zone)) continue;
@@ -858,12 +867,12 @@ function checkRouteAgainstAvoidZones(routeCoords) {
       segments.push({ a: { lat: zone.lat1, lng: zone.lng1 }, b: { lat: zone.lat2, lng: zone.lng2 } });
     }
 
-    for (let i = 0; i < routeCoords.length; i += 3) { 
+    for (let i = 0; i < routeCoords.length; i += 3) {
       const p = { lat: routeCoords[i][1], lng: routeCoords[i][0] };
       for (const seg of segments) {
         const closestPt = getClosestPointOnSegment(p, seg.a, seg.b);
         const dist = calcDist(p.lat, p.lng, closestPt.lat, closestPt.lng);
-        if (dist < 30) { 
+        if (dist < 30) {
           return { blocked: true, zoneName: zone.name };
         }
       }
@@ -896,12 +905,12 @@ function updateUIState() {
   const isDirOpen = document.getElementById('dirSheet').classList.contains('open');
   const isSearchBoxShow = document.getElementById('suggestionsBox').classList.contains('show');
   const isNearbyOpen = document.getElementById('nearbySearchPanel').classList.contains('open') || document.getElementById('nearbyResultsOverlay').style.display === 'block';
-  
+
   const searchBar = document.getElementById('searchBar');
   const mainMenuBtn = document.getElementById('mainMenuBtn');
   if (isNav) { searchBar.classList.add('hidden'); mainMenuBtn.classList.add('hidden'); }
   else { searchBar.classList.remove('hidden'); mainMenuBtn.classList.remove('hidden'); }
-  
+
   const fabLocate = document.getElementById('mainLocateBtn');
   const fabDir = document.getElementById('mainDirBtn');
   const fabLayers = document.getElementById('btnLayerMenu');
@@ -1014,7 +1023,7 @@ function initMap() {
     showLocationPopup(e.lngLat);
   });
 
-  map.on('click', (e) => { 
+  map.on('click', (e) => {
     if (isNearbyPickingMode) {
       const lat = e.lngLat.lat, lon = e.lngLat.lng;
       currentNearbyCenter = { lat, lon };
@@ -1079,7 +1088,7 @@ function renderStaticWarningsOnMap(warnings) {
   staticWarningMarkers.forEach(m => m.remove());
   staticWarningMarkers = [];
   if (!warnings || warnings.length === 0 || !map || map.getZoom() < 13) return;
-  
+
   warnings.forEach(w => {
     const el = document.createElement('div');
     if (w.type === 'speed_limit') {
@@ -1090,7 +1099,7 @@ function renderStaticWarningsOnMap(warnings) {
     } else if (w.type === 'penalty_camera') {
       el.innerHTML = `<div style="background:#8b5cf6;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-video"></i></div>`;
     } else return;
-    
+
     let title = 'Cảnh báo';
     if (w.type === 'speed_limit') title = `Tốc độ: ${w.speed} km/h`;
     if (w.type === 'speed_camera') title = 'Camera tốc độ';
@@ -1118,13 +1127,13 @@ function showLocationPopup(lngLat) {
   const el = createTouchMarkerElement();
   touchMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lngLat.lng, lngLat.lat]).setPopup(popup).addTo(map);
   touchMarker.togglePopup();
-  
+
   const markerRef = touchMarker;
   (async () => {
     let name = '';
     try { const raw = await apiReverseGeocode(lngLat.lat, lngLat.lng); if (raw) name = raw.split(',').slice(0, 3).join(', '); } catch (e) {}
     const displayName = name || `Tọa độ: ${lngLat.lat.toFixed(5)}, ${lngLat.lng.toFixed(5)}`;
-    
+
     const popupHtml = `
       <div style="min-width: 180px;">
         <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: var(--text);">${displayName}</div>
@@ -1241,12 +1250,12 @@ function renderReportsOnMap() {
   const now = Date.now();
   const currentZoom = map ? map.getZoom() : 17;
   if (currentZoom < ZOOM_CONFIG.report) return;
-  
+
   for (const key in allReports) {
     const rep = allReports[key];
     if (now > rep.expiresAt) continue;
     if (rep.type === 'speed_limit' || rep.type === 'speed_camera' || rep.type === 'penalty_camera') continue;
-    
+
     const icons = {
       police: '<div style="background:#3b82f6;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-shield-alt"></i></div>',
       toll: '<div style="background:#f59e0b;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-money-bill"></i></div>',
@@ -1277,7 +1286,7 @@ function renderAvoidZonesOnMap() {
 
   allAvoidZones.forEach(zone => {
     if (!zone.lat1 || !zone.lng1) return;
-    
+
     const isActive = isZoneCurrentlyActive(zone);
     let coordsForMarker = [];
     let hasWaypoints = false;
@@ -1310,7 +1319,7 @@ function renderAvoidZonesOnMap() {
         }
       } catch (e) { console.warn('Lỗi parse waypoints:', zone.name, e); }
     }
-    
+
     if (!hasWaypoints) {
       features.push({
         type: 'Feature',
@@ -1331,7 +1340,7 @@ function renderAvoidZonesOnMap() {
     el.className = 'avoid-zone-pin';
     el.innerHTML = `<i class="fas fa-ban"></i>`;
     if (!isActive) el.style.opacity = '0.5';
-    
+
     const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`<b>🚫 ${escapeHtml(zone.name || 'Tuyến đường cấm')}</b><br><small>${isActive ? 'Đang cấm' : 'Chưa tới giờ cấm'}</small>`);
     const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([midLng, midLat]).setPopup(popup).addTo(map);
     avoidZoneMarkers.push(marker);
@@ -1340,16 +1349,16 @@ function renderAvoidZonesOnMap() {
   if (features.length === 0) return;
 
   map.addSource('avoid-zones', { type: 'geojson', data: { type: 'FeatureCollection', features } });
-  map.addLayer({ 
-    id: 'avoid-zones-line', 
-    type: 'line', 
-    source: 'avoid-zones', 
-    paint: { 
-      'line-color': ['case', ['get', 'isActive'], '#ef4444', '#64748b'], 
-      'line-width': 8, 
+  map.addLayer({
+    id: 'avoid-zones-line',
+    type: 'line',
+    source: 'avoid-zones',
+    paint: {
+      'line-color': ['case', ['get', 'isActive'], '#ef4444', '#64748b'],
+      'line-width': 8,
       'line-opacity': ['case', ['get', 'isActive'], 0.85, 0.4],
-      'line-dasharray': [2, 2] 
-    } 
+      'line-dasharray': [2, 2]
+    }
   });
 }
 
@@ -1382,7 +1391,7 @@ window.selectSignsType = function(type) {
 window.submitSpeedLimit = async function(speed) {
   document.getElementById('speedLimitModal').classList.remove('open');
   if (!lastUserPos) return alert('Chưa lấy được vị trí GPS!');
-  
+
   try {
     await saveStaticWarning('speed_limit', lastUserPos.lat, lastUserPos.lng, speed, currentUser?.uid);
     showCustomToast(`Đã ghim biển báo tốc độ ${speed} km/h!`, 'success');
@@ -1394,7 +1403,7 @@ async function submitSignReport(type) {
   if (!lastUserPos) return alert('Chưa lấy được vị trí GPS!');
   closeSignsMenu();
   const now = Date.now();
-  
+
   try {
     if (type === 'speed_camera' || type === 'penalty_camera') {
       await saveStaticWarning(type, lastUserPos.lat, lastUserPos.lng, null, currentUser?.uid);
@@ -1421,7 +1430,7 @@ window.submitReport = async function(type) {
   else if (type === 'flood') ttl = 10800000;
   else if (type === 'traffic') ttl = 1800000;
   else if (type === 'bridge_collapse' || type === 'road_collapse') ttl = 604800000;
-  
+
   try {
     await set(ref(db, `reports/${now}_${currentUser.uid}`), {
       lat: lastUserPos.lat, lng: lastUserPos.lng, type,
@@ -1431,18 +1440,90 @@ window.submitReport = async function(type) {
   } catch (e) { alert('Lỗi: ' + e.message); }
 };
 
-/* ========== VEHICLE MODE ========== */
+/* ========== VEHICLE MODE & SPECS ========== */
 window.setVehicleMode = function(mode, btn) {
   currentVehicleMode = mode;
   document.querySelectorAll('.vehicle-mode-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
+
+  // Show/hide sub-selectors
+  const carSel   = document.getElementById('carSeatsSelector');
+  const truckSel = document.getElementById('truckAxlesSelector');
+  const busSel   = document.getElementById('busTypeSelector');
+  if (carSel)   carSel.classList.toggle('hidden',   mode !== 'driving' && mode !== 'driving-traffic');
+  if (truckSel) truckSel.classList.toggle('hidden', mode !== 'truck');
+  if (busSel)   busSel.classList.toggle('hidden',   mode !== 'bus');
+
+  // Truck warning
   const truckWarning = document.getElementById('truckWarning');
-  if (truckWarning) {
-    if (mode === 'truck') truckWarning.classList.remove('hidden');
-    else truckWarning.classList.add('hidden');
+  if (truckWarning) truckWarning.classList.toggle('hidden', mode !== 'truck');
+
+  updateUserVehicleSpecs();
+
+  if (startPoint && endPoint && document.getElementById('routeOptionsModal').classList.contains('open')) {
+    fetchAndShowRouteOptions();
   }
+};
+
+/* Cập nhật userVehicleSpecs để dùng cho check avoid zones */
+function updateUserVehicleSpecs() {
+  if (currentVehicleMode === 'driving' || currentVehicleMode === 'driving-traffic') {
+    userVehicleSpecs = { type: 'car', seats: currentCarSeats, axles: 2 };
+  } else if (currentVehicleMode === 'truck') {
+    userVehicleSpecs = { type: 'truck', seats: 2, axles: currentTruckAxles };
+  } else if (currentVehicleMode === 'bus') {
+    userVehicleSpecs = {
+      type: currentBusType === 'sleeper' ? 'truck' : 'bus',
+      seats: currentBusType === 'sleeper' ? 40 : 45,
+      axles: 2
+    };
+  } else if (currentVehicleMode === 'motorcycle' || currentVehicleMode === 'hd') {
+    userVehicleSpecs = { type: 'motorcycle', seats: 2, axles: 2 };
+  } else {
+    userVehicleSpecs = { type: 'car', seats: 5, axles: 2 };
+  }
+}
+
+/* Build params gửi Worker → Valhalla */
+function getCurrentVehicleSpecs() {
+  if (currentVehicleMode === 'driving' || currentVehicleMode === 'driving-traffic') {
+    return { seats: currentCarSeats };
+  }
+  if (currentVehicleMode === 'truck') {
+    return { axles: currentTruckAxles };
+  }
+  if (currentVehicleMode === 'bus') {
+    const s = { bus_type: currentBusType };
+    if (currentBusType === 'sleeper') s.axles = 2;
+    return s;
+  }
+  return null;
+}
+
+window.setCarSeats = function(seats, btn) {
+  currentCarSeats = seats;
+  document.querySelectorAll('#carSeatsSelector .sub-option-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  updateUserVehicleSpecs();
   if (startPoint && endPoint && document.getElementById('routeOptionsModal').classList.contains('open')) fetchAndShowRouteOptions();
 };
+
+window.setTruckAxles = function(axles, btn) {
+  currentTruckAxles = axles;
+  document.querySelectorAll('#truckAxlesSelector .sub-option-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  updateUserVehicleSpecs();
+  if (startPoint && endPoint && document.getElementById('routeOptionsModal').classList.contains('open')) fetchAndShowRouteOptions();
+};
+
+window.setBusType = function(type, btn) {
+  currentBusType = type;
+  document.querySelectorAll('#busTypeSelector .sub-option-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  updateUserVehicleSpecs();
+  if (startPoint && endPoint && document.getElementById('routeOptionsModal').classList.contains('open')) fetchAndShowRouteOptions();
+};
+
 window.changeSort = function(mode) { currentSortMode = mode; if (startPoint && endPoint) fetchAndShowRouteOptions(); };
 
 /* ========== ROUTE ========== */
@@ -1450,18 +1531,29 @@ window.fetchAndShowRouteOptions = async function() {
   if (!startPoint || !endPoint || !startPoint.lat || !endPoint.lat) {
     return alert('Vui lòng chọn đủ Điểm đi và Điểm đến hợp lệ!');
   }
-  const modeLabel = currentVehicleMode === 'driving' ? 'ô tô' : currentVehicleMode === 'driving-traffic' ? 'ô tô (kẹt xe)' : currentVehicleMode === 'truck' ? 'xe tải' : currentVehicleMode === 'hd' ? 'xe công nghệ' : currentVehicleMode === 'walking' ? 'đi bộ' : currentVehicleMode === 'bicycle' ? 'xe đạp' : 'xe máy';
+
+  const modeLabel =
+    currentVehicleMode === 'driving' ? `ô tô (${currentCarSeats} chỗ)` :
+    currentVehicleMode === 'driving-traffic' ? `ô tô kẹt xe (${currentCarSeats} chỗ)` :
+    currentVehicleMode === 'truck' ? `xe tải (${currentTruckAxles} trục)` :
+    currentVehicleMode === 'bus' ? `xe buýt (${currentBusType === 'sleeper' ? 'giường nằm' : 'thường'})` :
+    currentVehicleMode === 'hd' ? 'xe công nghệ' :
+    currentVehicleMode === 'walking' ? 'đi bộ' :
+    currentVehicleMode === 'bicycle' ? 'xe đạp' : 'xe máy';
+
+  updateUserVehicleSpecs();
+
   const bodyEl = document.getElementById('routeOptionsBody');
   bodyEl.innerHTML = `<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px; color:var(--text-muted);">Đang tìm tuyến (${modeLabel})...</p></div>`;
   document.getElementById('routeOptionsModal').classList.add('open');
+
   try {
-    let routes = await apiRoute(startPoint, endPoint, currentVehicleMode);
-    
-    userVehicleSpecs.type = currentVehicleMode === 'truck' ? 'truck' : (currentVehicleMode === 'motorcycle' ? 'motorcycle' : 'car');
+    const specs = getCurrentVehicleSpecs();
+    let routes = await apiRoute(startPoint, endPoint, currentVehicleMode, false, specs);
 
     let hasBlocked = false;
     let blockedName = '';
-    
+
     routes = routes.filter(r => {
       const check = checkRouteAgainstAvoidZones(r.geometry.coordinates);
       if (check.blocked) {
@@ -1494,45 +1586,45 @@ window.fetchAndShowRouteOptions = async function() {
     });
     if (window._routeBadges) window._routeBadges.forEach(m => m.remove());
     window._routeBadges = [];
-    
+
     const bounds = new maplibregl.LngLatBounds();
     routes.forEach((r, index) => {
       r.geometry.coordinates.forEach(c => bounds.extend([c[1], c[0]]));
       const isBest = index === 0;
-      
+
       map.addSource(`alt-route-source-${index}`, {
         type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: r.geometry.coordinates.map(c => [c[1], c[0]]) } }
       });
-      
+
       map.addLayer({
         id: `alt-route-layer-${index}`, type: 'line', source: `alt-route-source-${index}`,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
-          'line-color': isBest ? '#3b82f6' : '#60a5fa', 
+          'line-color': isBest ? '#3b82f6' : '#60a5fa',
           'line-width': isBest ? 9 : 6,
           'line-opacity': isBest ? 1 : 0.8,
           'line-dasharray': isBest ? [1] : [2, 2]
         }
       });
-      
+
       map.on('click', `alt-route-layer-${index}`, () => selectRouteOption(index));
       map.on('mouseenter', `alt-route-layer-${index}`, () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', `alt-route-layer-${index}`, () => { map.getCanvas().style.cursor = ''; });
-      
+
       const midIdx = Math.floor(r.geometry.coordinates.length / 2);
       const el = document.createElement('div');
       const badgeColor = isBest ? '#3b82f6' : '#60a5fa';
       el.style.cssText = `background:${badgeColor};color:white;border:3px solid white;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:0.9rem;box-shadow:0 4px 10px rgba(0,0,0,0.4);cursor:pointer;`;
       el.innerHTML = index + 1;
       el.onclick = () => selectRouteOption(index);
-      
+
       const midCoord = r.geometry.coordinates[midIdx];
       const badge = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([midCoord[1], midCoord[0]]).addTo(map);
       window._routeBadges.push(badge);
     });
-    
+
     map.fitBounds(bounds, { padding: 50, maxZoom: 17 });
-    
+
     let html = `<div class="sort-bar"><button class="sort-chip ${currentSortMode === 'fastest' ? 'active' : ''}" onclick="changeSort('fastest')"><i class="fas fa-bolt"></i> Nhanh nhất</button><button class="sort-chip ${currentSortMode === 'shortest' ? 'active' : ''}" onclick="changeSort('shortest')"><i class="fas fa-route"></i> Ngắn nhất</button></div>`;
     routes.forEach((r, index) => {
       const dist = (r.distance / 1000).toFixed(1);
@@ -1563,7 +1655,7 @@ window.selectRouteOption = function(index) {
 
   const unselectedRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(unselectedRoutes));
-  
+
   alternativeRoutesData.forEach((_, i) => {
     if (map.getLayer(`alt-route-layer-${i}`)) map.removeLayer(`alt-route-layer-${i}`);
     if (map.getSource(`alt-route-source-${i}`)) map.removeSource(`alt-route-source-${i}`);
@@ -1600,7 +1692,7 @@ function startNavigationHUD() {
     voiceRouteSteps = currentRouteData.legs[0].steps;
     voiceStepIndex = 0; lastSnapIndex = 0; tripStartTime = Date.now(); arrivalHandled = false;
     warnedReports.clear(); warnedAvoidZones.clear(); warnedPois.clear();
-    
+
     const dist = currentRouteData.distance || 0;
     const dur = currentRouteData.duration || 0;
 
@@ -1643,7 +1735,7 @@ window.switchToRoute = function(index) {
   if (!selectedRoute.legs[0].steps) selectedRoute.legs[0].steps = [];
   const otherRoutes = alternativeRoutesData.filter((_, i) => i !== index);
   localStorage.setItem('alternativeRoutes', JSON.stringify(otherRoutes));
-  
+
   currentRouteData = selectedRoute;
   currentRouteCoords = selectedRoute.geometry.coordinates;
   voiceRouteSteps = selectedRoute.legs[0].steps;
@@ -1705,17 +1797,17 @@ function updateRemainingHUD() {
   document.getElementById('hudRemainDist').textContent = (remainDist / 1000).toFixed(1) + ' km';
 
   let speed = smoothedSpeed * 3.6;
-  
+
   if (speed < 10) {
     const totalDist = currentRouteData.distance || 1;
     const totalDur = currentRouteData.duration || 1;
-    speed = (totalDist / 1000) / (totalDur / 3600); 
-    if (speed < 10) speed = 30; 
+    speed = (totalDist / 1000) / (totalDur / 3600);
+    if (speed < 10) speed = 30;
   }
 
   const remainSec = remainDist / (speed / 3.6);
   const remainMin = Math.max(1, Math.round(remainSec / 60));
-  
+
   document.getElementById('hudRemainTime').textContent = remainMin + ' phút';
 }
 
@@ -1768,9 +1860,10 @@ function checkOffRoute(userLat, userLng) {
 async function autoReroute(userLat, userLng, bypassCache = false) {
   if (isRerouting) return;
   isRerouting = true;
-  const currentMode = currentRouteData?.mode || 'driving';
+  const currentMode = currentVehicleMode;
   try {
-    const altRoutes = await apiRoute({ lat: userLat, lng: userLng }, endPoint, currentMode, bypassCache);
+    const specs = getCurrentVehicleSpecs();
+    const altRoutes = await apiRoute({ lat: userLat, lng: userLng }, endPoint, currentMode, bypassCache, specs);
     const r = altRoutes[0];
     if (!r) throw new Error('Không có tuyến thay thế');
     if (!r.legs || !Array.isArray(r.legs) || r.legs.length === 0) r.legs = [{ steps: [] }];
@@ -1822,10 +1915,10 @@ window.endTrip = async function(save) {
   if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
   if (voiceCheckTimer) { clearInterval(voiceCheckTimer); voiceCheckTimer = null; }
   if (window.speechSynthesis) speechSynthesis.cancel();
-  
+
   if (map.getLayer('current-route-layer')) map.removeLayer('current-route-layer');
   if (map.getSource('current-route-source')) map.removeSource('current-route-source');
-  
+
   if (window._routeBadges) { window._routeBadges.forEach(m => m.remove()); window._routeBadges = []; }
   alternativeRoutesData.forEach((_, i) => {
     if (map.getLayer(`alt-route-layer-${i}`)) map.removeLayer(`alt-route-layer-${i}`);
@@ -2138,7 +2231,7 @@ async function doSearch(query) {
   try {
     const results = await apiSearch(query);
     loadingDiv.remove();
-    
+
     const currentCount = restStopMatches.length + poiMatches.length;
     const remainingSlots = Math.max(0, 20 - currentCount);
     const displayResults = results.slice(0, remainingSlots);
@@ -2188,13 +2281,13 @@ async function selectLocation(lat, lng, name) {
   document.getElementById('searchClearBtn').classList.remove('hidden');
   closeSearch();
   map.flyTo({ center: [lng, lat], zoom: 16 });
-  
+
   let finalName = name;
   try {
     const raw = await apiReverseGeocode(lat, lng);
     if (raw) finalName = raw.split(',').slice(0, 3).join(', ');
   } catch (e) {}
-  
+
   const popupHtml = `
     <div style="min-width: 180px;">
       <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: var(--text);">${finalName}</div>
@@ -2334,12 +2427,12 @@ function startWatching() {
     lastUserPos = newPos;
     animateMarkerTo(lastUserPos);
     if (map) map.easeTo({ center: [lastUserPos.lng, lastUserPos.lat], duration: 500 });
-    
+
     checkReportProximity(lastUserPos.lat, lastUserPos.lng);
     checkOffRoute(lastUserPos.lat, lastUserPos.lng);
     checkArrival(lastUserPos.lat, lastUserPos.lng);
     updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
-    checkPoiProximity(lastUserPos.lat, lastUserPos.lng); 
+    checkPoiProximity(lastUserPos.lat, lastUserPos.lng);
     checkAvoidZoneProximity(lastUserPos.lat, lastUserPos.lng);
     updateRemainingHUD();
   }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
@@ -2368,7 +2461,7 @@ function checkReportProximity(lat, lng) {
 function checkPoiProximity(lat, lng) {
   if (voiceSettings.poi === 'never' || !allRestStops) return;
   const allPois = [...allRestStops, ...allCommunityPois.filter(p => p.tag === 'gas_station')];
-  
+
   allPois.forEach(poi => {
     if (warnedPois.has(poi.id)) return;
     if (calcDist(lat, lng, poi.lat, poi.lng) < 300) {
@@ -2381,7 +2474,7 @@ function checkPoiProximity(lat, lng) {
 
 function checkAvoidZoneProximity(lat, lng) {
   if (!allAvoidZones || allAvoidZones.length === 0) return;
-  
+
   for (const zone of allAvoidZones) {
     if (!zone.lat1 || !zone.lng1) continue;
     if (!isZoneCurrentlyActive(zone)) continue;
@@ -2408,7 +2501,7 @@ function checkAvoidZoneProximity(lat, lng) {
     for (const seg of segments) {
       const closestPt = getClosestPointOnSegment({ lat, lng }, seg.a, seg.b);
       const dist = calcDist(lat, lng, closestPt.lat, closestPt.lng);
-      
+
       if (dist < 50) {
         if (!warnedAvoidZones.has(zone.id)) {
           warnedAvoidZones.add(zone.id);
@@ -2416,7 +2509,7 @@ function checkAvoidZoneProximity(lat, lng) {
           showCustomToast(`🚫 Đi vào vùng cấm: ${zone.name}`, 'danger');
           if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
         }
-        break; 
+        break;
       }
     }
   }
@@ -2433,11 +2526,11 @@ function speak(text, category = 'nav') {
 
   if (!window.speechSynthesis) return;
   speechSynthesis.cancel();
-  
+
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'vi-VN';
   let vol = voiceSettings.volume / 100;
-  u.volume = Math.min(Math.max(vol, 0), 1); 
+  u.volume = Math.min(Math.max(vol, 0), 1);
   speechSynthesis.speak(u);
 }
 
