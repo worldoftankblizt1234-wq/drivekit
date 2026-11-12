@@ -110,7 +110,7 @@ button { cursor: pointer; }
 
 /* ---------- MARKER CHẤM ĐỎ CÓ SÓNG LAN TOẢ (PULSE) ---------- */
 .map-touch-marker {
-  position: relative;
+  /* Đã xoá position: relative để MapLibre tự định vị absolute chuẩn xác */
   width: 24px; height: 24px;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
@@ -206,12 +206,17 @@ body.light-mode #map { background: #f1f5f9; }
   from { opacity: 0; transform: translateY(-8px) scale(0.95); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-.maplibregl-popup-tip {
-  border-top-color: var(--card) !important;
-  border-bottom-color: var(--card) !important;
-  border-left-color: var(--card) !important;
-  border-right-color: var(--card) !important;
-}
+
+/* Sửa lỗi Popup tip bị vuông đen: Chỉ tô màu viền theo từng hướng */
+.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: var(--card) !important; }
+.maplibregl-popup-anchor-top-left .maplibregl-popup-tip { border-bottom-color: var(--card) !important; }
+.maplibregl-popup-anchor-top-right .maplibregl-popup-tip { border-bottom-color: var(--card) !important; }
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--card) !important; }
+.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip { border-top-color: var(--card) !important; }
+.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip { border-top-color: var(--card) !important; }
+.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--card) !important; }
+.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--card) !important; }
+
 .maplibregl-popup-close-button { display: none !important; }
 
 /* ---------- HUD TOP ---------- */
