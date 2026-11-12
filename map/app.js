@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (Full - Nearby Search + Voice Settings + Valhalla + Vehicle Sub-selectors)
+   DriveKit — app.js (Full - Nearby Search + Voice Settings + Valhalla + Vehicle Sub-selectors + Debug Source)
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -41,10 +41,13 @@ async function apiSearch(query, lat = null, lng = null, radius = null) {
       if (radius) url += `&radius=${radius}`;
     }
     const r = await fetch(url);
-    if (!r.ok) return [];
+    if (!r.ok) return { results: [], counts: null };
     const j = await r.json();
-    return j.results || [];
-  } catch (e) { console.warn('Search error:', e); return []; }
+    return { results: j.results || [], counts: j.counts || null };
+  } catch (e) { 
+    console.warn('Search error:', e); 
+    return { results: [], counts: null }; 
+  }
 }
 
 async function apiRoute(origin, dest, mode, bypassCache = false, specs = null) {
@@ -141,6 +144,9 @@ let lastSnapIndex = 0;
 let smoothedSpeed = 0;
 let offRouteCount = 0;
 let isRerouting = false;
+
+// Cờ Debug ẩn
+let isSearchDebugMode = localStorage.getItem('drivekit_search_debug') === '1';
 
 // Voice Settings
 let voiceSettings = JSON.parse(localStorage.getItem('drivekit_voice_settings') || 'null') || {
@@ -244,6 +250,17 @@ const POI_TAG_CONFIG = {
   car_wash: { icon: 'fa-soap', label: 'Rửa xe', color: '#a855f7' }
 };
 const ZOOM_CONFIG = { communityPoi: 15, restStop: 13, savedPlace: 14, report: 14, savedPlaceAlwaysShow: ['home', 'company'] };
+
+/* ========== DEBUG TOOL ========== */
+window.toggleSearchDebug = function() {
+  isSearchDebugMode = !isSearchDebugMode;
+  localStorage.setItem('drivekit_search_debug', isSearchDebugMode ? '1' : '0');
+  showCustomToast(
+    isSearchDebugMode ? '🔧 Đã BẬT hiển thị nguồn Search' : 'Đã TẮT hiển thị nguồn Search',
+    isSearchDebugMode ? 'success' : 'info'
+  );
+  console.log(`[DriveKit] Search Debug Mode: ${isSearchDebugMode ? 'ON' : 'OFF'}`);
+};
 
 /* ========== VOICE SETTINGS LOGIC ========== */
 window.openVoiceSettings = function() {
@@ -1160,7 +1177,7 @@ function createSavedPlacePin(place) {
   const icons = { home: { icon: 'fa-home', color: '#10b981' }, cafe: { icon: 'fa-coffee', color: '#f59e0b' }, restaurant: { icon: 'fa-utensils', color: '#ef4444' }, company: { icon: 'fa-building', color: '#3b82f6' }, school: { icon: 'fa-school', color: '#8b5cf6' }, other: { icon: 'fa-map-marker-alt', color: '#64748b' } };
   const conf = icons[place.type] || icons.other;
   const wrapper = document.createElement('div');
-  wrapper.style.width = '30px'; wrapper.style.height = '30px'; wrapper.style.position = 'relative';
+  wrapper.style.width = '30px'; wrapper.style.height = '30px'; 
   wrapper.innerHTML = `<div class="custom-pin" style="width: 30px; height: 30px; background: ${conf.color}; border-color: ${conf.color};"><i class="fas ${conf.icon}" style="color: white;"></i></div><div class="custom-pin-close" onclick="deleteSavedPlace('${place.source}','${place._id}')" title="Xoá"><i class="fas fa-times"></i></div>`;
   return wrapper;
 }
@@ -1446,7 +1463,6 @@ window.setVehicleMode = function(mode, btn) {
   document.querySelectorAll('.vehicle-mode-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
 
-  // Show/hide sub-selectors
   const carSel   = document.getElementById('carSeatsSelector');
   const truckSel = document.getElementById('truckAxlesSelector');
   const busSel   = document.getElementById('busTypeSelector');
@@ -1454,7 +1470,6 @@ window.setVehicleMode = function(mode, btn) {
   if (truckSel) truckSel.classList.toggle('hidden', mode !== 'truck');
   if (busSel)   busSel.classList.toggle('hidden',   mode !== 'bus');
 
-  // Truck warning
   const truckWarning = document.getElementById('truckWarning');
   if (truckWarning) truckWarning.classList.toggle('hidden', mode !== 'truck');
 
@@ -1465,7 +1480,6 @@ window.setVehicleMode = function(mode, btn) {
   }
 };
 
-/* Cập nhật userVehicleSpecs để dùng cho check avoid zones */
 function updateUserVehicleSpecs() {
   if (currentVehicleMode === 'driving' || currentVehicleMode === 'driving-traffic') {
     userVehicleSpecs = { type: 'car', seats: currentCarSeats, axles: 2 };
@@ -1484,7 +1498,6 @@ function updateUserVehicleSpecs() {
   }
 }
 
-/* Build params gửi Worker → Valhalla */
 function getCurrentVehicleSpecs() {
   if (currentVehicleMode === 'driving' || currentVehicleMode === 'driving-traffic') {
     return { seats: currentCarSeats };
@@ -2229,7 +2242,7 @@ async function doSearch(query) {
   box.appendChild(loadingDiv);
 
   try {
-    const results = await apiSearch(query);
+    const { results, counts } = await apiSearch(query);
     loadingDiv.remove();
 
     const currentCount = restStopMatches.length + poiMatches.length;
@@ -2239,8 +2252,14 @@ async function doSearch(query) {
     if (displayResults.length > 0) {
       const title2 = document.createElement('div');
       title2.className = 'sug-section-title';
-      title2.innerHTML = '<i class="fas fa-map-marked-alt"></i> Địa điểm khác';
+      
+      const debugCounts = (isSearchDebugMode && counts) 
+        ? `<span style="margin-left:auto; font-size:0.6rem; color:var(--primary); text-transform:none;">[T:${counts.tomtom} D:${counts.duckdb} P:${counts.photon} M:${counts.maptiler}]</span>` 
+        : '';
+      
+      title2.innerHTML = `<i class="fas fa-map-marked-alt"></i> Địa điểm khác ${debugCounts}`;
       box.appendChild(title2);
+
       displayResults.forEach(r => {
         const div = document.createElement('div');
         div.className = 'sug-item';
@@ -2248,10 +2267,16 @@ async function doSearch(query) {
         const typeIcon = isPoi ? 'fa-map-marker-alt' : (r.type === 'address' ? 'fa-location-dot' : (r.type === 'place' ? 'fa-map-location-dot' : 'fa-road'));
         const typeLabel = isPoi ? (r.category ? r.category : 'Địa điểm') : r.type === 'address' ? 'Địa chỉ' : r.type === 'place' ? 'Địa danh' : (r.type === 'street' ? 'Đường' : 'Khác');
         const typeColor = isPoi ? '#10b981' : '#94a3b8';
+
+        const sourceColors = { tomtom: '#ef4444', photon: '#3b82f6', maptiler: '#f59e0b', duckdb: '#8b5cf6' };
+        const sourceBadge = (isSearchDebugMode && r._source) 
+          ? `<span style="display:inline-block; font-size:0.55rem; font-weight:900; padding:1px 4px; border-radius:4px; background:${sourceColors[r._source] || '#64748b'}; color:white; margin-left:6px; vertical-align:middle;">${r._source.toUpperCase()}</span>` 
+          : '';
+
         div.innerHTML = `
           <i class="fas ${typeIcon}" style="color:${typeColor}; font-size:1rem;"></i>
           <div style="flex:1; min-width:0;">
-            <div style="font-weight:700; white-space:normal; word-break:break-word;">${escapeHtml(r.name)}</div>
+            <div style="font-weight:700; white-space:normal; word-break:break-word;">${escapeHtml(r.name)} ${sourceBadge}</div>
             <div style="font-size:0.65rem; color:${typeColor}; font-weight:700; margin-top:2px;">
               <i class="fas ${typeIcon}"></i> ${escapeHtml(typeLabel)}
             </div>
