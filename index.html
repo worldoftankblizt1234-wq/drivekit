@@ -1,182 +1,283 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapillary Traffic Signs Explorer</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        body { margin: 0; padding: 0; }
-        #map { width: 100vw; height: 100vh; }
-        .leaflet-control-custom {
-            background: white;
-            padding: 8px 12px;
-            border-radius: 4px;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
-            cursor: pointer;
-            font-family: sans-serif;
-            font-size: 14px;
-            margin-bottom: 10px;
-        }
-        .leaflet-control-custom:hover { background: #f0f0f0; }
-        .status {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-family: sans-serif;
-            font-size: 13px;
-            z-index: 1000;
-            pointer-events: none;
-        }
-        .sign-icon {
-            filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.5));
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mapillary Traffic Signs – SVG Icons (OSM)</title>
+
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    #map { position: absolute; inset: 0; }
+
+    #legend {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      background: rgba(255,255,255,.92);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.15);
+      z-index: 2;
+      line-height: 1.5;
+    }
+    #legend b { display: block; margin-bottom: 4px; }
+    #legend span.dot {
+      display: inline-block; width: 10px; height: 10px;
+      border-radius: 50%; margin-right: 6px; vertical-align: middle;
+    }
+
+    .mapillary-popup { max-width: 340px; font-size: 13px; }
+    .mapillary-popup img { width: 100%; border-radius: 6px; margin-top: 6px; }
+    .mapillary-popup .meta { color: #555; font-size: 11px; margin-top: 4px; }
+    .mapillary-popup .loading { color: #888; font-style: italic; }
+    .mapillary-popup .error { color: #c00; }
+  </style>
 </head>
 <body>
 
 <div id="map"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<div id="legend">
+  <b>Chú thích biển báo</b>
+  <div><span class="dot" style="background:#d62828"></span>Regulatory</div>
+  <div><span class="dot" style="background:#fcbf49"></span>Warning</div>
+  <div><span class="dot" style="background:#003049"></span>Information / Complementary</div>
+</div>
+
 <script>
-    // ----------------------------------------------------------------------
-    // 1. Configuration
-    // ----------------------------------------------------------------------
-    const MAPILLARY_TOKEN = 'MLY|29249168751358312|a5696ee10fc78ffba69a9a34515c63a8';
-    // Official Mapillary SVG source (the filenames are the object_value codes)
-    const SVG_BASE = 'https://raw.githubusercontent.com/mapillary/mapillary_sprite_source/master/package_signs/';
-    // Public OSM mirror (HOT style)
-    const OSM_TILE_URL = 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png';
-    const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Tiles style by <a href="https://www.hotosm.org/">HOT</a>';
+/* ==================================================================
+   1. CẤU HÌNH
+   ================================================================== */
+const MAPILLARY_TOKEN = 'MLY|29249168751358312|a5696ee10fc78ffba69a9a34515c63a8';
 
-    // ----------------------------------------------------------------------
-    // 2. Map setup
-    // ----------------------------------------------------------------------
-    const map = L.map('map').setView([51.505, -0.09], 14); // London default
+// OSM chính thức – không mirror
+const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const OSM_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors';
 
-    L.tileLayer(OSM_TILE_URL, {
+// CDN icon SVG của Mapillary
+const SIGN_ICON_CDN = 'https://static.mapillary.com/traffic_signs';
+
+/* ==================================================================
+   2. KHỞI TẠO BẢN ĐỒ
+   ================================================================== */
+const map = new maplibregl.Map({
+  container: 'map',
+  style: {
+    version: 8,
+    sources: {
+      osm: {
+        type: 'raster',
+        tiles: [OSM_TILE_URL],
+        tileSize: 256,
         attribution: OSM_ATTRIBUTION,
-        maxZoom: 19
-    }).addTo(map);
+        maxzoom: 19
+      }
+    },
+    layers: [
+      { id: 'osm-layer', type: 'raster', source: 'osm', minzoom: 0, maxzoom: 20 }
+    ]
+  },
+  center: [105.85, 21.03],  // Hà Nội – đổi tuỳ ý
+  zoom: 15
+});
 
-    // Layer group to hold sign markers (so we can clear them easily)
-    const signLayer = L.layerGroup().addTo(map);
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 
-    // ----------------------------------------------------------------------
-    // 3. UI: custom control button
-    // ----------------------------------------------------------------------
-    const loadBtn = L.Control.extend({
-        options: { position: 'topleft' },
-        onAdd: function () {
-            const div = L.DomUtil.create('div', 'leaflet-control-custom');
-            div.innerHTML = '🚸 Load traffic signs in view';
-            div.onclick = fetchSignsForView;
-            return div;
-        }
-    });
-    map.addControl(new loadBtn());
+/* ==================================================================
+   3. QUẢN LÝ ICON SVG
+   ================================================================== */
+const DEFAULT_SIGN_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <circle cx="16" cy="16" r="14" fill="#e63946" stroke="#ffffff" stroke-width="2.5"/>
+</svg>`;
 
-    // Status bar
-    const statusEl = document.createElement('div');
-    statusEl.className = 'status';
-    statusEl.textContent = 'Ready';
-    document.body.appendChild(statusEl);
+const CATEGORY_COLORS = {
+  regulatory:     '#d62828',
+  warning:        '#fcbf49',
+  information:    '#003049',
+  complementary:  '#003049'
+};
 
-    function setStatus(msg) {
-        statusEl.textContent = msg;
+const loadedIcons = new Set();
+const loadingIcons = new Map();
+
+function svgToDataUri(svg) {
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
+function makeFallbackSvg(objectValue) {
+  const category = (objectValue || '').split('--')[0] || 'regulatory';
+  const color = CATEGORY_COLORS[category] || '#e63946';
+  return `
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <circle cx="16" cy="16" r="14" fill="${color}" stroke="#ffffff" stroke-width="2.5"/>
+  <circle cx="16" cy="16" r="8" fill="#ffffff" fill-opacity="0.25"/>
+</svg>`;
+}
+
+async function loadIconForSign(objectValue) {
+  if (!objectValue) return;
+  if (loadedIcons.has(objectValue)) return;
+  if (loadingIcons.has(objectValue)) return loadingIcons.get(objectValue);
+
+  const promise = (async () => {
+    const url = `${SIGN_ICON_CDN}/${objectValue}.svg`;
+    try {
+      const img = await map.loadImage(url);
+      if (!map.hasImage(objectValue)) map.addImage(objectValue, img.data);
+      loadedIcons.add(objectValue);
+    } catch (err) {
+      console.warn(`[icon] Không tải được ${objectValue}, dùng fallback`, err.message || err);
+      try {
+        const fb = await map.loadImage(svgToDataUri(makeFallbackSvg(objectValue)));
+        if (!map.hasImage(objectValue)) map.addImage(objectValue, fb.data);
+        loadedIcons.add(objectValue);
+      } catch (e2) {
+        console.error('[icon] Fallback cũng lỗi cho', objectValue, e2);
+      }
+    } finally {
+      loadingIcons.delete(objectValue);
     }
+  })();
 
-    // ----------------------------------------------------------------------
-    // 4. Core: fetch signs for the current bounding box
-    // ----------------------------------------------------------------------
-    async function fetchSignsForView() {
-        const bounds = map.getBounds();
-        const sw = bounds.getSouthWest();
-        const ne = bounds.getNorthEast();
+  loadingIcons.set(objectValue, promise);
+  return promise;
+}
 
-        // bbox order: left, bottom, right, top (minLon, minLat, maxLon, maxLat)
-        const bbox = `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
+/* ==================================================================
+   4. SETUP LỚP BIỂN BÁO
+   ================================================================== */
+map.on('load', async () => {
+  // 4a. Icon mặc định
+  const defaultImg = await map.loadImage(svgToDataUri(DEFAULT_SIGN_SVG));
+  if (!map.hasImage('default-sign')) map.addImage('default-sign', defaultImg.data);
 
-        // Check area size (Mapillary requires < 0.01 deg²)
-        const area = (ne.lng - sw.lng) * (ne.lat - sw.lat);
-        if (area > 0.01) {
-            setStatus('⚠️ Area too large. Zoom in a bit more (bbox must be < 0.01 deg²).');
-            return;
-        }
+  // 4b. Vector tile source của Mapillary
+  map.addSource('traffic-signs', {
+    type: 'vector',
+    tiles: [
+      `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`
+    ],
+    minzoom: 0,
+    maxzoom: 14
+  });
 
-        setStatus('⏳ Fetching traffic signs…');
-        signLayer.clearLayers();
-
-        const url = `https://graph.mapillary.com/map_features` +
-                    `?access_token=${encodeURIComponent(MAPILLARY_TOKEN)}` +
-                    `&fields=object_value,geometry` +
-                    `&bbox=${bbox}` +
-                    `&object_values=traffic_sign` +
-                    `&limit=2000`;
-
-        try {
-            const resp = await fetch(url);
-            if (!resp.ok) {
-                const text = await resp.text();
-                throw new Error(`HTTP ${resp.status}: ${text}`);
-            }
-            const json = await resp.json();
-            const features = json.data || [];
-
-            if (features.length === 0) {
-                setStatus('ℹ️ No traffic signs found in this area.');
-                return;
-            }
-
-            // Add each sign as a marker with its SVG icon
-            features.forEach(f => {
-                const coords = f.geometry?.coordinates;
-                if (!coords || coords.length < 2) return;
-                const [lng, lat] = coords;
-                const objectValue = f.object_value;
-
-                // Build SVG URL
-                const svgUrl = `${SVG_BASE}${objectValue}.svg`;
-
-                // Create a custom icon
-                const icon = L.icon({
-                    iconUrl: svgUrl,
-                    iconSize: [32, 32],
-                    iconAnchor: [16, 16],
-                    popupAnchor: [0, -16],
-                    className: 'sign-icon'
-                });
-
-                const marker = L.marker([lat, lng], { icon: icon });
-                marker.bindPopup(`<b>${objectValue}</b><br><img src="${svgUrl}" width="48" height="48" alt="${objectValue}">`);
-                signLayer.addLayer(marker);
-            });
-
-            setStatus(`✅ Loaded ${features.length} traffic signs.`);
-        } catch (err) {
-            console.error(err);
-            setStatus(`❌ Error: ${err.message}`);
-        }
+  // 4c. Symbol layer với icon SVG
+  map.addLayer({
+    id: 'traffic-signs-layer',
+    type: 'symbol',
+    source: 'traffic-signs',
+    'source-layer': 'traffic_sign',
+    layout: {
+      'icon-image': [
+        'coalesce',
+        ['get', 'object_value'],
+        ['get', 'value'],
+        'default-sign'
+      ],
+      'icon-size': [
+        'interpolate', ['linear'], ['zoom'],
+        12, 0.35,
+        15, 0.55,
+        18, 0.8
+      ],
+      'icon-allow-overlap': true,
+      'icon-anchor': 'bottom',
+      'icon-padding': 2
     }
+  });
 
-    // ----------------------------------------------------------------------
-    // 5. Optional: auto‑load when the map stops moving (if area is small enough)
-    // ----------------------------------------------------------------------
-    map.on('moveend', () => {
-        const bounds = map.getBounds();
-        const sw = bounds.getSouthWest();
-        const ne = bounds.getNorthEast();
-        const area = (ne.lng - sw.lng) * (ne.lat - sw.lat);
-        if (area <= 0.01) {
-            // Uncomment the next line if you want fully automatic loading
-            // fetchSignsForView();
-        }
+  // 4d. Tự load icon khi gặp id chưa có
+  map.on('styleimagemissing', async (e) => {
+    const id = e.id;
+    if (!id || id === 'default-sign') return;
+    if (map.hasImage(id)) return;
+    if (id.includes('--') || /^[a-z-]+$/.test(id)) {
+      await loadIconForSign(id);
+    }
+  });
+
+  // 4e. Preload icon cho các biển báo đang có trong tile
+  map.on('sourcedata', (e) => {
+    if (e.sourceId !== 'traffic-signs' || !e.isSourceLoaded) return;
+    const feats = map.querySourceFeatures('traffic-signs', { sourceLayer: 'traffic_sign' });
+    const seen = new Set();
+    feats.forEach(f => {
+      const v = f.properties.object_value || f.properties.value;
+      if (v && !seen.has(v)) {
+        seen.add(v);
+        loadIconForSign(v);
+      }
     });
+  });
+
+  /* Click biển báo → popup ảnh */
+  map.on('click', 'traffic-signs-layer', async (e) => {
+    const feature = e.features[0];
+    const mapFeatureId = feature.properties.id;
+    const signType = feature.properties.object_value || feature.properties.value || 'unknown';
+
+    const popup = new maplibregl.Popup({ maxWidth: '360px' })
+      .setLngLat(e.lngLat)
+      .setHTML(`<div class="mapillary-popup"><div class="loading">Đang tải ảnh…</div></div>`)
+      .addTo(map);
+
+    try {
+      const imageIds = await fetchMapFeatureImages(mapFeatureId);
+      if (!imageIds || imageIds.length === 0) {
+        popup.setHTML(`<div class="mapillary-popup error">Không tìm thấy ảnh cho biển báo này.</div>`);
+        return;
+      }
+      const imgData = await fetchImageThumbnail(imageIds[0]);
+      const captured = imgData.captured_at
+        ? new Date(imgData.captured_at).toLocaleString('vi-VN')
+        : 'Không rõ';
+
+      popup.setHTML(`
+        <div class="mapillary-popup">
+          <strong>${signType}</strong><br>
+          <img src="${imgData.thumb_1024_url}" alt="Mapillary street-level image" />
+          <div class="meta">
+            📍 Map feature ID: ${mapFeatureId}<br>
+            🕒 Chụp lúc: ${captured}<br>
+            🧭 Hướng: ${imgData.compass_angle ?? '—'}°
+          </div>
+        </div>
+      `);
+    } catch (err) {
+      console.error(err);
+      popup.setHTML(`<div class="mapillary-popup error">Lỗi: ${err.message}</div>`);
+    }
+  });
+
+  map.on('mouseenter', 'traffic-signs-layer', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'traffic-signs-layer', () => map.getCanvas().style.cursor = '');
+});
+
+/* ==================================================================
+   5. API MAPILLARY
+   ================================================================== */
+async function fetchMapFeatureImages(mapFeatureId) {
+  const url = `https://graph.mapillary.com/${mapFeatureId}?access_token=${MAPILLARY_TOKEN}&fields=images`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Map feature API lỗi: ${res.status}`);
+  const data = await res.json();
+  return data.images || [];
+}
+
+async function fetchImageThumbnail(imageId) {
+  const url = `https://graph.mapillary.com/${imageId}?access_token=${MAPILLARY_TOKEN}&fields=thumb_1024_url,captured_at,compass_angle`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Image API lỗi: ${res.status}`);
+  return await res.json();
+}
 </script>
+
 </body>
 </html>
