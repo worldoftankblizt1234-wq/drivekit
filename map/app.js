@@ -1,3 +1,4 @@
+
 /* =====================================================
    DriveKit — app.js FULL — Mapillary Signs via Worker proxy
    ===================================================== */
@@ -2853,3 +2854,4 @@ window.submitReport = submitReport;
 window.openReportMenu = openReportMenu;
 window.closeReportMenu = closeReportMenu;
 window.closeDirections = closeDirections;
+
