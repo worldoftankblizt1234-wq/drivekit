@@ -11,7 +11,6 @@
   <style>
     body { margin: 0; font-family: system-ui, sans-serif; }
     #map { position: absolute; inset: 0; }
-
     #legend {
       position: absolute; left: 12px; bottom: 12px;
       background: rgba(255,255,255,.92); padding: 8px 10px;
@@ -23,19 +22,14 @@
       display: inline-block; width: 10px; height: 10px;
       border-radius: 50%; margin-right: 6px; vertical-align: middle;
     }
-
-    /* Debug panel */
     #debugPanel {
       position: absolute; top: 12px; right: 60px; width: 380px; max-height: 60vh;
       background: rgba(20, 20, 20, 0.92); color: #e0e0e0;
       font: 12px/1.45 ui-monospace, "Cascadia Code", monospace;
       border-radius: 10px; display: flex; flex-direction: column;
-      z-index: 10; box-shadow: 0 4px 20px rgba(0,0,0,.4);
-      overflow: hidden;
+      z-index: 10; box-shadow: 0 4px 20px rgba(0,0,0,.4); overflow: hidden;
     }
     #debugPanel.collapsed #debugBody { display: none; }
-    #debugPanel.collapsed #debugHeader { border-bottom: none; }
-
     #debugHeader {
       padding: 8px 10px; display: flex; align-items: center; gap: 6px;
       border-bottom: 1px solid #333; cursor: pointer; user-select: none;
@@ -47,7 +41,11 @@
       padding: 1px 7px; font-size: 10px; margin-left: auto;
     }
     #debugHeader .badge.zero { background: #2a7d2a; }
-
+    #debugHeader .state {
+      color: #888; font-size: 10px; padding: 1px 6px;
+      border: 1px solid #444; border-radius: 10px;
+    }
+    #debugHeader .state.ready { color: #7dff7d; border-color: #2a7d2a; }
     #debugControls {
       display: flex; gap: 4px; padding: 6px 8px;
       border-bottom: 1px solid #333; flex-wrap: wrap;
@@ -58,28 +56,20 @@
       cursor: pointer; font-family: inherit;
     }
     #debugControls button:hover { background: #4a4a4a; }
-    #debugControls button:active { background: #2a2a2a; }
     #debugControls button.primary { background: #1a73e8; border-color: #1a73e8; }
-    #debugControls button.primary:hover { background: #1557b0; }
     #debugControls button.danger { background: #b00020; border-color: #b00020; }
-
-    #debugBody {
-      overflow-y: auto; padding: 6px 0; flex: 1;
-      min-height: 120px; max-height: 50vh;
-    }
+    #debugBody { overflow-y: auto; padding: 6px 0; flex: 1; min-height: 120px; max-height: 50vh; }
     .logLine {
       padding: 2px 10px; border-left: 3px solid transparent;
       white-space: pre-wrap; word-break: break-all;
       font-size: 11px; line-height: 1.4;
     }
-    .logLine.info  { border-color: #1a73e8; color: #d0d0d0; }
-    .logLine.ok    { border-color: #2a7d2a; color: #7dff7d; }
-    .logLine.warn  { border-color: #d6a500; color: #ffd76e; }
-    .logLine.err   { border-color: #d62828; color: #ff8c8c; }
+    .logLine.info { border-color: #1a73e8; color: #d0d0d0; }
+    .logLine.ok   { border-color: #2a7d2a; color: #7dff7d; }
+    .logLine.warn { border-color: #d6a500; color: #ffd76e; }
+    .logLine.err  { border-color: #d62828; color: #ff8c8c; }
     .logLine .time { color: #777; margin-right: 4px; }
     .logLine .tag  { color: #888; }
-
-    /* Popup */
     .mapillary-popup { max-width: 340px; font-size: 13px; }
     .mapillary-popup img { width: 100%; border-radius: 6px; margin-top: 6px; }
     .mapillary-popup .meta { color: #555; font-size: 11px; margin-top: 4px; }
@@ -90,7 +80,6 @@
 <body>
 
 <div id="map"></div>
-
 <div id="legend">
   <b>Chú thích</b>
   <div><span class="dot" style="background:#d62828"></span>Regulatory</div>
@@ -98,10 +87,10 @@
   <div><span class="dot" style="background:#003049"></span>Info / Complementary</div>
 </div>
 
-<!-- Debug panel -->
 <div id="debugPanel">
   <div id="debugHeader">
     <b>🐞 Debug</b>
+    <span class="state" id="mapState">waiting</span>
     <span class="badge zero" id="errBadge">0 lỗi</span>
   </div>
   <div id="debugControls">
@@ -115,22 +104,19 @@
 </div>
 
 <script>
-/* ==================================================================
-   1. CẤU HÌNH
-   ================================================================== */
+/* ============ 1. CẤU HÌNH ============ */
 const MAPILLARY_TOKEN = 'MLY|29249168751358312|a5696ee10fc78ffba69a9a34515c63a8';
 const MAPTILER_STYLE_URL =
   'https://api.maptiler.com/maps/streets-v4/style.json?key=aEzMCP0ANRz52vd1RvrW';
 const SIGN_ICON_BASE =
   'https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/mapillary_signs';
 
-/* ==================================================================
-   2. DEBUG PANEL – LOGGER
-   ================================================================== */
+/* ============ 2. LOGGER ============ */
 const logBody = document.getElementById('debugBody');
 const errBadge = document.getElementById('errBadge');
+const mapStateEl = document.getElementById('mapState');
 let errCount = 0;
-const allLogs = []; // giữ raw để copy
+const allLogs = [];
 
 function log(level, tag, ...msg) {
   const t = new Date().toLocaleTimeString('vi-VN', { hour12: false });
@@ -140,34 +126,27 @@ function log(level, tag, ...msg) {
   line.innerHTML = `<span class="time">${t}</span><span class="tag">[${tag}]</span> ${escapeHtml(text)}`;
   logBody.appendChild(line);
   logBody.scrollTop = logBody.scrollHeight;
-
   allLogs.push(`[${t}] [${level.toUpperCase()}] [${tag}] ${text}`);
-
   if (level === 'err') {
     errCount++;
     errBadge.textContent = `${errCount} lỗi`;
     errBadge.classList.remove('zero');
   }
-  // giới hạn 500 dòng
   while (logBody.children.length > 500) logBody.removeChild(logBody.firstChild);
-
-  // Đồng thời in ra console
   const fn = level === 'err' ? console.error : level === 'warn' ? console.warn : console.log;
   fn(`[${tag}]`, ...msg);
 }
-
 function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
-
+function setMapState(s) {
+  mapStateEl.textContent = s;
+  mapStateEl.classList.toggle('ready', s === 'ready');
+}
 log('info', 'boot', 'Debug panel ready');
 
-/* ==================================================================
-   3. KHỞI TẠO BẢN ĐỒ
-   ================================================================== */
-log('info', 'map', 'Khởi tạo MapLibre với style MapTiler…');
-
+/* ============ 3. KHỞI TẠO MAP ============ */
+log('info', 'map', 'Khởi tạo MapLibre…');
 const map = new maplibregl.Map({
   container: 'map',
   style: MAPTILER_STYLE_URL,
@@ -181,20 +160,20 @@ map.on('error', (e) => {
   const msg = e?.error?.message || String(e?.error || e);
   log('err', 'map', msg);
 });
+map.on('style.load', () => {
+  setMapState('style');
+  log('ok', 'map', 'style.load event');
+});
 
-/* ==================================================================
-   4. ICON MANAGER
-   ================================================================== */
+/* ============ 4. ICON MANAGER ============ */
 const DEFAULT_SIGN_SVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
   <circle cx="16" cy="16" r="14" fill="#e63946" stroke="#ffffff" stroke-width="2.5"/>
 </svg>`;
-
 const CATEGORY_COLORS = {
   regulatory: '#d62828', warning: '#fcbf49',
   information: '#003049', complementary: '#003049'
 };
-
 const loadedIcons = new Set();
 const loadingIcons = new Map();
 const failedIcons = new Set();
@@ -210,12 +189,10 @@ function makeFallbackSvg(v) {
     <circle cx="16" cy="16" r="8" fill="#fff" fill-opacity="0.25"/>
   </svg>`;
 }
-
 async function loadIconForSign(objectValue) {
   if (!objectValue) return;
   if (loadedIcons.has(objectValue)) return;
   if (loadingIcons.has(objectValue)) return loadingIcons.get(objectValue);
-
   const promise = (async () => {
     const url = `${SIGN_ICON_BASE}/${objectValue}.svg`;
     try {
@@ -238,137 +215,143 @@ async function loadIconForSign(objectValue) {
       loadingIcons.delete(objectValue);
     }
   })();
-
   loadingIcons.set(objectValue, promise);
   return promise;
 }
 
-/* ==================================================================
-   5. LOAD MAP
-   ================================================================== */
+/* ============ 5. SETUP KHI LOAD ============ */
 map.on('load', async () => {
-  log('ok', 'map', 'Style loaded');
-
-  // default icon
-  const defaultImg = await map.loadImage(svgToDataUri(DEFAULT_SIGN_SVG));
-  if (!map.hasImage('default-sign')) map.addImage('default-sign', defaultImg.data);
-  log('ok', 'icon', 'default-sign đã thêm');
-
-  // Vector tile source
-  map.addSource('traffic-signs', {
-    type: 'vector',
-    tiles: [
-      `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`
-    ],
-    minzoom: 0,
-    maxzoom: 14
-  });
-  log('info', 'src', 'traffic-signs source đã thêm');
-
-  // Symbol layer
-  map.addLayer({
-    id: 'traffic-signs-layer',
-    type: 'symbol',
-    source: 'traffic-signs',
-    'source-layer': 'traffic_sign',
-    layout: {
-      'icon-image': [
-        'coalesce',
-        ['image', ['get', 'object_value']],
-        ['image', ['get', 'value']],
-        'default-sign'
-      ],
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.35, 15, 0.55, 18, 0.8],
-      'icon-allow-overlap': true,
-      'icon-anchor': 'bottom',
-      'icon-padding': 2
-    }
-  });
-  log('ok', 'layer', 'traffic-signs-layer đã thêm');
-
-  // styleimagemissing
-  map.on('styleimagemissing', (e) => {
-    const id = e.id;
-    if (!id || id === 'default-sign') return;
-    if (map.hasImage(id)) return;
-    if (id.includes('--')) loadIconForSign(id);
-  });
-
-  // sourcedata – đếm signs
-  let lastCount = -1;
-  map.on('sourcedata', (e) => {
-    if (e.sourceId !== 'traffic-signs' || !e.isSourceLoaded) return;
-    const feats = map.querySourceFeatures('traffic-signs', { sourceLayer: 'traffic_sign' });
-    const uniq = new Set();
-    feats.forEach(f => uniq.add(f.properties.id || f.id));
-    if (uniq.size !== lastCount) {
-      lastCount = uniq.size;
-      log('info', 'signs', `${uniq.size} signs trong view (z=${map.getZoom().toFixed(1)})`);
-      if (uniq.size === 0) {
-        log('warn', 'signs', 'Không có sign nào – thử pan sang vùng khác hoặc zoom cao hơn (≥14)');
-      }
-      // preload icons
-      const seen = new Set();
-      feats.forEach(f => {
-        const v = f.properties.object_value || f.properties.value;
-        if (v && !seen.has(v)) { seen.add(v); loadIconForSign(v); }
-      });
-    }
-  });
-
-  // click sign
-  map.on('click', 'traffic-signs-layer', async (e) => {
-    const f = e.features[0];
-    const id = f.properties.id;
-    const signType = f.properties.object_value || f.properties.value || 'unknown';
-    log('info', 'click', `sign id=${id} type=${signType}`);
-
-    const popup = new maplibregl.Popup({ maxWidth: '360px' })
-      .setLngLat(e.lngLat)
-      .setHTML(`<div class="mapillary-popup"><div class="loading">Đang tải ảnh…</div></div>`)
-      .addTo(map);
-
-    try {
-      const ids = await fetchMapFeatureImages(id);
-      if (!ids.length) {
-        log('warn', 'api', `map feature ${id} không có images`);
-        popup.setHTML(`<div class="mapillary-popup error">Không tìm thấy ảnh.</div>`);
-        return;
-      }
-      const img = await fetchImageThumbnail(ids[0]);
-      log('ok', 'api', `ảnh OK: ${img.thumb_1024_url?.slice(0, 60)}…`);
-
-      popup.setHTML(`
-        <div class="mapillary-popup">
-          <strong>${signType}</strong><br>
-          <img src="${img.thumb_1024_url}" alt="Mapillary" />
-          <div class="meta">
-            📍 ${id}<br>
-            🕒 ${img.captured_at ? new Date(img.captured_at).toLocaleString('vi-VN') : '—'}<br>
-            🧭 ${img.compass_angle ?? '—'}°
-          </div>
-        </div>
-      `);
-    } catch (err) {
-      log('err', 'api', err.message || err);
-      popup.setHTML(`<div class="mapillary-popup error">Lỗi: ${err.message}</div>`);
-    }
-  });
-
-  map.on('mouseenter', 'traffic-signs-layer', () => map.getCanvas().style.cursor = 'pointer');
-  map.on('mouseleave', 'traffic-signs-layer', () => map.getCanvas().style.cursor = '');
-
-  // Gắn cờ sẵn sàng cho nút Test
+  // *** FIX QUAN TRỌNG: set cờ NGAY ĐẦU, trước mọi await ***
   window._mapReady = true;
-  log('ok', 'boot', 'Sẵn sàng – thử pan sang Hà Nội phố cổ / TP.HCM Q1');
+  setMapState('ready');
+  log('ok', 'map', 'load event fired – _mapReady = true');
+
+  try {
+    // default icon
+    try {
+      const defaultImg = await map.loadImage(svgToDataUri(DEFAULT_SIGN_SVG));
+      if (!map.hasImage('default-sign')) map.addImage('default-sign', defaultImg.data);
+      log('ok', 'icon', 'default-sign đã thêm');
+    } catch (e) {
+      log('err', 'icon', 'Không thêm được default-sign: ' + (e.message || e));
+    }
+
+    // vector source
+    if (!map.getSource('traffic-signs')) {
+      map.addSource('traffic-signs', {
+        type: 'vector',
+        tiles: [
+          `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`
+        ],
+        minzoom: 0,
+        maxzoom: 14
+      });
+      log('ok', 'src', 'traffic-signs source đã thêm');
+    }
+
+    // symbol layer
+    if (!map.getLayer('traffic-signs-layer')) {
+      map.addLayer({
+        id: 'traffic-signs-layer',
+        type: 'symbol',
+        source: 'traffic-signs',
+        'source-layer': 'traffic_sign',
+        layout: {
+          'icon-image': [
+            'coalesce',
+            ['image', ['get', 'object_value']],
+            ['image', ['get', 'value']],
+            'default-sign'
+          ],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.35, 15, 0.55, 18, 0.8],
+          'icon-allow-overlap': true,
+          'icon-anchor': 'bottom',
+          'icon-padding': 2
+        }
+      });
+      log('ok', 'layer', 'traffic-signs-layer đã thêm');
+    }
+
+    // styleimagemissing
+    map.on('styleimagemissing', (e) => {
+      const id = e.id;
+      if (!id || id === 'default-sign') return;
+      if (map.hasImage(id)) return;
+      if (id.includes('--')) loadIconForSign(id);
+    });
+
+    // sourcedata
+    let lastCount = -1;
+    map.on('sourcedata', (e) => {
+      if (e.sourceId !== 'traffic-signs' || !e.isSourceLoaded) return;
+      const feats = map.querySourceFeatures('traffic-signs', { sourceLayer: 'traffic_sign' });
+      const uniq = new Set();
+      feats.forEach(f => uniq.add(f.properties.id || f.id));
+      if (uniq.size !== lastCount) {
+        lastCount = uniq.size;
+        log('info', 'signs', `${uniq.size} signs trong view (z=${map.getZoom().toFixed(1)})`);
+        if (uniq.size === 0) {
+          log('warn', 'signs', 'Không có sign nào – pan sang vùng khác hoặc zoom ≥ 14');
+        }
+        const seen = new Set();
+        feats.forEach(f => {
+          const v = f.properties.object_value || f.properties.value;
+          if (v && !seen.has(v)) { seen.add(v); loadIconForSign(v); }
+        });
+      }
+    });
+
+    // click
+    map.on('click', 'traffic-signs-layer', async (e) => {
+      const f = e.features[0];
+      const id = f.properties.id;
+      const signType = f.properties.object_value || f.properties.value || 'unknown';
+      log('info', 'click', `sign id=${id} type=${signType}`);
+
+      const popup = new maplibregl.Popup({ maxWidth: '360px' })
+        .setLngLat(e.lngLat)
+        .setHTML(`<div class="mapillary-popup"><div class="loading">Đang tải ảnh…</div></div>`)
+        .addTo(map);
+
+      try {
+        const ids = await fetchMapFeatureImages(id);
+        if (!ids.length) {
+          log('warn', 'api', `map feature ${id} không có images`);
+          popup.setHTML(`<div class="mapillary-popup error">Không tìm thấy ảnh.</div>`);
+          return;
+        }
+        const img = await fetchImageThumbnail(ids[0]);
+        log('ok', 'api', `ảnh OK: ${img.thumb_1024_url?.slice(0, 60)}…`);
+        popup.setHTML(`
+          <div class="mapillary-popup">
+            <strong>${signType}</strong><br>
+            <img src="${img.thumb_1024_url}" alt="Mapillary" />
+            <div class="meta">
+              📍 ${id}<br>
+              🕒 ${img.captured_at ? new Date(img.captured_at).toLocaleString('vi-VN') : '—'}<br>
+              🧭 ${img.compass_angle ?? '—'}°
+            </div>
+          </div>
+        `);
+      } catch (err) {
+        log('err', 'api', err.message || err);
+        popup.setHTML(`<div class="mapillary-popup error">Lỗi: ${err.message}</div>`);
+      }
+    });
+
+    map.on('mouseenter', 'traffic-signs-layer', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'traffic-signs-layer', () => map.getCanvas().style.cursor = '');
+
+    log('ok', 'setup', 'Sẵn sàng – thử pan sang Hà Nội phố cổ / TP.HCM Q1');
+  } catch (err) {
+    log('err', 'setup', 'Lỗi khởi tạo lớp signs: ' + (err.message || err));
+    console.error(err);
+  }
 });
 
-/* ==================================================================
-   6. CÁC NÚT DEBUG
-   ================================================================== */
-document.getElementById('debugHeader').onclick = () => {
+/* ============ 6. NÚT DEBUG ============ */
+document.getElementById('debugHeader').onclick = () =>
   document.getElementById('debugPanel').classList.toggle('collapsed');
-};
 
 document.getElementById('btnClear').onclick = () => {
   logBody.innerHTML = '';
@@ -379,26 +362,21 @@ document.getElementById('btnClear').onclick = () => {
 };
 
 document.getElementById('btnCopy').onclick = async () => {
-  const text = allLogs.join('\n');
   try {
-    await navigator.clipboard.writeText(text);
-    log('ok', 'debug', 'Đã copy log vào clipboard');
+    await navigator.clipboard.writeText(allLogs.join('\n'));
+    log('ok', 'debug', 'Đã copy log');
   } catch {
     log('err', 'debug', 'Copy thất bại – dùng Ctrl+C từ console');
   }
 };
 
-// Nút "Reload icons": xoá cache icon fail, force load lại
 document.getElementById('btnReloadIcons').onclick = async () => {
   log('info', 'debug', 'Reload icons…');
-  // Xoá ảnh khỏi registry để ['image', ...] trả null lần nữa
   for (const id of Array.from(loadedIcons)) {
     if (map.hasImage(id)) map.removeImage(id);
   }
   loadedIcons.clear();
   failedIcons.clear();
-
-  // Load lại các sign đang có trong view
   if (map.getSource('traffic-signs')) {
     const feats = map.querySourceFeatures('traffic-signs', { sourceLayer: 'traffic_sign' });
     const seen = new Set();
@@ -410,10 +388,23 @@ document.getElementById('btnReloadIcons').onclick = async () => {
   }
 };
 
-// Nút "Test API": gọi Graph API trên 1 sign bất kỳ trong view
+/* *** FIX QUAN TRỌNG: kiểm tra bằng map.isStyleLoaded() *** */
 document.getElementById('btnTest').onclick = async () => {
   log('info', 'test', '=== TEST API ===');
-  if (!window._mapReady) { log('warn', 'test', 'Map chưa load xong'); return; }
+
+  const styleOk = map.isStyleLoaded();
+  const sourceOk = !!map.getSource('traffic-signs');
+  const layerOk = !!map.getLayer('traffic-signs-layer');
+  log('info', 'test', `Trạng thái: style=${styleOk} source=${sourceOk} layer=${layerOk} flag=${window._mapReady === true}`);
+
+  if (!styleOk) {
+    log('err', 'test', 'Style CHƯA load xong (MapTiler có thể bị chặn / sai key)');
+    return;
+  }
+  if (!sourceOk || !layerOk) {
+    log('err', 'test', 'Lớp signs CHƯA được thêm – xem lỗi [setup] phía trên');
+    return;
+  }
 
   const feats = map.querySourceFeatures('traffic-signs', { sourceLayer: 'traffic_sign' });
   if (!feats.length) {
@@ -425,50 +416,43 @@ document.getElementById('btnTest').onclick = async () => {
   const signType = f.properties.object_value || f.properties.value;
   log('info', 'test', `Sign mẫu: id=${id} type=${signType}`);
 
-  // Test 1: load icon
   try {
-    log('info', 'test', `→ Icon: ${SIGN_ICON_BASE}/${signType}.svg`);
     const r = await fetch(`${SIGN_ICON_BASE}/${signType}.svg`, { method: 'HEAD' });
-    log(r.ok ? 'ok' : 'err', 'test', `  HTTP ${r.status} ${r.statusText}`);
+    log(r.ok ? 'ok' : 'err', 'test', `  icon HTTP ${r.status} ${r.statusText}`);
   } catch (e) { log('err', 'test', `  icon fetch fail: ${e.message}`); }
 
-  // Test 2: map feature API
   try {
     const r = await fetch(`https://graph.mapillary.com/${id}?access_token=${MAPILLARY_TOKEN}&fields=images`);
     const j = await r.json();
     log(r.ok ? 'ok' : 'err', 'test', `  Graph ${r.status} → images=${j.images?.length ?? '?'}`);
     if (j.images?.[0]) {
-      // Test 3: image detail
       const r2 = await fetch(`https://graph.mapillary.com/${j.images[0]}?access_token=${MAPILLARY_TOKEN}&fields=thumb_1024_url,captured_at,compass_angle`);
       const j2 = await r2.json();
-      log(r2.ok ? 'ok' : 'err', 'test', `  Image ${r2.status} → ${j2.thumb_1024_url ? 'có thumb' : 'không có thumb'}`);
+      log(r2.ok ? 'ok' : 'err', 'test', `  Image ${r2.status} → ${j2.thumb_1024_url ? 'có thumb' : 'không thumb'}`);
     }
-  } catch (e) { log('err', 'test', `  graph fetch fail: ${e.message}`); }
+  } catch (e) { log('err', 'test', `  graph fail: ${e.message}`); }
 
-  // Test 4: vector tile
   try {
     const z = Math.min(14, Math.floor(map.getZoom()));
     const { x, y } = lngLatToTile(map.getCenter(), z);
     const url = `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/${z}/${x}/${y}?access_token=${MAPILLARY_TOKEN}`;
     const r = await fetch(url);
     const buf = await r.arrayBuffer();
-    log(r.ok ? 'ok' : 'err', 'test', `  Tile ${z}/${x}/${y} → ${r.status} (${buf.byteLength} bytes)`);
-  } catch (e) { log('err', 'test', `  tile fetch fail: ${e.message}`); }
+    log(r.ok ? 'ok' : 'err', 'test', `  tile ${z}/${x}/${y} → ${r.status} (${buf.byteLength} bytes)`);
+  } catch (e) { log('err', 'test', `  tile fail: ${e.message}`); }
 
   log('info', 'test', '=== HẾT ===');
 };
 
-// Test 1 icon cụ thể (nhập prompt)
 document.getElementById('btnTestIcon').onclick = async () => {
-  const v = prompt('Nhập object_value để test (vd: regulatory--stop--g1):',
-    'regulatory--stop--g1');
+  const v = prompt('object_value để test:', 'regulatory--stop--g1');
   if (!v) return;
   log('info', 'test', `Test icon: ${v}`);
   try {
     const r = await fetch(`${SIGN_ICON_BASE}/${v}.svg`);
     if (r.ok) {
       const txt = await r.text();
-      log('ok', 'test', `  HTTP 200, ${txt.length} chars, content-type=${r.headers.get('content-type')}`);
+      log('ok', 'test', `  HTTP 200, ${txt.length} chars, ct=${r.headers.get('content-type')}`);
       if (txt.trim().startsWith('<svg') || txt.trim().startsWith('<?xml')) {
         log('ok', 'test', '  SVG hợp lệ ✓');
       } else {
@@ -480,7 +464,6 @@ document.getElementById('btnTestIcon').onclick = async () => {
   } catch (e) { log('err', 'test', `  fetch fail: ${e.message}`); }
 };
 
-// Helper: lngLat → tile x,y
 function lngLatToTile({ lng, lat }, z) {
   const n = Math.pow(2, z);
   const x = Math.floor(n * (lng + 180) / 360);
@@ -489,16 +472,13 @@ function lngLatToTile({ lng, lat }, z) {
   return { x, y };
 }
 
-/* ==================================================================
-   7. MAPILLARY GRAPH API
-   ================================================================== */
+/* ============ 7. GRAPH API ============ */
 async function fetchMapFeatureImages(id) {
   const url = `https://graph.mapillary.com/${id}?access_token=${MAPILLARY_TOKEN}&fields=images`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Map feature API ${r.status}`);
   return (await r.json()).images || [];
 }
-
 async function fetchImageThumbnail(id) {
   const url = `https://graph.mapillary.com/${id}?access_token=${MAPILLARY_TOKEN}&fields=thumb_1024_url,captured_at,compass_angle`;
   const r = await fetch(url);
