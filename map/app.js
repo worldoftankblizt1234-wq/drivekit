@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js FULL — APP-FULL-FIX-2026-11-19 (maxzoom:14, tile qua Worker, khong token) — Mapillary Signs via Worker proxy
+   DriveKit — app.js FULL — Mapillary Signs via Worker proxy
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -106,7 +106,7 @@ function initMapillarySignsLayer() {
   map.addSource(TRAFFIC_SIGN_SOURCE_ID, {
     type: 'vector',
     tiles: [MAPILLARY_VTP_URL('{z}', '{x}', '{y}')],
-    minzoom: 14, maxzoom: 14 // FIX-2026-11-19: chi co tile z14, de 22 la MapLibre xin tile z15/16 -> Worker tra 204 / loi parse
+    minzoom: 14, maxzoom: 22
   });
   map.addLayer({
     id: TRAFFIC_SIGN_LAYER_ID, type: 'symbol', source: TRAFFIC_SIGN_SOURCE_ID,
