@@ -3,11 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mapillary Signs – Debug Panel</title>
-
+  <title>Mapillary Signs – Debug Panel (SVG fix)</title>
   <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-
   <style>
     body { margin: 0; font-family: system-ui, sans-serif; }
     #map { position: absolute; inset: 0; }
@@ -104,7 +102,7 @@
 </div>
 
 <script>
-/* ============ 1. CẤU HÌNH ============ */
+/* ============ 1. CONFIG ============ */
 const MAPILLARY_TOKEN = 'MLY|29249168751358312|a5696ee10fc78ffba69a9a34515c63a8';
 const MAPTILER_STYLE_URL =
   'https://api.maptiler.com/maps/streets-v4/style.json?key=aEzMCP0ANRz52vd1RvrW';
@@ -145,7 +143,7 @@ function setMapState(s) {
 }
 log('info', 'boot', 'Debug panel ready');
 
-/* ============ 3. KHỞI TẠO MAP ============ */
+/* ============ 3. MAP ============ */
 log('info', 'map', 'Khởi tạo MapLibre…');
 const map = new maplibregl.Map({
   container: 'map',
@@ -165,11 +163,11 @@ map.on('style.load', () => {
   log('ok', 'map', 'style.load event');
 });
 
-/* ============ 4. ICON MANAGER ============ */
-const DEFAULT_SIGN_SVG = `
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-  <circle cx="16" cy="16" r="14" fill="#e63946" stroke="#ffffff" stroke-width="2.5"/>
-</svg>`;
+/* ============ 4. ICON MANAGER – FIX: dùng <img> thay vì map.loadImage ============ */
+const DEFAULT_SIGN_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
+  '<circle cx="16" cy="16" r="14" fill="#e63946" stroke="#ffffff" stroke-width="2.5"/></svg>';
+
 const CATEGORY_COLORS = {
   regulatory: '#d62828', warning: '#fcbf49',
   information: '#003049', complementary: '#003049'
@@ -184,72 +182,93 @@ function svgToDataUri(svg) {
 function makeFallbackSvg(v) {
   const cat = (v || '').split('--')[0] || 'regulatory';
   const color = CATEGORY_COLORS[cat] || '#e63946';
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-    <circle cx="16" cy="16" r="14" fill="${color}" stroke="#fff" stroke-width="2.5"/>
-    <circle cx="16" cy="16" r="8" fill="#fff" fill-opacity="0.25"/>
-  </svg>`;
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
+    `<circle cx="16" cy="16" r="14" fill="${color}" stroke="#fff" stroke-width="2.5"/>` +
+    '<circle cx="16" cy="16" r="8" fill="#fff" fill-opacity="0.25"/></svg>';
 }
+
+/**
+ * *** FIX CHÍNH ***
+ * MapLibre v4's loadImage() dùng createImageBitmap → không decode được SVG.
+ * Dùng <img> element native để decode SVG (hỗ trợ đầy đủ).
+ */
+function loadSvgAsImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.decoding = 'async';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Decode fail: ${url}`));
+    img.src = url;
+  });
+}
+
 async function loadIconForSign(objectValue) {
   if (!objectValue) return;
   if (loadedIcons.has(objectValue)) return;
   if (loadingIcons.has(objectValue)) return loadingIcons.get(objectValue);
+
   const promise = (async () => {
     const url = `${SIGN_ICON_BASE}/${objectValue}.svg`;
     try {
-      log('info', 'icon', `GET ${objectValue}.svg`);
-      const img = await map.loadImage(url);
-      if (!map.hasImage(objectValue)) map.addImage(objectValue, img.data);
+      const img = await loadSvgAsImage(url);
+      if (!map.hasImage(objectValue)) {
+        map.addImage(objectValue, img, { sdf: false });
+      }
       loadedIcons.add(objectValue);
-      log('ok', 'icon', `✓ ${objectValue}`);
+      log('ok', 'icon', `✓ ${objectValue} (${img.naturalWidth}×${img.naturalHeight})`);
     } catch (err) {
       failedIcons.add(objectValue);
-      log('warn', 'icon', `✗ ${objectValue} (${err.message || err}) → fallback`);
+      log('warn', 'icon', `✗ ${objectValue} (${err.message}) → fallback`);
       try {
-        const fb = await map.loadImage(svgToDataUri(makeFallbackSvg(objectValue)));
-        if (!map.hasImage(objectValue)) map.addImage(objectValue, fb.data);
+        const fbImg = await loadSvgAsImage(svgToDataUri(makeFallbackSvg(objectValue)));
+        if (!map.hasImage(objectValue)) {
+          map.addImage(objectValue, fbImg, { sdf: false });
+        }
         loadedIcons.add(objectValue);
       } catch (e2) {
-        log('err', 'icon', `fallback fail ${objectValue}: ${e2.message || e2}`);
+        log('err', 'icon', `fallback fail ${objectValue}: ${e2.message}`);
       }
     } finally {
       loadingIcons.delete(objectValue);
     }
   })();
+
   loadingIcons.set(objectValue, promise);
   return promise;
 }
 
-/* ============ 5. SETUP KHI LOAD ============ */
+/* ============ 5. LOAD ============ */
 map.on('load', async () => {
-  // *** FIX QUAN TRỌNG: set cờ NGAY ĐẦU, trước mọi await ***
   window._mapReady = true;
   setMapState('ready');
   log('ok', 'map', 'load event fired – _mapReady = true');
 
   try {
-    // default icon
+    // default icon – cũng dùng <img>, không dùng map.loadImage
     try {
-      const defaultImg = await map.loadImage(svgToDataUri(DEFAULT_SIGN_SVG));
-      if (!map.hasImage('default-sign')) map.addImage('default-sign', defaultImg.data);
-      log('ok', 'icon', 'default-sign đã thêm');
+      const defaultImg = await loadSvgAsImage(svgToDataUri(DEFAULT_SIGN_SVG));
+      if (!map.hasImage('default-sign')) {
+        map.addImage('default-sign', defaultImg, { sdf: false });
+      }
+      log('ok', 'icon', `default-sign đã thêm (${defaultImg.naturalWidth}×${defaultImg.naturalHeight})`);
     } catch (e) {
-      log('err', 'icon', 'Không thêm được default-sign: ' + (e.message || e));
+      log('err', 'icon', 'default-sign fail: ' + e.message);
     }
 
-    // vector source
+    // source
     if (!map.getSource('traffic-signs')) {
       map.addSource('traffic-signs', {
         type: 'vector',
         tiles: [
           `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`
         ],
-        minzoom: 0,
-        maxzoom: 14
+        minzoom: 0, maxzoom: 14
       });
       log('ok', 'src', 'traffic-signs source đã thêm');
     }
 
-    // symbol layer
+    // layer
     if (!map.getLayer('traffic-signs-layer')) {
       map.addLayer({
         id: 'traffic-signs-layer',
@@ -272,7 +291,6 @@ map.on('load', async () => {
       log('ok', 'layer', 'traffic-signs-layer đã thêm');
     }
 
-    // styleimagemissing
     map.on('styleimagemissing', (e) => {
       const id = e.id;
       if (!id || id === 'default-sign') return;
@@ -280,7 +298,6 @@ map.on('load', async () => {
       if (id.includes('--')) loadIconForSign(id);
     });
 
-    // sourcedata
     let lastCount = -1;
     map.on('sourcedata', (e) => {
       if (e.sourceId !== 'traffic-signs' || !e.isSourceLoaded) return;
@@ -290,9 +307,6 @@ map.on('load', async () => {
       if (uniq.size !== lastCount) {
         lastCount = uniq.size;
         log('info', 'signs', `${uniq.size} signs trong view (z=${map.getZoom().toFixed(1)})`);
-        if (uniq.size === 0) {
-          log('warn', 'signs', 'Không có sign nào – pan sang vùng khác hoặc zoom ≥ 14');
-        }
         const seen = new Set();
         feats.forEach(f => {
           const v = f.properties.object_value || f.properties.value;
@@ -321,7 +335,7 @@ map.on('load', async () => {
           return;
         }
         const img = await fetchImageThumbnail(ids[0]);
-        log('ok', 'api', `ảnh OK: ${img.thumb_1024_url?.slice(0, 60)}…`);
+        log('ok', 'api', `ảnh OK`);
         popup.setHTML(`
           <div class="mapillary-popup">
             <strong>${signType}</strong><br>
@@ -342,14 +356,14 @@ map.on('load', async () => {
     map.on('mouseenter', 'traffic-signs-layer', () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', 'traffic-signs-layer', () => map.getCanvas().style.cursor = '');
 
-    log('ok', 'setup', 'Sẵn sàng – thử pan sang Hà Nội phố cổ / TP.HCM Q1');
+    log('ok', 'setup', 'Sẵn sàng');
   } catch (err) {
-    log('err', 'setup', 'Lỗi khởi tạo lớp signs: ' + (err.message || err));
+    log('err', 'setup', 'Lỗi: ' + (err.message || err));
     console.error(err);
   }
 });
 
-/* ============ 6. NÚT DEBUG ============ */
+/* ============ 6. BUTTONS ============ */
 document.getElementById('debugHeader').onclick = () =>
   document.getElementById('debugPanel').classList.toggle('collapsed');
 
@@ -366,7 +380,7 @@ document.getElementById('btnCopy').onclick = async () => {
     await navigator.clipboard.writeText(allLogs.join('\n'));
     log('ok', 'debug', 'Đã copy log');
   } catch {
-    log('err', 'debug', 'Copy thất bại – dùng Ctrl+C từ console');
+    log('err', 'debug', 'Copy fail');
   }
 };
 
@@ -388,27 +402,19 @@ document.getElementById('btnReloadIcons').onclick = async () => {
   }
 };
 
-/* *** FIX QUAN TRỌNG: kiểm tra bằng map.isStyleLoaded() *** */
 document.getElementById('btnTest').onclick = async () => {
   log('info', 'test', '=== TEST API ===');
-
   const styleOk = map.isStyleLoaded();
   const sourceOk = !!map.getSource('traffic-signs');
   const layerOk = !!map.getLayer('traffic-signs-layer');
-  log('info', 'test', `Trạng thái: style=${styleOk} source=${sourceOk} layer=${layerOk} flag=${window._mapReady === true}`);
-
-  if (!styleOk) {
-    log('err', 'test', 'Style CHƯA load xong (MapTiler có thể bị chặn / sai key)');
+  log('info', 'test', `style=${styleOk} source=${sourceOk} layer=${layerOk} flag=${window._mapReady === true}`);
+  if (!styleOk || !sourceOk || !layerOk) {
+    log('err', 'test', 'Map/layer chưa sẵn sàng');
     return;
   }
-  if (!sourceOk || !layerOk) {
-    log('err', 'test', 'Lớp signs CHƯA được thêm – xem lỗi [setup] phía trên');
-    return;
-  }
-
   const feats = map.querySourceFeatures('traffic-signs', { sourceLayer: 'traffic_sign' });
   if (!feats.length) {
-    log('warn', 'test', 'Không có sign nào trong view – pan tới vùng có signs rồi test lại');
+    log('warn', 'test', 'Không có sign nào trong view');
     return;
   }
   const f = feats[0];
@@ -416,9 +422,14 @@ document.getElementById('btnTest').onclick = async () => {
   const signType = f.properties.object_value || f.properties.value;
   log('info', 'test', `Sign mẫu: id=${id} type=${signType}`);
 
+  // icon test – dùng fetch để xem HTTP status, rồi thử decode bằng <img>
   try {
-    const r = await fetch(`${SIGN_ICON_BASE}/${signType}.svg`, { method: 'HEAD' });
-    log(r.ok ? 'ok' : 'err', 'test', `  icon HTTP ${r.status} ${r.statusText}`);
+    const r = await fetch(`${SIGN_ICON_BASE}/${signType}.svg`);
+    log(r.ok ? 'ok' : 'err', 'test', `  icon HTTP ${r.status}`);
+    if (r.ok) {
+      const txt = await r.text();
+      log('info', 'test', `  ${txt.length} chars, bắt đầu: ${txt.slice(0, 60).replace(/\n/g, ' ')}`);
+    }
   } catch (e) { log('err', 'test', `  icon fetch fail: ${e.message}`); }
 
   try {
@@ -450,16 +461,15 @@ document.getElementById('btnTestIcon').onclick = async () => {
   log('info', 'test', `Test icon: ${v}`);
   try {
     const r = await fetch(`${SIGN_ICON_BASE}/${v}.svg`);
-    if (r.ok) {
-      const txt = await r.text();
-      log('ok', 'test', `  HTTP 200, ${txt.length} chars, ct=${r.headers.get('content-type')}`);
-      if (txt.trim().startsWith('<svg') || txt.trim().startsWith('<?xml')) {
-        log('ok', 'test', '  SVG hợp lệ ✓');
-      } else {
-        log('err', 'test', `  Không phải SVG! Đầu file: ${txt.slice(0, 80)}`);
-      }
-    } else {
-      log('err', 'test', `  HTTP ${r.status} – file không tồn tại?`);
+    if (!r.ok) { log('err', 'test', `  HTTP ${r.status}`); return; }
+    const txt = await r.text();
+    log('ok', 'test', `  HTTP 200, ${txt.length} chars, ct=${r.headers.get('content-type')}`);
+    // thử decode bằng <img>
+    try {
+      const img = await loadSvgAsImage(`${SIGN_ICON_BASE}/${v}.svg`);
+      log('ok', 'test', `  Decode OK: ${img.naturalWidth}×${img.naturalHeight}`);
+    } catch (e) {
+      log('err', 'test', `  Decode fail: ${e.message}`);
     }
   } catch (e) { log('err', 'test', `  fetch fail: ${e.message}`); }
 };
