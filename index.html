@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mapillary Traffic Signs – SVG Icons (OSM)</title>
+  <title>Mapillary Traffic Signs – MapTiler Streets</title>
 
   <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -54,34 +54,19 @@
    ================================================================== */
 const MAPILLARY_TOKEN = 'MLY|29249168751358312|a5696ee10fc78ffba69a9a34515c63a8';
 
-// OSM chính thức – không mirror
-const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const OSM_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors';
+// MapTiler style URL (đã bao gồm OSM + attribution)
+const MAPTILER_STYLE_URL =
+  'https://api.maptiler.com/maps/streets-v4/style.json?key=aEzMCP0ANRz52vd1RvrW';
 
 // CDN icon SVG của Mapillary
 const SIGN_ICON_CDN = 'https://static.mapillary.com/traffic_signs';
 
 /* ==================================================================
-   2. KHỞI TẠO BẢN ĐỒ
+   2. KHỞI TẠO BẢN ĐỒ – NỀN MAPTILER STREETS v4
    ================================================================== */
 const map = new maplibregl.Map({
   container: 'map',
-  style: {
-    version: 8,
-    sources: {
-      osm: {
-        type: 'raster',
-        tiles: [OSM_TILE_URL],
-        tileSize: 256,
-        attribution: OSM_ATTRIBUTION,
-        maxzoom: 19
-      }
-    },
-    layers: [
-      { id: 'osm-layer', type: 'raster', source: 'osm', minzoom: 0, maxzoom: 20 }
-    ]
-  },
+  style: MAPTILER_STYLE_URL,
   center: [105.85, 21.03],  // Hà Nội – đổi tuỳ ý
   zoom: 15
 });
@@ -151,47 +136,51 @@ async function loadIconForSign(objectValue) {
 }
 
 /* ==================================================================
-   4. SETUP LỚP BIỂN BÁO
+   4. SETUP LỚP BIỂN BÁO SAU KHI STYLE LOAD XONG
    ================================================================== */
 map.on('load', async () => {
   // 4a. Icon mặc định
   const defaultImg = await map.loadImage(svgToDataUri(DEFAULT_SIGN_SVG));
   if (!map.hasImage('default-sign')) map.addImage('default-sign', defaultImg.data);
 
-  // 4b. Vector tile source của Mapillary
-  map.addSource('traffic-signs', {
-    type: 'vector',
-    tiles: [
-      `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`
-    ],
-    minzoom: 0,
-    maxzoom: 14
-  });
+  // 4b. Vector tile source Mapillary
+  if (!map.getSource('traffic-signs')) {
+    map.addSource('traffic-signs', {
+      type: 'vector',
+      tiles: [
+        `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`
+      ],
+      minzoom: 0,
+      maxzoom: 14
+    });
+  }
 
-  // 4c. Symbol layer với icon SVG
-  map.addLayer({
-    id: 'traffic-signs-layer',
-    type: 'symbol',
-    source: 'traffic-signs',
-    'source-layer': 'traffic_sign',
-    layout: {
-      'icon-image': [
-        'coalesce',
-        ['get', 'object_value'],
-        ['get', 'value'],
-        'default-sign'
-      ],
-      'icon-size': [
-        'interpolate', ['linear'], ['zoom'],
-        12, 0.35,
-        15, 0.55,
-        18, 0.8
-      ],
-      'icon-allow-overlap': true,
-      'icon-anchor': 'bottom',
-      'icon-padding': 2
-    }
-  });
+  // 4c. Symbol layer – không chỉ định beforeId → tự nằm trên cùng
+  if (!map.getLayer('traffic-signs-layer')) {
+    map.addLayer({
+      id: 'traffic-signs-layer',
+      type: 'symbol',
+      source: 'traffic-signs',
+      'source-layer': 'traffic_sign',
+      layout: {
+        'icon-image': [
+          'coalesce',
+          ['get', 'object_value'],
+          ['get', 'value'],
+          'default-sign'
+        ],
+        'icon-size': [
+          'interpolate', ['linear'], ['zoom'],
+          12, 0.35,
+          15, 0.55,
+          18, 0.8
+        ],
+        'icon-allow-overlap': true,
+        'icon-anchor': 'bottom',
+        'icon-padding': 2
+      }
+    });
+  }
 
   // 4d. Tự load icon khi gặp id chưa có
   map.on('styleimagemissing', async (e) => {
@@ -217,7 +206,7 @@ map.on('load', async () => {
     });
   });
 
-  /* Click biển báo → popup ảnh */
+  /* Click biển báo → popup ảnh street-level */
   map.on('click', 'traffic-signs-layer', async (e) => {
     const feature = e.features[0];
     const mapFeatureId = feature.properties.id;
