@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mapillary Signs – Rasterize Fix</title>
+  <title>Mapillary Signs – Full Fix</title>
   <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <style>
@@ -21,8 +21,8 @@
       border-radius: 50%; margin-right: 6px; vertical-align: middle;
     }
     #debugPanel {
-      position: absolute; top: 12px; right: 60px; width: 400px; max-height: 62vh;
-      background: rgba(20, 20, 20, 0.93); color: #e0e0e0;
+      position: absolute; top: 12px; right: 60px; width: 380px; max-height: 60vh;
+      background: rgba(20, 20, 20, 0.92); color: #e0e0e0;
       font: 12px/1.45 ui-monospace, monospace;
       border-radius: 10px; display: flex; flex-direction: column;
       z-index: 10; box-shadow: 0 4px 20px rgba(0,0,0,.4); overflow: hidden;
@@ -58,7 +58,7 @@
     #debugControls button.warn { background: #d6a500; border-color: #d6a500; color: #000; }
     #debugControls button.ok { background: #2a7d2a; border-color: #2a7d2a; }
     #debugControls button.danger { background: #b00020; border-color: #b00020; }
-    #debugBody { overflow-y: auto; padding: 6px 0; flex: 1; min-height: 120px; max-height: 52vh; }
+    #debugBody { overflow-y: auto; padding: 6px 0; flex: 1; min-height: 120px; max-height: 50vh; }
     .logLine {
       padding: 2px 10px; border-left: 3px solid transparent;
       white-space: pre-wrap; word-break: break-all;
@@ -80,7 +80,6 @@
 <body>
 
 <div id="map"></div>
-
 <div id="legend">
   <b>Chú thích</b>
   <div><span class="dot" style="background:#d62828"></span>Regulatory</div>
@@ -96,32 +95,29 @@
   </div>
   <div id="debugControls">
     <button class="primary" id="btnTest">▶ Test API</button>
-    <button id="btnInspect">🔍 Inspect icon</button>
-    <button id="btnReloadIcons">↻ Reload</button>
+    <button class="warn" id="btnProps">🔬 Check tile props</button>
+    <button id="btnReloadIcons">↻ Reload icons</button>
     <button class="warn" id="btnForceDefault">⚠ Force default</button>
-    <button class="ok" id="btnRestoreIcons">✓ Restore</button>
-    <button class="danger" id="btnClear">🗑 Xoá log</button>
-    <button id="btnCopy">📋 Copy</button>
+    <button class="ok" id="btnRestore">✓ Restore icons</button>
+    <button class="danger" id="btnClear">🗑 Clear</button>
+    <button id="btnCopy">📋 Copy log</button>
   </div>
   <div id="debugBody"></div>
 </div>
 
 <script>
-/* ==================================================================
+/* ================================================================
    1. CONFIG
-   ================================================================== */
+   ================================================================ */
 const MAPILLARY_TOKEN = 'MLY|29249168751358312|a5696ee10fc78ffba69a9a34515c63a8';
 const MAPTILER_STYLE_URL =
   'https://api.maptiler.com/maps/streets-v4/style.json?key=aEzMCP0ANRz52vd1RvrW';
 const SIGN_ICON_BASE =
   'https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/mapillary_signs';
 
-// Kích thước rasterize (px). 48 đủ nét cho mọi icon-size, không tốn VRAM.
-const ICON_RASTER_SIZE = 48;
-
-/* ==================================================================
+/* ================================================================
    2. LOGGER
-   ================================================================== */
+   ================================================================ */
 const logBody = document.getElementById('debugBody');
 const errBadge = document.getElementById('errBadge');
 const mapStateEl = document.getElementById('mapState');
@@ -155,9 +151,9 @@ function setMapState(s) {
 }
 log('info', 'boot', 'Debug panel ready');
 
-/* ==================================================================
-   3. KHỞI TẠO MAP
-   ================================================================== */
+/* ================================================================
+   3. MAP
+   ================================================================ */
 log('info', 'map', 'Khởi tạo MapLibre…');
 const map = new maplibregl.Map({
   container: 'map',
@@ -177,9 +173,9 @@ map.on('style.load', () => {
   log('ok', 'map', 'style.load event');
 });
 
-/* ==================================================================
-   4. ICON MANAGER – RASTERIZE SVG → RGBA (bỏ createImageBitmap)
-   ================================================================== */
+/* ================================================================
+   4. ICON MANAGER — rasterize SVG → RGBA (tránh bug createImageBitmap)
+   ================================================================ */
 const DEFAULT_SIGN_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
   '<circle cx="16" cy="16" r="14" fill="#e63946" stroke="#ffffff" stroke-width="2.5"/></svg>';
@@ -188,7 +184,6 @@ const CATEGORY_COLORS = {
   regulatory: '#d62828', warning: '#fcbf49',
   information: '#003049', complementary: '#003049'
 };
-
 const loadedIcons = new Set();
 const loadingIcons = new Map();
 
@@ -204,52 +199,35 @@ function makeFallbackSvg(v) {
 }
 
 /**
- * Rasterize SVG → raw RGBA Uint8Array mà MapLibre chấp nhận trực tiếp.
- * Tránh hoàn toàn createImageBitmap (bug rasterize SVG trên MapLibre v4).
+ * Load SVG → HTMLImageElement (dùng native decoder, hỗ trợ SVG đầy đủ)
  */
-async function rasterizeSvg(url, size = ICON_RASTER_SIZE) {
-  // 1. Load SVG bằng <img>
-  const img = await new Promise((resolve, reject) => {
-    const i = new Image();
-    i.crossOrigin = 'anonymous';
-    i.onload = () => resolve(i);
-    i.onerror = () => reject(new Error(`SVG load fail: ${url}`));
-    i.src = url;
+function loadSvgAsImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.decoding = 'async';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`load fail: ${url}`));
+    img.src = url;
   });
+}
 
-  // 2. Vẽ lên canvas ở kích thước cố định
+/**
+ * Rasterize SVG → raw RGBA pixel data. Truyền thẳng vào map.addImage
+ * để bỏ qua createImageBitmap (bug blank texture với SVG).
+ */
+async function rasterizeSvg(url, size = 48) {
+  const img = await loadSvgAsImage(url);
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.clearRect(0, 0, size, size);
+  const ctx = canvas.getContext('2d');
   ctx.drawImage(img, 0, 0, size, size);
-
-  // 3. Đọc pixel (sẽ throw nếu canvas bị tainted do CORS)
-  let imageData;
-  try {
-    imageData = ctx.getImageData(0, 0, size, size);
-  } catch (e) {
-    throw new Error(`Canvas tainted (CORS): ${e.message}`);
-  }
-
-  // 4. Kiểm tra texture rỗng (hầu hết pixel alpha = 0)
-  const pixels = imageData.data;
-  let nonZero = 0;
-  for (let i = 3; i < pixels.length; i += 4) {
-    if (pixels[i] > 0) nonZero++;
-  }
-  const totalPx = size * size;
-  if (nonZero / totalPx < 0.01) {
-    throw new Error(`Rasterize rỗng (${nonZero}/${totalPx} px có màu)`);
-  }
-
+  const data = ctx.getImageData(0, 0, size, size);
   return {
     width: size,
     height: size,
-    data: new Uint8Array(pixels.buffer)
+    data: new Uint8Array(data.data.buffer)
   };
 }
 
@@ -261,18 +239,19 @@ async function loadIconForSign(objectValue) {
   const promise = (async () => {
     const url = `${SIGN_ICON_BASE}/${objectValue}.svg`;
     try {
-      const raster = await rasterizeSvg(url);
+      const raster = await rasterizeSvg(url, 48);
       if (!map.hasImage(objectValue)) {
         map.addImage(objectValue, raster, { sdf: false });
       }
       loadedIcons.add(objectValue);
-      log('ok', 'icon', `✓ ${objectValue} (${raster.width}×${raster.height} raster)`);
+      log('ok', 'icon', `✓ ${objectValue} (48×48 raster)`);
     } catch (err) {
       log('warn', 'icon', `✗ ${objectValue} (${err.message}) → fallback`);
       try {
-        const fb = await rasterizeSvg(svgToDataUri(makeFallbackSvg(objectValue)));
+        const fbUrl = svgToDataUri(makeFallbackSvg(objectValue));
+        const raster = await rasterizeSvg(fbUrl, 48);
         if (!map.hasImage(objectValue)) {
-          map.addImage(objectValue, fb, { sdf: false });
+          map.addImage(objectValue, raster, { sdf: false });
         }
         loadedIcons.add(objectValue);
       } catch (e2) {
@@ -287,27 +266,27 @@ async function loadIconForSign(objectValue) {
   return promise;
 }
 
-/* ==================================================================
-   5. SETUP KHI MAP LOAD
-   ================================================================== */
+/* ================================================================
+   5. LOAD HANDLER
+   ================================================================ */
 map.on('load', async () => {
   window._mapReady = true;
   setMapState('ready');
   log('ok', 'map', 'load event fired');
 
-  // 5a. default-sign qua rasterize
+  // default-sign
   try {
-    const raster = await rasterizeSvg(svgToDataUri(DEFAULT_SIGN_SVG));
+    const raster = await rasterizeSvg(svgToDataUri(DEFAULT_SIGN_SVG), 48);
     if (!map.hasImage('default-sign')) {
       map.addImage('default-sign', raster, { sdf: false });
     }
-    log('ok', 'icon', `default-sign OK (${raster.width}×${raster.height} raster)`);
+    log('ok', 'icon', 'default-sign OK (48×48 raster)');
   } catch (e) {
     log('err', 'icon', 'default-sign fail: ' + e.message);
     return;
   }
 
-  // 5b. Source
+  // source
   if (!map.getSource('traffic-signs')) {
     map.addSource('traffic-signs', {
       type: 'vector',
@@ -319,7 +298,6 @@ map.on('load', async () => {
     log('ok', 'src', 'traffic-signs source added');
   }
 
-  // 5c. Tự load icon khi MapLibre gặp ID lạ
   map.on('styleimagemissing', (e) => {
     const id = e.id;
     if (!id || id === 'default-sign') return;
@@ -327,13 +305,11 @@ map.on('load', async () => {
     if (id.includes('--')) loadIconForSign(id);
   });
 
-  /* ------------------------------------------------------------------
-     5d. KEY: preload toàn bộ icon TRƯỚC KHI addLayer
-     ------------------------------------------------------------------ */
-  let layerState = 'pending';
+  let layerState = 'pending'; // pending | preloading | added
 
   map.on('sourcedata', async (e) => {
     if (e.sourceId !== 'traffic-signs' || !e.isSourceLoaded) return;
+
     if (layerState === 'preloading') return;
 
     if (layerState === 'pending') {
@@ -345,21 +321,32 @@ map.on('load', async () => {
         const v = f.properties.object_value || f.properties.value;
         if (v) objectValues.add(v);
       });
-      log('info', 'layer', `Preloading ${objectValues.size} icons trước khi addLayer…`);
+      log('info', 'layer', `Preloading ${objectValues.size} icons trước addLayer…`);
 
-      // Preload song song tất cả icon
       await Promise.all([...objectValues].map(v => loadIconForSign(v)));
 
-      log('ok', 'layer', `Preload xong → addLayer`);
+      // Log property thật của feature đầu tiên (verify)
+      if (feats[0]) {
+        const p = feats[0].properties;
+        log('info', 'layer',
+          `Feature[0] props: object_value=${JSON.stringify(p.object_value)} value=${JSON.stringify(p.value)}`);
+      }
 
-      // Add layer với icon-image đơn giản (không dùng ['image', ...])
+      log('ok', 'layer', 'Preload xong → addLayer');
+
       map.addLayer({
         id: 'traffic-signs-layer',
         type: 'symbol',
         source: 'traffic-signs',
         'source-layer': 'traffic_sign',
         layout: {
-          'icon-image': ['coalesce', ['get', 'object_value'], 'default-sign'],
+          // *** FIX: có đủ object_value + value + default-sign ***
+          'icon-image': [
+            'coalesce',
+            ['get', 'object_value'],
+            ['get', 'value'],
+            'default-sign'
+          ],
           'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.6, 15, 1.0, 18, 1.5],
           'icon-allow-overlap': true,
           'icon-anchor': 'center',
@@ -368,7 +355,6 @@ map.on('load', async () => {
       });
       log('ok', 'layer', 'traffic-signs-layer added');
 
-      // Click → popup ảnh
       map.on('click', 'traffic-signs-layer', async (ev) => {
         const f = ev.features[0];
         const id = f.properties.id;
@@ -410,11 +396,11 @@ map.on('load', async () => {
       map.on('mouseleave', 'traffic-signs-layer', () => map.getCanvas().style.cursor = '');
 
       layerState = 'added';
-      log('ok', 'setup', 'Sẵn sàng');
+      log('ok', 'setup', 'Sẵn sàng – pan sang Hà Nội phố cổ / TP.HCM Q1');
       return;
     }
 
-    // layerState === 'added' — báo count + load icon mới khi pan
+    // layerState === 'added' — load thêm icon khi pan sang vùng mới
     const feats = map.querySourceFeatures('traffic-signs', { sourceLayer: 'traffic_sign' });
     const uniq = new Set();
     feats.forEach(f => uniq.add(f.properties.id || f.id));
@@ -428,9 +414,9 @@ map.on('load', async () => {
   });
 });
 
-/* ==================================================================
-   6. NÚT DEBUG
-   ================================================================== */
+/* ================================================================
+   6. BUTTONS
+   ================================================================ */
 document.getElementById('debugHeader').onclick = () =>
   document.getElementById('debugPanel').classList.toggle('collapsed');
 
@@ -466,85 +452,57 @@ document.getElementById('btnReloadIcons').onclick = async () => {
   }
 };
 
+/* Force default-sign để test layer có render không */
 document.getElementById('btnForceDefault').onclick = () => {
   if (!map.getLayer('traffic-signs-layer')) {
     log('err', 'debug', 'Layer chưa tồn tại');
     return;
   }
   map.setLayoutProperty('traffic-signs-layer', 'icon-image', 'default-sign');
-  log('warn', 'debug', '→ icon-image = "default-sign" (nếu thấy chấm đỏ = layer OK)');
+  log('warn', 'debug', '→ icon-image = "default-sign"');
 };
 
-document.getElementById('btnRestoreIcons').onclick = () => {
+document.getElementById('btnRestore').onclick = () => {
   if (!map.getLayer('traffic-signs-layer')) {
     log('err', 'debug', 'Layer chưa tồn tại');
     return;
   }
   map.setLayoutProperty('traffic-signs-layer', 'icon-image',
-    ['coalesce', ['get', 'object_value'], 'default-sign']);
-  log('ok', 'debug', '→ icon-image restored');
+    ['coalesce', ['get', 'object_value'], ['get', 'value'], 'default-sign']);
+  log('ok', 'debug', '→ icon-image đã restore');
 };
 
-document.getElementById('btnInspect').onclick = () => {
+/* Check tile props — verify property thật trong vector tile */
+document.getElementById('btnProps').onclick = () => {
   const feats = map.querySourceFeatures('traffic-signs', { sourceLayer: 'traffic_sign' });
-  if (!feats[0]) { log('warn', 'inspect', 'Không có sign trong view'); return; }
-  const v = feats[0].properties.object_value || feats[0].properties.value;
-  log('info', 'inspect', `Icon ID: ${v}, hasImage=${map.hasImage(v)}`);
-
-  const sImage = map.style.getImage(v);
-  if (!sImage) {
-    log('err', 'inspect', `Không tìm thấy "${v}" trong registry`);
+  if (!feats.length) {
+    log('warn', 'props', 'Không có feature trong view');
     return;
   }
+  const f = feats[0];
+  log('info', 'props', `Feature props: ${Object.keys(f.properties).join(', ')}`);
+  log('info', 'props', `object_value = ${JSON.stringify(f.properties.object_value)}`);
+  log('info', 'props', `value        = ${JSON.stringify(f.properties.value)}`);
+  log('info', 'props', `id           = ${JSON.stringify(f.properties.id)}`);
 
-  // Đếm pixel alpha > 0
-  const data = sImage.data.data || sImage.data;
-  let nonZero = 0;
-  for (let i = 3; i < data.length; i += 4) if (data[i] > 0) nonZero++;
-  const total = sImage.data.width * sImage.data.height;
-  const percent = (nonZero / total * 100).toFixed(1);
+  const ov = f.properties.object_value;
+  const val = f.properties.value;
+  log('info', 'props', `hasImage(object_value) = ${ov ? map.hasImage(ov) : '(null)'}`);
+  log('info', 'props', `hasImage(value)        = ${val ? map.hasImage(val) : '(null)'}`);
+  log('info', 'props', `hasImage(default-sign) = ${map.hasImage('default-sign')}`);
 
-  // Vẽ texture ra canvas để xem trực quan
-  const tmpCanvas = document.createElement('canvas');
-  tmpCanvas.width = sImage.data.width;
-  tmpCanvas.height = sImage.data.height;
-  const tmpCtx = tmpCanvas.getContext('2d');
-  const imgData = tmpCtx.createImageData(sImage.data.width, sImage.data.height);
-  imgData.data.set(data);
-  tmpCtx.putImageData(imgData, 0, 0);
-
-  const viewCanvas = document.createElement('canvas');
-  viewCanvas.width = 200; viewCanvas.height = 200;
-  viewCanvas.style.cssText = 'border-radius:6px; background:#f0f0f0; margin-top:6px;';
-  const viewCtx = viewCanvas.getContext('2d');
-  viewCtx.imageSmoothingEnabled = false;
-  viewCtx.drawImage(tmpCanvas, 0, 0, 200, 200);
-
-  const popup = new maplibregl.Popup({ maxWidth: '260px' })
-    .setLngLat(map.getCenter())
-    .setHTML(`
-      <div style="font:12px monospace; text-align:center">
-        <div><b>${v}</b></div>
-        <div>${sImage.data.width}×${sImage.data.height}px</div>
-        <div style="color:${percent > 5 ? '#2a7d2a' : '#d62828'}; font-weight:bold; margin-bottom:4px">
-          ${percent}% pixel có màu
-        </div>
-      </div>
-    `)
-    .addTo(map);
-
-  // Chèn canvas vào popup
-  requestAnimationFrame(() => {
-    const c = document.querySelector('.maplibregl-popup-content');
-    if (c) c.appendChild(viewCanvas);
+  // Đếm tỷ lệ sign có object_value vs value
+  let withOv = 0, withVal = 0, withBoth = 0, withNeither = 0;
+  feats.forEach(x => {
+    const o = x.properties.object_value;
+    const v = x.properties.value;
+    if (o && v) withBoth++;
+    else if (o) withOv++;
+    else if (v) withVal++;
+    else withNeither++;
   });
-
-  log('info', 'inspect', `${sImage.data.width}×${sImage.data.height}, ${percent}% non-transparent`);
-  if (percent < 5) {
-    log('err', 'inspect', '→ TEXTURE RỖNG. Bug rasterization vẫn còn!');
-  } else {
-    log('ok', 'inspect', '→ Texture có nội dung. Nếu không thấy trên map: icon-size nhỏ hoặc bị che.');
-  }
+  log('info', 'props',
+    `Tổng ${feats.length}: có object_value=${withOv}, có value=${withVal}, cả hai=${withBoth}, không có=${withNeither}`);
 };
 
 document.getElementById('btnTest').onclick = async () => {
@@ -553,23 +511,21 @@ document.getElementById('btnTest').onclick = async () => {
   const sourceOk = !!map.getSource('traffic-signs');
   const layerOk = !!map.getLayer('traffic-signs-layer');
   log('info', 'test', `style=${styleOk} source=${sourceOk} layer=${layerOk}`);
-
   if (sourceOk) {
     const feats = map.querySourceFeatures('traffic-signs', { sourceLayer: 'traffic_sign' });
-    log('info', 'test', `querySourceFeatures: ${feats.length}`);
+    log('info', 'test', `querySourceFeatures: ${feats.length} features`);
     if (feats[0]) {
       const v = feats[0].properties.object_value || feats[0].properties.value;
-      log('info', 'test', `sign[0].object_value = ${v}`);
+      log('info', 'test', `sign[0].key = ${v}`);
       log('info', 'test', `hasImage("${v}") = ${v ? map.hasImage(v) : false}`);
     }
   }
-  log('info', 'test', `hasImage("default-sign") = ${map.hasImage('default-sign')}`);
   log('info', 'test', '=== HẾT ===');
 };
 
-/* ==================================================================
+/* ================================================================
    7. GRAPH API
-   ================================================================== */
+   ================================================================ */
 async function fetchMapFeatureImages(id) {
   const url = `https://graph.mapillary.com/${id}?access_token=${MAPILLARY_TOKEN}&fields=images`;
   const r = await fetch(url);
