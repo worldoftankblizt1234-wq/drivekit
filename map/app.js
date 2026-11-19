@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js (Part 1/2) — Mapillary Signs integrated
+   DriveKit — app.js FULL — Mapillary Signs via Worker proxy
    ===================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -30,9 +30,17 @@ const TRACKASIA_STYLE = `https://maps.track-asia.com/styles/v2/streets.json?key=
 const NEARBY_API_URL = 'https://potential-space-trout-p7r7pgrjwjvw26g6j-8000.app.github.dev/api/nearby';
 
 /* ========== MAPILLARY SIGNS ========== */
-const MAPILLARY_TOKEN = 'MLY|30124595887140717|6f7fa14af38d34316e4f6ba9388e1be4';
+// KHONG hardcode token o frontend nua.
+// Token chi de trong Worker secret ten `mapillary_api` (chu thuong, tren Dashboard Production + Previews).
+// Frontend chi goi Worker proxy, Worker tu gan token vao tiles.mapillary.com
 const MAPILLARY_VTP_URL = (z, x, y) =>
-  `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/${z}/${x}/${y}?access_token=${encodeURIComponent(MAPILLARY_TOKEN)}`;
+  `${WORKER_URL}/api/mapillary-tiles/${z}/${x}/${y}`;
+// Icon + app cung 1 URL https://drive-kit.pages.dev => cung origin => khong CORS.
+// Duong dan icon giu nguyen theo ban deploy cua ong: /map/mapillary_sign (so it).
+// Luu y: folder tren GitHub la map/mapillary_signs (so nhieu), nhung folder deploy tren Pages
+// cua ong la mapillary_sign - lay theo Pages, khong lay theo GitHub.
+// Neu tren Pages cua ong doi ten thanh mapillary_signs thi doi 1 dong duoi nay.
+// Ten file = dung value cua Mapillary, vd: regulatory--maximum-speed-limit-50--g1.svg
 const MAPILLARY_SIGN_BASE = 'https://drive-kit.pages.dev/map/mapillary_sign';
 const TRAFFIC_SIGN_SOURCE_ID = 'mapillary-traffic-signs';
 const TRAFFIC_SIGN_LAYER_ID  = 'mapillary-traffic-signs-layer';
@@ -68,7 +76,7 @@ function ensureSignIcon(code) {
       if (err || !img) {
         if (!map.hasImage('sign-fallback')) { try { map.addImage('sign-fallback', getFallbackSignImageData()); } catch(e){} }
         console.warn('[DriveKit] Không tải được SVG biển:', code, url, err?.message || err);
-        resolve(code); return;
+        resolve('sign-fallback'); return;
       }
       if (!map.hasImage(code)) { try { map.addImage(code, img, { pixelRatio: 2, sdf: false }); } catch(e){} }
       resolve(code);
@@ -84,7 +92,11 @@ function preloadVisibleSignIcons() {
   try { features = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' }); } catch(e) { return; }
   const codes = new Set();
   features.forEach(f => { const v = f.properties && f.properties.value; if (v && typeof v === 'string') codes.add(v); });
+  // Mapillary tiles chi co o zoom 14 (overzoom len 15-18). Zoom <14 = khong co bien, dung hieu la loi.
+  if (codes.size) console.log('[DriveKit] Mapillary signs in view:', codes.size);
   codes.forEach(ensureSignIcon);
+  // Sau khi icon load xong, bat MapLibre ve lai de bien hien ra (neu khong se bi trong)
+  if (codes.size) Promise.all([...codes].map(ensureSignIcon)).then(() => { try { map.triggerRepaint(); } catch(e){} });
 }
 
 function initMapillarySignsLayer() {
@@ -98,9 +110,11 @@ function initMapillarySignsLayer() {
   });
   map.addLayer({
     id: TRAFFIC_SIGN_LAYER_ID, type: 'symbol', source: TRAFFIC_SIGN_SOURCE_ID,
-    'source-layer': 'traffic_sign',
+    'source-layer': 'traffic_sign', // dung ten layer trong tile Mapillary, da check docs: 'traffic_sign'
     layout: {
-      'icon-image': ['coalesce', ['image', ['get', 'value']], 'sign-fallback'],
+      // Dung ['get','value'] truc tiep. Icon duoc preload truoc qua sourcedata/moveend ben duoi.
+      // ['image',...] cu se tra fallback truoc khi icon kip load -> bien bien mat.
+      'icon-image': ['get', 'value'],
       'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.4, 18, 0.9],
       'icon-allow-overlap': true, 'icon-ignore-placement': true
     },
@@ -110,11 +124,30 @@ function initMapillarySignsLayer() {
     const f = e.features[0];
     const code = (f.properties && f.properties.value) || 'Không rõ';
     const pretty = code.replace(/--/g, ' · ').replace(/-/g, ' ');
-    new maplibregl.Popup({ offset: 12 }).setLngLat(e.lngLat).setHTML(`<b>Biển báo</b><br><small>${pretty}</small>`).addTo(map);
+    const imgUrl = `${MAPILLARY_SIGN_BASE}/${code}.svg`;
+    new maplibregl.Popup({ offset: 12 }).setLngLat(e.lngLat).setHTML(`<b>Biển báo</b><br><img src="${imgUrl}" style="width:48px;height:48px;display:block;margin:6px 0" onerror="this.style.display='none'"><small>${pretty}</small><br><small style="opacity:.6">Zoom &ge;14 moi co bien Mapillary</small>`).addTo(map);
   });
   map.on('mouseenter', TRAFFIC_SIGN_LAYER_ID, () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', TRAFFIC_SIGN_LAYER_ID, () => { map.getCanvas().style.cursor = ''; });
-  map.on('idle', () => { if (_signPreloadTimer) clearTimeout(_signPreloadTimer); _signPreloadTimer = setTimeout(preloadVisibleSignIcons, 300); });
+  // FIX: 'idle' chay truoc khi tile z14 load xong -> querySourceFeatures tra [] -> khong preload icon nao.
+  // Nghe them 'sourcedata' (tile vua ve) + 'moveend' (user vua pan/zoom).
+  if (!map._mapillarySignListenersAdded) {
+    map._mapillarySignListenersAdded = true;
+    map.on('sourcedata', (e) => {
+      if (e.sourceId === TRAFFIC_SIGN_SOURCE_ID && e.isSourceLoaded) {
+        if (_signPreloadTimer) clearTimeout(_signPreloadTimer);
+        _signPreloadTimer = setTimeout(preloadVisibleSignIcons, 200);
+      }
+    });
+    map.on('moveend', () => {
+      if (_signPreloadTimer) clearTimeout(_signPreloadTimer);
+      _signPreloadTimer = setTimeout(preloadVisibleSignIcons, 300);
+    });
+    map.on('idle', () => {
+      if (_signPreloadTimer) clearTimeout(_signPreloadTimer);
+      _signPreloadTimer = setTimeout(preloadVisibleSignIcons, 300);
+    });
+  }
   setTimeout(preloadVisibleSignIcons, 2000);
 }
 
