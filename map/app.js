@@ -3444,3 +3444,187 @@ drawCurrentRoute = function(){
   _origDrawRouteV3();
   if(isNavigating) setTimeout(updateWhiteTurnArrow, 400);
 };
+
+
+/* ============================================================
+   [MOI V4] FIX NUT XEM TAT CA TUYEN + BO PANEL DIEU KHIEN + TU GOC 1 + MINIMAP CHI DE XEM
+   1. Nut "Xem tat ca tuyen duong" bam khong co gi: do ham cu chi doc localStorage,
+      neu localStorage rong hoac modal #routeOptionsModal khong co trong HTML thi
+      getElementById tra null -> loi am, khong hien gi. Fix: dung du lieu trong RAM,
+      tu tao modal neu chua co, luon hien it nhat 1 tuyen.
+   2. Bo han panel 3 nut "Duong - Goc 1 / Thu nhat / Minimap: Bat" (navControls).
+   3. Khi an Chi duong -> tu quay ve Goc 1 (first-person), khong can bam them nut.
+   4. Minimap chi de xem: goc phai duoi, nho, khong nut, khong keo.
+   ============================================================ */
+
+// --- 2. BO PANEL DIEU KHIEN CU ---
+(function removeOldNavControls(){
+  const el = document.getElementById('navControls');
+  if(el) el.remove();
+  // Ghi de ham tao panel cu thanh rong, de setTimeout cu khong tao lai
+  if(typeof ensureNavUI === 'function'){
+    // ensureNavUI duoc dinh nghia o V2, ghi de sau khi V2 da chay
+    // Dung window de chac chan
+    try{ ensureNavUI = function(){}; }catch(e){}
+  }
+  // An them neu no duoc tao lai sau
+  setTimeout(()=>{ const e2=document.getElementById('navControls'); if(e2) e2.remove(); }, 2000);
+})();
+if(typeof window !== 'undefined'){ window.ensureNavUI = function(){}; }
+
+// --- 4. MINIMAP CHI DE XEM - ghi de ban cu ---
+function ensureNavMinimapPassive(){
+  // Neu da co minimap cu (interactive) thi xoa di tao lai ban chi-de-xem
+  if(navMinimapMap){
+    try{ navMinimapMap.remove(); }catch(e){}
+    navMinimapMap = null;
+  }
+  if(navMinimap){ try{ navMinimap.remove(); }catch(e){} navMinimap = null; }
+  const el = document.createElement('div');
+  el.id = 'navMinimap';
+  // Goc phai duoi, nho, chi de xem, khong chan nut ben duoi
+  el.style.cssText = 'position:fixed;right:12px;bottom:92px;width:150px;height:110px;z-index:997;border-radius:12px;overflow:hidden;border:2px solid #fff;box-shadow:0 6px 16px rgba(0,0,0,0.3);background:#e5e7eb;pointer-events:none;';
+  document.body.appendChild(el);
+  navMinimap = el;
+  navMinimapVisible = true;
+  try{
+    // interactive:false = chi de xem, khong keo, khong zoom
+    navMinimapMap = new maplibregl.Map({ container:'navMinimap', style: TRACKASIA_STYLE, center: map ? map.getCenter().toArray() : [105.8542, 21.0285], zoom: 13, pitch:0, bearing:0, attributionControl:false, interactive:false });
+    navMinimapMap.on('load', ()=>{ syncRouteToMinimap(); syncUserToMinimap(); });
+  }catch(e){}
+}
+// Ghi de ham cu
+ensureNavMinimap = ensureNavMinimapPassive;
+
+// --- 1. FIX NUT XEM TAT CA TUYEN DUONG ---
+window.openAlternativeRoutes = function(){
+  try{
+    // Lay tuyen tu RAM truoc, roi moi den localStorage, de khong bi phu thuoc vao localStorage
+    let routes = [];
+    if(currentRouteData) routes.push(currentRouteData);
+    // alternativeRoutesData trong RAM (neu co)
+    if(Array.isArray(alternativeRoutesData) && alternativeRoutesData.length){
+      alternativeRoutesData.forEach(r=>{ if(r && r!==currentRouteData) routes.push(r); });
+    }
+    // Them tu localStorage neu co
+    try{
+      const stored = localStorage.getItem('alternativeRoutes');
+      if(stored){
+        const parsed = JSON.parse(stored);
+        if(Array.isArray(parsed)) parsed.forEach(r=>{ if(r && !routes.includes(r)) routes.push(r); });
+      }
+    }catch(e){}
+    // De-duplicate theo distance + geometry length
+    const seen = new Set();
+    routes = routes.filter(r=>{
+      const k = (r.distance||0)+'_'+(r.duration||0)+'_'+((r.geometry&&r.geometry.coordinates&&r.geometry.coordinates.length)||0);
+      if(seen.has(k)) return false; seen.add(k); return true;
+    });
+    if(routes.length===0){
+      if(typeof showCustomToast==='function') showCustomToast('Chưa có tuyến đường nào. Hãy chọn điểm đến trước.', 'warning');
+      else alert('Chưa có tuyến đường nào. Hãy chọn điểm đến trước.');
+      return;
+    }
+    alternativeRoutesData = routes;
+    let html = '';
+    if(routes.length===1){
+      html += `<div style="padding:10px 12px;background:#eff6ff;border-radius:10px;font-size:13px;margin-bottom:8px;">Chỉ có 1 tuyến đường cho chặng này.</div>`;
+    }
+    routes.forEach((r, index)=>{
+      const dist = (r.distance/1000).toFixed(1);
+      const dur = Math.round(r.duration/60);
+      const isCurrent = index===0;
+      html += `<div class="route-card ${isCurrent?'active':''}" onclick="switchToRoute(${index})" style="cursor:pointer;"><div class="info"><h3>${isCurrent?'Tuyến hiện tại':'Tuyến gợi ý '+index}</h3><p>🛣️ ${dist} km • 🕐 ${dur} phút ${isCurrent?'(đang chọn)':''}</p></div></div>`;
+    });
+    // Tu tao modal neu HTML khong co #routeOptionsModal (day la ly do bam khong co gi)
+    let modal = document.getElementById('routeOptionsModal');
+    if(!modal){
+      modal = document.createElement('div');
+      modal.id = 'routeOptionsModal';
+      modal.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:1200;background:#fff;border-radius:18px 18px 0 0;padding:16px;max-height:70vh;overflow:auto;box-shadow:0 -8px 30px rgba(0,0,0,0.25);';
+      modal.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;"><b>Tất cả tuyến đường</b><button onclick="closeRouteOptions()" style="border:0;background:#f3f4f6;padding:6px 12px;border-radius:999px;cursor:pointer;">✕ Đóng</button></div><div id="routeOptionsBody" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;"></div>`;
+      document.body.appendChild(modal);
+    }
+    let body = document.getElementById('routeOptionsBody');
+    if(!body){
+      body = document.createElement('div');
+      body.id = 'routeOptionsBody';
+      modal.appendChild(body);
+    }
+    body.innerHTML = html;
+    modal.classList.add('open');
+    modal.style.display = 'block';
+    // Dam bao nut Dong hoat dong ca khi ham goc bi loi
+    window.closeRouteOptions = function(){
+      const m = document.getElementById('routeOptionsModal');
+      if(m){ m.classList.remove('open'); m.style.display='none'; }
+    };
+  }catch(e){
+    console.error('openAlternativeRoutes lỗi:', e);
+    alert('Không mở được danh sách tuyến: ' + e.message);
+  }
+};
+// Gan lai nut "Xem tat ca tuyen duong" theo text, phong truong hop onclick trong HTML bi sai / mat
+function bindViewAllRoutesBtn(){
+  const btns = document.querySelectorAll('button');
+  btns.forEach(b=>{
+    if((b.textContent||'').includes('Xem tất cả tuyến')){
+      b.onclick = (e)=>{ e.preventDefault(); e.stopPropagation(); window.openAlternativeRoutes(); };
+    }
+  });
+}
+setTimeout(bindViewAllRoutesBtn, 1000);
+setTimeout(bindViewAllRoutesBtn, 3000);
+document.addEventListener('click', (e)=>{
+  const t = e.target && e.target.closest ? e.target.closest('button') : null;
+  if(t && (t.textContent||'').includes('Xem tất cả tuyến')){
+    e.preventDefault();
+    window.openAlternativeRoutes();
+  }
+});
+
+// --- 3. AN CHI DUONG -> TU QUAY VE GOC 1 ---
+function autoFirstPerson(){
+  if(!map) return;
+  isNavigating = true;
+  navFollowMode = 'first-person';
+  // Hien minimap chi-de-xem
+  try{ ensureNavMinimapPassive(); syncRouteToMinimap(); }catch(e){}
+  if(lastUserPos) updateNavCamera(lastUserPos, lastUserPos.heading||0);
+  else if(currentRouteCoords && currentRouteCoords.length){
+    // Chua co GPS thi nhin theo diem dau tuyen
+    try{ map.easeTo({ center:[currentRouteCoords[0][1], currentRouteCoords[0][0]], pitch:60, zoom:17.5, duration:700 }); }catch(e){}
+  }
+}
+// Khi body them class 'navigating' (app goc bat dau dan duong) thi tu ve Goc 1
+try{
+  const _navObs = new MutationObserver((muts)=>{
+    for(const m of muts){
+      if(m.attributeName==='class'){
+        const isNav = document.body.classList.contains('navigating');
+        if(isNav && !isNavigating){
+          setTimeout(autoFirstPerson, 300);
+        } else if(!isNav && isNavigating){
+          isNavigating = false;
+          if(navMinimap){ try{ navMinimap.remove(); }catch(e){} navMinimap=null; navMinimapMap=null; }
+          if(whiteArrowMarker){ whiteArrowMarker.remove(); whiteArrowMarker=null; }
+          if(whiteArrowAheadMarker){ whiteArrowAheadMarker.remove(); whiteArrowAheadMarker=null; }
+        }
+      }
+    }
+  });
+  _navObs.observe(document.body, { attributes:true, attributeFilter:['class'] });
+}catch(e){}
+// Ghi de startNavigationMode cu de khong hien panel nua
+window.startNavigationMode = function(){
+  autoFirstPerson();
+  hideTopTurnBanner();
+  setTimeout(updateWhiteTurnArrow, 500);
+};
+window.stopNavigationMode = function(){
+  isNavigating = false;
+  try{ if(map) map.easeTo({ pitch:0, bearing:0, duration:600 }); }catch(e){}
+  if(navMinimap){ try{ navMinimap.remove(); }catch(e){} navMinimap=null; navMinimapMap=null; }
+  if(whiteArrowMarker){ whiteArrowMarker.remove(); whiteArrowMarker=null; }
+  if(whiteArrowAheadMarker){ whiteArrowAheadMarker.remove(); whiteArrowAheadMarker=null; }
+};
