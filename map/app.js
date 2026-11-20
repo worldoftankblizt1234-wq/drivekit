@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js FULL (ĐÃ FIX + SYNC WORKER)
+   DriveKit — app.js FULL (ĐÃ SYNC DEMO MAPILLARY)
    Part 1: Config → Route → Navigation
    ===================================================== */
 
@@ -32,6 +32,7 @@ const NEARBY_API_URL = 'https://potential-space-trout-p7r7pgrjwjvw26g6j-8000.app
 
 /* ========== MAPILLARY SIGNS ========== */
 const MAPILLARY_VTP_URL = (z, x, y) => `${WORKER_URL}/api/mapillary-tiles/${z}/${x}/${y}`;
+// [SYNC DEMO] jsdelivr có "s" — CDN nhanh, không CORS
 const MAPILLARY_SIGN_BASE = 'https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/mapillary_signs';
 const TRAFFIC_SIGN_SOURCE_ID = 'mapillary-traffic-signs';
 const TRAFFIC_SIGN_LAYER_ID  = 'mapillary-traffic-signs-layer';
@@ -49,7 +50,6 @@ const signDisplaySettings = JSON.parse(localStorage.getItem('drivekit_sign_displ
 };
 
 function getSignIconSize() {
-  // Hệ số nhân với icon-size interpolate
   if (signDisplaySettings.size === 'small') return 0.7;
   if (signDisplaySettings.size === 'large') return 1.4;
   return 1.0;
@@ -71,24 +71,27 @@ function getFallbackSignImageData() {
   return _fallbackSignImageData;
 }
 
-// [FIX] Load SVG qua fetch → Blob → Image → canvas (chống CORS + fallback chắc chắn)
-function loadSvgAsImage(url) {
-  return new Promise((resolve, reject) => {
-    fetch(url)
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-      .then(svgText => {
-        const blob = new Blob([svgText], { type: 'image/svg+xml' });
-        const blobUrl = URL.createObjectURL(blob);
-        const img = new Image();
-        img.onload = () => { URL.revokeObjectURL(blobUrl); resolve(img); };
-        img.onerror = () => { URL.revokeObjectURL(blobUrl); reject(new Error('Image decode failed')); };
-        img.src = blobUrl;
-      })
-      .catch(reject);
-  });
+/* ========== [SYNC DEMO] ICON LOADER — rasterize SVG → RGBA ========== */
+const DEFAULT_SIGN_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
+  '<circle cx="16" cy="16" r="14" fill="#e63946" stroke="#ffffff" stroke-width="2.5"/></svg>';
+
+const CATEGORY_COLORS = {
+  regulatory: '#d62828', warning: '#fcbf49',
+  information: '#003049', complementary: '#003049'
+};
+
+function svgToDataUri(svg) {
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+function makeFallbackSvg(v) {
+  const cat = (v || '').split('--')[0] || 'regulatory';
+  const color = CATEGORY_COLORS[cat] || '#e63946';
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
+    `<circle cx="16" cy="16" r="14" fill="${color}" stroke="#fff" stroke-width="2.5"/>` +
+    '<circle cx="16" cy="16" r="8" fill="#fff" fill-opacity="0.25"/></svg>';
 }
 
-// [SYNC DEMO] Load SVG → raster RGBA, tránh bug createImageBitmap với SVG
 function loadSvgAsImage(url) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -111,18 +114,6 @@ async function rasterizeSvg(url, size = 48) {
   return { width: size, height: size, data: new Uint8Array(data.data.buffer) };
 }
 
-function makeFallbackSvg(v) {
-  const CATEGORY_COLORS = { regulatory: '#d62828', warning: '#fcbf49', information: '#003049', complementary: '#003049' };
-  const cat = (v || '').split('--')[0] || 'regulatory';
-  const color = CATEGORY_COLORS[cat] || '#e63946';
-  return '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
-    `<circle cx="16" cy="16" r="14" fill="${color}" stroke="#fff" stroke-width="2.5"/>` +
-    '<circle cx="16" cy="16" r="8" fill="#fff" fill-opacity="0.25"/></svg>';
-}
-function svgToDataUri(svg) {
-  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-}
-
 async function ensureSignIcon(code) {
   if (!code || typeof code !== 'string') return null;
   if (map.hasImage(code)) return code;
@@ -134,7 +125,6 @@ async function ensureSignIcon(code) {
       if (!map.hasImage(code)) map.addImage(code, raster, { sdf: false });
       return code;
     } catch (err) {
-      // fallback SVG theo category
       try {
         const fbUrl = svgToDataUri(makeFallbackSvg(code));
         const raster = await rasterizeSvg(fbUrl, 48);
@@ -154,21 +144,21 @@ async function ensureSignIcon(code) {
   _loadingSignIcons.set(code, promise);
   return promise;
 }
+
 function preloadVisibleSignIcons() {
   if (!map || !map.getSource(TRAFFIC_SIGN_SOURCE_ID)) return;
   let features = [];
   try { features = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' }); } catch(e) { return; }
   const codes = new Set();
-features.forEach(f => {
-  const p = f.properties || {};
-  const v = p.object_value || p.value;
-  if (v && typeof v === 'string') codes.add(v);
-});
+  features.forEach(f => {
+    const p = f.properties || {};
+    const v = p.object_value || p.value;
+    if (v && typeof v === 'string') codes.add(v);
+  });
   codes.forEach(ensureSignIcon);
-  if (codes.size) Promise.all([...codes].map(ensureSignIcon)).then(() => { try { map.triggerRepaint(); } catch(e){} });
 }
 
-// LƯU Ý: maxzoom: 14 — MapLibre tự overzoom. KHÔNG dùng maxzoom 22 vì gây duplicate tile.
+// [SYNC DEMO] Preload XONG mới addLayer + styleimagemissing
 function initMapillarySignsLayer() {
   if (!map) return;
   if (map.getSource(TRAFFIC_SIGN_SOURCE_ID)) return;
@@ -181,7 +171,7 @@ function initMapillarySignsLayer() {
     maxzoom: 14
   });
 
-  // [SYNC DEMO] styleimagemissing — load icon khi MapLibre cần mà chưa có
+  // styleimagemissing — load icon khi MapLibre cần mà chưa có
   if (!map._signImageMissingBound) {
     map._signImageMissingBound = true;
     map.on('styleimagemissing', (e) => {
@@ -240,7 +230,7 @@ function initMapillarySignsLayer() {
         map.setLayoutProperty(TRAFFIC_SIGN_LAYER_ID, 'visibility', 'none');
       }
 
-      // Click handler — off trước để tránh nhân đôi
+      // off trước để tránh handler nhân đôi
       map.off('click', TRAFFIC_SIGN_LAYER_ID);
       map.off('mouseenter', TRAFFIC_SIGN_LAYER_ID);
       map.off('mouseleave', TRAFFIC_SIGN_LAYER_ID);
@@ -272,77 +262,6 @@ function initMapillarySignsLayer() {
   if (!map._signSourceDataBound) {
     map._signSourceDataBound = true;
     map.on('sourcedata', onSourceData);
-  }
-  setTimeout(preloadVisibleSignIcons, 2000);
-}
-function preloadVisibleSignIcons() {
-  if (!map || !map.getSource(TRAFFIC_SIGN_SOURCE_ID)) return;
-  let features = [];
-  try { features = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' }); } catch(e) { return; }
-  const codes = new Set();
-  features.forEach(f => {
-    const p = f.properties || {};
-    const v = p.object_value || p.value;
-    if (v && typeof v === 'string') codes.add(v);
-  });
-  codes.forEach(ensureSignIcon);
-}
-  const baseSize = ['interpolate', ['linear'], ['zoom'], 14, 0.4, 18, 0.9];
-  const sizeMul = getSignIconSize();
-  const iconSizeExpr = [
-    'interpolate', ['linear'], ['zoom'],
-    14, 0.4 * sizeMul,
-    18, 0.9 * sizeMul
-  ];
-
-  map.addLayer({
-    id: TRAFFIC_SIGN_LAYER_ID, type: 'symbol', source: TRAFFIC_SIGN_SOURCE_ID,
-    'source-layer': 'traffic_sign',
-    layout: {
-      'icon-image': iconExpr,
-      'icon-size': iconSizeExpr,
-      'icon-allow-overlap': true,
-      'icon-ignore-placement': true
-    },
-    paint: { 'icon-opacity': 0.95 }
-  });
-
-  // FIX: off trước khi on để tránh handler nhân đôi khi changeLayer() gọi lại
-  map.off('click', TRAFFIC_SIGN_LAYER_ID);
-  map.off('mouseenter', TRAFFIC_SIGN_LAYER_ID);
-  map.off('mouseleave', TRAFFIC_SIGN_LAYER_ID);
-
-  map.on('click', TRAFFIC_SIGN_LAYER_ID, (e) => {
-    const f = e.features[0];
-  const code = (f.properties && (f.properties.object_value || f.properties.value)) || 'Không rõ';
-    const pretty = code.replace(/--/g, ' · ').replace(/-/g, ' ');
-    const imgUrl = `${MAPILLARY_SIGN_BASE}/${code}.svg`;
-    new maplibregl.Popup({ offset: 12 }).setLngLat(e.lngLat).setHTML(`<b>Biển báo</b><br><img src="${imgUrl}" style="width:48px;height:48px;display:block;margin:6px 0" onerror="this.style.display='none'"><small>${pretty}</small>`).addTo(map);
-  });
-  map.on('mouseenter', TRAFFIC_SIGN_LAYER_ID, () => { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', TRAFFIC_SIGN_LAYER_ID, () => { map.getCanvas().style.cursor = ''; });
-
-  // Áp dụng visibility hiện tại
-  if (!signDisplaySettings.show) {
-    map.setLayoutProperty(TRAFFIC_SIGN_LAYER_ID, 'visibility', 'none');
-  }
-
-  if (!map._mapillarySignListenersAdded) {
-    map._mapillarySignListenersAdded = true;
-    map.on('sourcedata', (e) => {
-      if (e.sourceId === TRAFFIC_SIGN_SOURCE_ID && e.isSourceLoaded) {
-        if (_signPreloadTimer) clearTimeout(_signPreloadTimer);
-        _signPreloadTimer = setTimeout(preloadVisibleSignIcons, 200);
-      }
-    });
-    map.on('moveend', () => {
-      if (_signPreloadTimer) clearTimeout(_signPreloadTimer);
-      _signPreloadTimer = setTimeout(preloadVisibleSignIcons, 300);
-    });
-    map.on('idle', () => {
-      if (_signPreloadTimer) clearTimeout(_signPreloadTimer);
-      _signPreloadTimer = setTimeout(preloadVisibleSignIcons, 300);
-    });
   }
   setTimeout(preloadVisibleSignIcons, 2000);
 }
@@ -447,7 +366,7 @@ async function apiReverseGeocode(lat, lng) {
   } catch { return ''; }
 }
 
-// [SYNC] Health-check Worker — biết sớm khi D1/KV/Mapillary/Valhalla có vấn đề
+// Health-check Worker
 async function checkWorkerHealth() {
   try {
     const r = await fetch(`${WORKER_URL}/`, { method: 'GET' });
@@ -849,12 +768,11 @@ function closePopupSmoothly(marker) {
 function escapeHtml(text) {
   return String(text || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
-// FIX: JS-safe escape cho inline onclick (escape HTML TRƯỚC, đây là JS-escape)
 function jsSafe(str) {
   return String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
 }
 
-// [SYNC] Dịch fallback khi Worker trả instruction tiếng Anh (Valhalla lỗi language / timeout)
+// Dịch fallback khi Worker trả instruction tiếng Anh
 function translateFallback(text) {
   if (!text) return '';
   let t = String(text);
@@ -958,7 +876,7 @@ onAuthStateChanged(auth, (user) => {
   const wasLoggedIn = !!currentUser;
   currentUser = user || null;
   isUserAuthChecked = true;
-  if (!user) cleanupDataSubscriptions();  // FIX: unsubscribe khi logout
+  if (!user) cleanupDataSubscriptions();
   if (user) {
     const pn = document.getElementById('profileName');
     const pe = document.getElementById('profileEmail');
@@ -1003,7 +921,7 @@ function initAppUI() {
   setupSearchInputs();
   updateVoiceSettingsUI();
 
-  // [SYNC] Health-check Worker — cảnh báo sớm nếu D1/KV/Mapillary/Valhalla có vấn đề
+  // Health-check Worker
   checkWorkerHealth().then(h => {
     if (!h) {
       showCustomToast('⚠️ Không kết nối được máy chủ DriveKit', 'warning');
@@ -1271,7 +1189,7 @@ function checkRouteAgainstAvoidZones(routeCoords) {
 }
 function recomputeAvoidZones() {
   const newAvoidZones = [..._fsAvoidZones];
-  const addedZones = newAvoidZones.filter(n => !previousAvoidZones.some(o => o.id === n.id));
+  const addedZones = newAvidZones.filter(n => !previousAvoidZones.some(o => o.id === n.id));
   allAvoidZones = newAvoidZones;
   previousAvoidZones = JSON.parse(JSON.stringify(newAvoidZones));
   renderAvoidZonesOnMap();
@@ -1731,7 +1649,7 @@ window.submitReport = async function(type) {
   } catch (e) { alert('Lỗi: ' + e.message); }
 };
 /* =====================================================
-   DriveKit — app.js FULL (ĐÃ FIX + SYNC WORKER)
+   DriveKit — app.js FULL (ĐÃ SYNC DEMO MAPILLARY)
    Part 2: Search → GPS → POI → Live → Menu → Share → Nav
    ===================================================== */
 
@@ -1873,7 +1791,6 @@ async function doSearch(query) {
     if (displayResults.length > 0) {
       const title2 = document.createElement('div');
       title2.className = 'sug-section-title';
-      // [SYNC] thêm merged count vào debug badge
       const debugCounts = (isSearchDebugMode && counts) ? `<span style="margin-left:auto; font-size:0.6rem; color:var(--primary); text-transform:none;">[T:${counts.tomtom} D:${counts.duckdb} P:${counts.photon} M:${counts.maptiler} →${counts.merged ?? '?'}]</span>` : '';
       title2.innerHTML = `<i class="fas fa-map-marked-alt"></i> Địa điểm khác ${debugCounts}`;
       box.appendChild(title2);
@@ -2020,7 +1937,6 @@ function animateMarkerTo(targetPos) {
       targetHeading = (angle * 180 / Math.PI) + 90;
     }
   }
-  // FIX: reset lastSnapIndex sau khi cắt mảng
   if (currentRouteCoords && currentRouteCoords.length > 0 && lastSnapIndex > 0) {
     const remaining = currentRouteCoords.slice(lastSnapIndex);
     if (remaining.length > 1) {
@@ -2158,7 +2074,7 @@ function speak(text, category = 'nav') {
   if (mode === 'never') return;
   if (mode === 'vibrate') { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); return; }
   if (!window.speechSynthesis) return;
-  // [SYNC] không cancel nếu đang nói warning/avoid (tránh cắt lời cảnh báo)
+  // Không cancel nếu đang nói warning/avoid (tránh cắt lời cảnh báo)
   if (category !== 'warning' && category !== 'avoid') {
     speechSynthesis.cancel();
   }
@@ -2180,7 +2096,6 @@ function startVoice() {
       if (!step?.maneuver?.location) continue;
       const d = calcDist(lastUserPos.lat, lastUserPos.lng, step.maneuver.location[1], step.maneuver.location[0]);
       if (d < 50) {
-        // [SYNC] dùng translateFallback để chắc chắn tiếng Việt
         speak(translateFallback(step.maneuver.instruction), 'nav');
         voiceStepIndex = i + 1;
         break;
@@ -2222,7 +2137,7 @@ function changeLayer(type, btn) {
       initGpsCircleLayer();
       if (currentRouteCoords.length > 0) drawCurrentRoute();
       initMapillarySignsLayer();
-      renderAvoidZonesOnMap();      // FIX: thêm re-render avoid zones
+      renderAvoidZonesOnMap();
       renderCommunityPoisOnMap();
       renderRestStopMarkers();
       renderSavedPlacesOnMap();
@@ -2593,7 +2508,7 @@ function renderLiveMembers() {
   liveRoomMembers.forEach(m => {
     if (!m.lat || !m.lng) return;
     if (now - (m.timestamp || 0) > LIVE_HEARTBEAT_TIMEOUT) return;
-    if (m.uid === currentUser?.uid) return; // my marker dùng userMarker
+    if (m.uid === currentUser?.uid) return;
     activeUids.add(m.uid);
     if (!liveMemberMarkers[m.uid]) {
       const el = document.createElement('div');
@@ -2866,7 +2781,7 @@ function updateNextManeuverHUD(lat, lng) {
     let icon = 'fa-arrow-up';
     const type = nextStep.maneuver.type || '';
     const modifier = nextStep.maneuver.modifier || '';
-    // [SYNC] uturn phải check TRƯỚC left/right vì "uturn right" chứa "right"
+    // uturn phải check TRƯỚC left/right vì "uturn right" chứa "right"
     if (modifier.includes('uturn')) {
       icon = modifier.includes('left') ? 'fa-undo' : 'fa-redo';
     } else if (type.includes('turn') || type.includes('fork') || type.includes('merge')) {
@@ -2882,7 +2797,6 @@ function updateNextManeuverHUD(lat, lng) {
     const nd = document.getElementById('hudNextDist');
     if (nd) nd.textContent = minDist > 1000 ? (minDist / 1000).toFixed(1) + ' km' : Math.round(minDist) + ' m';
     const ni = document.getElementById('hudNextInstr');
-    // [SYNC] translateFallback đảm bảo tiếng Việt
     if (ni) ni.textContent = translateFallback(nextStep.maneuver.instruction || 'Tiếp tục di chuyển');
   } else {
     const na = document.getElementById('hudNextArrow');
@@ -2959,7 +2873,7 @@ function checkOffRoute(userLat, userLng) {
   } else offRouteCount = 0;
 }
 
-// FIX: reroute check avoid zones
+// Reroute check avoid zones
 async function autoReroute(userLat, userLng, bypassCache = false) {
   if (isRerouting) return;
   isRerouting = true;
