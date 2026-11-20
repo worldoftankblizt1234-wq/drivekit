@@ -2999,3 +2999,448 @@ async function saveHistoryToFirestore(start, end, distance) {
 // File này chạy cùng scope module nên tất cả hàm trên đều accessible.
 
 console.log('[DriveKit] Part 2 loaded. Total window functions:', Object.keys(window).filter(k => typeof window[k] === 'function' && (k.startsWith('open') || k.startsWith('close') || k.startsWith('toggle') || k.startsWith('set') || k.startsWith('create') || k.startsWith('share') || k.startsWith('clear') || k.startsWith('init') || k.startsWith('submit') || k.startsWith('select') || k.startsWith('fetch') || k.startsWith('go') || k.startsWith('fly') || k.startsWith('open'))).length);
+
+
+/* ============================================================
+   [MOI] LOGIC BIEN BAO THEO ZOOM + CHI DUONG GOC NHIN 1 + MINIMAP
+   Dich % cua ban sang zoom MapLibre (0-22):
+   - Zoom <=12  : xa nhat, ban goi la >=20% xa -> CLUSTER +100, +56
+   - Zoom 13-15 : ban goi 11-15% -> SO SO, chi bien toc do + cam + canh bao, icon nho
+   - Zoom 16-17 : ban goi ~17% gan -> VAI BA CAI, chi bien quan trong
+   - Zoom >=18  : ban goi ~10% gan nhat -> HIEN HET
+   ============================================================ */
+
+// ---------- 1. BIEN BAO THEO ZOOM ----------
+const SIGN_CLUSTER_SOURCE_ID = 'mapillary-cluster-source';
+const SIGN_CLUSTER_LAYER_ID = 'mapillary-cluster-circles';
+const SIGN_CLUSTER_COUNT_ID = 'mapillary-cluster-count';
+
+function getSignDensityMode(){
+  if(!map) return 'all';
+  const z = map.getZoom();
+  if(z <= 12) return 'cluster';
+  if(z <= 15) return 'sparse';
+  if(z <= 17) return 'few';
+  return 'all';
+}
+
+function ensureSignClusterLayers(){
+  if(!map || !map.isStyleLoaded()) return;
+  if(!map.getSource(SIGN_CLUSTER_SOURCE_ID)){
+    map.addSource(SIGN_CLUSTER_SOURCE_ID, { type:'geojson', data:{ type:'FeatureCollection', features:[] } });
+  }
+  if(!map.getLayer(SIGN_CLUSTER_LAYER_ID)){
+    map.addLayer({
+      id: SIGN_CLUSTER_LAYER_ID, type:'circle', source: SIGN_CLUSTER_SOURCE_ID,
+      paint:{
+        'circle-color':['step',['get','point_count'], '#3b82f6', 10, '#f59e0b', 50, '#ef4444'],
+        'circle-radius':['step',['get','point_count'], 16, 10, 22, 50, 30],
+        'circle-stroke-width':2, 'circle-stroke-color':'#ffffff', 'circle-opacity':0.92
+      }
+    });
+  }
+  if(!map.getLayer(SIGN_CLUSTER_COUNT_ID)){
+    map.addLayer({
+      id: SIGN_CLUSTER_COUNT_ID, type:'symbol', source: SIGN_CLUSTER_SOURCE_ID,
+      layout:{ 'text-field':['concat','+', ['to-string',['get','point_count']]], 'text-size':12, 'text-allow-overlap':true },
+      paint:{ 'text-color':'#ffffff', 'text-halo-color':'rgba(0,0,0,0.4)', 'text-halo-width':1 }
+    });
+  }
+}
+
+function rebuildSignClusters(){
+  if(!map || !map.getSource(SIGN_CLUSTER_SOURCE_ID)) return;
+  if(getSignDensityMode() !== 'cluster') return;
+  let feats = [];
+  try{ feats = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer:'traffic_sign' }); }catch(e){ return; }
+  if(!feats || feats.length===0) return;
+  // Gom theo o luoi 0.006 do (~600m) de ra cum +100, +56
+  const cells = new Map();
+  feats.forEach(f=>{
+    const g = f.geometry;
+    if(!g) return;
+    let lng, lat;
+    if(g.type==='Point'){ lng=g.coordinates[0]; lat=g.coordinates[1]; }
+    else if(g.coordinates && g.coordinates[0]){ lng=g.coordinates[0][0]; lat=g.coordinates[0][1]; }
+    else return;
+    const key = Math.floor(lng/0.006)+'_'+Math.floor(lat/0.006);
+    if(!cells.has(key)) cells.set(key, { lng:0, lat:0, n:0 });
+    const c = cells.get(key); c.lng+=lng; c.lat+=lat; c.n+=1;
+  });
+  const fc = { type:'FeatureCollection', features:[...cells.values()].map(c=>({ type:'Feature', geometry:{ type:'Point', coordinates:[c.lng/c.n, c.lat/c.n] }, properties:{ point_count:c.n } })) };
+  try{ map.getSource(SIGN_CLUSTER_SOURCE_ID).setData(fc); }catch(e){}
+}
+
+function applySignDensity(){
+  if(!map || !map.getSource(TRAFFIC_SIGN_SOURCE_ID)) return;
+  ensureSignClusterLayers();
+  const mode = getSignDensityMode();
+  const hasLayer = !!map.getLayer(TRAFFIC_SIGN_LAYER_ID);
+  // Cluster: an bien le, hien cum
+  const showCluster = (mode==='cluster');
+  if(map.getLayer(SIGN_CLUSTER_LAYER_ID)) map.setLayoutProperty(SIGN_CLUSTER_LAYER_ID, 'visibility', showCluster?'visible':'none');
+  if(map.getLayer(SIGN_CLUSTER_COUNT_ID)) map.setLayoutProperty(SIGN_CLUSTER_COUNT_ID, 'visibility', showCluster?'visible':'none');
+  if(hasLayer){
+    map.setLayoutProperty(TRAFFIC_SIGN_LAYER_ID, 'visibility', showCluster?'none':'visible');
+    // Filter theo do thua
+    try{
+      if(mode==='sparse'){
+        // 13-15: chi toc do + cam + canh bao, de khong che map
+        map.setFilter(TRAFFIC_SIGN_LAYER_ID, ['any',
+          ['in','speed',['get','object_value']],
+          ['in','regulatory--no-',['get','object_value']],
+          ['in','warning--',['get','object_value']]
+        ]);
+        // Icon nho lai o muc thua
+        map.setLayoutProperty(TRAFFIC_SIGN_LAYER_ID, 'icon-size', ['interpolate',['linear'],['zoom'],13,0.28,15,0.45]);
+      } else if(mode==='few'){
+        // 16-17: vai ba cai quan trong nhat
+        map.setFilter(TRAFFIC_SIGN_LAYER_ID, ['any',
+          ['in','speed',['get','object_value']],
+          ['in','regulatory--stop',['get','object_value']],
+          ['in','warning--',['get','object_value']]
+        ]);
+        map.setLayoutProperty(TRAFFIC_SIGN_LAYER_ID, 'icon-size', ['interpolate',['linear'],['zoom'],16,0.55,17,0.7]);
+      } else if(mode==='all'){
+        map.setFilter(TRAFFIC_SIGN_LAYER_ID, null);
+        const sizeMul = (typeof getSignIconSize==='function') ? getSignIconSize() : 1;
+        map.setLayoutProperty(TRAFFIC_SIGN_LAYER_ID, 'icon-size', ['interpolate',['linear'],['zoom'],14,0.4*sizeMul,18,0.9*sizeMul]);
+      } else {
+        map.setFilter(TRAFFIC_SIGN_LAYER_ID, null);
+      }
+    }catch(e){}
+  }
+  if(showCluster) rebuildSignClusters();
+}
+
+// Gan hook vao map khi da co map
+function hookSignDensity(){
+  if(!map) return;
+  map.off('zoomend', applySignDensity);
+  map.on('zoomend', applySignDensity);
+  map.off('moveend', applySignDensity);
+  map.on('moveend', ()=>{ setTimeout(applySignDensity, 200); });
+  // Khi tile ve thi rebuild cum neu dang o che do cluster
+  try{
+    map.on('sourcedata', (e)=>{
+      if(e.sourceId===TRAFFIC_SIGN_SOURCE_ID && e.isSourceLoaded) setTimeout(applySignDensity, 300);
+    });
+  }catch(e){}
+}
+if(typeof map!=='undefined' && map){
+  try{ hookSignDensity(); }catch(e){}
+  try{ map.on('load', ()=>{ hookSignDensity(); applySignDensity(); }); }catch(e){}
+} else {
+  const _waitMap = setInterval(()=>{ if(typeof map!=='undefined' && map){ clearInterval(_waitMap); hookSignDensity(); applySignDensity(); } }, 800);
+}
+
+// ---------- 2. CHI DUONG: GOC NHIN THU NHAT + MINIMAP ----------
+let isNavigating = false;
+let navFollowMode = 'first-person'; // 'first-person' | 'free'
+let navMinimap = null;
+let navMinimapMap = null;
+let navMinimapVisible = true;
+let _origUpdateUserMarker = null;
+
+function ensureNavUI(){
+  if(document.getElementById('navControls')) return;
+  const div = document.createElement('div');
+  div.id = 'navControls';
+  div.style.cssText = 'position:fixed;left:12px;bottom:96px;z-index:999;display:flex;flex-direction:column;gap:8px;';
+  div.innerHTML = `
+    <button id="btnNavStart" style="background:#10b981;color:#fff;border:0;padding:10px 12px;border-radius:999px;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,0.25);cursor:pointer;">▶ Chỉ đường • Góc 1</button>
+    <button id="btnNavFollow" style="background:#111827;color:#fff;border:0;padding:8px 12px;border-radius:999px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,0.25);cursor:pointer;">Góc: Thứ nhất</button>
+    <button id="btnNavMini" style="background:#fff;color:#111827;border:0;padding:8px 12px;border-radius:999px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,0.25);cursor:pointer;">Minimap: Bật</button>
+  `;
+  document.body.appendChild(div);
+  document.getElementById('btnNavStart').onclick = ()=>{
+    if(!isNavigating) startNavigationMode(); else stopNavigationMode();
+  };
+  document.getElementById('btnNavFollow').onclick = ()=>{
+    navFollowMode = (navFollowMode==='first-person') ? 'free' : 'first-person';
+    document.getElementById('btnNavFollow').textContent = (navFollowMode==='first-person') ? 'Góc: Thứ nhất' : 'Góc: Tự do';
+    if(navFollowMode==='first-person' && lastUserPos) updateNavCamera(lastUserPos, lastUserPos.heading||0);
+    else if(map) map.easeTo({ pitch:0, duration:500 });
+  };
+  document.getElementById('btnNavMini').onclick = ()=>{
+    navMinimapVisible = !navMinimapVisible;
+    document.getElementById('btnNavMini').textContent = navMinimapVisible ? 'Minimap: Bật' : 'Minimap: Tắt';
+    if(navMinimap) navMinimap.style.display = navMinimapVisible ? 'block' : 'none';
+    if(navMinimapVisible && isNavigating) ensureNavMinimap();
+  };
+}
+function ensureNavMinimap(){
+  if(navMinimapMap) return;
+  if(!document.getElementById('navMinimap')){
+    const el = document.createElement('div');
+    el.id = 'navMinimap';
+    el.style.cssText = 'position:fixed;right:12px;bottom:96px;width:190px;height:150px;z-index:998;border-radius:14px;overflow:hidden;border:2px solid #fff;box-shadow:0 8px 20px rgba(0,0,0,0.3);background:#e5e7eb;';
+    // Nhan nho de biet day la minimap, bam vao thi van keo tha tu do duoc
+    const label = document.createElement('div');
+    label.textContent = 'Minimap • kéo để xem tự do';
+    label.style.cssText = 'position:absolute;top:4px;left:6px;z-index:2;background:rgba(0,0,0,0.6);color:#fff;font-size:10px;padding:2px 6px;border-radius:999px;';
+    el.appendChild(label);
+    document.body.appendChild(el);
+    navMinimap = el;
+  } else {
+    navMinimap = document.getElementById('navMinimap');
+  }
+  navMinimap.style.display = navMinimapVisible ? 'block' : 'none';
+  try{
+    navMinimapMap = new maplibregl.Map({ container:'navMinimap', style: TRACKASIA_STYLE, center: map ? map.getCenter().toArray() : [105.8542, 21.0285], zoom: 14, pitch:0, bearing:0, attributionControl:false, interactive:true });
+    navMinimapMap.on('load', ()=>{ syncRouteToMinimap(); syncUserToMinimap(); });
+  }catch(e){}
+}
+function syncRouteToMinimap(){
+  if(!navMinimapMap || !navMinimapMap.isStyleLoaded()) return;
+  if(!currentRouteCoords || currentRouteCoords.length===0) return;
+  const data = { type:'Feature', geometry:{ type:'LineString', coordinates: currentRouteCoords.map(c=>[c[1], c[0]]) } };
+  if(navMinimapMap.getSource('mini-route')){
+    navMinimapMap.getSource('mini-route').setData(data);
+  } else {
+    navMinimapMap.addSource('mini-route', { type:'geojson', data });
+    navMinimapMap.addLayer({ id:'mini-route-layer', type:'line', source:'mini-route', layout:{ 'line-join':'round','line-cap':'round' }, paint:{ 'line-color':'#3b82f6','line-width':4 } });
+  }
+  // Minimap khong tu dong chay theo user, de user keo tu do, chi fit lan dau
+  try{
+    const b = new maplibregl.LngLatBounds();
+    currentRouteCoords.forEach(c=>b.extend([c[1], c[0]]));
+    navMinimapMap.fitBounds(b, { padding:18, duration:0 });
+  }catch(e){}
+}
+function syncUserToMinimap(){
+  if(!navMinimapMap || !navMinimapMap.isStyleLoaded() || !lastUserPos) return;
+  const data = { type:'FeatureCollection', features:[{ type:'Feature', geometry:{ type:'Point', coordinates:[lastUserPos.lng, lastUserPos.lat] }, properties:{} }] };
+  if(navMinimapMap.getSource('mini-user')){
+    navMinimapMap.getSource('mini-user').setData(data);
+  } else {
+    navMinimapMap.addSource('mini-user', { type:'geojson', data });
+    navMinimapMap.addLayer({ id:'mini-user-layer', type:'circle', source:'mini-user', paint:{ 'circle-radius':7, 'circle-color':'#10b981', 'circle-stroke-width':2, 'circle-stroke-color':'#fff' } });
+  }
+}
+function updateNavCamera(pos, heading){
+  if(!isNavigating || navFollowMode!=='first-person' || !map) return;
+  // Goc nhin thu nhat: camera di theo mui ten, pitch nghieng, bearing theo huong chay de biet re vao dau
+  try{
+    map.easeTo({ center:[pos.lng, pos.lat], bearing: heading||0, pitch:60, zoom: Math.max(map.getZoom(), 17.5), duration:700, essential:true });
+  }catch(e){}
+}
+window.startNavigationMode = function(){
+  if(!currentRouteCoords || currentRouteCoords.length===0){ alert('Chưa có tuyến đường. Hãy chọn điểm đến và bấm Chỉ đường trước.'); return; }
+  isNavigating = true;
+  navFollowMode = 'first-person';
+  ensureNavUI();
+  document.getElementById('btnNavStart').textContent = '■ Dừng chỉ đường';
+  document.getElementById('btnNavFollow').textContent = 'Góc: Thứ nhất';
+  ensureNavMinimap();
+  syncRouteToMinimap();
+  if(lastUserPos) updateNavCamera(lastUserPos, lastUserPos.heading||0);
+};
+window.stopNavigationMode = function(){
+  isNavigating = false;
+  try{ if(map) map.easeTo({ pitch:0, bearing:0, duration:600 }); }catch(e){}
+  if(navMinimap) navMinimap.style.display='none';
+  const btn = document.getElementById('btnNavStart');
+  if(btn) btn.textContent = '▶ Chỉ đường • Góc 1';
+};
+// Khi ve tuyen moi thi dong bo len minimap luon
+const _origDrawRoute = drawCurrentRoute;
+drawCurrentRoute = function(){
+  _origDrawRoute();
+  setTimeout(()=>{ if(isNavigating) syncRouteToMinimap(); }, 300);
+};
+// Khi user di chuyen thi cap nhat camera goc 1 + cham user tren minimap
+if(typeof updateUserMarkerOnMap==='function' && !_origUpdateUserMarker){
+  _origUpdateUserMarker = updateUserMarkerOnMap;
+  updateUserMarkerOnMap = function(pos, heading){
+    _origUpdateUserMarker(pos, heading);
+    if(isNavigating){
+      updateNavCamera(pos, heading||0);
+      syncUserToMinimap();
+    }
+  };
+}
+// Hien nut dieu khien ngay khi app load xong
+setTimeout(()=>{ try{ ensureNavUI(); }catch(e){} }, 1200);
+
+
+/* ============================================================
+   [MOI V3] BO BANG RE TREN DAU + MUI TEN TRANG TREN DUONG
+   - Bo bang xanh "170m Re phai / Sau do" tren dau (HUD top)
+   - Giu goc nhin thu nhat + minimap nhu truoc
+   - Them mui ten trang tren duong xanh, ngay cho re, giong Google Maps
+   ============================================================ */
+
+// 1. An bang re tren dau - chi an phan tren, giu phan duoi (thoi gian / km)
+function hideTopTurnBanner(){
+  // CSS an toan: an truc tiep cac o HUD top, khong xoa DOM de khoi vo code cu
+  let st = document.getElementById('hideTopTurnStyle');
+  if(!st){
+    st = document.createElement('style');
+    st.id = 'hideTopTurnStyle';
+    st.textContent = `
+      /* An bang re tren dau */
+      #hudNextArrow, #hudNextDist, #hudNextInstr, #hudNextStopDist { display:none !important; }
+      /* Neu HUD top la 1 khoi rieng, an luon khoi do, giu khoi duoi */
+      #hud .hud-top, #hud .hud-next, #hud .hud-maneuver, .turn-banner, #turnBanner { display:none !important; }
+      /* HUD chi con phan duoi (thoi gian / km / toc do) */
+      #hud { padding-top:6px !important; }
+    `;
+    document.head.appendChild(st);
+  }
+  // An them bang cha cua hudNextArrow neu no la 1 card rieng (phong truong hop HTML khac)
+  try{
+    const arrow = document.getElementById('hudNextArrow');
+    if(arrow){
+      let p = arrow.parentElement;
+      // Leo len 2 cap, neu khoi do chi chua thong tin re thi an
+      for(let i=0;i<2 && p;i++){
+        if(p.id && (p.id.toLowerCase().includes('next') || p.id.toLowerCase().includes('top'))){ p.style.display='none'; break; }
+        p = p.parentElement;
+      }
+    }
+  }catch(e){}
+  // Ghi de ham cap nhat HUD top thanh no-op de no khong hien lai
+  // (ham goc van chay nhung khong con DOM de hien)
+}
+hideTopTurnBanner();
+setTimeout(hideTopTurnBanner, 1500);
+
+// 2. MUI TEN TRANG TREN DUONG - giong anh Google Maps
+let whiteArrowMarker = null;
+let whiteArrowAheadMarker = null;
+
+function makeWhiteArrowEl(size, opacity){
+  const el = document.createElement('div');
+  el.style.cssText = `width:${size}px;height:${size}px;pointer-events:none;filter:drop-shadow(0 3px 4px rgba(0,0,0,0.35));`;
+  // Mui ten trang, vien xanh dam, giong mui ten trang tren duong xanh cua Google Maps
+  el.innerHTML = `
+    <svg width="${size}" height="${size}" viewBox="0 0 48 48" fill="none">
+      <path d="M24 4 L40 28 L30 28 L30 44 L18 44 L18 28 L8 28 Z" fill="#ffffff" stroke="#1d4ed8" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M24 10 L32 24 L24 20 L16 24 Z" fill="#ffffff" opacity="0.9"/>
+    </svg>`;
+  el.style.opacity = opacity || '1';
+  return el;
+}
+function bearingBetween(aLat, aLng, bLat, bLng){
+  const dy = (bLng - aLng) * Math.cos((aLat+bLat)/2 * Math.PI/180);
+  const dx = bLat - aLat;
+  let br = 90 - Math.atan2(dy, dx) * 180/Math.PI;
+  // MapLibre bearing: 0 = Bac, 90 = Dong. Cong thuc tren tra ve heading theo Bac.
+  // Tinh lai cho chuan: bearing = atan2(E, N)
+  const lat1 = aLat*Math.PI/180, lat2 = bLat*Math.PI/180;
+  const dLng = (bLng-aLng)*Math.PI/180;
+  const y = Math.sin(dLng)*Math.cos(lat2);
+  const x = Math.cos(lat1)*Math.sin(lat2) - Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLng);
+  let b = Math.atan2(y, x)*180/Math.PI;
+  return (b+360)%360;
+}
+function updateWhiteTurnArrow(){
+  if(!map || !isNavigating) return;
+  // Tim cho re tiep theo tu voiceRouteSteps
+  let nextStep = null;
+  if(voiceRouteSteps && voiceRouteSteps.length){
+    for(let i=voiceStepIndex; i<voiceRouteSteps.length; i++){
+      const s = voiceRouteSteps[i];
+      if(s && s.maneuver && s.maneuver.location){ nextStep = s; break; }
+    }
+  }
+  if(!nextStep){
+    if(whiteArrowMarker) whiteArrowMarker.remove();
+    whiteArrowMarker = null;
+    return;
+  }
+  const loc = nextStep.maneuver.location; // [lng, lat] theo Valhalla
+  const turnLng = loc[0], turnLat = loc[1];
+  // Huong mui ten = huong duong sau cho re (doan tiep theo)
+  let arrowBearing = 0;
+  try{
+    // Tim doan route gan cho re nhat de lay huong ra
+    let bestIdx = 0, bestD = Infinity;
+    if(currentRouteCoords){
+      currentRouteCoords.forEach((c,i)=>{
+        const d = (c[0]-turnLat)*(c[0]-turnLat) + (c[1]-turnLng)*(c[1]-turnLng);
+        if(d<bestD){ bestD=d; bestIdx=i; }
+      });
+      if(currentRouteCoords[bestIdx+1]){
+        const nxt = currentRouteCoords[bestIdx+1];
+        arrowBearing = bearingBetween(turnLat, turnLng, nxt[0], nxt[1]);
+      } else if(currentRouteCoords[bestIdx-1]){
+        const prv = currentRouteCoords[bestIdx-1];
+        arrowBearing = bearingBetween(prv[0], prv[1], turnLat, turnLng);
+      }
+    }
+    // Neu maneuver la re phai / trai thi xoay them cho ro
+    const instr = (nextStep.maneuver.instruction||'').toLowerCase();
+    const type = (nextStep.maneuver.type||'').toLowerCase();
+    // Khong xoay them, giu theo huong duong that, giong Google Maps
+  }catch(e){}
+  // Dat mui ten trang ngay cho re, hoi lui lai 1 chut de nam tren duong xanh
+  if(!whiteArrowMarker){
+    const el = makeWhiteArrowEl(44, '1');
+    el.id = 'whiteTurnArrow';
+    whiteArrowMarker = new maplibregl.Marker({ element: el, anchor:'center', rotationAlignment:'map' });
+    whiteArrowMarker.addTo(map);
+  }
+  whiteArrowMarker.setLngLat([turnLng, turnLat]);
+  // Xoay mui ten theo huong duong, tru di bearing cua map de no dung huong that
+  const el = whiteArrowMarker.getElement();
+  if(el){
+    const mapBearing = map.getBearing()||0;
+    el.style.transform = `rotate(${arrowBearing - mapBearing}deg)`;
+  }
+  // Mui ten trang thu 2: chay truoc user 1 doan tren duong xanh, chi huong di
+  if(lastUserPos && currentRouteCoords && currentRouteCoords.length){
+    // Tim diem tren route cach user ~35m ve phia truoc
+    let ahead = null;
+    let bestIdx = 0, bestD = Infinity;
+    currentRouteCoords.forEach((c,i)=>{
+      const d = (c[0]-lastUserPos.lat)*(c[0]-lastUserPos.lat) + (c[1]-lastUserPos.lng)*(c[1]-lastUserPos.lng);
+      if(d<bestD){ bestD=d; bestIdx=i; }
+    });
+    // Lay diem cach 3-4 diem ve phia truoc
+    const aheadIdx = Math.min(currentRouteCoords.length-1, bestIdx+4);
+    ahead = currentRouteCoords[aheadIdx];
+    const aheadNext = currentRouteCoords[Math.min(currentRouteCoords.length-1, aheadIdx+1)];
+    if(ahead && aheadNext){
+      const b = bearingBetween(ahead[0], ahead[1], aheadNext[0], aheadNext[1]);
+      if(!whiteArrowAheadMarker){
+        const el2 = makeWhiteArrowEl(30, '0.95');
+        el2.id = 'whiteAheadArrow';
+        whiteArrowAheadMarker = new maplibregl.Marker({ element: el2, anchor:'center', rotationAlignment:'map' });
+        whiteArrowAheadMarker.addTo(map);
+      }
+      whiteArrowAheadMarker.setLngLat([ahead[1], ahead[0]]);
+      const el2 = whiteArrowAheadMarker.getElement();
+      if(el2){
+        const mb = map.getBearing()||0;
+        el2.style.transform = `rotate(${b - mb}deg)`;
+      }
+    }
+  }
+}
+// Cap nhat mui ten trang moi khi user di chuyen / doi manoeuver
+const _origUpdateUserMarkerV3 = updateUserMarkerOnMap;
+updateUserMarkerOnMap = function(pos, heading){
+  _origUpdateUserMarkerV3(pos, heading);
+  if(isNavigating) setTimeout(updateWhiteTurnArrow, 100);
+};
+// Khi bat dau chi duong thi an bang + hien mui ten
+const _origStartNavV3 = window.startNavigationMode;
+window.startNavigationMode = function(){
+  _origStartNavV3();
+  hideTopTurnBanner();
+  setTimeout(updateWhiteTurnArrow, 500);
+};
+const _origStopNavV3 = window.stopNavigationMode;
+window.stopNavigationMode = function(){
+  _origStopNavV3();
+  if(whiteArrowMarker){ whiteArrowMarker.remove(); whiteArrowMarker=null; }
+  if(whiteArrowAheadMarker){ whiteArrowAheadMarker.remove(); whiteArrowAheadMarker=null; }
+};
+// Khi doi tuyen thi cap nhat lai mui ten
+const _origDrawRouteV3 = drawCurrentRoute;
+drawCurrentRoute = function(){
+  _origDrawRouteV3();
+  if(isNavigating) setTimeout(updateWhiteTurnArrow, 400);
+};
