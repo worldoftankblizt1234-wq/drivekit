@@ -88,30 +88,72 @@ function loadSvgAsImage(url) {
   });
 }
 
-function ensureSignIcon(code) {
-  if (!code || typeof code !== 'string') return Promise.resolve(null);
-  if (map.hasImage(code)) return Promise.resolve(code);
+// [SYNC DEMO] Load SVG → raster RGBA, tránh bug createImageBitmap với SVG
+function loadSvgAsImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.decoding = 'async';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`load fail: ${url}`));
+    img.src = url;
+  });
+}
+
+async function rasterizeSvg(url, size = 48) {
+  const img = await loadSvgAsImage(url);
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, size, size);
+  const data = ctx.getImageData(0, 0, size, size);
+  return { width: size, height: size, data: new Uint8Array(data.data.buffer) };
+}
+
+function makeFallbackSvg(v) {
+  const CATEGORY_COLORS = { regulatory: '#d62828', warning: '#fcbf49', information: '#003049', complementary: '#003049' };
+  const cat = (v || '').split('--')[0] || 'regulatory';
+  const color = CATEGORY_COLORS[cat] || '#e63946';
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
+    `<circle cx="16" cy="16" r="14" fill="${color}" stroke="#fff" stroke-width="2.5"/>` +
+    '<circle cx="16" cy="16" r="8" fill="#fff" fill-opacity="0.25"/></svg>';
+}
+function svgToDataUri(svg) {
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
+async function ensureSignIcon(code) {
+  if (!code || typeof code !== 'string') return null;
+  if (map.hasImage(code)) return code;
   if (_loadingSignIcons.has(code)) return _loadingSignIcons.get(code);
 
-  const promise = loadSvgAsImage(`${MAPILLARY_SIGN_BASE}/${code}.svg`)
-    .then(img => {
-      if (!map.hasImage(code)) {
-        try { map.addImage(code, img, { pixelRatio: 2, sdf: false }); } catch(e) {}
-      }
+  const promise = (async () => {
+    try {
+      const raster = await rasterizeSvg(`${MAPILLARY_SIGN_BASE}/${code}.svg`, 48);
+      if (!map.hasImage(code)) map.addImage(code, raster, { sdf: false });
       return code;
-    })
-    .catch(() => {
-      if (!map.hasImage('sign-fallback')) {
-        try { map.addImage('sign-fallback', getFallbackSignImageData()); } catch(e) {}
+    } catch (err) {
+      // fallback SVG theo category
+      try {
+        const fbUrl = svgToDataUri(makeFallbackSvg(code));
+        const raster = await rasterizeSvg(fbUrl, 48);
+        if (!map.hasImage(code)) map.addImage(code, raster, { sdf: false });
+        return code;
+      } catch (e2) {
+        if (!map.hasImage('sign-fallback')) {
+          try { map.addImage('sign-fallback', getFallbackSignImageData()); } catch(e) {}
+        }
+        return 'sign-fallback';
       }
-      return 'sign-fallback';
-    })
-    .finally(() => _loadingSignIcons.delete(code));
+    } finally {
+      _loadingSignIcons.delete(code);
+    }
+  })();
 
   _loadingSignIcons.set(code, promise);
   return promise;
 }
-
 function preloadVisibleSignIcons() {
   if (!map || !map.getSource(TRAFFIC_SIGN_SOURCE_ID)) return;
   let features = [];
@@ -131,23 +173,120 @@ function initMapillarySignsLayer() {
   if (!map) return;
   if (map.getSource(TRAFFIC_SIGN_SOURCE_ID)) return;
   if (!map.hasImage('sign-fallback')) { try { map.addImage('sign-fallback', getFallbackSignImageData()); } catch(e){} }
+
   map.addSource(TRAFFIC_SIGN_SOURCE_ID, {
     type: 'vector',
     tiles: [MAPILLARY_VTP_URL('{z}', '{x}', '{y}')],
     minzoom: 14,
-    maxzoom: 14   // ← FIX: để MapLibre tự overzoom, tránh duplicate
+    maxzoom: 14
   });
 
-  // [FIX] Mapillary có thể trả object_value hoặc value — đọc cả hai
-let iconExpr = ['coalesce', ['get', 'object_value'], ['get', 'value'], 'sign-fallback'];
-if (signDisplaySettings.speedOnly) {
-  iconExpr = ['case',
-    ['in', 'speed', ['coalesce', ['get', 'object_value'], ['get', 'value'], '']],
-    ['coalesce', ['get', 'object_value'], ['get', 'value'], 'sign-fallback'],
-    ''
-  ];
-}
+  // [SYNC DEMO] styleimagemissing — load icon khi MapLibre cần mà chưa có
+  if (!map._signImageMissingBound) {
+    map._signImageMissingBound = true;
+    map.on('styleimagemissing', (e) => {
+      const id = e.id;
+      if (!id || id === 'sign-fallback') return;
+      if (map.hasImage(id)) return;
+      if (id.includes('--')) ensureSignIcon(id);
+    });
+  }
 
+  let layerState = 'pending'; // pending | preloading | added
+
+  const onSourceData = async (e) => {
+    if (e.sourceId !== TRAFFIC_SIGN_SOURCE_ID || !e.isSourceLoaded) return;
+    if (layerState === 'preloading') return;
+
+    if (layerState === 'pending') {
+      layerState = 'preloading';
+
+      const feats = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' });
+      const codes = new Set();
+      feats.forEach(f => {
+        const p = f.properties || {};
+        const v = p.object_value || p.value;
+        if (v && typeof v === 'string') codes.add(v);
+      });
+
+      // Preload XONG mới addLayer
+      await Promise.all([...codes].map(ensureSignIcon));
+
+      let iconExpr = ['coalesce', ['get', 'object_value'], ['get', 'value'], 'sign-fallback'];
+      if (signDisplaySettings.speedOnly) {
+        iconExpr = ['case',
+          ['in', 'speed', ['coalesce', ['get', 'object_value'], ['get', 'value'], '']],
+          ['coalesce', ['get', 'object_value'], ['get', 'value'], 'sign-fallback'],
+          ''
+        ];
+      }
+      const sizeMul = getSignIconSize();
+      const iconSizeExpr = ['interpolate', ['linear'], ['zoom'], 14, 0.4 * sizeMul, 18, 0.9 * sizeMul];
+
+      map.addLayer({
+        id: TRAFFIC_SIGN_LAYER_ID, type: 'symbol', source: TRAFFIC_SIGN_SOURCE_ID,
+        'source-layer': 'traffic_sign',
+        layout: {
+          'icon-image': iconExpr,
+          'icon-size': iconSizeExpr,
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          'icon-anchor': 'center'
+        },
+        paint: { 'icon-opacity': 0.95 }
+      });
+
+      if (!signDisplaySettings.show) {
+        map.setLayoutProperty(TRAFFIC_SIGN_LAYER_ID, 'visibility', 'none');
+      }
+
+      // Click handler — off trước để tránh nhân đôi
+      map.off('click', TRAFFIC_SIGN_LAYER_ID);
+      map.off('mouseenter', TRAFFIC_SIGN_LAYER_ID);
+      map.off('mouseleave', TRAFFIC_SIGN_LAYER_ID);
+      map.on('click', TRAFFIC_SIGN_LAYER_ID, (ev) => {
+        const f = ev.features[0];
+        const code = (f.properties && (f.properties.object_value || f.properties.value)) || 'Không rõ';
+        const pretty = code.replace(/--/g, ' · ').replace(/-/g, ' ');
+        const imgUrl = `${MAPILLARY_SIGN_BASE}/${code}.svg`;
+        new maplibregl.Popup({ offset: 12 }).setLngLat(ev.lngLat)
+          .setHTML(`<b>Biển báo</b><br><img src="${imgUrl}" style="width:48px;height:48px;display:block;margin:6px 0" onerror="this.style.display='none'"><small>${pretty}</small>`)
+          .addTo(map);
+      });
+      map.on('mouseenter', TRAFFIC_SIGN_LAYER_ID, () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', TRAFFIC_SIGN_LAYER_ID, () => { map.getCanvas().style.cursor = ''; });
+
+      layerState = 'added';
+      return;
+    }
+
+    // layerState === 'added' — pan sang vùng mới, load thêm icon
+    const feats = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' });
+    feats.forEach(f => {
+      const p = f.properties || {};
+      const v = p.object_value || p.value;
+      if (v && typeof v === 'string') ensureSignIcon(v);
+    });
+  };
+
+  if (!map._signSourceDataBound) {
+    map._signSourceDataBound = true;
+    map.on('sourcedata', onSourceData);
+  }
+  setTimeout(preloadVisibleSignIcons, 2000);
+}
+function preloadVisibleSignIcons() {
+  if (!map || !map.getSource(TRAFFIC_SIGN_SOURCE_ID)) return;
+  let features = [];
+  try { features = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' }); } catch(e) { return; }
+  const codes = new Set();
+  features.forEach(f => {
+    const p = f.properties || {};
+    const v = p.object_value || p.value;
+    if (v && typeof v === 'string') codes.add(v);
+  });
+  codes.forEach(ensureSignIcon);
+}
   const baseSize = ['interpolate', ['linear'], ['zoom'], 14, 0.4, 18, 0.9];
   const sizeMul = getSignIconSize();
   const iconSizeExpr = [
