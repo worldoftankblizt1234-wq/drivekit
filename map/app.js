@@ -32,7 +32,7 @@ const NEARBY_API_URL = 'https://potential-space-trout-p7r7pgrjwjvw26g6j-8000.app
 
 /* ========== MAPILLARY SIGNS ========== */
 const MAPILLARY_VTP_URL = (z, x, y) => `${WORKER_URL}/api/mapillary-tiles/${z}/${x}/${y}`;
-const MAPILLARY_SIGN_BASE = 'https://drive-kit.pages.dev/map/mapillary_sign';
+const MAPILLARY_SIGN_BASE = 'https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/mapillary_signs';
 const TRAFFIC_SIGN_SOURCE_ID = 'mapillary-traffic-signs';
 const TRAFFIC_SIGN_LAYER_ID  = 'mapillary-traffic-signs-layer';
 
@@ -71,22 +71,43 @@ function getFallbackSignImageData() {
   return _fallbackSignImageData;
 }
 
+// [FIX] Load SVG qua fetch → Blob → Image → canvas (chống CORS + fallback chắc chắn)
+function loadSvgAsImage(url) {
+  return new Promise((resolve, reject) => {
+    fetch(url)
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(svgText => {
+        const blob = new Blob([svgText], { type: 'image/svg+xml' });
+        const blobUrl = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => { URL.revokeObjectURL(blobUrl); resolve(img); };
+        img.onerror = () => { URL.revokeObjectURL(blobUrl); reject(new Error('Image decode failed')); };
+        img.src = blobUrl;
+      })
+      .catch(reject);
+  });
+}
+
 function ensureSignIcon(code) {
   if (!code || typeof code !== 'string') return Promise.resolve(null);
   if (map.hasImage(code)) return Promise.resolve(code);
   if (_loadingSignIcons.has(code)) return _loadingSignIcons.get(code);
-  const promise = new Promise((resolve) => {
-    const url = `${MAPILLARY_SIGN_BASE}/${code}.svg`;
-    map.loadImage(url, (err, img) => {
-      _loadingSignIcons.delete(code);
-      if (err || !img) {
-        if (!map.hasImage('sign-fallback')) { try { map.addImage('sign-fallback', getFallbackSignImageData()); } catch(e){} }
-        resolve('sign-fallback'); return;
+
+  const promise = loadSvgAsImage(`${MAPILLARY_SIGN_BASE}/${code}.svg`)
+    .then(img => {
+      if (!map.hasImage(code)) {
+        try { map.addImage(code, img, { pixelRatio: 2, sdf: false }); } catch(e) {}
       }
-      if (!map.hasImage(code)) { try { map.addImage(code, img, { pixelRatio: 2, sdf: false }); } catch(e){} }
-      resolve(code);
-    });
-  });
+      return code;
+    })
+    .catch(() => {
+      if (!map.hasImage('sign-fallback')) {
+        try { map.addImage('sign-fallback', getFallbackSignImageData()); } catch(e) {}
+      }
+      return 'sign-fallback';
+    })
+    .finally(() => _loadingSignIcons.delete(code));
+
   _loadingSignIcons.set(code, promise);
   return promise;
 }
@@ -96,7 +117,11 @@ function preloadVisibleSignIcons() {
   let features = [];
   try { features = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' }); } catch(e) { return; }
   const codes = new Set();
-  features.forEach(f => { const v = f.properties && f.properties.value; if (v && typeof v === 'string') codes.add(v); });
+features.forEach(f => {
+  const p = f.properties || {};
+  const v = p.object_value || p.value;
+  if (v && typeof v === 'string') codes.add(v);
+});
   codes.forEach(ensureSignIcon);
   if (codes.size) Promise.all([...codes].map(ensureSignIcon)).then(() => { try { map.triggerRepaint(); } catch(e){} });
 }
@@ -113,11 +138,15 @@ function initMapillarySignsLayer() {
     maxzoom: 14   // ← FIX: để MapLibre tự overzoom, tránh duplicate
   });
 
-  // Xây dựng biểu thức icon-image có filter tốc độ nếu cần
-  let iconExpr = ['get', 'value'];
-  if (signDisplaySettings.speedOnly) {
-    iconExpr = ['case', ['in', 'speed', ['get', 'value']], ['get', 'value'], ''];
-  }
+  // [FIX] Mapillary có thể trả object_value hoặc value — đọc cả hai
+let iconExpr = ['coalesce', ['get', 'object_value'], ['get', 'value'], 'sign-fallback'];
+if (signDisplaySettings.speedOnly) {
+  iconExpr = ['case',
+    ['in', 'speed', ['coalesce', ['get', 'object_value'], ['get', 'value'], '']],
+    ['coalesce', ['get', 'object_value'], ['get', 'value'], 'sign-fallback'],
+    ''
+  ];
+}
 
   const baseSize = ['interpolate', ['linear'], ['zoom'], 14, 0.4, 18, 0.9];
   const sizeMul = getSignIconSize();
@@ -146,7 +175,7 @@ function initMapillarySignsLayer() {
 
   map.on('click', TRAFFIC_SIGN_LAYER_ID, (e) => {
     const f = e.features[0];
-    const code = (f.properties && f.properties.value) || 'Không rõ';
+  const code = (f.properties && (f.properties.object_value || f.properties.value)) || 'Không rõ';
     const pretty = code.replace(/--/g, ' · ').replace(/-/g, ' ');
     const imgUrl = `${MAPILLARY_SIGN_BASE}/${code}.svg`;
     new maplibregl.Popup({ offset: 12 }).setLngLat(e.lngLat).setHTML(`<b>Biển báo</b><br><img src="${imgUrl}" style="width:48px;height:48px;display:block;margin:6px 0" onerror="this.style.display='none'"><small>${pretty}</small>`).addTo(map);
@@ -215,8 +244,12 @@ window.setSignSpeedOnly = function(on) {
   localStorage.setItem('drivekit_sign_display', JSON.stringify(signDisplaySettings));
   if (map && map.getLayer(TRAFFIC_SIGN_LAYER_ID)) {
     const expr = on
-      ? ['case', ['in', 'speed', ['get', 'value']], ['get', 'value'], '']
-      : ['get', 'value'];
+      ? ['case',
+          ['in', 'speed', ['coalesce', ['get', 'object_value'], ['get', 'value'], '']],
+          ['coalesce', ['get', 'object_value'], ['get', 'value'], 'sign-fallback'],
+          ''
+        ]
+      : ['coalesce', ['get', 'object_value'], ['get', 'value'], 'sign-fallback'];
     map.setLayoutProperty(TRAFFIC_SIGN_LAYER_ID, 'icon-image', expr);
   }
 };
