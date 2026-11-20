@@ -1,5 +1,5 @@
 /* =====================================================
-   DriveKit — app.js FULL (ĐÃ SYNC DEMO MAPILLARY)
+   DriveKit — app.js FULL (ĐÃ SYNC DEMO MAPILLARY + FIX)
    Part 1: Config → Route → Navigation
    ===================================================== */
 
@@ -32,7 +32,6 @@ const NEARBY_API_URL = 'https://potential-space-trout-p7r7pgrjwjvw26g6j-8000.app
 
 /* ========== MAPILLARY SIGNS ========== */
 const MAPILLARY_VTP_URL = (z, x, y) => `${WORKER_URL}/api/mapillary-tiles/${z}/${x}/${y}`;
-// [SYNC DEMO] jsdelivr có "s" — CDN nhanh, không CORS
 const MAPILLARY_SIGN_BASE = 'https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/mapillary_signs';
 const TRAFFIC_SIGN_SOURCE_ID = 'mapillary-traffic-signs';
 const TRAFFIC_SIGN_LAYER_ID  = 'mapillary-traffic-signs-layer';
@@ -230,7 +229,6 @@ function initMapillarySignsLayer() {
         map.setLayoutProperty(TRAFFIC_SIGN_LAYER_ID, 'visibility', 'none');
       }
 
-      // off trước để tránh handler nhân đôi
       map.off('click', TRAFFIC_SIGN_LAYER_ID);
       map.off('mouseenter', TRAFFIC_SIGN_LAYER_ID);
       map.off('mouseleave', TRAFFIC_SIGN_LAYER_ID);
@@ -250,7 +248,6 @@ function initMapillarySignsLayer() {
       return;
     }
 
-    // layerState === 'added' — pan sang vùng mới, load thêm icon
     const feats = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' });
     feats.forEach(f => {
       const p = f.properties || {};
@@ -274,7 +271,7 @@ window.toggleMapillarySigns = function() {
   showCustomToast(next === 'visible' ? '🚸 Đã bật biển báo' : 'Đã tắt biển báo', 'info');
 };
 
-/* ========== SIGN DISPLAY SETTINGS (WINDOW FUNCTIONS) ========== */
+/* ========== SIGN DISPLAY SETTINGS ========== */
 window.openSignDisplaySettings = function() {
   document.getElementById('settingsModal').classList.remove('open');
   document.getElementById('signDisplaySettingsModal').classList.add('open');
@@ -366,7 +363,6 @@ async function apiReverseGeocode(lat, lng) {
   } catch { return ''; }
 }
 
-// Health-check Worker
 async function checkWorkerHealth() {
   try {
     const r = await fetch(`${WORKER_URL}/`, { method: 'GET' });
@@ -570,7 +566,7 @@ function updateVoiceSettingsUI() {
   });
 }
 
-/* ========== SETTINGS MODAL (WINDOW FNs) ========== */
+/* ========== SETTINGS MODAL ========== */
 window.openSettings = function() {
   document.getElementById('profileModal').classList.remove('open');
   document.getElementById('settingsModal').classList.add('open');
@@ -772,7 +768,6 @@ function jsSafe(str) {
   return String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
 }
 
-// Dịch fallback khi Worker trả instruction tiếng Anh
 function translateFallback(text) {
   if (!text) return '';
   let t = String(text);
@@ -921,7 +916,6 @@ function initAppUI() {
   setupSearchInputs();
   updateVoiceSettingsUI();
 
-  // Health-check Worker
   checkWorkerHealth().then(h => {
     if (!h) {
       showCustomToast('⚠️ Không kết nối được máy chủ DriveKit', 'warning');
@@ -1189,7 +1183,7 @@ function checkRouteAgainstAvoidZones(routeCoords) {
 }
 function recomputeAvoidZones() {
   const newAvoidZones = [..._fsAvoidZones];
-  const addedZones = newAvidZones.filter(n => !previousAvoidZones.some(o => o.id === n.id));
+  const addedZones = newAvoidZones.filter(n => !previousAvoidZones.some(o => o.id === n.id));
   allAvoidZones = newAvoidZones;
   previousAvoidZones = JSON.parse(JSON.stringify(newAvoidZones));
   renderAvoidZonesOnMap();
@@ -1286,6 +1280,10 @@ function initMap() {
     pitch: 0, bearing: 0, attributionControl: true,
     touchZoomRotate: true, dragRotate: true
   });
+
+  // [DEBUG] expose ra window để Console truy cập
+  window.map = map;
+
   map.on('rotate', updateCompassNeedle);
   map.on('load', updateCompassNeedle);
   map.on('load', () => {
