@@ -23,11 +23,15 @@ const db = getDatabase(app);
 const fsdb = getFirestore(app);
 
 /* ========== WORKER CONFIG ========== */
+/* ============================================================
+   SECURE: MapTiler / TrackAsia keys KHONG con nam o frontend.
+   Frontend chi goi Worker: /api/style?provider=...
+   Key that o Worker env, khong co trong file nay.
+   Neu thay bat ky chuoi key nao o frontend -> la loi, phai xoa ngay.
+   ============================================================ */
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
-const MAPTILER_KEY = 'aEzMCP0ANRz52vd1RvrW';
-const TRACKASIA_KEY = '1792297789c0cf0ddb16e5446d7364580f';
-const MAPTILER_STYLE = `https://api.maptiler.com/maps/streets-v4/style.json?key=${MAPTILER_KEY}`;
-const TRACKASIA_STYLE = `https://maps.track-asia.com/styles/v2/streets.json?key=${TRACKASIA_KEY}`;
+const MAPTILER_STYLE = `${WORKER_URL}/api/style?provider=maptiler`;
+const TRACKASIA_STYLE = `${WORKER_URL}/api/style?provider=trackasia`;
 const NEARBY_API_URL = 'https://potential-space-trout-p7r7pgrjwjvw26g6j-8000.app.github.dev/api/nearby';
 
 /* ========== MAPILLARY SIGNS ========== */
@@ -602,6 +606,213 @@ window.closeDirections = function() {
   document.getElementById('dirSheet').classList.remove('open');
   updateUIState();
 };
+
+/* ========== VEHICLE SELECTION + ROUTE OPTIONS ========== */
+const VEHICLE_TYPE_MAP = {
+  'driving': 'car', 'driving-traffic': 'car', 'hd': 'motorcycle',
+  'truck': 'truck', 'bus': 'bus', 'motorcycle': 'motorcycle',
+  'walking': 'walking', 'bicycle': 'bicycle'
+};
+const VEHICLE_LABELS = {
+  'driving': 'ô tô', 'driving-traffic': 'ô tô (kẹt xe)', 'hd': 'xe công nghệ', 'truck': 'xe tải',
+  'bus': 'xe buýt', 'motorcycle': 'xe máy', 'walking': 'đi bộ', 'bicycle': 'xe đạp'
+};
+let routeOptionBadges = [];
+let routeOptionCount = 0;
+
+function getCurrentVehicleSpecs() {
+  const t = userVehicleSpecs.type;
+  if (t === 'car') return { seats: userVehicleSpecs.seats };
+  if (t === 'truck') return { axles: userVehicleSpecs.axles };
+  if (t === 'bus') return { bus_type: currentBusType };
+  return null;
+}
+
+function refreshRouteOptionsIfOpen() {
+  const modal = document.getElementById('routeOptionsModal');
+  if (startPoint && endPoint && modal && modal.classList.contains('open')) window.fetchAndShowRouteOptions();
+}
+
+window.setVehicleMode = function(mode, btn) {
+  currentVehicleMode = mode;
+  userVehicleSpecs.type = VEHICLE_TYPE_MAP[mode] || 'car';
+  document.querySelectorAll('.vehicle-mode-btn').forEach(b => {
+    b.classList.toggle('active', btn ? b === btn : b.dataset.mode === mode);
+  });
+  const t = userVehicleSpecs.type;
+  const show = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
+  show('carSeatsSelector', t === 'car');
+  show('truckAxlesSelector', t === 'truck');
+  show('busTypeSelector', t === 'bus');
+  show('truckWarning', t === 'truck');
+  if (liveEnabled && liveRoomCode) pushLivePositionToRTDB();
+  refreshRouteOptionsIfOpen();
+};
+
+function markActiveSubOption(containerId, btn) {
+  const box = document.getElementById(containerId);
+  if (!box || !btn) return;
+  box.querySelectorAll('.sub-option-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+window.setCarSeats = function(n, btn) {
+  currentCarSeats = n;
+  userVehicleSpecs.seats = n;
+  markActiveSubOption('carSeatsSelector', btn);
+  refreshRouteOptionsIfOpen();
+};
+window.setTruckAxles = function(n, btn) {
+  currentTruckAxles = n;
+  userVehicleSpecs.axles = n;
+  markActiveSubOption('truckAxlesSelector', btn);
+  refreshRouteOptionsIfOpen();
+};
+window.setBusType = function(type, btn) {
+  currentBusType = type;
+  markActiveSubOption('busTypeSelector', btn);
+  refreshRouteOptionsIfOpen();
+};
+
+window.changeSort = function(mode) {
+  currentSortMode = mode;
+  if (startPoint && endPoint) window.fetchAndShowRouteOptions();
+};
+
+window.closeRouteOptions = function() {
+  const m = document.getElementById('routeOptionsModal');
+  if (m) { m.classList.remove('open'); m.style.display = ''; }
+};
+
+function clearRouteOptionLayers() {
+  if (map) {
+    for (let i = 0; i < routeOptionCount; i++) {
+      if (map.getLayer('route-opt-layer-' + i)) map.removeLayer('route-opt-layer-' + i);
+      if (map.getSource('route-opt-src-' + i)) map.removeSource('route-opt-src-' + i);
+    }
+  }
+  routeOptionCount = 0;
+  routeOptionBadges.forEach(m => m.remove());
+  routeOptionBadges = [];
+}
+
+window.fetchAndShowRouteOptions = async function() {
+  if (!startPoint || !endPoint || !startPoint.lat || !endPoint.lat) {
+    showCustomToast('Vui lòng chọn đủ Điểm đi và Điểm đến!', 'warning');
+    return;
+  }
+  const mode = currentVehicleMode || 'driving';
+  const bodyEl = document.getElementById('routeOptionsBody');
+  bodyEl.innerHTML = `<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px; color:var(--text-muted);">Đang tìm tuyến (${VEHICLE_LABELS[mode] || mode})...</p></div>`;
+  document.getElementById('routeOptionsModal').classList.add('open');
+  try {
+    let routes = await apiRoute(startPoint, endPoint, mode, false, getCurrentVehicleSpecs());
+    routes = routes.filter(r => {
+      const c = r.geometry && r.geometry.coordinates;
+      return r.distance > 0 && Array.isArray(c) && c.length >= 2;
+    });
+    const total = routes.length;
+    routes = routes.filter(r => !checkRouteAgainstAvoidZones(r.geometry.coordinates).blocked);
+    if (routes.length === 0) {
+      const why = total > 0 ? 'Tất cả tuyến đều đi qua vùng cấm với loại xe này.' : 'Không tìm được tuyến đường hợp lệ.';
+      bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>${why}</p></div>`;
+      return;
+    }
+    routes.sort((a, b) => currentSortMode === 'shortest' ? a.distance - b.distance : a.duration - b.duration);
+    routes = routes.slice(0, 5);
+    alternativeRoutesData = routes;
+
+    clearRouteOptionLayers();
+    if (map.getLayer('current-route-layer')) map.removeLayer('current-route-layer');
+    if (map.getSource('current-route-source')) map.removeSource('current-route-source');
+    const bounds = new maplibregl.LngLatBounds();
+    // Vẽ tuyến phụ trước, tuyến tốt nhất sau cùng để nằm trên
+    const order = routes.map((_, i) => i).reverse();
+    order.forEach(index => {
+      const r = routes[index];
+      const lngLat = r.geometry.coordinates.map(c => [c[1], c[0]]);
+      lngLat.forEach(p => bounds.extend(p));
+      const isBest = index === 0;
+      const color = ROUTE_COLORS[index % ROUTE_COLORS.length];
+      map.addSource('route-opt-src-' + index, { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: lngLat } } });
+      map.addLayer({
+        id: 'route-opt-layer-' + index, type: 'line', source: 'route-opt-src-' + index,
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': isBest ? color : '#94a3b8', 'line-width': isBest ? 9 : 5, 'line-opacity': isBest ? 1 : 0.7 }
+      });
+      map.on('click', 'route-opt-layer-' + index, () => window.selectRouteOption(index));
+      const mid = lngLat[Math.floor(lngLat.length / 2)];
+      const el = document.createElement('div');
+      el.style.cssText = `background:${isBest ? color : 'white'}; color:${isBest ? 'white' : '#334155'}; border:3px solid ${isBest ? 'white' : color}; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:0.9rem; box-shadow:0 4px 10px rgba(0,0,0,0.4); cursor:pointer;`;
+      el.textContent = String(index + 1);
+      el.addEventListener('click', e => { e.stopPropagation(); window.selectRouteOption(index); });
+      routeOptionBadges.push(new maplibregl.Marker({ element: el }).setLngLat(mid).addTo(map));
+    });
+    routeOptionCount = routes.length;
+    map.fitBounds(bounds, { padding: { top: 80, bottom: 260, left: 40, right: 40 }, maxZoom: 17 });
+
+    let html = `<div class="sort-bar"><button class="sort-chip ${currentSortMode === 'fastest' ? 'active' : ''}" onclick="changeSort('fastest')"><i class="fas fa-bolt"></i> Nhanh nhất</button><button class="sort-chip ${currentSortMode === 'shortest' ? 'active' : ''}" onclick="changeSort('shortest')"><i class="fas fa-route"></i> Ngắn nhất</button></div>`;
+    routes.forEach((r, index) => {
+      const dist = (r.distance / 1000).toFixed(1);
+      const dur = Math.round(r.duration / 60);
+      const isBest = index === 0;
+      const color = ROUTE_COLORS[index % ROUTE_COLORS.length];
+      html += `<div class="route-card ${isBest ? 'active' : ''}" onclick="selectRouteOption(${index})" style="border-left:4px solid ${color}; cursor:pointer;"><div class="info"><h3 style="display:flex; align-items:center; gap:8px;"><span style="background:${color}; color:white; width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:900;">${index + 1}</span>Tuyến ${index + 1} ${isBest ? '(Ưu tiên)' : ''}</h3><p><i class="fas fa-road"></i> ${dist} km • <i class="fas fa-clock"></i> ${dur} phút</p></div>${isBest ? '<span class="badge" style="background:linear-gradient(135deg,#f59e0b,#ef4444); color:white;"><i class="fas fa-star"></i> Đề xuất</span>' : ''}</div>`;
+    });
+    bodyEl.innerHTML = html;
+  } catch (e) {
+    console.error('fetchAndShowRouteOptions:', e);
+    bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>${escapeHtml(e.message || 'Có lỗi xảy ra khi tìm tuyến. Vui lòng thử lại.')}</p></div>`;
+  }
+};
+
+window.selectRouteOption = function(index) {
+  const r = alternativeRoutesData[index];
+  if (!r || !r.geometry || !r.geometry.coordinates || !r.geometry.coordinates.length) {
+    showCustomToast('Tuyến đường không có dữ liệu!', 'danger');
+    return;
+  }
+  if (!Array.isArray(r.legs) || r.legs.length === 0) r.legs = [{ steps: [] }];
+  if (!r.legs[0].steps) r.legs[0].steps = [];
+  localStorage.setItem('alternativeRoutes', JSON.stringify(alternativeRoutesData.filter((_, i) => i !== index)));
+  currentRouteData = r;
+  currentRouteCoords = r.geometry.coordinates;
+  clearRouteOptionLayers();
+  drawCurrentRoute();
+  window.closeRouteOptions();
+  startNavigationHUD();
+};
+
+function startNavigationHUD() {
+  if (!currentRouteData || !currentRouteCoords || currentRouteCoords.length === 0) {
+    showCustomToast('Không thể bắt đầu dẫn đường do thiếu dữ liệu tuyến!', 'danger');
+    return;
+  }
+  try {
+    document.getElementById('dirSheet').classList.remove('open');
+    document.getElementById('suggestionsBox').classList.remove('show');
+    document.body.classList.add('navigating');
+    document.getElementById('hud').classList.remove('hidden');
+    updateUIState();
+    voiceRouteSteps = currentRouteData.legs[0].steps;
+    voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
+    tripStartTime = Date.now(); arrivalHandled = false;
+    const dist = currentRouteData.distance || 0;
+    const dur = currentRouteData.duration || 0;
+    document.getElementById('hudRemainDist').textContent = (dist / 1000).toFixed(1) + ' km';
+    document.getElementById('hudRemainTime').textContent = Math.round(dur / 60) + ' phút';
+    document.getElementById('hudNextStopName').textContent = (endPoint && endPoint.name) || 'Điểm đến';
+    startWatching();
+    startVoice();
+    saveHistoryToFirestore(startPoint, endPoint, dist);
+    if (lastUserPos) updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
+  } catch (err) {
+    console.error('startNavigationHUD:', err);
+    showCustomToast('Lỗi khởi động dẫn đường: ' + err.message, 'danger');
+    document.getElementById('hud').classList.add('hidden');
+    document.body.classList.remove('navigating');
+    updateUIState();
+  }
+}
 
 /* ========== NEARBY SEARCH ========== */
 window.openNearbySearchPanel = function() {
@@ -2121,7 +2332,7 @@ function changeLayer(type, btn) {
   document.getElementById('layerMenu').classList.remove('show');
   let styleUrl = MAPTILER_STYLE;
   if (type === 'trackasia-maplibre' || type === 'trackasia') styleUrl = TRACKASIA_STYLE;
-  else if (type === 'satellite') styleUrl = `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`;
+  else if (type === 'satellite') styleUrl = `${WORKER_URL}/api/style?provider=satellite`;
   map.setStyle(styleUrl);
   map.once('styledata', () => {
     setTimeout(() => {
@@ -3568,6 +3779,8 @@ window.openAlternativeRoutes = function(){
 function bindViewAllRoutesBtn(){
   const btns = document.querySelectorAll('button');
   btns.forEach(b=>{
+    // Nút trong bảng Chỉ đường đã có onclick riêng (fetchAndShowRouteOptions) -> không ghi đè
+    if((b.getAttribute('onclick')||'').includes('fetchAndShowRouteOptions')) return;
     if((b.textContent||'').includes('Xem tất cả tuyến')){
       b.onclick = (e)=>{ e.preventDefault(); e.stopPropagation(); window.openAlternativeRoutes(); };
     }
@@ -3577,6 +3790,7 @@ setTimeout(bindViewAllRoutesBtn, 1000);
 setTimeout(bindViewAllRoutesBtn, 3000);
 document.addEventListener('click', (e)=>{
   const t = e.target && e.target.closest ? e.target.closest('button') : null;
+  if(t && (t.getAttribute('onclick')||'').includes('fetchAndShowRouteOptions')) return;
   if(t && (t.textContent||'').includes('Xem tất cả tuyến')){
     e.preventDefault();
     window.openAlternativeRoutes();
@@ -3628,3 +3842,232 @@ window.stopNavigationMode = function(){
   if(whiteArrowMarker){ whiteArrowMarker.remove(); whiteArrowMarker=null; }
   if(whiteArrowAheadMarker){ whiteArrowAheadMarker.remove(); whiteArrowAheadMarker=null; }
 };
+
+
+/* ============================================================
+   [FIX - PATCH CHO FILE CLAUDE] - append o cuoi file, ghi de ham cu
+   Da check file Claude, KHONG phai file v4/v5:
+   - Claude DA fix: getCurrentVehicleSpecs() co roi, setVehicleMode/setCarSeats/setTruckAxles co roi.
+   - Con 3 loi gay ra "co dich den roi ma bao chua co":
+     1) selectLocation('view') khong gan endPoint.
+     2) Go text vao o dirInputEnd ma khong bam goi y -> endPoint van null, fetch chi check bien, khong geocode text.
+     3) 2 he thong tuyen song song: fetchAndShowRouteOptions() thi co goi API,
+        openAlternativeRoutes() (dinh nghia 2 lan, dong 3105 + 3707) thi KHONG BAO GIO goi API,
+        chi doc currentRouteData/localStorage, roi bao sai "Hay chon diem den truoc".
+        Nut "Xem tat ca tuyen" bi gan vao openAlternativeRoutes nen lan dau luon bao sai.
+   Patch nay: dong bo input <-> bien + lam openAlternativeRoutes tu fetch khi chua co tuyen
+   + sua VEHICLE_TYPE_MAP['hd'] (Xe CN) tu 'motorcycle' -> 'car'.
+   ============================================================ */
+
+// --- Fix phu: Xe CN la o to, khong phai xe may ---
+try{ if(typeof VEHICLE_TYPE_MAP !== 'undefined' && VEHICLE_TYPE_MAP) VEHICLE_TYPE_MAP['hd'] = 'car'; }catch(e){}
+
+// --- Nho lan chon gan nhat de khoi phuc khi bien bi mat ---
+let _lastPickedClaude = null;
+
+// --- 1) Patch selectLocation: 'view' cung phai la diem den ---
+try{
+  const _origSelectClaude = selectLocation;
+  selectLocation = async function(lat, lng, name){
+    _lastPickedClaude = { lat, lng, name };
+    const ret = await _origSelectClaude(lat, lng, name);
+    try{
+      // Ham goc chi gan khi searchContext === 'start' / 'end'.
+      // Tim tu o tren cung (view, mac dinh) -> khong gan gi ca -> endPoint van null.
+      if(searchContext === 'view' && !endPoint){
+        endPoint = { lat, lng, name };
+        const ei = document.getElementById('dirInputEnd');
+        if(ei) ei.value = name;
+        const be = document.getElementById('btnClearEnd');
+        if(be) be.classList.remove('hidden');
+      }
+    }catch(e){}
+    return ret;
+  };
+}catch(e){ console.warn('patch selectLocation (Claude) fail', e); }
+
+// --- 2) Giai quyet goc: text trong o -> toa do (geocode) truoc khi check endPoint ---
+async function resolvePointsFromInputsClaude(){
+  // Diem di: neu bien null ma co GPS thi dung GPS (openDirections lam vay, nhung fetch thi khong)
+  if(!startPoint || !startPoint.lat){
+    if(lastUserPos){
+      startPoint = { lat: lastUserPos.lat, lng: lastUserPos.lng, name: 'Vị trí của tôi' };
+      const si = document.getElementById('dirInputStart');
+      if(si) si.value = 'Vị trí của tôi (GPS)';
+    } else {
+      const stxt = (document.getElementById('dirInputStart')?.value || '').trim();
+      if(stxt && stxt !== 'Vị trí của tôi' && stxt !== 'Vị trí của tôi (GPS)'){
+        try{
+          const r = await apiSearch(stxt);
+          if(r && r.results && r.results.length) startPoint = { lat: r.results[0].lat, lng: r.results[0].lng, name: r.results[0].name || stxt };
+        }catch(e){}
+      }
+    }
+    if(startPoint){
+      const si = document.getElementById('dirInputStart');
+      if(si) si.value = startPoint.name;
+      const bs = document.getElementById('btnClearStart');
+      if(bs) bs.classList.remove('hidden');
+    }
+  }
+  // Diem den: neu bien null ma o co text -> geocode text do
+  if(!endPoint || !endPoint.lat){
+    const txt = (document.getElementById('dirInputEnd')?.value || '').trim()
+      || (document.getElementById('topSearchInput')?.value || '').trim();
+    if(_lastPickedClaude && txt && (txt === _lastPickedClaude.name || txt.includes(_lastPickedClaude.name.split(',')[0]))){
+      endPoint = { lat: _lastPickedClaude.lat, lng: _lastPickedClaude.lng, name: _lastPickedClaude.name };
+    } else if(txt){
+      try{
+        const r = await apiSearch(txt, lastUserPos?.lat || null, lastUserPos?.lng || null);
+        if(r && r.results && r.results.length){
+          endPoint = { lat: r.results[0].lat, lng: r.results[0].lng, name: r.results[0].name || txt };
+        }
+      }catch(e){ console.warn('resolve endPoint fail', e); }
+    }
+    if(endPoint){
+      const ei = document.getElementById('dirInputEnd');
+      if(ei) ei.value = endPoint.name;
+      const be = document.getElementById('btnClearEnd');
+      if(be) be.classList.remove('hidden');
+    }
+  }
+  return { startPoint, endPoint };
+}
+
+// --- 2b) Patch fetchAndShowRouteOptions: resolve truoc roi moi goi ham goc ---
+try{
+  const _origFetchClaude = window.fetchAndShowRouteOptions;
+  window.fetchAndShowRouteOptions = async function(){
+    await resolvePointsFromInputsClaude();
+    // Ham goc se check lai endPoint. Neu van null -> luc nay bao "chua co" la DUNG,
+    // vi da thu geocode roi ma khong ra.
+    return _origFetchClaude();
+  };
+}catch(e){ console.warn('patch fetchAndShowRouteOptions fail', e); }
+
+// --- 3) Patch openAlternativeRoutes: chua co tuyen thi TU FETCH, khong bao sai ---
+try{
+  const _origOpenAltClaude = window.openAlternativeRoutes;
+  window.openAlternativeRoutes = async function(){
+    // Neu chua co tuyen nao duoc fetch -> di fetch truoc, dung bao "hay chon diem den"
+    if(!currentRouteData || !currentRouteCoords || !currentRouteCoords.length){
+      await window.fetchAndShowRouteOptions();
+      return;
+    }
+    return _origOpenAltClaude();
+  };
+}catch(e){ console.warn('patch openAlternativeRoutes fail', e); }
+
+// --- 3b) changeSort cung bi chan boi check start/end -> de fetch tu resolve ---
+try{
+  window.changeSort = function(mode){
+    currentSortMode = mode;
+    window.fetchAndShowRouteOptions();
+  };
+}catch(e){}
+
+// --- Enter trong o diem den -> tinh tuyen luon (truoc day go xong khong co nut nao an) ---
+try{
+  const _endInput = document.getElementById('dirInputEnd');
+  if(_endInput){
+    _endInput.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); window.fetchAndShowRouteOptions(); }
+    });
+  }
+  const _startInput = document.getElementById('dirInputStart');
+  if(_startInput){
+    _startInput.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); window.fetchAndShowRouteOptions(); }
+    });
+  }
+}catch(e){}
+
+
+/* ============================================================
+   FIX 2 LOI TRONG ANH:
+   1) Nut Luu poi ket xoay: success khong reset nut, open lai cung khong reset.
+      -> reset nut o ca success + open + close. Dung finally.
+   2) Lop ban do liet: changeLayer khong phai global (module) nen HTML onclick
+      goi khong duoc. -> expose window.changeLayer + bao loi ro neu Worker style fail.
+   ============================================================ */
+
+// --- 1a) openPoiSheet: mo len phai tra nut ve trang thai goc ---
+try{
+  const _origOpenPoi = window.openPoiSheet;
+  window.openPoiSheet = function(lat, lng, hint){
+    _origOpenPoi(lat, lng, hint);
+    const btn = document.getElementById('poiSaveBtn');
+    if(btn){ btn.disabled = true; btn.innerHTML = '<i class="fas fa-check"></i> Lưu địa điểm'; }
+    // Sheet mo thi phai an duoc, dong thi khong chan click map
+    const sheet = document.getElementById('poiSheet');
+    if(sheet) sheet.style.pointerEvents = 'auto';
+  };
+}catch(e){ console.warn('patch openPoiSheet fail', e); }
+
+// --- 1b) closePoiSheet: dong la phai tra nut + khong chan click nua ---
+try{
+  const _origClosePoi = window.closePoiSheet;
+  window.closePoiSheet = function(){
+    _origClosePoi();
+    const btn = document.getElementById('poiSaveBtn');
+    if(btn){ btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Lưu địa điểm'; }
+    const sheet = document.getElementById('poiSheet');
+    if(sheet) sheet.style.pointerEvents = '';
+  };
+}catch(e){ console.warn('patch closePoiSheet fail', e); }
+
+// --- 1c) submitCommunityPoi: luon reset nut, ca success lan loi ---
+try{
+  window.submitCommunityPoi = async function(){
+    if(!currentUser) return alert('Chưa đăng nhập!');
+    if(!tempPoiLatLng || !tempPoiTag) return alert('Vui lòng chọn loại địa điểm!');
+    const name = document.getElementById('poiNameInput').value.trim();
+    if(name.length < 2) return alert('Tên địa điểm quá ngắn!');
+    const btn = document.getElementById('poiSaveBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...';
+    try{
+      const collectionName = tempPoiTag === 'rest_stop' ? 'rest_stops' : 'community_pois';
+      await addDoc(collection(fsdb, collectionName), {
+        lat: tempPoiLatLng.lat, lng: tempPoiLatLng.lng, name, tag: tempPoiTag,
+        uid: currentUser.uid,
+        authorName: currentUser.displayName || currentUser.email.split('@')[0],
+        timestamp: Date.now(), upvotes: 0
+      });
+      // SUCCESS: reset TRUOC khi dong, de lan sau mo khong con spinner
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check"></i> Lưu địa điểm';
+      window.closePoiSheet();
+      showCustomToast('Đã thêm địa điểm!', 'success');
+    }catch(e){
+      alert('Lỗi lưu: ' + e.message);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check"></i> Lưu địa điểm';
+    }
+  };
+}catch(e){ console.warn('patch submitCommunityPoi fail', e); }
+
+// --- 2) changeLayer: phai la global de HTML onclick goi duoc ---
+try{
+  if(typeof changeLayer === 'function'){
+    const _origChangeLayer = changeLayer;
+    window.changeLayer = function(type, btn){
+      try{
+        // Bao loi ro neu Worker style fail (thieu Secret) thay vi im lang nhu liet
+        if(window.map && typeof window.map.once === 'function'){
+          window.map.once('error', (ev)=>{
+            const msg = (ev && ev.error && (ev.error.message || ev.error.status)) || '';
+            if(String(msg).includes('500') || String(msg).includes('style')){
+              if(typeof showCustomToast === 'function') showCustomToast('Đổi lớp lỗi: Worker chưa có key / style lỗi. Kiểm tra Worker Secrets.', 'danger');
+            }
+          });
+        }
+        return _origChangeLayer(type, btn);
+      }catch(err){
+        console.error('changeLayer lỗi:', err);
+        if(typeof showCustomToast === 'function') showCustomToast('Không đổi được lớp bản đồ: ' + (err.message || err), 'danger');
+        else alert('Không đổi được lớp bản đồ: ' + (err.message || err));
+      }
+    };
+  }
+}catch(e){ console.warn('patch changeLayer fail', e); }
