@@ -157,20 +157,74 @@ function preloadVisibleSignIcons() {
   codes.forEach(ensureSignIcon);
 }
 
-// [SYNC DEMO] Preload XONG mới addLayer + styleimagemissing
+// [FIX] Add layer NGAY sau addSource — không đợi sourcedata (sourcedata metadata về trước khi tile về,
+// querySourceFeatures lúc đó = [] nên bản cũ preload 0 icon rồi mới addLayer, và quan trọng hơn:)
+// [FIX] Không dùng flag _signSourceDataBound vĩnh viễn nữa.
+// setStyle() xóa sạch source/layer/image custom. Lần gọi thứ 2 sau setStyle: source đã mất nên đi tiếp,
+// nhưng flag cũ = true nên handler sourcedata mới không bao giờ được bind, closure cũ thì layerState='added'
+// nên không bao giờ addLayer lại -> source có, layer = null, toggle im lặng return.
+let _signSourcedataHandler = null;
+
+function addMapillarySignsLayer() {
+  if (!map || !map.isStyleLoaded()) return false;
+  if (!map.hasImage('sign-fallback')) { try { map.addImage('sign-fallback', getFallbackSignImageData()); } catch(e){} }
+  if (map.getLayer(TRAFFIC_SIGN_LAYER_ID)) return true;
+  if (!map.getSource(TRAFFIC_SIGN_SOURCE_ID)) return false;
+
+  let iconExpr = ['coalesce', ['get', 'object_value'], ['get', 'value'], 'sign-fallback'];
+  if (signDisplaySettings.speedOnly) {
+    iconExpr = ['case',
+      ['in', 'speed', ['coalesce', ['get', 'object_value'], ['get', 'value'], '']],
+      ['coalesce', ['get', 'object_value'], ['get', 'value'], 'sign-fallback'],
+      ''
+    ];
+  }
+  const sizeMul = getSignIconSize();
+  map.addLayer({
+    id: TRAFFIC_SIGN_LAYER_ID, type: 'symbol', source: TRAFFIC_SIGN_SOURCE_ID,
+    'source-layer': 'traffic_sign',
+    layout: {
+      'icon-image': iconExpr,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.4 * sizeMul, 18, 0.9 * sizeMul],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'icon-anchor': 'center'
+    },
+    paint: { 'icon-opacity': 0.95 }
+  });
+  if (!signDisplaySettings.show) {
+    map.setLayoutProperty(TRAFFIC_SIGN_LAYER_ID, 'visibility', 'none');
+  }
+  map.off('click', TRAFFIC_SIGN_LAYER_ID);
+  map.off('mouseenter', TRAFFIC_SIGN_LAYER_ID);
+  map.off('mouseleave', TRAFFIC_SIGN_LAYER_ID);
+  map.on('click', TRAFFIC_SIGN_LAYER_ID, (ev) => {
+    const f = ev.features[0];
+    const code = (f.properties && (f.properties.object_value || f.properties.value)) || 'Không rõ';
+    const pretty = code.replace(/--/g, ' · ').replace(/-/g, ' ');
+    const imgUrl = `${MAPILLARY_SIGN_BASE}/${code}.svg`;
+    new maplibregl.Popup({ offset: 12 }).setLngLat(ev.lngLat)
+      .setHTML(`<b>Biển báo</b><br><img src="${imgUrl}" style="width:48px;height:48px;display:block;margin:6px 0" onerror="this.style.display='none'"><small>${pretty}</small>`)
+      .addTo(map);
+  });
+  map.on('mouseenter', TRAFFIC_SIGN_LAYER_ID, () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', TRAFFIC_SIGN_LAYER_ID, () => { map.getCanvas().style.cursor = ''; });
+  return true;
+}
+
 function initMapillarySignsLayer() {
   if (!map) return;
-  if (map.getSource(TRAFFIC_SIGN_SOURCE_ID)) return;
-  if (!map.hasImage('sign-fallback')) { try { map.addImage('sign-fallback', getFallbackSignImageData()); } catch(e){} }
-
-  map.addSource(TRAFFIC_SIGN_SOURCE_ID, {
-    type: 'vector',
-    tiles: [MAPILLARY_VTP_URL('{z}', '{x}', '{y}')],
-    minzoom: 14,
-    maxzoom: 14
-  });
-
-  // styleimagemissing — load icon khi MapLibre cần mà chưa có
+  // setStyle() đã xóa source -> add lại. Nếu source còn mà layer mất (trường hợp setStyle dở dang) thì addLayer lại ngay.
+  if (!map.getSource(TRAFFIC_SIGN_SOURCE_ID)) {
+    map.addSource(TRAFFIC_SIGN_SOURCE_ID, {
+      type: 'vector',
+      tiles: [MAPILLARY_VTP_URL('{z}', '{x}', '{y}')],
+      minzoom: 14,
+      maxzoom: 14
+    });
+  }
+  // styleimagemissing: bind 1 lần thì được, nhưng phải kiểm tra map còn handler không sau setStyle.
+  // MapLibre giữ handler qua setStyle, nên giữ flag này là OK — khác với sourcedata ở dưới.
   if (!map._signImageMissingBound) {
     map._signImageMissingBound = true;
     map.on('styleimagemissing', (e) => {
@@ -180,86 +234,25 @@ function initMapillarySignsLayer() {
       if (id.includes('--')) ensureSignIcon(id);
     });
   }
-
-  let layerState = 'pending'; // pending | preloading | added
-
-  const onSourceData = async (e) => {
-    if (e.sourceId !== TRAFFIC_SIGN_SOURCE_ID || !e.isSourceLoaded) return;
-    if (layerState === 'preloading') return;
-
-    if (layerState === 'pending') {
-      layerState = 'preloading';
-
+  // sourcedata: GỠ handler cũ rồi bind lại mỗi lần — handler mới mới có closure đúng.
+  // Tile về -> đảm bảo layer tồn tại + preload icon cho vùng mới. Không block việc addLayer.
+  if (_signSourcedataHandler) map.off('sourcedata', _signSourcedataHandler);
+  _signSourcedataHandler = (e) => {
+    if (e.sourceId !== TRAFFIC_SIGN_SOURCE_ID) return;
+    addMapillarySignsLayer();
+    if (!e.isSourceLoaded) return;
+    try {
       const feats = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' });
-      const codes = new Set();
       feats.forEach(f => {
         const p = f.properties || {};
         const v = p.object_value || p.value;
-        if (v && typeof v === 'string') codes.add(v);
+        if (v && typeof v === 'string') ensureSignIcon(v);
       });
-
-      // Preload XONG mới addLayer
-      await Promise.all([...codes].map(ensureSignIcon));
-
-      let iconExpr = ['coalesce', ['get', 'object_value'], ['get', 'value'], 'sign-fallback'];
-      if (signDisplaySettings.speedOnly) {
-        iconExpr = ['case',
-          ['in', 'speed', ['coalesce', ['get', 'object_value'], ['get', 'value'], '']],
-          ['coalesce', ['get', 'object_value'], ['get', 'value'], 'sign-fallback'],
-          ''
-        ];
-      }
-      const sizeMul = getSignIconSize();
-      const iconSizeExpr = ['interpolate', ['linear'], ['zoom'], 14, 0.4 * sizeMul, 18, 0.9 * sizeMul];
-
-      map.addLayer({
-        id: TRAFFIC_SIGN_LAYER_ID, type: 'symbol', source: TRAFFIC_SIGN_SOURCE_ID,
-        'source-layer': 'traffic_sign',
-        layout: {
-          'icon-image': iconExpr,
-          'icon-size': iconSizeExpr,
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-          'icon-anchor': 'center'
-        },
-        paint: { 'icon-opacity': 0.95 }
-      });
-
-      if (!signDisplaySettings.show) {
-        map.setLayoutProperty(TRAFFIC_SIGN_LAYER_ID, 'visibility', 'none');
-      }
-
-      map.off('click', TRAFFIC_SIGN_LAYER_ID);
-      map.off('mouseenter', TRAFFIC_SIGN_LAYER_ID);
-      map.off('mouseleave', TRAFFIC_SIGN_LAYER_ID);
-      map.on('click', TRAFFIC_SIGN_LAYER_ID, (ev) => {
-        const f = ev.features[0];
-        const code = (f.properties && (f.properties.object_value || f.properties.value)) || 'Không rõ';
-        const pretty = code.replace(/--/g, ' · ').replace(/-/g, ' ');
-        const imgUrl = `${MAPILLARY_SIGN_BASE}/${code}.svg`;
-        new maplibregl.Popup({ offset: 12 }).setLngLat(ev.lngLat)
-          .setHTML(`<b>Biển báo</b><br><img src="${imgUrl}" style="width:48px;height:48px;display:block;margin:6px 0" onerror="this.style.display='none'"><small>${pretty}</small>`)
-          .addTo(map);
-      });
-      map.on('mouseenter', TRAFFIC_SIGN_LAYER_ID, () => { map.getCanvas().style.cursor = 'pointer'; });
-      map.on('mouseleave', TRAFFIC_SIGN_LAYER_ID, () => { map.getCanvas().style.cursor = ''; });
-
-      layerState = 'added';
-      return;
-    }
-
-    const feats = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' });
-    feats.forEach(f => {
-      const p = f.properties || {};
-      const v = p.object_value || p.value;
-      if (v && typeof v === 'string') ensureSignIcon(v);
-    });
+    } catch(err) {}
   };
-
-  if (!map._signSourceDataBound) {
-    map._signSourceDataBound = true;
-    map.on('sourcedata', onSourceData);
-  }
+  map.on('sourcedata', _signSourcedataHandler);
+  // Add layer NGAY, không đợi sourcedata — icon thiếu sẽ được nạp qua styleimagemissing.
+  addMapillarySignsLayer();
   setTimeout(preloadVisibleSignIcons, 2000);
 }
 
