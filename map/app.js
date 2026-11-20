@@ -32,7 +32,7 @@ const fsdb = getFirestore(app);
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 const MAPTILER_STYLE = `${WORKER_URL}/api/style?provider=maptiler`;
 const TRACKASIA_STYLE = `${WORKER_URL}/api/style?provider=trackasia`;
-const NEARBY_API_URL = 'https://potential-space-trout-p7r7pgrjwjvw26g6j-8000.app.github.dev/api/nearby';
+const NEARBY_API_URL = 'https://animated-trout-7797pr9v5779fgxx-8002.app.github.dev/api/nearby';
 
 /* ========== MAPILLARY SIGNS ========== */
 const MAPILLARY_VTP_URL = (z, x, y) => `${WORKER_URL}/api/mapillary-tiles/${z}/${x}/${y}`;
