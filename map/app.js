@@ -4457,7 +4457,7 @@ try{
       return r;
     };
   }catch(e){ console.warn('patch updateUserMarkerOnMap fail', e); }
-  setInterval(()=>{ try{ const hud = document.getElementById('hud'); if(hud && !hud.classList.contains('hidden')) applyRouteBearingToArrow(); }catch(e){} }, 300);
+  try{ if(window._bearingInt) clearInterval(window._bearingInt); }catch(e){} window._bearingInt = setInterval(()=>{ try{ const hud = document.getElementById('hud'); if(hud && !hud.classList.contains('hidden')) applyRouteBearingToArrow(); }catch(e){} }, 1000); /* [FIX TREO] bearing: 300->1000ms, 1 interval duy nhat */
 })();
 
 
@@ -4684,7 +4684,7 @@ try{
       }catch(e){}
     };
     fixBtn(); setTimeout(fixBtn, 800); setTimeout(fixBtn, 2000);
-    try{ new MutationObserver(fixBtn).observe(document.body, { childList:true, subtree:true, attributes:true }); }catch(e){}
+    try{ let _fT=false; const _fObs=new MutationObserver(()=>{ if(_fT) return; _fT=true; requestAnimationFrame(()=>{ _fT=false; try{ fixBtn(); }catch(e){} }); }); _fObs.observe(document.body, { attributes:true, attributeFilter:['class'] }); }catch(e){} /* [FIX TREO] fixBtn: bo subtree, chi nghe class body + throttle rAF */
     window.fixSearchIcon = fixBtn;
   })();
 
@@ -4778,7 +4778,7 @@ try{
     }
     // Chay khi minimap xuat hien + theo doi DOM
     wrapMinimap(); setTimeout(wrapMinimap, 800); setTimeout(wrapMinimap, 2000); setTimeout(wrapMinimap, 4000);
-    try{ new MutationObserver(()=>{ wrapMinimap(); }).observe(document.body, { childList:true, subtree:true }); }catch(e){}
+    try{ let _wT=null; new MutationObserver(()=>{ if(_wT) return; _wT=setTimeout(()=>{ _wT=null; try{ if(document.getElementById('navMinimap')||document.getElementById('navMinimapFrame')) wrapMinimap(); }catch(e){} }, 600); }).observe(document.body, { childList:true }); }catch(e){} /* [FIX TREO] wrapMinimap: bo subtree, debounce 600ms */
     window.wrapMinimapFrame = wrapMinimap;
     // Cho phep hien lai minimap khi bi an: bam vao nut minimap (neu co) thi hien khung lai
     window.showMinimapFrame = function(){ const f=document.getElementById('navMinimapFrame'); if(f) f.style.display='flex'; window._minimapHidden=false; };
@@ -4802,7 +4802,7 @@ try{
       }catch(e){}
     };
     clean(); setTimeout(clean, 800); setTimeout(clean, 2000);
-    try{ new MutationObserver(clean).observe(document.body, { childList:true, subtree:true }); }catch(e){}
+    try{ let _cT=null; new MutationObserver(()=>{ if(_cT) return; _cT=setTimeout(()=>{ _cT=null; try{ if(document.getElementById('minimapLabel')) clean(); }catch(e){} }, 800); }).observe(document.body, { childList:true }); }catch(e){} /* [FIX TREO] clean: bo subtree, debounce 800ms, chi khi co label */
   })();
 
   // --- FIX NUT DE NHAU: trai chi 1 nut Ve giua, phai 1 cot, khong de chong ---
@@ -5722,7 +5722,7 @@ try{
     }catch(e){}
   }
   // Watchdog: cu 800ms kiem tra, neu dang dan duong ma HUD mat thi hien lai
-  setInterval(forceShowHUD, 800);
+  try{ if(window._forceHUDInt) clearInterval(window._forceHUDInt); }catch(e){} window._forceHUDInt = setInterval(()=>{ try{ const h=document.getElementById('hud'); const isNav=document.body.classList.contains('google-nav')||document.body.classList.contains('navigating'); if(isNav && h && h.classList.contains('hidden')) forceShowHUD(); }catch(e){} }, 2000); /* [FIX TREO] forceShowHUD: 800->2000ms, chi chay khi HUD mat that, 1 interval duy nhat */
 
   // Ghi de activate: khong xoa minimap, khong an HUD
   try{
@@ -6616,5 +6616,31 @@ try{
     // 4. Nut tim kiem: luon la kinh lup, khong bao gio la X
     if(typeof window.fixSearchIcon === 'function') setTimeout(()=>window.fixSearchIcon(), 300);
   }catch(e){ console.warn('finalLogicGuard fail', e); }
+})();
+
+/* [FIX TREO 2026-11-21] Chan MutationObserver subtree toan cuc - nguyen nhan Trang khong nhan hoi */
+(function(){
+  try{
+    if(window._obsPatched) return; window._obsPatched = true;
+    const _OrigObs = window.MutationObserver;
+    window.MutationObserver = function(cb){
+      const _throttled = function(muts, obs){
+        try{ cb(muts, obs); }catch(e){}
+      };
+      const inst = new _OrigObs(_throttled);
+      const _origObserve = inst.observe.bind(inst);
+      inst.observe = function(target, opts){
+        try{
+          if(opts && opts.subtree && target === document.body){
+            // Ha xuong: chi nghe childList truc tiep, khong nghe subtree - tranh loop voi MapLibre
+            opts = { childList: !!opts.childList, attributes: !!opts.attributes, attributeFilter: opts.attributeFilter };
+          }
+        }catch(e){}
+        return _origObserve(target, opts);
+      };
+      return inst;
+    };
+    window.MutationObserver.prototype = _OrigObs.prototype;
+  }catch(e){}
 })();
 
