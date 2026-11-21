@@ -340,10 +340,25 @@ async function apiRoute(origin, dest, mode, bypassCache = false, specs = null) {
     if (specs.bus_type) url += `&bus_type=${encodeURIComponent(specs.bus_type)}`;
   }
   if (bypassCache) url += '&nocache=1';
-  const r = await fetch(url);
-  if (!r.ok) {
-    let errText = 'Lỗi kết nối máy chủ (HTTP ' + r.status + ')';
+  let r = null, lastErr = null;
+  // Valhalla 502/503 = server dang ngu / dang khoi dong lai (Codespaces / HF Spaces) -> thu lai 2 lan, moi lan cach 2s
+  for(let attempt = 0; attempt < 3; attempt++){
+    try{
+      r = await fetch(url);
+      if(r.ok) break;
+      if(r.status === 502 || r.status === 503 || r.status === 504){
+        lastErr = 'Máy chủ dẫn đường đang khởi động lại (HTTP ' + r.status + ')';
+        if(attempt < 2) await new Promise(res => setTimeout(res, 2000));
+        continue;
+      }
+      break;
+    }catch(e){ lastErr = e.message || 'Lỗi kết nối'; if(attempt < 2) await new Promise(res => setTimeout(res, 2000)); else throw e; }
+  }
+  if (!r || !r.ok) {
+    let errText = lastErr || ('Lỗi kết nối máy chủ (HTTP ' + (r ? r.status : '??') + ')');
     try { const j = await r.json(); if (j.error) errText = j.error; } catch(e){}
+    // Doi loi ky thuat thanh loi de hieu cho dien thoai
+    if(/502|503|504/.test(errText) || /502|503|504/.test(String(r && r.status))) errText = 'Máy chủ dẫn đường đang bận / đang khởi động lại. Vui lòng thử lại sau vài giây.';
     throw new Error(errText);
   }
   const j = await r.json();
@@ -761,7 +776,15 @@ window.fetchAndShowRouteOptions = async function() {
     bodyEl.innerHTML = html;
   } catch (e) {
     console.error('fetchAndShowRouteOptions:', e);
-    bodyEl.innerHTML = `<div style="text-align:center; padding:40px; color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i><p>${escapeHtml(e.message || 'Có lỗi xảy ra khi tìm tuyến. Vui lòng thử lại.')}</p></div>`;
+    const msg = escapeHtml(e.message || 'Có lỗi xảy ra khi tìm tuyến. Vui lòng thử lại.');
+    const isServerBusy = /đang bận|đang khởi động|502|503|504|khởi động lại/i.test(e.message || '');
+    bodyEl.innerHTML = `<div style="text-align:center; padding:28px 16px; color:var(--danger);">
+      <i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:10px;"></i>
+      <p style="font-size:15px; line-height:1.5; margin:0 0 6px;">${msg}</p>
+      ${isServerBusy ? '<p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin:0 0 14px;">Máy chủ Valhalla (Codespaces / HF Spaces) có thể đang ngủ, bấm Thử lại sau 5-10 giây.</p>' : ''}
+      <button onclick="window.fetchAndShowRouteOptions()" style="background:#0F766E; color:#fff; border:0; border-radius:999px; padding:12px 22px; font-size:15px; font-weight:800; cursor:pointer; min-height:48px;">↻ Thử lại</button>
+      <button onclick="window.closeRouteOptions()" style="background:#f3f4f6; color:#334155; border:0; border-radius:999px; padding:12px 18px; font-size:15px; font-weight:700; cursor:pointer; min-height:48px; margin-left:8px;">Đóng</button>
+    </div>`;
   }
 };
 
@@ -3507,7 +3530,9 @@ function updateNavCamera(pos, heading){
     if(dC < 15 && bDiff < 12 && map.getPitch() > 40) return;
     _lastCamAt = nowC;
     // essential:false de user van keo duoc map khi camera dang chay
-    map.easeTo({ center:[pos.lng, pos.lat], bearing: heading||0, pitch:60, zoom: Math.max(map.getZoom(), 17.5), duration:350, essential:false });
+    const isMobileNav = window.innerWidth <= 640;
+    const camOffset = isMobileNav ? [0, window.innerHeight * 0.16] : [0, 0];
+    map.easeTo({ center:[pos.lng, pos.lat], bearing: heading||0, pitch:60, zoom: Math.max(map.getZoom(), 17.5), duration:350, essential:false, offset: camOffset });
   }catch(e){}
 }
 window.startNavigationMode = function(){
@@ -3827,7 +3852,7 @@ window.openAlternativeRoutes = function(){
       modal = document.createElement('div');
       modal.id = 'routeOptionsModal';
       modal.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:1200;background:#fff;border-radius:18px 18px 0 0;padding:16px;max-height:70vh;overflow:auto;box-shadow:0 -8px 30px rgba(0,0,0,0.25);';
-      modal.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;"><b>Tất cả tuyến đường</b><button onclick="closeRouteOptions()" style="border:0;background:#f3f4f6;padding:6px 12px;border-radius:999px;cursor:pointer;">✕ Đóng</button></div><div id="routeOptionsBody" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;"></div>`;
+      modal.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:nowrap;"><b style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:18px;line-height:1.25;">Tất cả tuyến đường</b><button onclick="closeRouteOptions()" style="border:0;background:#f3f4f6;padding:8px 12px;border-radius:999px;cursor:pointer;min-height:44px;min-width:44px;flex-shrink:0;">✕ Đóng</button></div><div id="routeOptionsBody" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;"></div>`;
       document.body.appendChild(modal);
     }
     let body = document.getElementById('routeOptionsBody');
@@ -4508,6 +4533,106 @@ try{
     document.head.appendChild(st);
   }
   injectGoogleNavCSS();
+  // --- CSS MOBILE RIENG CHO CHE DO CHI DUONG: khong dung layout desktop ---
+  (function injectMobileNavCSS(){
+    // Xoa style mobile cu neu co de khong bi chong
+    try{ const _old = document.getElementById('mobileNavStyle20261121'); if(_old) _old.remove(); }catch(e){}
+    if(document.getElementById('mobileNavStyle20261122')) return;
+    const st = document.createElement('style');
+    st.id = 'mobileNavStyle20261122';
+    st.textContent = `
+      /* ============ CHI DUONG TREN DIEN THOAI: <640px hoac cam ung ============ */
+      @media (max-width: 640px), (pointer: coarse) and (max-width: 900px){
+        html, body{ overscroll-behavior:none; }
+        #map{ height:100dvh !important; height:100vh !important; }
+        /* --- 1. BANNER TREN: tran vien, doc khi chay xe --- */
+        body.google-nav #gNavTopBanner{
+          left:0 !important; right:0 !important; top:0 !important;
+          border-radius:0 0 18px 18px !important;
+          padding:calc(8px + env(safe-area-inset-top, 0px)) 10px 11px 10px !important;
+          gap:10px !important; align-items:center !important;
+        }
+        body.google-nav #gNavTopArrow{ width:48px !important; height:48px !important; font-size:34px !important; flex-shrink:0 !important; }
+        body.google-nav #gNavTopMain{ gap:1px !important; }
+        body.google-nav #gNavTopDist{ font-size:14px !important; font-weight:700 !important; letter-spacing:.2px !important; text-transform:uppercase !important; opacity:.92 !important; }
+        body.google-nav #gNavTopInstr{ font-size:21px !important; font-weight:800 !important; line-height:1.2 !important; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word; }
+        /* Nut Ket thuc tren banner: de bam khi chay xe - 44px, do trang */
+        body.google-nav #gNavTopEndTripBtn{
+          min-width:64px !important; min-height:44px !important; padding:0 12px !important;
+          font-size:13px !important; font-weight:800 !important; background:#fff !important; color:#DC2626 !important;
+          border-radius:999px !important; display:flex !important; align-items:center !important; justify-content:center !important;
+        }
+        /* --- 2. BANNER SAU DO: chip nho dinh duoi banner tren --- */
+        body.google-nav #gNavNextBanner{
+          left:10px !important; top:calc(88px + env(safe-area-inset-top, 0px)) !important;
+          padding:7px 11px !important; font-size:13px !important; border-radius:999px !important; max-width:calc(100vw - 20px) !important;
+          white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important;
+        }
+        /* --- 3. BOTTOM SHEET MOBILE: the noi, co tay keo --- */
+        body.google-nav #gNavBottomSheet{
+          left:8px !important; right:8px !important; bottom:calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+          border-radius:18px !important; padding:6px 10px calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+          flex-direction:column !important; gap:0 !important; align-items:stretch !important;
+        }
+        body.google-nav #gNavBottomHandle{
+          width:36px !important; height:4px !important; border-radius:999px !important; background:#DADCE0 !important;
+          margin:2px auto 6px auto !important; flex-shrink:0 !important; touch-action:none !important;
+        }
+        body.google-nav #gNavBottomRow{ gap:10px !important; }
+        body.google-nav #gNavExitBtn, body.google-nav #gNavLayerBtn{ width:42px !important; height:42px !important; }
+        body.google-nav #gNavBottomInfo{ gap:0 !important; }
+        body.google-nav #gNavRemainTime{ font-size:22px !important; line-height:1.1 !important; }
+        body.google-nav #gNavRemainMeta{ font-size:12.5px !important; }
+        /* Nut mui ten mo lai: pill lon, de bam bang ngon cai */
+        body.google-nav #gNavBottomExpandBtn{
+          bottom:calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+          width:64px !important; height:30px !important; border-radius:999px !important;
+        }
+        /* --- 4. COT NUT PHAI: gon, nam tren bottom sheet, khong che map --- */
+        body.google-nav #gNavRightControls{
+          right:12px !important; bottom:calc(118px + env(safe-area-inset-bottom, 0px)) !important; gap:10px !important;
+        }
+        body.google-nav .gNavRoundBtn{ width:46px !important; height:46px !important; font-size:20px !important; }
+        body.google-nav #gNavCompassBtn .compass-arrow{ font-size:22px !important; }
+        /* --- 5. NUT VE GIUA: pill trai, cung hang voi cot phai --- */
+        body.google-nav #gNavRecenterBtn{
+          left:12px !important; bottom:calc(118px + env(safe-area-inset-bottom, 0px)) !important;
+          padding:10px 14px !important; font-size:13px !important; min-height:44px !important;
+        }
+        body.google-nav #gNavLeftStack{ left:12px !important; bottom:calc(118px + env(safe-area-inset-bottom, 0px)) !important; }
+        /* --- 6. MINIMAP TREN MOBILE: nho lai, khong che duong --- */
+        body.google-nav #navMinimap, #navMinimap{
+          width:96px !important; height:72px !important; right:10px !important; bottom:calc(178px + env(safe-area-inset-bottom, 0px)) !important; border-radius:12px !important;
+        }
+        /* --- 7. MODAL TUYEN / KET THUC: bottom-sheet --- */
+        #routeOptionsModal{ left:0 !important; right:0 !important; bottom:0 !important; top:auto !important; max-height:78dvh !important; border-radius:18px 18px 0 0 !important; padding:12px 12px calc(14px + env(safe-area-inset-bottom, 0px)) !important; overflow-y:auto !important; -webkit-overflow-scrolling:touch !important; }
+        #routeOptionsModal > div:first-child{ flex-wrap:nowrap !important; gap:8px !important; }
+        #routeOptionsModal > div:first-child b{ flex:1 !important; min-width:0 !important; font-size:17px !important; white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important; }
+        #routeOptionsModal button{ min-height:44px !important; min-width:44px !important; touch-action:manipulation !important; }
+        #gNavEndTripModal > div, #endTripModal > div{ width:calc(100vw - 24px) !important; max-width:400px !important; margin:0 12px !important; padding:18px 16px !important; border-radius:18px !important; }
+        #dirSheet{ max-height:82dvh !important; border-radius:18px 18px 0 0 !important; }
+        button{ touch-action:manipulation !important; -webkit-tap-highlight-color:transparent !important; }
+        body.google-nav #legend{ display:none !important; }
+        /* Cham user tren map: nho hon 1 chut tren mobile de do che duong */
+        .g-user-dot{ width:18px !important; height:18px !important; border-width:3px !important; }
+      }
+      /* Man hinh rat nho <380px */
+      @media (max-width: 380px){
+        body.google-nav #gNavTopInstr{ font-size:18px !important; }
+        body.google-nav #gNavTopEndTripBtn{ min-width:56px !important; font-size:11px !important; padding:0 10px !important; }
+        body.google-nav #gNavRemainTime{ font-size:20px !important; }
+      }
+      /* Ngang (landscape) tren dien thoai: banner thap lai, bottom sheet gon hon */
+      @media (max-width: 900px) and (orientation: landscape){
+        body.google-nav #gNavTopBanner{ padding-top:calc(6px + env(safe-area-inset-top, 0px)) !important; padding-bottom:8px !important; }
+        body.google-nav #gNavTopInstr{ font-size:18px !important; -webkit-line-clamp:1 !important; }
+        body.google-nav #gNavNextBanner{ top:calc(68px + env(safe-area-inset-top, 0px)) !important; }
+        body.google-nav #gNavBottomSheet{ padding-bottom:8px !important; }
+        body.google-nav #gNavRightControls{ bottom:calc(96px + env(safe-area-inset-bottom, 0px)) !important; }
+      }
+    `;
+    document.head.appendChild(st);
+  })();
 
   // ---- 2. Tao DOM Google Nav ----
   function ensureGoogleNavUI(){
@@ -4526,7 +4651,7 @@ try{
     if(!document.getElementById('gNavBottomSheet')){
       const bot = document.createElement('div');
       bot.id = 'gNavBottomSheet';
-      bot.innerHTML = '<div id="gNavBottomRow"><button id="gNavExitBtn" title="Thoát chỉ đường"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button><div id="gNavBottomInfo"><div id="gNavRemainTime">3 phút</div><div id="gNavRemainMeta">900 m • 7:11</div></div><button id="gNavLayerBtn" title="Lớp bản đồ"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linejoin="round"><path d="M12 3 L21 8 L12 13 L3 8 Z"/><path d="M3 11 L12 16 L21 11"/><path d="M3 15 L12 20 L21 15"/></svg></button></div>';
+      bot.innerHTML = '<div id="gNavBottomHandle"></div><div id="gNavBottomRow"><button id="gNavExitBtn" title="Thu bottom sheet"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button><div id="gNavBottomInfo"><div id="gNavRemainTime">3 phút</div><div id="gNavRemainMeta">900 m • 7:11</div></div><button id="gNavLayerBtn" title="Lớp bản đồ"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linejoin="round"><path d="M12 3 L21 8 L12 13 L3 8 Z"/><path d="M3 11 L12 16 L21 11"/><path d="M3 15 L12 20 L21 15"/></svg></button></div>';
       document.body.appendChild(bot);
       // X: chi THU bottom sheet xuong, KHONG thoat chi duong
       document.getElementById('gNavExitBtn').onclick = ()=>{
@@ -4602,10 +4727,26 @@ try{
     try{ ensureTopEndTripBtn(); }catch(e){}
     try{ patchExistingGoogleNav(); }catch(e){}
   }
-  function showGoogleNavUI(){ ensureGoogleNavUI(); try{ patchExistingGoogleNav(); }catch(e){} ['gNavTopBanner','gNavNextBanner','gNavBottomSheet','gNavRightControls'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.add('show'); }); try{ const bot=document.getElementById('gNavBottomSheet'); if(bot) bot.classList.remove('collapsed'); const exp=document.getElementById('gNavBottomExpandBtn'); if(exp) exp.classList.remove('show'); const rc=document.getElementById('gNavRightControls'); if(rc) rc.style.bottom=''; }catch(e){} }
+  function showGoogleNavUI(){ ensureGoogleNavUI(); try{ patchExistingGoogleNav(); }catch(e){} try{ bindBottomSheetDrag(); }catch(e){} ['gNavTopBanner','gNavNextBanner','gNavBottomSheet','gNavRightControls'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.add('show'); }); try{ const bot=document.getElementById('gNavBottomSheet'); if(bot) bot.classList.remove('collapsed'); const exp=document.getElementById('gNavBottomExpandBtn'); if(exp) exp.classList.remove('show'); const rc=document.getElementById('gNavRightControls'); if(rc) rc.style.bottom=''; }catch(e){} }
   function hideGoogleNavUI(){ ['gNavTopBanner','gNavNextBanner','gNavBottomSheet','gNavRightControls','gNavRecenterBtn','gNavBottomExpandBtn'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('show'); }); try{ const bot=document.getElementById('gNavBottomSheet'); if(bot) bot.classList.remove('collapsed'); const rc=document.getElementById('gNavRightControls'); if(rc) rc.style.bottom=''; }catch(e){} }
   function showRecenterBtn(){ const el=document.getElementById('gNavRecenterBtn'); if(el) el.classList.add('show'); }
   function hideRecenterBtn(){ const el=document.getElementById('gNavRecenterBtn'); if(el) el.classList.remove('show'); }
+  // --- Bottom sheet MOBILE: keo vuot de thu / mo ---
+  function bindBottomSheetDrag(){
+    const bot = document.getElementById('gNavBottomSheet');
+    if(!bot || bot._dragBound) return;
+    bot._dragBound = true;
+    let startY = 0, curY = 0, dragging = false;
+    const onStart = (e)=>{ const y = e.touches ? e.touches[0].clientY : e.clientY; startY = y; curY = y; dragging = true; bot.style.transition = 'none'; };
+    const onMove = (e)=>{ if(!dragging) return; const y = e.touches ? e.touches[0].clientY : e.clientY; curY = y; const dy = Math.max(0, y - startY); bot.style.transform = 'translateY(' + dy + 'px)'; };
+    const onEnd = ()=>{ if(!dragging) return; dragging = false; bot.style.transition = ''; bot.style.transform = ''; const dy = curY - startY; if(dy > 60) collapseGoogleBottomSheet(); else expandGoogleBottomSheet(); };
+    const handle = document.getElementById('gNavBottomHandle');
+    const target = handle || bot;
+    target.addEventListener('touchstart', onStart, { passive:true });
+    target.addEventListener('touchmove', onMove, { passive:true });
+    target.addEventListener('touchend', onEnd);
+    if(handle) handle.addEventListener('click', ()=>{ const isCollapsed = bot.classList.contains('collapsed'); if(isCollapsed) expandGoogleBottomSheet(); else collapseGoogleBottomSheet(); });
+  }
   // --- Bottom sheet: X thu xuong / mui ten keo len ---
   function collapseGoogleBottomSheet(){
     const bot = document.getElementById('gNavBottomSheet');
@@ -4656,6 +4797,11 @@ try{
   // Patch X cu neu DOM da co tu ban truoc (ensureGoogleNavUI khong tao lai)
   function patchExistingGoogleNav(){
     try{
+      const bot0 = document.getElementById('gNavBottomSheet');
+      if(bot0 && !document.getElementById('gNavBottomHandle')){
+        const h = document.createElement('div'); h.id = 'gNavBottomHandle'; bot0.insertBefore(h, bot0.firstChild);
+      }
+      try{ bindBottomSheetDrag(); }catch(e){}
       const x = document.getElementById('gNavExitBtn');
       if(x && !x._wiredCollapse){ x._wiredCollapse = true; x.title = 'Thu bottom sheet'; x.onclick = ()=>{ collapseGoogleBottomSheet(); }; }
     }catch(e){}
