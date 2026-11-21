@@ -1894,6 +1894,16 @@ window.activateSearch = function(ctx) {
 };
 window.closeSearch = function() {
   document.getElementById('suggestionsBox').classList.remove('show');
+  // [FIX] Dong search xong phai tra lai nut - neu dirSheet khong mo thi hien lai FAB
+  try{
+    setTimeout(()=>{
+      const dirOpen = document.getElementById('dirSheet') && document.getElementById('dirSheet').classList.contains('open');
+      if(!dirOpen){
+        const ids2 = ['mainLocateBtn','mainDirBtn','btnLayerMenu','btnQuickPin','btnReport','btnRestStopFilter','btnNearbySearch'];
+        ids2.forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='flex'; });
+      }
+    }, 50);
+  }catch(e){}
   searchResultMarkers.forEach(m => m.remove());
   searchResultMarkers = [];
   const ti = document.getElementById('topSearchInput');
@@ -3525,10 +3535,14 @@ function updateNavCamera(pos, heading){
     const bDiff = Math.abs(((map.getBearing()||0) - (heading||0) + 540) % 360 - 180);
     if(dC < 15 && bDiff < 12 && map.getPitch() > 40) return;
     _lastCamAt = nowC;
-    // essential:false de user van keo duoc map khi camera dang chay
+    // [FIX] Neu dang free thi khong giat camera - de user xoay tu do
+    if(navFollowMode !== 'first-person') return;
+    // Bearing = huong duong xanh phia truoc, khong dung heading GPS lech ngang
+    let _useBr = heading || 0;
+    try{ if(typeof window.getRouteBearingAhead === 'function'){ const _rb = window.getRouteBearingAhead(pos); if(_rb !== null && _rb !== undefined) _useBr = _rb; } }catch(e){}
     const isMobileNav = window.innerWidth <= 640;
     const camOffset = isMobileNav ? [0, window.innerHeight * 0.16] : [0, 0];
-    map.easeTo({ center:[pos.lng, pos.lat], bearing: heading||0, pitch:60, zoom: Math.max(map.getZoom(), 17.5), duration:350, essential:false, offset: camOffset });
+    map.easeTo({ center:[pos.lng, pos.lat], bearing: _useBr, pitch:60, zoom: Math.max(map.getZoom(), 17.5), duration:350, essential:false, offset: camOffset });
   }catch(e){}
 }
 window.startNavigationMode = function(){
@@ -3912,7 +3926,8 @@ try{
       if(m.attributeName==='class'){
         const isNav = document.body.classList.contains('navigating');
         if(isNav && !isNavigating){
-          setTimeout(autoFirstPerson, 300);
+          // [FIX] Chi auto first-person khi moi bat dau dan duong, khong reset khi user dang o free
+          if(navFollowMode !== 'free') setTimeout(autoFirstPerson, 300);
         } else if(!isNav && isNavigating){
           isNavigating = false;
           if(navMinimap){ try{ navMinimap.remove(); }catch(e){} navMinimap=null; navMinimapMap=null; }
@@ -4468,7 +4483,7 @@ try{
       body.google-nav .floating-search.show-in-nav{ display:none !important; } /* [BAT BUOC] Dang dan duong: khoa search - khong hien overlay nua */
       body.google-nav #gNavSearchBtn{ opacity:0.4 !important; filter:grayscale(1) !important; }
       body.google-nav #suggestionsBox{ z-index:1210 !important; }
-      body.google-nav #suggestionsBox.show{ display:block !important; }
+      body.google-nav #suggestionsBox.show{ display:none !important; } /* [FIX] Dang dan duong: khoa search - khong hien goi y */
       body.google-nav #hudTopRemain, body.google-nav #hudEndTripBtn { display:none !important; }
       /* Banner tren - xanh dam kieu Google */
       #gNavTopBanner{ position:fixed !important; top:calc(12px + env(safe-area-inset-top, 0px)) !important; left:12px !important; right:12px !important; z-index:800 !important; background:#0F766E !important; background:linear-gradient(180deg,#0F766E,#0B5E55) !important; color:#fff !important; border-radius:16px !important; padding:14px 16px !important; display:none; align-items:center; gap:14px; box-shadow:0 6px 20px rgba(0,0,0,0.28) !important; }
@@ -4630,6 +4645,145 @@ try{
     document.head.appendChild(st);
   })();
 
+  // --- FIX: Nut tim kiem phai hien kinh lup, khong phai X ---
+  (function fixSearchIcon(){
+    if(document.getElementById('searchIconFix')) return;
+    const st = document.createElement('style');
+    st.id = 'searchIconFix';
+    st.textContent = `
+      /* Nut tim kiem trong Google Nav: luon la kinh lup, khong phai X */
+      #gNavSearchBtn{ color:#3C4043 !important; }
+      #gNavSearchBtn svg{ display:block !important; }
+      /* Nut X chi dung de xoa chu trong o tim kiem, khong dung lam nut tim kiem */
+      #searchClearBtn{ display:none; }
+      #searchClearBtn:not(.hidden){ display:flex !important; }
+      /* O tim kiem tren: icon trai luon la kinh lup */
+      .floating-search .search-icon, .floating-search .fa-search{ display:flex !important; }
+    `;
+    document.head.appendChild(st);
+    const LUP = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>';
+    const fixBtn = ()=>{
+      try{
+        const b = document.getElementById('gNavSearchBtn');
+        if(b){
+          const html = (b.innerHTML||'').trim();
+          // Neu nut dang la X (✕ / ×) hoac trong rong (nut trang) thi tra ve kinh lup
+          if(html === '✕' || html === '×' || html === 'X' || html === '' || html.includes('✕') && !html.includes('circle')){
+            b.innerHTML = LUP;
+            b.title = 'Tìm kiếm';
+          }
+          // Dam bao SVG kinh lup luon co
+          if(!b.innerHTML.includes('circle')) b.innerHTML = LUP;
+        }
+        // Nut X trong o tim kiem: chi hien khi co chu, khong hien khi o trong
+        const inp = document.getElementById('topSearchInput');
+        const clr = document.getElementById('searchClearBtn');
+        if(inp && clr){
+          if(!inp.value || !inp.value.trim()) clr.classList.add('hidden');
+        }
+      }catch(e){}
+    };
+    fixBtn(); setTimeout(fixBtn, 800); setTimeout(fixBtn, 2000);
+    try{ new MutationObserver(fixBtn).observe(document.body, { childList:true, subtree:true, attributes:true }); }catch(e){}
+    window.fixSearchIcon = fixBtn;
+  })();
+
+  // --- FINAL: An search khi dang dan duong - chay sau tat ca, uu tien cao nhat ---
+  (function hideSearchInNavFinal(){
+    if(document.getElementById('hideSearchInNavFinal')) return;
+    const st = document.createElement('style');
+    st.id = 'hideSearchInNavFinal';
+    st.textContent = `body.google-nav .floating-search, body.google-nav #searchBar, body.google-nav .search-bar, body.google-nav #suggestionsBox.show{ display:none !important; } body.google-nav .floating-search.show-in-nav{ display:none !important; }`;
+    document.head.appendChild(st);
+    const hide = ()=>{ if(document.body.classList.contains('google-nav')){ const fs=document.querySelector('.floating-search'); if(fs){ fs.classList.remove('show-in-nav'); fs.style.display='none'; } const sb=document.getElementById('suggestionsBox'); if(sb) sb.classList.remove('show'); } };
+    hide(); setTimeout(hide, 500); setTimeout(hide, 1500);
+    try{ new MutationObserver(hide).observe(document.body, { attributes:true, attributeFilter:['class'] }); }catch(e){}
+    // Khi bat dau dan duong Google thi an search ngay
+    try{ const _origAct = window.activateGoogleNav; }catch(e){}
+  })();
+
+  // --- MINIMAP KHUNG NHO KEO THA TU DO: boc minimap vao khung, keo khung = di chuyen minimap ---
+  (function minimapFrameDrag(){
+    if(window._minimapFrameBound) return; window._minimapFrameBound = true;
+    function injectFrameCSS(){
+      if(document.getElementById('minimapFrameStyle')) return;
+      const st = document.createElement('style');
+      st.id = 'minimapFrameStyle';
+      st.textContent = `
+        #navMinimapFrame{
+          position:fixed !important; z-index:997 !important;
+          width:124px !important; height:96px !important;
+          right:12px !important; bottom:calc(198px + env(safe-area-inset-bottom, 0px)) !important; left:auto !important; top:auto !important;
+          background:#fff !important; border:2px solid #fff !important; border-radius:12px !important;
+          box-shadow:0 6px 18px rgba(0,0,0,0.30) !important; overflow:hidden !important;
+          display:flex !important; flex-direction:column !important;
+        }
+        #navMinimapFrame .mm-head{
+          height:20px !important; flex-shrink:0 !important; display:flex !important; align-items:center !important;
+          gap:4px !important; padding:0 4px 0 6px !important; background:#fff !important;
+          cursor:grab !important; touch-action:none !important; user-select:none !important; -webkit-user-select:none !important;
+        }
+        #navMinimapFrame .mm-head:active{ cursor:grabbing !important; }
+        #navMinimapFrame .mm-grip{ font-size:11px !important; color:#9AA0A6 !important; letter-spacing:1px !important; flex:1 !important; }
+        #navMinimapFrame .mm-close{
+          width:18px !important; height:18px !important; min-width:18px !important; border-radius:999px !important;
+          border:0 !important; background:#F1F3F4 !important; color:#3C4043 !important; font-size:11px !important;
+          display:flex !important; align-items:center !important; justify-content:center !important; cursor:pointer !important; padding:0 !important;
+        }
+        #navMinimapFrame #navMinimap{
+          position:relative !important; left:auto !important; right:auto !important; top:auto !important; bottom:auto !important;
+          width:100% !important; height:100% !important; flex:1 !important; border:0 !important; border-radius:0 !important; box-shadow:none !important;
+        }
+        @media (max-width: 640px){
+          #navMinimapFrame{ width:110px !important; height:84px !important; right:10px !important; bottom:calc(186px + env(safe-area-inset-bottom, 0px)) !important; border-radius:11px !important; }
+          #navMinimapFrame .mm-head{ height:18px !important; }
+        }
+        /* Google Nav: minimap van hien trong khung nho, khong bi xoa */
+        body.google-nav #navMinimapFrame{ display:flex !important; }
+      `;
+      document.head.appendChild(st);
+    }
+    function wrapMinimap(){
+      try{
+        injectFrameCSS();
+        const mm = document.getElementById('navMinimap');
+        if(!mm) return;
+        // Da boc roi thi thoi
+        if(mm.parentElement && mm.parentElement.id === 'navMinimapFrame') return;
+        // Xoa label / nut Keo cu neu con
+        try{ mm.querySelectorAll('div, button').forEach(d=>{ const txt=(d.textContent||'').trim(); if(txt.includes('Minimap') || txt.includes('Kéo') || txt.includes('kéo') || d.id==='minimapDragHandle' || d.id==='minimapCloseBtn' || d.id==='minimapLabel') d.remove(); }); }catch(e){}
+        const frame = document.createElement('div');
+        frame.id = 'navMinimapFrame';
+        // Lay vi tri cu cua minimap de giu nguyen cho
+        try{ const r = mm.getBoundingClientRect(); if(r && r.width > 0){ frame.style.right = 'auto'; frame.style.left = r.left + 'px'; frame.style.top = r.top + 'px'; frame.style.bottom = 'auto'; } }catch(e){}
+        const head = document.createElement('div');
+        head.className = 'mm-head';
+        head.innerHTML = '<span class="mm-grip">⠿⠿</span><button class="mm-close" title="Ẩn minimap">✕</button>';
+        head.querySelector('.mm-close').onclick = (e)=>{ e.stopPropagation(); frame.style.display='none'; try{ window._minimapHidden = true; }catch(_){} };
+        mm.parentNode.insertBefore(frame, mm);
+        frame.appendChild(head);
+        frame.appendChild(mm);
+        // Reset style cu cua minimap de no fill khung
+        mm.style.cssText = 'position:relative; width:100%; height:100%; flex:1; border:0; border-radius:0; box-shadow:none; background:#e5e7eb; overflow:hidden;';
+        // Keo khung: pointer events tren head
+        let sx=0, sy=0, sl=0, stp=0, dragging=false;
+        const onDown = (e)=>{ dragging=true; sx=e.clientX; sy=e.clientY; const rr=frame.getBoundingClientRect(); sl=rr.left; stp=rr.top; frame.style.right='auto'; frame.style.bottom='auto'; frame.style.left=sl+'px'; frame.style.top=stp+'px'; try{ head.setPointerCapture(e.pointerId); }catch(_){} };
+        const onMove = (e)=>{ if(!dragging) return; const nx=Math.max(4, Math.min(window.innerWidth - frame.offsetWidth - 4, sl + (e.clientX - sx))); const ny=Math.max(4, Math.min(window.innerHeight - frame.offsetHeight - 4, stp + (e.clientY - sy))); frame.style.left=nx+'px'; frame.style.top=ny+'px'; };
+        const onUp = ()=>{ dragging=false; };
+        head.addEventListener('pointerdown', onDown);
+        head.addEventListener('pointermove', onMove);
+        head.addEventListener('pointerup', onUp);
+        head.addEventListener('pointercancel', onUp);
+      }catch(e){}
+    }
+    // Chay khi minimap xuat hien + theo doi DOM
+    wrapMinimap(); setTimeout(wrapMinimap, 800); setTimeout(wrapMinimap, 2000); setTimeout(wrapMinimap, 4000);
+    try{ new MutationObserver(()=>{ wrapMinimap(); }).observe(document.body, { childList:true, subtree:true }); }catch(e){}
+    window.wrapMinimapFrame = wrapMinimap;
+    // Cho phep hien lai minimap khi bi an: bam vao nut minimap (neu co) thi hien khung lai
+    window.showMinimapFrame = function(){ const f=document.getElementById('navMinimapFrame'); if(f) f.style.display='flex'; window._minimapHidden=false; };
+  })();
+
   // --- FIX MINIMAP: bo chu che map + an label cu neu con ---
   (function fixMinimapLabel(){
     if(document.getElementById('minimapNoLabelStyle')) return;
@@ -4688,8 +4842,9 @@ try{
       const st = document.createElement('style');
       st.id = 'topBarFix20261122';
       st.textContent = `
-        /* Top bar: 1 hang duy nhat, khong de nut nao de len nhau */
-        .floating-search{
+        /* Top bar: 1 hang duy nhat, khong de nut nao de len nhau - NHUNG khi dang dan duong thi AN HAN */
+        body.google-nav .floating-search{ display:none !important; }
+        body:not(.google-nav) .floating-search{
           display:flex !important; align-items:center !important; gap:8px !important;
           flex-wrap:nowrap !important; box-sizing:border-box !important;
           left:12px !important; right:12px !important; width:auto !important;
@@ -4734,6 +4889,8 @@ try{
     function fixOnce(){
       try{
         injectTopBarCSS();
+        // Dang dan duong Google: KHONG hien search, KHONG chuyen nut vao search
+        if(document.body.classList.contains('google-nav')){ const fs0 = document.querySelector('.floating-search'); if(fs0){ fs0.classList.remove('show-in-nav'); fs0.style.display='none'; } return; }
         const search = document.querySelector('.floating-search');
         if(!search) return;
         // Neu nut menu dang o NGOAI thanh tim kiem -> chuyen vao trong, de cuoi hang
@@ -5249,18 +5406,17 @@ try{
     document.body.classList.add('navigating');
     isNavigating = true;
     navFollowMode = 'first-person';
-    // Xoa minimap + panel cu (kieu anh 1)
+    // [FIX] Google Nav KHONG xoa minimap - de no hien trong khung nho keo duoc, chi an panel cu
     try{
-      const mm = document.getElementById('navMinimap'); if(mm) mm.style.display = 'none';
-      if(navMinimapMap){ try{ navMinimapMap.remove(); }catch(e){} navMinimapMap = null; }
-      if(navMinimap){ try{ navMinimap.remove(); }catch(e){} navMinimap = null; }
       const nc = document.getElementById('navControls'); if(nc) nc.style.display = 'none';
-      navMinimapVisible = false;
+      // Dam bao minimap duoc boc vao khung nho keo duoc
+      if(typeof window.wrapMinimapFrame === 'function') setTimeout(()=>window.wrapMinimapFrame(), 300);
     }catch(e){}
     // Xoa style an banner cu (V3) de khong anh huong banner moi
     try{ const hs = document.getElementById('hideTopTurnStyle'); if(hs) hs.remove(); }catch(e){}
     showGoogleNavUI();
-    hideRecenterBtn();
+    // [FIX] Recenter luon hien khi dang dan duong de user luon bam duoc ve GPS + doc duong, khong bi ket o goc tu do
+    try{ const _rb = document.getElementById('gNavRecenterBtn'); if(_rb) _rb.classList.add('show'); }catch(e){}
     if(lastUserPos) updateNavCamera(lastUserPos, lastUserPos.heading || 0);
     else if(currentRouteCoords && currentRouteCoords.length){ try{ map.easeTo({ center:[currentRouteCoords[0][1], currentRouteCoords[0][0]], pitch:55, zoom:17.5, offset:[0,110], duration:700 }); }catch(e){} }
     try{ updateGoogleNavBanner(); updateRemainingHUD(); }catch(e){}
@@ -5268,6 +5424,13 @@ try{
     try{
       if(map && !map._googleDragBound){
         map._googleDragBound = true;
+        // [FIX] Bat cu thao tac tu do nao (keo, xoay 2 ngon, nghien, zoom) deu -> free, khong giat camera lai
+        try{
+          const _toFree = ()=>{ if(isNavigating){ navFollowMode = 'free'; const _rb2 = document.getElementById('gNavRecenterBtn'); if(_rb2) _rb2.classList.add('show'); } };
+          map.on('rotatestart', _toFree);
+          map.on('pitchstart', _toFree);
+          map.on('zoomstart', _toFree);
+        }catch(e){}
         // Keo map -> danh dau dang keo, chuyen sang free de camera khong giat lai
   // (ca khi dang dan duong Google lan dan duong thuong)
   map.on('dragstart', ()=>{ _isUserDraggingMap = true; try{ if(map) map.stop(); }catch(e){} if(typeof isNavigating !== 'undefined' && isNavigating){ navFollowMode = 'free'; } if(document.body.classList.contains('google-nav')){ navFollowMode = 'free'; showRecenterBtn(); } });
@@ -5284,8 +5447,28 @@ try{
     document.body.classList.remove('google-nav');
     document.body.classList.remove('navigating');
     isNavigating = false;
+    // [FIX] Thoat han che do follow - de map khong bi giat lai ve goc dan duong
+    try{ navFollowMode = 'free'; _isUserDraggingMap = false; }catch(e){}
     hideGoogleNavUI();
-    try{ if(map) map.easeTo({ pitch:0, bearing:0, offset:[0,0], duration:600 }); }catch(e){}
+    // [FIX] Tra map ve 2D hoan toan: pitch 0, bearing 0 (Bac len tren), zoom ve muc binh thuong, giu center hien tai
+    try{
+      if(map){
+        const c = map.getCenter();
+        const curZ = map.getZoom();
+        map.stop();
+        map.easeTo({ center:[c.lng, c.lat], pitch:0, bearing:0, zoom: Math.min(curZ, 15), offset:[0,0], duration:600, essential:true });
+      }
+    }catch(e){}
+    // [FIX] Tra lai nut binh thuong (FAB trai/phai) - updateUIState bi bo quen nen nut bien mat sau search / sau thoat tuyen
+    try{ if(typeof updateUIState === 'function') updateUIState(); }catch(e){}
+    try{
+      // Ep hien lai cac FAB binh thuong neu updateUIState khong hien (do suggestionsBox con show)
+      const sb = document.getElementById('suggestionsBox'); if(sb) sb.classList.remove('show');
+      const ids = ['mainLocateBtn','mainDirBtn','btnLayerMenu','btnQuickPin','btnReport','btnRestStopFilter','btnNearbySearch'];
+      ids.forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='flex'; });
+      const searchBar = document.getElementById('searchBar'); if(searchBar) searchBar.classList.remove('hidden');
+      const menuBtn = document.getElementById('mainMenuBtn'); if(menuBtn) menuBtn.classList.remove('hidden');
+    }catch(e){}
     // Tra lai vong tron xanh la + duong cu
     try{
       if(map.getLayer('gps-circle-layer')) map.setPaintProperty('gps-circle-layer', 'fill-color', '#10b981');
@@ -5435,6 +5618,9 @@ try{
   function ensureMinimapControls(){
     const mm = document.getElementById('navMinimap');
     if(!mm) return;
+    // [FIX] Bo nut Keo / X cu trong minimap - gio dung khung nho ben ngoai de keo, khong de nut Keo che map
+    try{ const _oldK = document.getElementById('minimapDragHandle'); if(_oldK) _oldK.remove(); const _oldX = document.getElementById('minimapCloseBtn'); if(_oldX) _oldX.remove(); const _oldL = document.getElementById('minimapLabel'); if(_oldL) _oldL.remove(); }catch(e){}
+    if(typeof window.wrapMinimapFrame === 'function'){ try{ window.wrapMinimapFrame(); }catch(e){} return; }
     // Cho phep tuong tac (patch cu de pointer-events:none nen khong bam duoc X)
     mm.style.pointerEvents = 'auto';
     mm.style.touchAction = 'none';
@@ -6373,3 +6559,62 @@ try{
     if(sb){ sb.style.opacity = '0.4'; sb.style.filter = 'grayscale(1)'; }
   }catch(e){}
 })();
+
+
+/* ============================================================
+   [GUARD CUOI FILE - 2026-11-21] Chot luong logic, chong loop + chong giat camera
+   - Chi 1 nguon su that cho thoat tuyen: stopNavigationMode = deactivateGoogleNav
+   - updateNavCamera chi chay khi first-person, khong chay khi free
+   - Observer khong tu bat lai Google Nav sau khi thoat
+   ============================================================ */
+(function finalLogicGuard(){
+  try{
+    // 1. stopNavigationMode duy nhat: ve 2D + tra nut + tra search, khong goi lai nhau
+    const _finalStop = function(){
+      if(window._isStoppingNav) return; window._isStoppingNav = true;
+      try{
+        document.body.classList.remove('google-nav');
+        document.body.classList.remove('navigating');
+        isNavigating = false;
+        try{ navFollowMode = 'free'; _isUserDraggingMap = false; }catch(e){}
+        try{ if(typeof hideGoogleNavUI === 'function') hideGoogleNavUI(); }catch(e){}
+        try{
+          if(map){
+            map.stop();
+            const c = map.getCenter();
+            const curZ = map.getZoom();
+            map.easeTo({ center:[c.lng, c.lat], pitch:0, bearing:0, zoom: Math.min(curZ, 15), offset:[0,0], duration:600, essential:true });
+          }
+        }catch(e){}
+        try{ const sb = document.getElementById('suggestionsBox'); if(sb) sb.classList.remove('show'); }catch(e){}
+        try{ if(typeof updateUIState === 'function') updateUIState(); }catch(e){}
+        try{
+          const ids = ['mainLocateBtn','mainDirBtn','btnLayerMenu','btnQuickPin','btnReport','btnRestStopFilter','btnNearbySearch'];
+          ids.forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='flex'; });
+          const sBar = document.getElementById('searchBar'); if(sBar) sBar.classList.remove('hidden');
+          const mBtn = document.getElementById('mainMenuBtn'); if(mBtn) mBtn.classList.remove('hidden');
+        }catch(e){}
+        try{ if(whiteArrowMarker){ whiteArrowMarker.remove(); whiteArrowMarker=null; } }catch(e){}
+        try{ if(whiteArrowAheadMarker){ whiteArrowAheadMarker.remove(); whiteArrowAheadMarker=null; } }catch(e){}
+        try{ if(map && map.getLayer('current-route-casing')) map.removeLayer('current-route-casing'); }catch(e){}
+      }finally{ setTimeout(()=>{ window._isStoppingNav = false; }, 500); }
+    };
+    window.stopNavigationMode = _finalStop;
+    // 2. endTrip cu bi ghi de o tren nhung van con flyTo sau easeTo gay giat - dam bao endTrip moi khong flyTo rieng
+    // (endTrip moi o 6206 da dung _finalStop, giu nguyen)
+    // 3. Chan updateNavCamera khi free o moi noi goi: wrap lai 1 lan duy nhat
+    if(typeof updateNavCamera === 'function' && !window._camGuarded){
+      window._camGuarded = true;
+      const _origCam = updateNavCamera;
+      updateNavCamera = function(pos, heading){
+        try{ if(typeof navFollowMode !== 'undefined' && navFollowMode !== 'first-person') return; }catch(e){}
+        try{ if(_isUserDraggingMap) return; }catch(e){}
+        try{ if(!isNavigating && !document.body.classList.contains('google-nav')) return; }catch(e){}
+        return _origCam(pos, heading);
+      };
+    }
+    // 4. Nut tim kiem: luon la kinh lup, khong bao gio la X
+    if(typeof window.fixSearchIcon === 'function') setTimeout(()=>window.fixSearchIcon(), 300);
+  }catch(e){ console.warn('finalLogicGuard fail', e); }
+})();
+
