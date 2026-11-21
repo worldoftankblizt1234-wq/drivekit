@@ -7839,3 +7839,154 @@ try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v9 TOPDOWN + FREE + IMMEDIATE-B
   console.log('[DriveKit] Manual route switch DISABLED - auto reroute only');
 })();
 
+
+/* ============================================================
+   [FIX MAT NUT + THANH TRUOT - 2026-11-21] Theo anh hinh user gui:
+   - Panel chi duong (Vi tri cua toi -> Maxidi) dang MAT nut "Bat dau dan duong" o duoi cung
+     -> Ly do: nut cu nam trong #routeOptionsModal bi an display:none !important o block bo doi tay
+        + 1 so CSS fixNavOverlap an nut. Gio tao nut moi RIENG, nam NGOAI modal, luon hien.
+   - Hang "SO CHO NGOI" dang la 10 nut 3-12+ chat, kho bam tren mobile
+     -> Doi thanh THANH TRUOT (range slider) 2-16 cho, keo la doi, hien so ngay ben canh.
+   ============================================================ */
+(function fixMissingStartBtnAndSeatSlider(){
+  // --- CSS ---
+  try{
+    if(!document.getElementById('seatSliderStyle')){
+      const st = document.createElement('style');
+      st.id = 'seatSliderStyle';
+      st.textContent = `
+        #drivekitStartNavBtn{ display:flex !important; align-items:center; justify-content:center; gap:8px; width:100%; margin:12px 0 4px 0; padding:14px 16px; background:#2563eb; color:#fff; border:0; border-radius:14px; font-size:16px; font-weight:800; cursor:pointer; box-shadow:0 6px 20px rgba(37,99,235,.4); }
+        #drivekitStartNavBtn:active{ transform:scale(.98); }
+        #drivekitStartNavBtn:disabled{ background:#475569; box-shadow:none; opacity:.7; }
+        .seat-slider-wrap{ display:flex; align-items:center; gap:12px; padding:10px 4px 6px 4px; }
+        .seat-slider-wrap .seat-label{ min-width:72px; text-align:center; background:#2563eb; color:#fff; font-weight:800; font-size:14px; padding:6px 10px; border-radius:999px; }
+        #seatSlider, #axleSlider{ -webkit-appearance:none; appearance:none; flex:1; height:8px; border-radius:999px; background:linear-gradient(to right, #2563eb 0%, #2563eb 50%, #1e293b 50%, #1e293b 100%); outline:none; cursor:pointer; }
+        #seatSlider::-webkit-slider-thumb, #axleSlider::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:26px; height:26px; border-radius:50%; background:#fff; border:4px solid #2563eb; box-shadow:0 2px 8px rgba(0,0,0,.4); }
+        #seatSlider::-moz-range-thumb, #axleSlider::-moz-range-thumb{ width:26px; height:26px; border-radius:50%; background:#fff; border:4px solid #2563eb; }
+        .seat-slider-ticks{ display:flex; justify-content:space-between; font-size:11px; color:#94a3b8; padding:0 4px; }
+      `;
+      document.head.appendChild(st);
+    }
+  }catch(e){}
+
+  function getSeats(){ try{ return (typeof userVehicleSpecs!=='undefined' && userVehicleSpecs.seats) || (typeof currentCarSeats!=='undefined' ? currentCarSeats : 5); }catch(e){ return 5; } }
+  function getAxles(){ try{ return (typeof userVehicleSpecs!=='undefined' && userVehicleSpecs.axles) || (typeof currentTruckAxles!=='undefined' ? currentTruckAxles : 2); }catch(e){ return 2; } }
+
+  // --- 1. THANH TRUOT SO CHO NGOI ---
+  function convertSeatsToSlider(){
+    const box = document.getElementById('carSeatsSelector');
+    if(!box) return;
+    if(box.dataset.sliderDone === '1') return;
+    // Chi doi khi box dang chua cac nut cu (co .sub-option-btn), khong doi neu da la slider
+    if(!box.querySelector('.sub-option-btn') && !box.querySelector('button')) return;
+    const cur = getSeats();
+    box.dataset.sliderDone = '1';
+    box.innerHTML = `
+      <div class="seat-slider-wrap">
+        <span style="font-size:13px;color:#94a3b8;">Ít</span>
+        <input type="range" id="seatSlider" min="2" max="16" step="1" value="${cur}">
+        <span style="font-size:13px;color:#94a3b8;">Nhiều</span>
+        <span class="seat-label" id="seatSliderVal">${cur >= 12 ? '12+ chỗ' : cur + ' chỗ'}</span>
+      </div>
+      <div class="seat-slider-ticks"><span>2</span><span>5</span><span>9</span><span>12+</span><span>16</span></div>
+    `;
+    const slider = document.getElementById('seatSlider');
+    const label = document.getElementById('seatSliderVal');
+    if(!slider) return;
+    function paint(){
+      const min = +slider.min, max = +slider.max, v = +slider.value;
+      const pct = ((v - min) / (max - min)) * 100;
+      slider.style.background = `linear-gradient(to right, #2563eb 0%, #2563eb ${pct}%, #1e293b ${pct}%, #1e293b 100%)`;
+      if(label) label.textContent = v >= 12 ? '12+ chỗ' : v + ' chỗ';
+    }
+    slider.addEventListener('input', ()=>{
+      const v = +slider.value;
+      try{ if(typeof currentCarSeats!=='undefined') currentCarSeats = v; }catch(e){}
+      try{ if(typeof userVehicleSpecs!=='undefined') userVehicleSpecs.seats = v; }catch(e){}
+      paint();
+    });
+    slider.addEventListener('change', ()=>{
+      try{ if(typeof refreshRouteOptionsIfOpen==='function') refreshRouteOptionsIfOpen(); }catch(e){}
+      try{ if(typeof showCustomToast==='function') showCustomToast('Đã đổi: ' + (+slider.value >= 12 ? '12+ chỗ' : slider.value + ' chỗ'), 'info'); }catch(e){}
+    });
+    paint();
+  }
+
+  // Neu user bam nut cu setCarSeats (o cho khac) thi dong bo slider theo
+  try{
+    const _origSetSeats = window.setCarSeats;
+    window.setCarSeats = function(n, btn){
+      try{ if(typeof _origSetSeats==='function') _origSetSeats(n, btn); }catch(e){}
+      const s = document.getElementById('seatSlider');
+      if(s){ s.value = n; s.dispatchEvent(new Event('input')); }
+    };
+  }catch(e){}
+
+  // --- 2. KHOI PHUC NUT BAT DAU (nam ngoai modal, luon hien) ---
+  function ensureStartBtn(){
+    // Tim panel chi duong: cha cua carSeatsSelector hoac chua dirInputEnd
+    const seatsBox = document.getElementById('carSeatsSelector');
+    const dirEnd = document.getElementById('dirInputEnd');
+    let panel = null;
+    if(seatsBox) panel = seatsBox.parentElement;
+    if(!panel && dirEnd) panel = dirEnd.closest('div');
+    if(!panel) return;
+    let btn = document.getElementById('drivekitStartNavBtn');
+    if(btn){
+      // Neu nut bi an boi CSS cu thi ep hien lai
+      if(btn.style.display === 'none') btn.style.display = 'flex';
+      btn.disabled = false;
+      return;
+    }
+    btn = document.createElement('button');
+    btn.id = 'drivekitStartNavBtn';
+    btn.type = 'button';
+    btn.innerHTML = '▶ Bắt đầu dẫn đường';
+    btn.onclick = (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      // Lay endPoint tu bien hoac tu o input neu chua co
+      try{
+        if((typeof endPoint==='undefined' || !endPoint) && typeof window.fetchAndShowRouteOptions==='function'){
+          // Thu geocode text trong o dich neu user chi go chu chua chon goi y
+          const txt = dirEnd ? dirEnd.value.trim() : '';
+          if(txt && typeof window.fetchAndShowRouteOptions==='function'){
+            if(typeof showCustomToast==='function') showCustomToast('Đang tìm tuyến tới ' + txt + '...', 'info');
+          }
+        }
+      }catch(err){}
+      if(typeof endPoint==='undefined' || !endPoint){
+        if(typeof showCustomToast==='function') showCustomToast('Chưa có điểm đến - hãy chọn điểm đến trước', 'warning');
+        else alert('Chưa có điểm đến');
+        return;
+      }
+      // Giong flow cu: fetch tuyen tot nhat roi bat HUD dan duong
+      try{
+        if(typeof window.fetchAndShowRouteOptions==='function') window.fetchAndShowRouteOptions().then(()=>{
+          setTimeout(()=>{ try{ if(typeof startNavigationHUD==='function') startNavigationHUD(); else if(typeof window.startNavigationMode==='function') window.startNavigationMode(); }catch(err){} }, 300);
+        }).catch(()=>{ try{ if(typeof startNavigationHUD==='function') startNavigationHUD(); }catch(err){} });
+        else if(typeof startNavigationHUD==='function') startNavigationHUD();
+      }catch(err){
+        try{ if(typeof startNavigationHUD==='function') startNavigationHUD(); }catch(e2){}
+      }
+    };
+    // Chen ngay sau carSeatsSelector (duoi hang So cho ngoi) - dung vi tri trong anh
+    if(seatsBox && seatsBox.parentElement === panel){
+      seatsBox.insertAdjacentElement('afterend', btn);
+    } else {
+      panel.appendChild(btn);
+    }
+  }
+
+  function tick(){
+    try{ convertSeatsToSlider(); }catch(e){}
+    try{ ensureStartBtn(); }catch(e){}
+  }
+  tick();
+  setInterval(tick, 1200);
+  // Khi doi loai xe (o to -> xe tai) thi reset sliderDone de no ve lai neu can
+  document.addEventListener('click', (e)=>{
+    const b = e.target && e.target.closest ? e.target.closest('.vehicle-mode-btn') : null;
+    if(b) setTimeout(tick, 200);
+  }, true);
+  console.log('[DriveKit] Start button + seat slider restored');
+})();
