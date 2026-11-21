@@ -803,7 +803,11 @@ window.selectRouteOption = function(index) {
   }
   if (!Array.isArray(r.legs) || r.legs.length === 0) r.legs = [{ steps: [] }];
   if (!r.legs[0].steps) r.legs[0].steps = [];
-  localStorage.setItem('alternativeRoutes', JSON.stringify(alternativeRoutesData.filter((_, i) => i !== index)));
+  const _othersSel = alternativeRoutesData.filter((_, i) => i !== index);
+  try{ localStorage.setItem('alternativeRoutes', JSON.stringify(_othersSel)); }catch(e){}
+  // [FIX] Dong bo RAM ngay de lan doi tuyen sau khong lech index
+  alternativeRoutesData = [r, ..._othersSel];
+  try{ arrivalHandled = false; }catch(e){}
   currentRouteData = r;
   currentRouteCoords = r.geometry.coordinates;
   clearRouteOptionLayers();
@@ -1496,11 +1500,13 @@ function drawCurrentRoute() {
   }catch(e){}
   try{ if(typeof searchResultMarkers!=='undefined' && searchResultMarkers){ searchResultMarkers.forEach(m=>{ try{m.remove();}catch(_){} }); searchResultMarkers=[]; } }catch(e){}
   try{ if(typeof touchMarker!=='undefined' && touchMarker){ try{ if(typeof closePopupSmoothly==='function') closePopupSmoothly(touchMarker); else touchMarker.remove(); }catch(_){} touchMarker=null; } }catch(e){}
-  try{ if(typeof navFollowMode!=='undefined') navFollowMode='free'; }catch(e){}
-  try{ if(typeof isNavigating!=='undefined') isNavigating=false; }catch(e){}
+  // [FIX DOI TUYEN LAN 3] Khong reset isNavigating/navFollowMode o day - ham nay chi ve duong, khong phai thoat chi duong.
+  // Truoc day moi lan ve lai no set isNavigating=false -> camera + HUD lech, lan 3 tu ngat.
   try{ if(typeof _lastCamAt!=='undefined') _lastCamAt=0; }catch(e){}
-  if (map.getLayer('current-route-layer')) map.removeLayer('current-route-layer');
-  if (map.getSource('current-route-source')) map.removeSource('current-route-source');
+  // [FIX CASING] Xoa lop vien trang truoc khi xoa source, neu khong MapLibre bao 'source in use' -> lan 3 ve do, duong xanh mat trang nhu video.
+  try{ if(map && map.getLayer('current-route-casing')) map.removeLayer('current-route-casing'); }catch(e){}
+  try{ if(map && map.getLayer('current-route-layer')) map.removeLayer('current-route-layer'); }catch(e){}
+  try{ if(map && map.getSource('current-route-source')) map.removeSource('current-route-source'); }catch(e){}
   if (!currentRouteCoords || currentRouteCoords.length === 0) return;
   map.addSource('current-route-source', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: currentRouteCoords.map(c => [c[1], c[0]]) } } });
   map.addLayer({ id: 'current-route-layer', type: 'line', source: 'current-route-source', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#3b82f6', 'line-width': 8 } });
@@ -3232,9 +3238,15 @@ window.switchToRoute = function(index) {
   if (!selectedRoute.legs || !Array.isArray(selectedRoute.legs) || selectedRoute.legs.length === 0) selectedRoute.legs = [{ steps: [] }];
   if (!selectedRoute.legs[0].steps) selectedRoute.legs[0].steps = [];
   const otherRoutes = alternativeRoutesData.filter((_, i) => i !== index);
-  localStorage.setItem('alternativeRoutes', JSON.stringify(otherRoutes));
+  // [FIX DOI TUYEN LAN 3] Cap nhat RAM ngay - truoc day chi luu localStorage, RAM van giu mang cu
+  // -> mo lan 1,2 tu va lai duoc, mo lan 3 index lech, bam khong doi tuyen.
+  alternativeRoutesData = [selectedRoute, ...otherRoutes];
+  try{ localStorage.setItem('alternativeRoutes', JSON.stringify(otherRoutes)); }catch(e){}
   currentRouteData = selectedRoute;
   currentRouteCoords = selectedRoute.geometry.coordinates;
+  // [FIX ARRIVAL] Doi tuyen la chuyen moi - reset de khong tu nhay 'Ket thuc chuyen di?' sau 3s nhu video giay 16.
+  try{ arrivalHandled = false; }catch(e){}
+  try{ tripStartTime = Date.now(); }catch(e){}
   voiceRouteSteps = selectedRoute.legs[0].steps;
   // [FIX DOI TUYEN 2026-11-21] Reset dung - khong de voiceStepIndex=0 lam mui ten nhay ve diem dau
   // Tim step gan user nhat de lam step ke tiep, thay vi luon 0
@@ -3857,12 +3869,18 @@ window.openAlternativeRoutes = function(){
         if(Array.isArray(parsed)) parsed.forEach(r=>{ if(r && !routes.includes(r)) routes.push(r); });
       }
     }catch(e){}
-    // De-duplicate theo distance + geometry length
+    // [FIX DOI TUYEN LAN 3] Bo dedup yeu theo distance+duration+coords.length.
+    // Tuyen ngan 0.1-0.2km trong video co cung distance/duration/coords.length -> bi xoa nham, con 1-2 tuyen, bam index 2 la sai.
+    // Chi dedup khi dung la 1 object hoac geometry giong het nhau (hash toan bo toa do dau-cuoi).
     const seen = new Set();
     routes = routes.filter(r=>{
-      const k = (r.distance||0)+'_'+(r.duration||0)+'_'+((r.geometry&&r.geometry.coordinates&&r.geometry.coordinates.length)||0);
+      if(!r || !r.geometry || !r.geometry.coordinates) return false;
+      const c = r.geometry.coordinates;
+      const k = c.length + '_' + (c[0]||'') + '_' + (c[Math.floor(c.length/2)]||'') + '_' + (c[c.length-1]||'') + '_' + (r.distance||0);
       if(seen.has(k)) return false; seen.add(k); return true;
     });
+    // Dam bao tuyen hien tai luon dung dau, cac tuyen con lai giu dung thu tu
+    routes.sort((a,b)=> (a===currentRouteData ? -1 : b===currentRouteData ? 1 : 0));
     if(routes.length===0){
       if(typeof showCustomToast==='function') showCustomToast('Chưa có tuyến đường nào. Hãy chọn điểm đến trước.', 'warning');
       else alert('Chưa có tuyến đường nào. Hãy chọn điểm đến trước.');
