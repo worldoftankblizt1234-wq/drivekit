@@ -707,9 +707,26 @@ window.closeRouteOptions = function() {
 
 function clearRouteOptionLayers() {
   if (map) {
-    for (let i = 0; i < routeOptionCount; i++) {
-      if (map.getLayer('route-opt-layer-' + i)) map.removeLayer('route-opt-layer-' + i);
-      if (map.getSource('route-opt-src-' + i)) map.removeSource('route-opt-src-' + i);
+    // [FIX 2 DUONG XANH] Xoa theo quet style, khong phu thuoc routeOptionCount
+    try{
+      const st = map.getStyle();
+      const layers = (st && st.layers) ? [...st.layers] : [];
+      layers.forEach(l=>{
+        const id = l && l.id || '';
+        if(id.startsWith('route-opt-') || id.startsWith('alt-route-') || id.startsWith('route-option-')){
+          try{ if(map.getLayer(id)) map.removeLayer(id); }catch(_){}
+        }
+      });
+      const srcs = (st && st.sources) ? Object.keys(st.sources) : [];
+      srcs.forEach(sid=>{
+        if(sid.startsWith('route-opt-') || sid.startsWith('alt-route-') || sid.startsWith('route-option-')){
+          try{ if(map.getSource(sid)) map.removeSource(sid); }catch(_){}
+        }
+      });
+    }catch(e){}
+    for (let i = 0; i < Math.max(routeOptionCount, 15); i++) {
+      try{ if (map.getLayer('route-opt-layer-' + i)) map.removeLayer('route-opt-layer-' + i); }catch(_){}
+      try{ if (map.getSource('route-opt-src-' + i)) map.removeSource('route-opt-src-' + i); }catch(_){}
     }
   }
   routeOptionCount = 0;
@@ -1486,13 +1503,36 @@ function createCircleGeoJSON(lng, lat, radiusInMeters) {
   return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ret] } };
 }
 function drawCurrentRoute() {
-  // [FIX THOAT CHI DUONG 2026-11-21] Xoa SACH: current + alt + route-opt + mui ten trang (ca marker) + ghim ket qua - truoc day sot lai duong xanh + ghim nhu anh 2
+  // [FIX 2 DUONG XANH - VIDEO 2] Xoa mui ten trang truoc
   try{ if(typeof whiteArrowMarker!=='undefined' && whiteArrowMarker){ whiteArrowMarker.remove(); whiteArrowMarker=null; } }catch(e){}
   try{ if(typeof whiteArrowAheadMarker!=='undefined' && whiteArrowAheadMarker){ whiteArrowAheadMarker.remove(); whiteArrowAheadMarker=null; } }catch(e){}
   try{ if(typeof clearRouteOptionLayers==='function') clearRouteOptionLayers(); }catch(e){}
+  // [FIX 2 DUONG XANH] Quet HET style de xoa moi layer/source tuyen cu, khong phu thuoc routeOptionCount (no ve 0 sau lan 1 nen lan sau khong xoa -> sot 2 duong xanh nhu video giay 5).
+  // Chi giu lai gps-circle, user-marker, signs, pois - con lai cu co chu 'route' la xoa.
+  try{
+    if(map && map.getStyle){
+      const st = map.getStyle();
+      const layers = (st && st.layers) ? [...st.layers] : [];
+      // Xoa layer truoc, source sau - de khong bi 'source in use'
+      layers.forEach(l=>{
+        const id = l && l.id || '';
+        if(!id) return;
+        const isRoute = id.includes('route') || id.includes('current-route') || id === 'current-route-casing';
+        if(isRoute){
+          try{ if(map.getLayer(id)) map.removeLayer(id); }catch(_){}
+        }
+      });
+      const srcs = (st && st.sources) ? Object.keys(st.sources) : [];
+      srcs.forEach(sid=>{
+        if(sid.includes('route') || sid === 'current-route-source'){
+          try{ if(map.getSource(sid)) map.removeSource(sid); }catch(_){}
+        }
+      });
+    }
+  }catch(e){}
   try{
     for(let i=0;i<15;i++){
-      ['current-route-layer','current-route-source','alt-route-layer-'+i,'alt-route-source-'+i,'route-opt-layer-'+i,'route-opt-source-'+i,'route-option-layer-'+i,'route-option-source-'+i].forEach(id=>{
+      ['current-route-layer','current-route-source','alt-route-layer-'+i,'alt-route-source-'+i,'route-opt-layer-'+i,'route-opt-source-'+i,'route-option-layer-'+i,'route-option-source-'+i,'current-route-casing'].forEach(id=>{
         try{ if(map && map.getLayer(id)) map.removeLayer(id); }catch(_){}
         try{ if(map && map.getSource(id)) map.removeSource(id); }catch(_){}
       });
@@ -3726,6 +3766,18 @@ function updateWhiteTurnArrow(){
   }
   const loc = nextStep.maneuver.location; // [lng, lat] theo Valhalla
   const turnLng = loc[0], turnLat = loc[1];
+  // [FIX MUI TEN TRANG DINH L] Neu cho re cach user <20m thi an mui ten, khong de no de len marker xanh thanh hinh chu L nhu video giay 16.
+  // Tuyen test 0.1km thi cho re nam ngay cho dung, khong can mui ten.
+  try{
+    if(lastUserPos && typeof calcDist === 'function'){
+      const dTurn = calcDist(lastUserPos.lat, lastUserPos.lng, turnLat, turnLng);
+      if(dTurn < 20){
+        if(whiteArrowMarker){ try{ whiteArrowMarker.remove(); }catch(_){} whiteArrowMarker = null; }
+        // Chi giu mui ten chay truoc (ahead) neu co, con mui ten cho re thi an
+        return;
+      }
+    }
+  }catch(e){}
   // Huong mui ten = huong duong sau cho re (doan tiep theo)
   let arrowBearing = 0;
   try{
