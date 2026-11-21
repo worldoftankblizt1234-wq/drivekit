@@ -973,30 +973,22 @@ function jsSafe(str) {
 }
 
 function translateFallback(text) {
-  if (!text) return '';
-  let t = String(text);
-  t = t.replace(/Bear left/gi, 'Chếch sang trái');
-  t = t.replace(/Bear right/gi, 'Chếch sang phải');
-  t = t.replace(/Make a U-turn/gi, 'Quay đầu');
-  t = t.replace(/Turn slight left/gi, 'Chếch sang trái');
-  t = t.replace(/Turn slight right/gi, 'Chếch sang phải');
-  t = t.replace(/Turn sharp left/gi, 'Rẽ ngoặt sang trái');
-  t = t.replace(/Turn sharp right/gi, 'Rẽ ngoặt sang phải');
-  t = t.replace(/Turn left/gi, 'Rẽ trái');
-  t = t.replace(/Turn right/gi, 'Rẽ phải');
-  t = t.replace(/Keep left/gi, 'Bám bên trái');
-  t = t.replace(/Keep right/gi, 'Bám bên phải');
-  t = t.replace(/Continue/gi, 'Tiếp tục');
-  t = t.replace(/Merge/gi, 'Nhập làn');
-  t = t.replace(/At the roundabout, take the (\d+)/gi, 'Tại vòng xuyến, đi lối ra thứ $1');
-  t = t.replace(/Take the roundabout/gi, 'Vào vòng xuyến');
-  t = t.replace(/You have arrived at your destination/gi, 'Bạn đã đến nơi');
-  t = t.replace(/You have arrived/gi, 'Bạn đã đến nơi');
-  t = t.replace(/ onto /gi, ' vào ');
-  t = t.replace(/ on /gi, ' trên ');
-  t = t.replace(/Start/gi, 'Bắt đầu');
-  t = t.replace(/Depart/gi, 'Khởi hành');
-  return t;
+  // DICH QUA dictionary.js - khong de ban dich cung trong app.js nua
+  try{
+    if(typeof window !== 'undefined' && window.DRIVEKIT_DICT && typeof window.DRIVEKIT_DICT.translate === 'function'){
+      return window.DRIVEKIT_DICT.translate(text);
+    }
+  }catch(e){}
+  // Fallback toi thieu neu dictionary.js chua load (de app khong vo)
+  if(!text) return '';
+  var s = String(text);
+  s = s.replace(/Your destination is on the right/gi, 'Điểm đến của bạn ở bên phải');
+  s = s.replace(/Your destination is on the left/gi, 'Điểm đến của bạn ở bên trái');
+  s = s.replace(/You have arrived/gi, 'Bạn đã đến nơi');
+  s = s.replace(/Turn left/gi, 'Rẽ trái');
+  s = s.replace(/Turn right/gi, 'Rẽ phải');
+  s = s.replace(/Continue/gi, 'Tiếp tục');
+  return s;
 }
 
 /* ========== LOADING & AUTH ========== */
@@ -3197,6 +3189,13 @@ window.endTrip = async function(save) {
   tripStartTime = null; arrivalHandled = false; warnedReports.clear(); warnedAvoidZones.clear(); warnedPois.clear();
   localStorage.removeItem('alternativeRoutes');
   document.body.classList.remove('navigating');
+  document.body.classList.remove('google-nav');
+  // Ket thuc chuyen -> thoat han che do chi duong (Google Nav): tat HUD, tra map ve 2D, xoa mui ten trang
+  try{ if(typeof window.stopNavigationMode === 'function') window.stopNavigationMode(); }catch(e){}
+  try{ ['gNavTopBanner','gNavNextBanner','gNavBottomSheet','gNavRightControls','gNavRecenterBtn','gNavLeftStack'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('show'); }); }catch(e){}
+  try{ if(map) map.easeTo({ pitch:0, bearing:0, offset:[0,0], duration:600 }); }catch(e){}
+  try{ const wa=document.getElementById('whiteTurnArrow'); if(wa && wa.parentElement) wa.parentElement.remove(); }catch(e){}
+  try{ const mm=document.getElementById('navMinimap'); if(mm) mm.style.display='none'; const rb=document.getElementById('minimapRestoreBtn'); if(rb) rb.classList.remove('show'); }catch(e){}
   document.getElementById('hud').classList.add('hidden');
   updateUIState();
   document.getElementById('dirInputEnd').value = '';
@@ -4566,25 +4565,18 @@ try{
   }
   // Text cho banner 'Sau do ...' - ghi bang chu: re trai / re phai / di thang / quay dau / di lui
   function gManeuverText(maneuver){
+    // Nhãn ngắn cũng lấy từ dictionary.js
+    try{
+      if(typeof window !== 'undefined' && window.DRIVEKIT_DICT && typeof window.DRIVEKIT_DICT.maneuverShort === 'function'){
+        return window.DRIVEKIT_DICT.maneuverShort(maneuver);
+      }
+    }catch(e){}
     if(!maneuver) return 'đi thẳng';
     const type = (maneuver.type || '').toLowerCase();
     const mod = (maneuver.modifier || '').toLowerCase();
     const instr = (maneuver.instruction || '').toLowerCase();
     if(type.includes('arrive') || instr.includes('đến') || instr.includes('arrive')) return 'đến nơi';
     if(mod.includes('uturn') || type.includes('uturn') || instr.includes('quay đầu') || instr.includes('u-turn')) return 'quay đầu';
-    if(instr.includes('lùi') || instr.includes('reverse')) return 'đi lùi';
-    if(type.includes('roundabout') || instr.includes('vòng xuyến')) return 'vào vòng xuyến';
-    if(mod.includes('slight left') || instr.includes('chếch sang trái')) return 'rẽ nhẹ trái';
-    if(mod.includes('slight right') || instr.includes('chếch sang phải')) return 'rẽ nhẹ phải';
-    if(mod.includes('sharp left') || instr.includes('ngoặt sang trái')) return 'rẽ ngoặt trái';
-    if(mod.includes('sharp right') || instr.includes('ngoặt sang phải')) return 'rẽ ngoặt phải';
-    if(instr.includes('bám bên trái') || mod.includes('keep left')) return 'giữ bên trái';
-    if(instr.includes('bám bên phải') || mod.includes('keep right')) return 'giữ bên phải';
-    if(mod.includes('left') || instr.includes('rẽ trái')) return 'rẽ trái';
-    if(mod.includes('right') || instr.includes('rẽ phải')) return 'rẽ phải';
-    if(type.includes('continue') || type.includes('straight') || type.includes('depart') || instr.includes('đi thẳng') || instr.includes('tiếp tục')) return 'đi thẳng';
-    if(type.includes('merge') || instr.includes('nhập làn')) return 'nhập làn';
-    if(type.includes('turn') || type.includes('fork')) return mod.includes('left') ? 'rẽ trái' : (mod.includes('right') ? 'rẽ phải' : 'đi thẳng');
     return 'đi thẳng';
   }
   function gFormatDist(m){
@@ -5596,6 +5588,12 @@ try{
     try{ if(typeof warnedPois !== 'undefined') warnedPois.clear(); }catch(e){}
     try{ localStorage.removeItem('alternativeRoutes'); }catch(e){}
     try{ document.body.classList.remove('navigating'); document.body.classList.remove('google-nav'); }catch(e){}
+    // Ket thuc chuyen -> thoat han che do chi duong: tat Google HUD, tra map ve 2D, xoa mui ten trang / minimap
+    try{ if(typeof deactivateGoogleNav === 'function') deactivateGoogleNav(); }catch(e){}
+    try{ if(typeof hideGoogleNavUI === 'function') hideGoogleNavUI(); }catch(e){}
+    try{ const ls = document.getElementById('gNavLeftStack'); if(ls) ls.classList.remove('show'); }catch(e){}
+    try{ const rb = document.getElementById('minimapRestoreBtn'); if(rb) rb.classList.remove('show'); }catch(e){}
+    try{ const mm = document.getElementById('navMinimap'); if(mm) mm.style.display = 'none'; }catch(e){}
     try{ const hud = document.getElementById('hud'); if(hud) hud.classList.add('hidden'); }catch(e){}
     try{ if(typeof updateUIState === 'function') updateUIState(); }catch(e){}
     try{ const e1 = document.getElementById('dirInputEnd'); if(e1) e1.value = ''; }catch(e){}
