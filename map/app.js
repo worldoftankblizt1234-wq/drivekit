@@ -32,7 +32,7 @@ const fsdb = getFirestore(app);
 const WORKER_URL = 'https://map-birthday.anhminhadof123.workers.dev';
 const MAPTILER_STYLE = `${WORKER_URL}/api/style?provider=maptiler`;
 const TRACKASIA_STYLE = `${WORKER_URL}/api/style?provider=trackasia`;
-const NEARBY_API_URL = 'https://animated-trout-7797pr9v5779fgxx-8002.app.github.dev/api/nearby';
+const NEARBY_API_URL = 'https://potential-space-trout-p7r7pgrjwjvw26g6j-8000.app.github.dev/api/nearby';
 
 /* ========== MAPILLARY SIGNS ========== */
 const MAPILLARY_VTP_URL = (z, x, y) => `${WORKER_URL}/api/mapillary-tiles/${z}/${x}/${y}`;
@@ -4071,3 +4071,281 @@ try{
     };
   }
 }catch(e){ console.warn('patch changeLayer fail', e); }
+
+
+/* ============================================================
+   [FIX 2026-11-21] THANH DEN LEN TOP + NUT KET THUC + CON KM/GIO/PHUT/GIAY/NGAY + MUI TEN THEO DUONG XANH
+   - .hud-bottom (thanh den chua ten diem den + nut doi tuyen / loa) dang o bottom:0 -> dua len top:0, khong con la bottom-sheet
+   - Them nut Ket thuc hanh trinh vao thanh den tren cung
+   - Con km + con thoi gian: hien thi du "Con X km - Con Y ngay Z gio ... phut ... giay", tick moi giay
+   - Mui ten: sua cong thuc bearing sai (atan2(dLat,dLng)+90) -> atan2(dLng*cos(lat), dLat), bo offset lech khoi duong xanh, marker nam dung tren duong xanh
+============================================================ */
+(function(){
+  // ---- 1. CSS: dua thanh den len canh tren ----
+  function injectTopBarCSS(){
+    if(document.getElementById('fixHudTopBar20261121')) return;
+    const st = document.createElement('style');
+    st.id = 'fixHudTopBar20261121';
+    st.textContent = `
+      /* Thanh den (ten diem den + nut) len canh tren, khong con bottom-sheet */
+      #hud{ position:fixed !important; top:0 !important; left:0 !important; right:0 !important; bottom:auto !important; transform:none !important; border-radius:0 !important; }
+      .hud-bottom{
+        position:fixed !important;
+        top:0 !important; left:0 !important; right:0 !important; bottom:auto !important;
+        transform:none !important; border-radius:0 !important;
+        border-top:none !important; border-bottom:1px solid rgba(255,255,255,0.15) !important;
+        background:#0f172a !important; background:rgba(15,23,42,0.97) !important;
+        color:#fff !important;
+        padding:calc(8px + env(safe-area-inset-top, 0px)) 12px 10px !important;
+        z-index:600 !important;
+        box-shadow:0 4px 20px rgba(0,0,0,0.35) !important;
+      }
+      .hud-bottom .hud-next-stop .name{ color:#fff !important; }
+      .hud-bottom .hud-next-stop .dist{ color:#fbbf24 !important; }
+      /* Day 2 khoi duoi xuong de khong bi thanh den de */
+      .hud-top{ top:calc(60px + env(safe-area-inset-top, 0px)) !important; }
+      .hud-next{ top:calc(132px + env(safe-area-inset-top, 0px)) !important; }
+      /* Nut Ket thuc trong thanh den tren cung */
+      #hudEndTripBtn{
+        background:#ef4444 !important; color:#fff !important; border:0 !important;
+        padding:10px 14px !important; border-radius:12px !important;
+        font-weight:800 !important; font-size:13px !important; white-space:nowrap !important;
+        box-shadow:0 4px 12px rgba(239,68,68,0.4) !important; cursor:pointer !important;
+        flex-shrink:0 !important;
+      }
+      #hudEndTripBtn:active{ transform:scale(0.95); }
+      /* Dong con km / con thoi gian trong thanh den */
+      #hudTopRemain{
+        font-size:12px !important; font-weight:700 !important; color:#fbbf24 !important;
+        font-family:ui-monospace, monospace !important; line-height:1.35 !important;
+        white-space:normal !important;
+      }
+      .user-marker-inner{ transform-origin:center !important; }
+    `;
+    document.head.appendChild(st);
+  }
+  injectTopBarCSS();
+
+  // ---- 2. Nut Ket thuc hanh trinh ----
+  function ensureHudEndBtn(){
+    const bottom = document.querySelector('.hud-bottom') || document.getElementById('hud');
+    if(!bottom) return;
+    if(!document.getElementById('hudEndTripBtn')){
+      const btn = document.createElement('button');
+      btn.id = 'hudEndTripBtn';
+      btn.type = 'button';
+      btn.textContent = '■ Ket thuc';
+      btn.title = 'Ket thuc hanh trinh';
+      btn.onclick = (e)=>{
+        e.stopPropagation();
+        try{
+          if(typeof window.openEndTripModal === 'function'){ window.openEndTripModal(); return; }
+          if(typeof window.endTrip === 'function'){ window.endTrip(false); return; }
+          if(typeof openEndTripModal === 'function'){ openEndTripModal(); return; }
+          if(typeof endTrip === 'function'){ endTrip(false); return; }
+        }catch(err){ console.warn('Ket thuc hanh trinh loi', err); }
+      };
+      const group = bottom.querySelector('.hud-btn-group');
+      if(group){ group.insertBefore(btn, group.firstChild); }
+      else { bottom.appendChild(btn); }
+    }
+    let remainEl = document.getElementById('hudTopRemain');
+    if(!remainEl){
+      const stop = bottom.querySelector('.hud-next-stop');
+      remainEl = document.createElement('div');
+      remainEl.id = 'hudTopRemain';
+      remainEl.textContent = 'Con -- km - Con --';
+      if(stop){ stop.appendChild(remainEl); }
+      else { bottom.appendChild(remainEl); }
+    }
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensureHudEndBtn);
+  else ensureHudEndBtn();
+  try{
+    const obs = new MutationObserver(()=>{ ensureHudEndBtn(); });
+    obs.observe(document.body, { childList:true, subtree:true, attributes:true, attributeFilter:['class'] });
+    setTimeout(()=>{ try{obs.disconnect();}catch(e){} }, 30000);
+  }catch(e){}
+
+  // ---- 3. Format con km + con ngay/gio/phut/giay ----
+  function fmtDist(m){
+    if(!isFinite(m) || m < 0) m = 0;
+    if(m < 1000) return Math.round(m) + ' m';
+    return (m/1000).toFixed(1) + ' km';
+  }
+  function fmtRemainTime(sec){
+    sec = Math.max(0, Math.round(sec || 0));
+    const d = Math.floor(sec / 86400);
+    const h = Math.floor((sec % 86400) / 3600);
+    const mi = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    const parts = [];
+    if(d > 0) parts.push(d + ' ngay');
+    if(h > 0 || d > 0) parts.push(h + ' gio');
+    if(mi > 0 || h > 0 || d > 0) parts.push(mi + ' phut');
+    parts.push(s + ' giay');
+    return parts.join(' ');
+  }
+  let lastRemainDistM = 0;
+  let lastRemainSec = 0;
+  function renderRemain(distM, sec){
+    lastRemainDistM = distM; lastRemainSec = sec;
+    const distTxt = 'Con ' + fmtDist(distM);
+    const timeTxt = 'Con ' + fmtRemainTime(sec);
+    const hd = document.getElementById('hudRemainDist');
+    if(hd) hd.textContent = distTxt;
+    const ht = document.getElementById('hudRemainTime');
+    if(ht) ht.textContent = timeTxt;
+    const hs = document.getElementById('hudNextStopDist');
+    if(hs) hs.textContent = distTxt + ' - ' + timeTxt;
+    const topR = document.getElementById('hudTopRemain');
+    if(topR) topR.textContent = distTxt + ' - ' + timeTxt;
+  }
+  setInterval(()=>{
+    try{
+      const hud = document.getElementById('hud');
+      if(!hud || hud.classList.contains('hidden')) return;
+      if(!currentRouteCoords || currentRouteCoords.length === 0) return;
+      if(lastRemainSec > 0){ lastRemainSec = Math.max(0, lastRemainSec - 1); renderRemain(lastRemainDistM, lastRemainSec); }
+    }catch(e){}
+  }, 1000);
+
+  try{
+    updateRemainingHUD = function(){
+      if(!lastUserPos || !endPoint || !currentRouteCoords || currentRouteCoords.length === 0) return;
+      let remainDist = 0;
+      remainDist += calcDist(lastUserPos.lat, lastUserPos.lng, currentRouteCoords[0][0], currentRouteCoords[0][1]);
+      for(let i=0;i<currentRouteCoords.length-1;i++){
+        remainDist += calcDist(currentRouteCoords[i][0], currentRouteCoords[i][1], currentRouteCoords[i+1][0], currentRouteCoords[i+1][1]);
+      }
+      let speed = (typeof smoothedSpeed !== 'undefined' ? smoothedSpeed * 3.6 : 0);
+      if(speed < 10){
+        const totalDist = (typeof currentRouteData !== 'undefined' && currentRouteData && currentRouteData.distance) || 1;
+        const totalDur = (typeof currentRouteData !== 'undefined' && currentRouteData && currentRouteData.duration) || 1;
+        speed = (totalDist/1000) / (totalDur/3600);
+        if(speed < 10) speed = 30;
+      }
+      const remainSec = remainDist / (speed/3.6);
+      renderRemain(remainDist, remainSec);
+    };
+  }catch(e){ console.warn('patch updateRemainingHUD fail', e); }
+
+  try{
+    const _origStartNavHUD = startNavigationHUD;
+    startNavigationHUD = function(){
+      const r = _origStartNavHUD.apply(this, arguments);
+      ensureHudEndBtn();
+      try{ updateRemainingHUD(); }catch(e){}
+      return r;
+    };
+  }catch(e){}
+
+  // ---- 4. Mui ten huong dung vao duong xanh ----
+  function routeBearingAt(idx){
+    try{
+      if(!currentRouteCoords || currentRouteCoords.length < 2) return null;
+      const i = Math.max(0, Math.min(idx, currentRouteCoords.length-2));
+      const p1 = currentRouteCoords[i];
+      const p2 = currentRouteCoords[i+1];
+      if(!p1 || !p2) return null;
+      const dLat = p2[0] - p1[0];
+      const dLng = (p2[1] - p1[1]) * Math.cos(p1[0] * Math.PI/180);
+      if(Math.abs(dLat) < 1e-9 && Math.abs(dLng) < 1e-9) return null;
+      let b = Math.atan2(dLng, dLat) * 180 / Math.PI;
+      b = (b + 360) % 360;
+      return b;
+    }catch(e){ return null; }
+  }
+  function applyRouteBearingToArrow(){
+    try{
+      if(!userMarker) return;
+      if(!currentRouteCoords || currentRouteCoords.length < 2) return;
+      const b = routeBearingAt(lastSnapIndex || 0);
+      if(b === null) return;
+      const inner = userMarker.getElement().querySelector('.user-marker-inner');
+      if(inner) inner.style.transform = 'rotate(' + b + 'deg)';
+    }catch(e){}
+  }
+  try{
+    animateMarkerTo = function(targetPos){
+      if(!userMarker){ updateUserMarkerOnMap(targetPos, targetPos.heading); return; }
+      let snappedLat = targetPos.lat, snappedLng = targetPos.lng, targetHeading = targetPos.heading;
+      if(currentRouteCoords && currentRouteCoords.length > 1 && lastSnapIndex < currentRouteCoords.length - 1){
+        let minDist = Infinity, bestPoint = null, bestSegmentIndex = lastSnapIndex;
+        const startScan = Math.max(0, lastSnapIndex - 5);
+        const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 50);
+        for(let i=startScan;i<endScan;i++){
+          const pt = getClosestPointOnSegment(
+            { lat: targetPos.lat, lng: targetPos.lng },
+            { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] },
+            { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] }
+          );
+          const d = calcDist(targetPos.lat, targetPos.lng, pt.lat, pt.lng);
+          if(d < minDist){ minDist = d; bestPoint = pt; bestSegmentIndex = i; if(i > lastSnapIndex) lastSnapIndex = i; }
+        }
+        if(bestPoint && minDist < 40){
+          const p1 = currentRouteCoords[bestSegmentIndex];
+          const p2 = currentRouteCoords[bestSegmentIndex + 1];
+          const dLat = p2[0] - p1[0];
+          const dLng = (p2[1] - p1[1]) * Math.cos(p1[0] * Math.PI/180);
+          let bearing = Math.atan2(dLng, dLat) * 180 / Math.PI;
+          bearing = (bearing + 360) % 360;
+          snappedLat = bestPoint.lat;
+          snappedLng = bestPoint.lng;
+          targetHeading = bearing;
+        }
+      }
+      if(currentRouteCoords && currentRouteCoords.length > 0 && lastSnapIndex > 0){
+        const remaining = currentRouteCoords.slice(lastSnapIndex);
+        if(remaining.length > 1){
+          currentRouteCoords = remaining;
+          lastSnapIndex = 0;
+          drawCurrentRoute();
+        } else {
+          if(map.getLayer('current-route-layer')) map.removeLayer('current-route-layer');
+          if(map.getSource('current-route-source')) map.removeSource('current-route-source');
+          currentRouteCoords = [];
+        }
+      }
+      const startLat = userMarker.getLngLat().lat;
+      const startLng = userMarker.getLngLat().lng;
+      const startTime = performance.now(), duration = 1000;
+      function step(time){
+        const progress = Math.min((time - startTime) / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        const currentLat = startLat + (snappedLat - startLat) * ease;
+        const currentLng = startLng + (snappedLng - startLng) * ease;
+        userMarker.setLngLat([currentLng, currentLat]);
+        const inner = userMarker.getElement().querySelector('.user-marker-inner');
+        if(inner) inner.style.transform = 'rotate(' + (targetHeading || 0) + 'deg)';
+        if(progress < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+      gpsCircleGeoJSON = createCircleGeoJSON(snappedLng, snappedLat, targetPos.accuracy || 10);
+      if(map.getSource('gps-circle-source')) map.getSource('gps-circle-source').setData(gpsCircleGeoJSON);
+    };
+  }catch(e){ console.warn('patch animateMarkerTo fail', e); }
+  try{
+    const _origUpdateUserMarker = updateUserMarkerOnMap;
+    updateUserMarkerOnMap = function(pos, heading){
+      let h = heading;
+      try{
+        const isNav = (typeof isNavigating !== 'undefined' && isNavigating) || (document.body && document.body.classList.contains('navigating')) || (currentRouteCoords && currentRouteCoords.length > 1);
+        if(isNav){
+          const rb = routeBearingAt(lastSnapIndex || 0);
+          if(rb !== null){
+            if(h === null || h === undefined || h === 0 || isNaN(h)) h = rb;
+            else {
+              let diff = Math.abs(((h - rb + 540) % 360) - 180);
+              if(diff > 90) h = rb;
+            }
+          }
+        }
+      }catch(e){}
+      const r = _origUpdateUserMarker(pos, h);
+      applyRouteBearingToArrow();
+      return r;
+    };
+  }catch(e){ console.warn('patch updateUserMarkerOnMap fail', e); }
+  setInterval(()=>{ try{ const hud = document.getElementById('hud'); if(hud && !hud.classList.contains('hidden')) applyRouteBearingToArrow(); }catch(e){} }, 300);
+})();
