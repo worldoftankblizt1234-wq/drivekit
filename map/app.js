@@ -1,3 +1,4 @@
+
 /* =====================================================
    DriveKit — app.js FULL (ĐÃ SYNC DEMO MAPILLARY + FIX)
    Part 1: Config → Route → Navigation
@@ -1561,7 +1562,7 @@ function updateCompassNeedle() {
   btn.classList.toggle('off-north', Math.abs(bearing) > 1);
 }
 window.resetNorth = function() { if (map) map.easeTo({ bearing: 0, pitch: 0, duration: 600 }); };
-window.toggleTraffic = function(isChecked) { console.warn('Traffic layer disabled to protect API key.'); };
+window.toggleTraffic = function(isChecked) { /* traffic disabled */ };
 
 function initMap() {
   if (map) return;
@@ -3204,6 +3205,7 @@ function checkOffRoute(userLat, userLng) {
   let minDist = Infinity;
   const startScan = Math.max(0, lastSnapIndex - 10);
   const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 150);
+  let _bestIdx = lastSnapIndex;
   for (let i = startScan; i < endScan; i++) {
     const pt = getClosestPointOnSegment(
       { lat: userLat, lng: userLng },
@@ -3211,11 +3213,14 @@ function checkOffRoute(userLat, userLng) {
       { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] }
     );
     const d = calcDist(userLat, userLng, pt.lat, pt.lng);
-    if (d < minDist) minDist = d;
+    if (d < minDist) { minDist = d; _bestIdx = i; }
   }
-  if (minDist > 50) {
+  // [CLEANUP LOGIC] Cập nhật snap để lần sau scan gần đúng chỗ, không scan từ đầu -> đỡ false reroute
+  if (minDist < 20) lastSnapIndex = _bestIdx;
+  // [AUTO-REROUTE] Nhay hon: lech >35m, 2 lan lien tiep la tu doi tuyen - truoc la 50m/3 lan nen di sai xa moi doi
+  if (minDist > 35) {
     offRouteCount++;
-    if (offRouteCount >= 3) { offRouteCount = 0; autoReroute(userLat, userLng); }
+    if (offRouteCount >= 2) { offRouteCount = 0; autoReroute(userLat, userLng); }
   } else offRouteCount = 0;
 }
 
@@ -3223,6 +3228,8 @@ function checkOffRoute(userLat, userLng) {
 async function autoReroute(userLat, userLng, bypassCache = false) {
   if (isRerouting) return;
   isRerouting = true;
+  // [CLEANUP] Anti-stuck: neu apiRoute treo >15s thi reset co
+  const _rerouteGuard = setTimeout(()=>{ isRerouting = false; }, 15000);
   const currentMode = currentVehicleMode;
   try {
     const specs = getCurrentVehicleSpecs();
@@ -3238,9 +3245,38 @@ async function autoReroute(userLat, userLng, bypassCache = false) {
     if (!r.legs[0].steps) r.legs[0].steps = [];
     currentRouteData = r;
     voiceRouteSteps = r.legs[0].steps;
-    voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
+    // [AUTO-REROUTE] Tim step gan user nhat thay vi luon 0 - de mui ten + banner khong nhay ve diem dau
+    try{
+      if(lastUserPos && voiceRouteSteps && voiceRouteSteps.length){
+        let _bi=0,_bd=Infinity;
+        voiceRouteSteps.forEach((s,i)=>{ if(s&&s.maneuver&&s.maneuver.location){ const d=Math.hypot(s.maneuver.location[1]-lastUserPos.lat, s.maneuver.location[0]-lastUserPos.lng); if(d<_bd){_bd=d;_bi=i;} } });
+        voiceStepIndex=_bi;
+      } else voiceStepIndex=0;
+    }catch(e){ voiceStepIndex=0; }
+    lastSnapIndex = 0; offRouteCount = 0;
+    try{ arrivalHandled = false; }catch(e){}
     currentRouteCoords = r.geometry.coordinates;
     drawCurrentRoute();
+    // [AUTO-REROUTE] Bao user + xoay goc ngay theo tuyen moi, khong doi GPS chay moi xoay
+    try{ if(typeof showCustomToast==='function') showCustomToast('🔄 Đã tự đổi tuyến mới vì bạn đi sai đường', 'info'); }catch(e){}
+    try{ if(typeof speak==='function') speak('Đã đổi tuyến mới.', 'nav'); }catch(e){}
+    try{ if(typeof _lastCamAt!=='undefined') _lastCamAt=0; }catch(e){}
+    try{
+      if(lastUserPos && currentRouteCoords && currentRouteCoords.length>1){
+        let _bi2=0,_bd2=Infinity;
+        currentRouteCoords.forEach((c,i)=>{ const d=Math.hypot(c[0]-lastUserPos.lat, c[1]-lastUserPos.lng); if(d<_bd2){_bd2=d;_bi2=i;} });
+        const _a=currentRouteCoords[_bi2], _b=currentRouteCoords[Math.min(currentRouteCoords.length-1,_bi2+3)];
+        if(_a&&_b&&typeof bearingBetween==='function'){
+          const _br=bearingBetween(_a[0],_a[1],_b[0],_b[1]);
+          if(map && isFinite(_br)){
+            try{ navFollowMode='first-person'; window._userFreed=false; }catch(e){}
+            map.easeTo({ center:[lastUserPos.lng, lastUserPos.lat], bearing:_br, pitch:0, zoom:Math.max(map.getZoom(),17.5), duration:600 });
+          }
+        }
+      }
+    }catch(e){}
+    try{ if(typeof updateWhiteTurnArrow==='function') setTimeout(()=>{ try{ updateWhiteTurnArrow(); }catch(e){} }, 100); }catch(e){}
+    try{ if(typeof updateNextManeuverHUD==='function' && lastUserPos) updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng); }catch(e){}
     // Khi dang dan duong: KHONG fitBounds (no se zoom ra xa + danh nhau voi camera follow -> do map)
     // Chi fitBounds khi dang xem truoc tuyen (chua dan duong)
     const _isNavR = (typeof isNavigating !== 'undefined' && isNavigating) || (document.body && document.body.classList.contains('google-nav'));
@@ -3255,7 +3291,7 @@ async function autoReroute(userLat, userLng, bypassCache = false) {
     document.getElementById('hudRemainDist').textContent = (r.distance / 1000).toFixed(1) + ' km';
     document.getElementById('hudRemainTime').textContent = Math.round(r.duration / 60) + ' phút';
   } catch (e) { console.error('Lỗi Reroute:', e); }
-  finally { isRerouting = false; }
+  finally { clearTimeout(_rerouteGuard); isRerouting = false; }
 }
 
 window.openAlternativeRoutes = function() {
@@ -3393,8 +3429,8 @@ window.endTrip = async function(save) {
   try{ if(typeof navFollowMode!=='undefined') navFollowMode='free'; }catch(e){}
   try{ if(typeof isNavigating!=='undefined') isNavigating=false; }catch(e){}
   try{ if(typeof _lastCamAt!=='undefined') _lastCamAt=0; }catch(e){}
-  if (map.getLayer('current-route-layer')) map.removeLayer('current-route-layer');
-  if (map.getSource('current-route-source')) map.removeSource('current-route-source');
+  try{ if (map && map.getLayer('current-route-layer')) map.removeLayer('current-route-layer'); }catch(e){}
+  try{ if (map && map.getSource('current-route-source')) map.removeSource('current-route-source'); }catch(e){}
   if (window._routeBadges) { window._routeBadges.forEach(m => m.remove()); window._routeBadges = []; }
   alternativeRoutesData.forEach((_, i) => {
     if (map.getLayer(`alt-route-layer-${i}`)) map.removeLayer(`alt-route-layer-${i}`);
@@ -3587,33 +3623,7 @@ let navMinimapMap = null;
 let navMinimapVisible = true;
 let _origUpdateUserMarker = null;
 
-function ensureNavUI(){
-  if(document.getElementById('navControls')) return;
-  const div = document.createElement('div');
-  div.id = 'navControls';
-  div.style.cssText = 'position:fixed;left:12px;bottom:96px;z-index:999;display:flex;flex-direction:column;gap:8px;';
-  div.innerHTML = `
-    <button id="btnNavStart" style="background:#10b981;color:#fff;border:0;padding:10px 12px;border-radius:999px;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,0.25);cursor:pointer;">▶ Chỉ đường • Góc 1</button>
-    <button id="btnNavFollow" style="background:#111827;color:#fff;border:0;padding:8px 12px;border-radius:999px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,0.25);cursor:pointer;">Góc: Thứ nhất</button>
-    <button id="btnNavMini" style="background:#fff;color:#111827;border:0;padding:8px 12px;border-radius:999px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,0.25);cursor:pointer;">Minimap: Bật</button>
-  `;
-  document.body.appendChild(div);
-  document.getElementById('btnNavStart').onclick = ()=>{
-    if(!isNavigating) startNavigationMode(); else stopNavigationMode();
-  };
-  document.getElementById('btnNavFollow').onclick = ()=>{
-    navFollowMode = (navFollowMode==='first-person') ? 'free' : 'first-person';
-    document.getElementById('btnNavFollow').textContent = (navFollowMode==='first-person') ? 'Góc: Thứ nhất' : 'Góc: Tự do';
-    if(navFollowMode==='first-person' && lastUserPos) updateNavCamera(lastUserPos, lastUserPos.heading||0);
-    else if(map) map.easeTo({ pitch:0, duration:500 });
-  };
-  document.getElementById('btnNavMini').onclick = ()=>{
-    navMinimapVisible = !navMinimapVisible;
-    document.getElementById('btnNavMini').textContent = navMinimapVisible ? 'Minimap: Bật' : 'Minimap: Tắt';
-    if(navMinimap) navMinimap.style.display = navMinimapVisible ? 'block' : 'none';
-    if(navMinimapVisible && isNavigating) ensureNavMinimap();
-  };
-}
+function ensureNavUI(){ /* [CLEANUP] navControls panel deleted - no-op */ }
 function ensureNavMinimap(){ /* [CLEANUP] Minimap da bo - giu ten de code cu goi khong loi */ return null; }
 function syncRouteToMinimap(){ /* [CLEANUP] Minimap da bo */ }
 function syncUserToMinimap(){ /* [CLEANUP] Minimap da bo */ }
@@ -3657,12 +3667,7 @@ window.stopNavigationMode = function(){
   const btn = document.getElementById('btnNavStart');
   if(btn) btn.textContent = '▶ Chỉ đường • Góc 1';
 };
-// Khi ve tuyen moi thi dong bo len minimap luon
-const _origDrawRoute = drawCurrentRoute;
-drawCurrentRoute = function(){
-  _origDrawRoute();
-  setTimeout(()=>{ if(isNavigating) syncRouteToMinimap(); }, 300);
-};
+/* [CLEANUP] V2 draw wrapper removed - minimap deleted */
 // Khi user di chuyen thi cap nhat camera goc 1 + cham user tren minimap
 if(typeof updateUserMarkerOnMap==='function' && !_origUpdateUserMarker){
   _origUpdateUserMarker = updateUserMarkerOnMap;
@@ -3675,7 +3680,7 @@ if(typeof updateUserMarkerOnMap==='function' && !_origUpdateUserMarker){
   };
 }
 // Hien nut dieu khien ngay khi app load xong
-setTimeout(()=>{ try{ ensureNavUI(); }catch(e){} }, 1200);
+/* [CLEANUP] ensureNavUI timer removed */
 
 
 /* ============================================================
@@ -3864,12 +3869,7 @@ window.stopNavigationMode = function(){
   if(whiteArrowMarker){ whiteArrowMarker.remove(); whiteArrowMarker=null; }
   if(whiteArrowAheadMarker){ whiteArrowAheadMarker.remove(); whiteArrowAheadMarker=null; }
 };
-// Khi doi tuyen thi cap nhat lai mui ten
-const _origDrawRouteV3 = drawCurrentRoute;
-drawCurrentRoute = function(){
-  _origDrawRouteV3();
-  if(isNavigating) setTimeout(updateWhiteTurnArrow, 400);
-};
+/* [CLEANUP] V3 draw wrapper removed - whiteArrow updated in autoReroute */
 
 
 /* ============================================================
@@ -3977,27 +3977,7 @@ window.openAlternativeRoutes = function(){
     alert('Không mở được danh sách tuyến: ' + e.message);
   }
 };
-// Gan lai nut "Xem tat ca tuyen duong" theo text, phong truong hop onclick trong HTML bi sai / mat
-function bindViewAllRoutesBtn(){
-  const btns = document.querySelectorAll('button');
-  btns.forEach(b=>{
-    // Nút trong bảng Chỉ đường đã có onclick riêng (fetchAndShowRouteOptions) -> không ghi đè
-    if((b.getAttribute('onclick')||'').includes('fetchAndShowRouteOptions')) return;
-    if((b.textContent||'').includes('Xem tất cả tuyến')){
-      b.onclick = (e)=>{ e.preventDefault(); e.stopPropagation(); window.openAlternativeRoutes(); };
-    }
-  });
-}
-setTimeout(bindViewAllRoutesBtn, 1000);
-setTimeout(bindViewAllRoutesBtn, 3000);
-document.addEventListener('click', (e)=>{
-  const t = e.target && e.target.closest ? e.target.closest('button') : null;
-  if(t && (t.getAttribute('onclick')||'').includes('fetchAndShowRouteOptions')) return;
-  if(t && (t.textContent||'').includes('Xem tất cả tuyến')){
-    e.preventDefault();
-    window.openAlternativeRoutes();
-  }
-});
+/* [CLEANUP] bindViewAllRoutesBtn removed - manual switch disabled */
 
 // --- 3. AN CHI DUONG -> TU QUAY VE GOC 1 ---
 function autoFirstPerson(){
@@ -4087,7 +4067,7 @@ try{
     }catch(e){}
     return ret;
   };
-}catch(e){ console.warn('patch selectLocation (Claude) fail', e); }
+}catch(e){ /* patch warn removed */; }
 
 // --- 2) Giai quyet goc: text trong o -> toa do (geocode) truoc khi check endPoint ---
 async function resolvePointsFromInputsClaude(){
@@ -4146,7 +4126,7 @@ try{
     // vi da thu geocode roi ma khong ra.
     return _origFetchClaude();
   };
-}catch(e){ console.warn('patch fetchAndShowRouteOptions fail', e); }
+}catch(e){ /* patch warn removed */; }
 
 // --- 3) Patch openAlternativeRoutes: chua co tuyen thi TU FETCH, khong bao sai ---
 try{
@@ -4159,7 +4139,7 @@ try{
     }
     return _origOpenAltClaude();
   };
-}catch(e){ console.warn('patch openAlternativeRoutes fail', e); }
+}catch(e){ /* patch warn removed */; }
 
 // --- 3b) changeSort cung bi chan boi check start/end -> de fetch tu resolve ---
 try{
@@ -4205,7 +4185,7 @@ try{
     const sheet = document.getElementById('poiSheet');
     if(sheet) sheet.style.pointerEvents = 'auto';
   };
-}catch(e){ console.warn('patch openPoiSheet fail', e); }
+}catch(e){ /* patch warn removed */; }
 
 // --- 1b) closePoiSheet: dong la phai tra nut + khong chan click nua ---
 try{
@@ -4217,7 +4197,7 @@ try{
     const sheet = document.getElementById('poiSheet');
     if(sheet) sheet.style.pointerEvents = '';
   };
-}catch(e){ console.warn('patch closePoiSheet fail', e); }
+}catch(e){ /* patch warn removed */; }
 
 // --- 1c) submitCommunityPoi: luon reset nut, ca success lan loi ---
 try{
@@ -4248,7 +4228,7 @@ try{
       btn.innerHTML = '<i class="fas fa-check"></i> Lưu địa điểm';
     }
   };
-}catch(e){ console.warn('patch submitCommunityPoi fail', e); }
+}catch(e){ /* patch warn removed */; }
 
 // --- 2) changeLayer: phai la global de HTML onclick goi duoc ---
 try{
@@ -4273,7 +4253,7 @@ try{
       }
     };
   }
-}catch(e){ console.warn('patch changeLayer fail', e); }
+}catch(e){ /* patch warn removed */; }
 
 
 /* ============================================================
@@ -4431,7 +4411,7 @@ try{
       const remainSec = remainDist / (speed/3.6);
       renderRemain(remainDist, remainSec);
     };
-  }catch(e){ console.warn('patch updateRemainingHUD fail', e); }
+  }catch(e){ /* patch warn removed */; }
 
   try{
     const _origStartNavHUD = startNavigationHUD;
@@ -4527,7 +4507,7 @@ try{
       gpsCircleGeoJSON = createCircleGeoJSON(snappedLng, snappedLat, targetPos.accuracy || 10);
       if(map.getSource('gps-circle-source')) map.getSource('gps-circle-source').setData(gpsCircleGeoJSON);
     };
-  }catch(e){ console.warn('patch animateMarkerTo fail', e); }
+  }catch(e){ /* patch warn removed */; }
   try{
     const _origUpdateUserMarker = updateUserMarkerOnMap;
     updateUserMarkerOnMap = function(pos, heading){
@@ -4549,7 +4529,7 @@ try{
       applyRouteBearingToArrow();
       return r;
     };
-  }catch(e){ console.warn('patch updateUserMarkerOnMap fail', e); }
+  }catch(e){ /* patch warn removed */; }
   try{ if(window._bearingInt) clearInterval(window._bearingInt); }catch(e){} window._bearingInt = setInterval(()=>{ try{ const hud = document.getElementById('hud'); if(hud && !hud.classList.contains('hidden')) applyRouteBearingToArrow(); }catch(e){} }, 1000); /* [FIX TREO] bearing: 300->1000ms, 1 interval duy nhat */
 })();
 
@@ -5282,7 +5262,7 @@ try{
       try{
         if(_isUserDraggingMap) return;
         const nowC2 = Date.now();
-        if(nowC2 - _lastCamAt < 900) return;
+        if(nowC2 - _lastCamAt < 350) return;
         // [FIX] Bearing = huong duong xanh phia truoc, khong dung heading GPS (hay bi lech ngang khi dung yen / GPS nhieu)
         const routeBr = getRouteBearingAhead(pos);
         const useBearing = (routeBr !== null && routeBr !== undefined) ? routeBr : (heading || 0);
@@ -5300,7 +5280,7 @@ try{
         if(comp) comp.style.transform = 'rotate(' + (-useBearing) + 'deg)';
       }catch(e){}
     };
-  }catch(e){ console.warn('patch updateNavCamera Google fail', e); }
+  }catch(e){ /* patch warn removed */; }
   // [FIX] Xoay tu do: keo / xoay / nghien map -> chuyen sang free, khong giat camera lai. Chi khi bam Ve giua moi quay ve doc duong.
   try{
     if(map){
@@ -5350,7 +5330,7 @@ try{
       // Camera theo kieu Google
       if(navFollowMode === 'first-person') updateNavCamera(pos, heading || 0);
     };
-  }catch(e){ console.warn('patch userMarker Google fail', e); }
+  }catch(e){ /* patch warn removed */; }
   // AnimateMarkerTo trong Google mode: cung dung cham xanh, khong xoay mui ten
   try{
     const _origAnimateGoogle = animateMarkerTo;
@@ -5377,7 +5357,7 @@ try{
         if(map.getSource('gps-circle-source')) map.getSource('gps-circle-source').setData(gpsCircleGeoJSON);
       }catch(e){}
     };
-  }catch(e){ console.warn('patch animateMarker Google fail', e); }
+  }catch(e){ /* patch warn removed */; }
 
   // ---- 7. Duong xanh day + vien trang kieu Google ----
   try{
@@ -5670,7 +5650,7 @@ try{
     }
     // [FIX] Bo chu Minimap • X de tat - khong che minimap tren mobile
   }
-function ensureNavMinimapWithControls(){ /* [CLEANUP] Minimap da bo */ return null; }
+function ensureNavMinimapWithControls(){ /* [CLEANUP] minimap deleted */ return null; }
   // Khoi phuc ham ensureNavMinimap bi Google patch ghi de thanh no-op
   try{
     ensureNavMinimap = function(){ ensureNavMinimapWithControls(); };
@@ -7752,3 +7732,110 @@ try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v9 TOPDOWN + FREE + IMMEDIATE-B
     }
   }catch(e){}
 })();
+
+
+/* ============================================================
+   [BO DOI TUYEN THU CONG - 2026-11-21] Theo yeu cau: bo het nut doi tay, chi con tu dong.
+   - An nut 'Xem tat ca tuyen' + modal 'Cac tuyen duong goi y' + cac route-card
+   - Ghi de openAlternativeRoutes / switchToRoute / selectRouteOption thanh no-op + toast
+   - fetchAndShowRouteOptions: khong hien list nua, tu chon tuyen tot nhat va ve luon
+   - Chi con autoReroute khi checkOffRoute phat hien di sai (35m x 2 lan)
+   ============================================================ */
+(function disableManualRouteSwitch(){
+  // CSS an nut doi tay + modal cu - ca nut trong HTML va nut tao dong
+  try{
+    let st = document.getElementById('noManualRouteStyle');
+    if(!st){
+      st = document.createElement('style');
+      st.id = 'noManualRouteStyle';
+      st.textContent = `
+        #routeOptionsModal, .route-options-modal { display:none !important; }
+        .route-card { display:none !important; }
+      `;
+      document.head.appendChild(st);
+    }
+  }catch(e){}
+  function hideManualBtns(){
+    try{
+      document.querySelectorAll('button').forEach(b=>{
+        const txt = (b.textContent||'');
+        if(txt.includes('Xem tất cả tuyến') || txt.includes('Xem tat ca tuyen') || txt.includes('Các tuyến đường gợi ý') || txt.includes('Tuyến gợi ý')){
+          b.style.display = 'none';
+          b.disabled = true;
+        }
+      });
+      const m = document.getElementById('routeOptionsModal');
+      if(m){ m.classList.remove('open'); m.style.display = 'none'; }
+    }catch(e){}
+  }
+  hideManualBtns();
+  setInterval(hideManualBtns, 1500);
+  document.addEventListener('click', (e)=>{
+    const t = e.target && e.target.closest ? e.target.closest('button') : null;
+    if(t && ((t.textContent||'').includes('Xem tất cả tuyến') || (t.textContent||'').includes('Các tuyến đường gợi ý'))){
+      e.preventDefault(); e.stopPropagation();
+      if(typeof showCustomToast==='function') showCustomToast('Đã bỏ đổi tuyến thủ công - hệ thống tự đổi khi bạn đi sai đường', 'info');
+    }
+  }, true);
+
+  // Ghi de ham doi tay -> chi toast, khong doi tuyen
+  window.openAlternativeRoutes = function(){
+    if(typeof showCustomToast==='function') showCustomToast('Đã bỏ đổi tuyến thủ công - đi sai đường hệ thống sẽ tự đổi tuyến + tự xoay góc', 'info');
+    else alert('Đã bỏ đổi tuyến thủ công - hệ thống tự đổi khi đi sai đường');
+  };
+  window.switchToRoute = function(){
+    if(typeof showCustomToast==='function') showCustomToast('Đã bỏ đổi tuyến thủ công - đi sai đường hệ thống sẽ tự đổi', 'info');
+  };
+  window.selectRouteOption = function(index){
+    // Chi cho phep chon lan dau (truoc khi dan duong) - neu dang dan duong thi chan
+    const isNav = (typeof isNavigating!=='undefined' && isNavigating) || (document.body && document.body.classList.contains('google-nav'));
+    if(isNav){
+      if(typeof showCustomToast==='function') showCustomToast('Đã bỏ đổi tuyến thủ công - đi sai đường hệ thống sẽ tự đổi', 'info');
+      return;
+    }
+    // Truoc khi dan duong: van cho chon tuyen dau tien 1 lan, roi tu dong bat dau
+    try{
+      const r = alternativeRoutesData[index];
+      if(!r) return;
+      currentRouteData = r; currentRouteCoords = r.geometry.coordinates;
+      if(typeof clearRouteOptionLayers==='function') clearRouteOptionLayers();
+      drawCurrentRoute();
+      if(typeof window.closeRouteOptions==='function') window.closeRouteOptions();
+      if(typeof startNavigationHUD==='function') startNavigationHUD();
+    }catch(e){}
+  };
+  // fetchAndShowRouteOptions: khong hien list, tu chon tuyen tot nhat
+  const _origFetch = window.fetchAndShowRouteOptions;
+  window.fetchAndShowRouteOptions = async function(){
+    // Neu dang dan duong -> khong fetch tay nua, de autoReroute lo
+    const isNav = (typeof isNavigating!=='undefined' && isNavigating) || (document.body && document.body.classList.contains('google-nav'));
+    if(isNav){
+      if(typeof showCustomToast==='function') showCustomToast('Đang dẫn đường - đi sai hệ thống sẽ tự đổi tuyến', 'info');
+      return;
+    }
+    // Chua dan duong: fetch roi tu chon tuyen tot nhat, khong hien modal list
+    try{
+      if(!startPoint || !endPoint) return _origFetch.apply(this, arguments);
+      const mode = currentVehicleMode || 'driving';
+      let routes = await apiRoute(startPoint, endPoint, mode, false, getCurrentVehicleSpecs());
+      routes = routes.filter(r=> r.distance>0 && Array.isArray(r.geometry?.coordinates) && r.geometry.coordinates.length>=2);
+      routes = routes.filter(r=> !checkRouteAgainstAvoidZones(r.geometry.coordinates).blocked);
+      if(!routes.length){ if(typeof showCustomToast==='function') showCustomToast('Không tìm được tuyến đường', 'warning'); return; }
+      routes.sort((a,b)=> (currentSortMode==='shortest' ? a.distance-b.distance : a.duration-b.duration));
+      const best = routes[0];
+      alternativeRoutesData = routes;
+      try{ localStorage.setItem('alternativeRoutes', JSON.stringify(routes.slice(1))); }catch(e){}
+      currentRouteData = best; currentRouteCoords = best.geometry.coordinates;
+      if(typeof clearRouteOptionLayers==='function') clearRouteOptionLayers();
+      drawCurrentRoute();
+      const bounds = new maplibregl.LngLatBounds();
+      currentRouteCoords.forEach(c=> bounds.extend([c[1], c[0]]));
+      map.fitBounds(bounds, { padding:{top:80,bottom:260,left:40,right:40}, maxZoom:17 });
+      if(typeof showCustomToast==='function') showCustomToast('Đã chọn tuyến nhanh nhất - bấm Bắt đầu để dẫn đường', 'success');
+    }catch(e){
+      return _origFetch.apply(this, arguments);
+    }
+  };
+  console.log('[DriveKit] Manual route switch DISABLED - auto reroute only');
+})();
+
