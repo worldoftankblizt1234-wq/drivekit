@@ -4388,11 +4388,13 @@ try{
       #gNavBottomInfo{ flex:1; min-width:0; text-align:center; display:flex; flex-direction:column; gap:1px; }
       #gNavRemainTime{ font-size:27px; font-weight:800; color:#188038; line-height:1.1; }
       #gNavRemainMeta{ font-size:15px; font-weight:600; color:#5f6368; }
-      #gNavFavBtn{ width:48px; height:48px; flex-shrink:0; border-radius:999px; border:1px solid #dadce0; background:#fff; color:#1a73e8; font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+      #gNavLayerBtn{ width:48px; height:48px; flex-shrink:0; border-radius:999px; border:1px solid #dadce0; background:#fff; color:#1a73e8; font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
       /* Cot nut phai kieu Google */
-      #gNavRightControls{ position:fixed !important; right:12px !important; bottom:calc(150px + env(safe-area-inset-bottom, 0px)) !important; z-index:800 !important; display:none; flex-direction:column; gap:12px; }
+      #gNavRightControls{ position:fixed !important; right:12px !important; bottom:calc(195px + env(safe-area-inset-bottom, 0px)) !important; z-index:800 !important; display:none; flex-direction:column; gap:12px; }
       #gNavRightControls.show{ display:flex !important; }
       .gNavRoundBtn{ width:56px; height:56px; border-radius:999px; background:#fff; border:none; box-shadow:0 4px 14px rgba(0,0,0,0.22); font-size:22px; color:#3c4043; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+      .gNavRoundBtn svg{ display:block; flex-shrink:0; }
+      #gNavLayerBtn svg, #gNavExitBtn svg{ display:block; flex-shrink:0; }
       .gNavRoundBtn:active{ transform:scale(0.94); }
       #gNavCompassBtn .compass-arrow{ font-size:24px; font-weight:900; color:#ea4335; display:inline-block; transition:transform 0.3s; }
       /* Nut Ve giua */
@@ -4423,7 +4425,7 @@ try{
     if(!document.getElementById('gNavBottomSheet')){
       const bot = document.createElement('div');
       bot.id = 'gNavBottomSheet';
-      bot.innerHTML = '<button id="gNavExitBtn" title="Thoát chỉ đường">✕</button><div id="gNavBottomInfo"><div id="gNavRemainTime">3 phút</div><div id="gNavRemainMeta">900 m • 7:11</div></div><button id="gNavFavBtn" title="Lưu">✦</button>';
+      bot.innerHTML = '<button id="gNavExitBtn" title="Thoát chỉ đường"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button><div id="gNavBottomInfo"><div id="gNavRemainTime">3 phút</div><div id="gNavRemainMeta">900 m • 7:11</div></div><button id="gNavLayerBtn" title="Lớp bản đồ"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linejoin="round"><path d="M12 3 L21 8 L12 13 L3 8 Z"/><path d="M3 11 L12 16 L21 11"/><path d="M3 15 L12 20 L21 15"/></svg></button>';
       document.body.appendChild(bot);
       document.getElementById('gNavExitBtn').onclick = ()=>{
         try{
@@ -4432,14 +4434,27 @@ try{
           deactivateGoogleNav();
         }catch(e){}
       };
-      document.getElementById('gNavFavBtn').onclick = ()=>{
-        try{ if(typeof showCustomToast === 'function') showCustomToast('Đã lưu tuyến đường', 'success'); }catch(e){}
+      document.getElementById('gNavLayerBtn').onclick = (e)=>{
+        try{
+          e.stopPropagation();
+          // Mo menu Lop ban do goc (neu co), khong thi doi kieu map truc tiep
+          if(typeof window.toggleLayerMenu === 'function'){ window.toggleLayerMenu(); return; }
+          const oldBtn = document.getElementById('btnLayerMenu');
+          if(oldBtn){ oldBtn.click(); return; }
+          if(typeof window.changeLayer === 'function'){
+            // fallback: xoay vong 3 kieu: mac dinh -> ve tinh -> giao thong
+            const cur = (window._gNavLayerIdx || 0) + 1;
+            window._gNavLayerIdx = cur % 3;
+            const types = ['trackasia-maplibre', 'satellite', 'trackasia'];
+            window.changeLayer(types[window._gNavLayerIdx], null);
+          }
+        }catch(err){ console.warn('Layer btn loi', err); }
       };
     }
     if(!document.getElementById('gNavRightControls')){
       const rc = document.createElement('div');
       rc.id = 'gNavRightControls';
-      rc.innerHTML = '<button class="gNavRoundBtn" id="gNavCompassBtn" title="La bàn"><span class="compass-arrow">▲</span></button><button class="gNavRoundBtn" id="gNavSearchBtn" title="Tìm kiếm">🔍</button><button class="gNavRoundBtn" id="gNavVoiceBtn" title="Âm thanh">🔊</button><button class="gNavRoundBtn" id="gNavRoutesBtn" title="Tuyến khác">↗↖</button>';
+      rc.innerHTML = '<button class="gNavRoundBtn" id="gNavCompassBtn" title="La bàn"><span class="compass-arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 2 L15.5 12 L12 22 L8.5 12 Z" fill="#ea4335"/><path d="M12 22 L15.5 12 L8.5 12 Z" fill="#9aa0a6"/></svg></span></button><button class="gNavRoundBtn" id="gNavSearchBtn" title="Tìm kiếm"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button><button class="gNavRoundBtn" id="gNavVoiceBtn" title="Âm thanh"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 L6 9 H3 v6 h3 l5 4 Z" fill="#3c4043" stroke="none"/><path d="M15.5 8.5 a5 5 0 0 1 0 7"/><path d="M18.5 5.5 a9 9 0 0 1 0 13"/></svg></button><button class="gNavRoundBtn" id="gNavRoutesBtn" title="Tuyến khác"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linecap="round"><path d="M6 4 v4 a4 4 0 0 0 4 4 h1 a4 4 0 0 1 4 4 v4"/><path d="M18 4 v2 a4 4 0 0 1-4 4"/><circle cx="6" cy="4" r="1.8" fill="#1a73e8" stroke="none"/><circle cx="18" cy="4" r="1.8" fill="#1a73e8" stroke="none"/><circle cx="15" cy="20" r="1.8" fill="#1a73e8" stroke="none"/></svg></button>';
       document.body.appendChild(rc);
       document.getElementById('gNavCompassBtn').onclick = ()=>{
         try{
@@ -4459,7 +4474,9 @@ try{
         try{
           const btn = e.currentTarget;
           voiceEnabled = !voiceEnabled;
-          btn.textContent = voiceEnabled ? '🔊' : '🔇';
+          btn.innerHTML = voiceEnabled
+            ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 L6 9 H3 v6 h3 l5 4 Z" fill="#3c4043" stroke="none"/><path d="M15.5 8.5 a5 5 0 0 1 0 7"/><path d="M18.5 5.5 a9 9 0 0 1 0 13"/></svg>'
+            : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 L6 9 H3 v6 h3 l5 4 Z" fill="#9aa0a6" stroke="none"/><line x1="16" y1="9" x2="22" y2="15"/><line x1="22" y1="9" x2="16" y2="15"/></svg>';
           btn.style.opacity = voiceEnabled ? '1' : '0.6';
         }catch(err){}
       };
@@ -4470,7 +4487,7 @@ try{
     if(!document.getElementById('gNavRecenterBtn')){
       const rb = document.createElement('button');
       rb.id = 'gNavRecenterBtn';
-      rb.innerHTML = '△ Về giữa';
+      rb.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.6" fill="#0F766E" stroke="none"/><path d="M12 1 v3 M12 20 v3 M1 12 h3 M20 12 h3"/></svg><span>Về giữa</span>';
       rb.onclick = ()=>{
         try{
           navFollowMode = 'first-person';
@@ -4493,17 +4510,50 @@ try{
     const type = (maneuver.type || '').toLowerCase();
     const mod = (maneuver.modifier || '').toLowerCase();
     const instr = (maneuver.instruction || '').toLowerCase();
-    if(type.includes('arrive') || instr.includes('đến') || instr.includes('arrive')) return '⚑';
-    if(mod.includes('uturn') || type.includes('uturn')) return mod.includes('left') ? '↩' : '↪';
-    if(type.includes('roundabout')) return '↻';
-    if(mod.includes('slight left')) return '↰';
-    if(mod.includes('slight right')) return '↱';
-    if(mod.includes('sharp left')) return '⬅';
-    if(mod.includes('sharp right')) return '➡';
-    if(mod.includes('left') || type.includes('left')) return '←';
-    if(mod.includes('right') || type.includes('right')) return '→';
+    // Den noi
+    if(type.includes('arrive') || instr.includes('đến') || instr.includes('arrive') || instr.includes('destination')) return '⚑';
+    // Quay dau / di lui - uturn phai check TRUOC left/right vi 'uturn right' chua 'right'
+    if(mod.includes('uturn') || type.includes('uturn') || instr.includes('quay đầu') || instr.includes('u-turn') || instr.includes('u turn')) return mod.includes('left') ? '↩' : '↪';
+    if(instr.includes('lùi') || instr.includes('reverse')) return '↓';
+    if(type.includes('roundabout') || instr.includes('vòng xuyến') || instr.includes('roundabout')) return '↻';
+    // Re nhe / ngoat
+    if(mod.includes('slight left') || instr.includes('chếch sang trái')) return '↰';
+    if(mod.includes('slight right') || instr.includes('chếch sang phải')) return '↱';
+    if(mod.includes('sharp left') || instr.includes('ngoặt sang trái')) return '⬅';
+    if(mod.includes('sharp right') || instr.includes('ngoặt sang phải')) return '➡';
+    // Giu lan
+    if(instr.includes('bám bên trái') || mod.includes('keep left')) return '↖';
+    if(instr.includes('bám bên phải') || mod.includes('keep right')) return '↗';
+    // Re trai / phai
+    if(mod.includes('left') || type.includes('left') || instr.includes('rẽ trái')) return '←';
+    if(mod.includes('right') || type.includes('right') || instr.includes('rẽ phải')) return '→';
+    // Di thang / tiep tuc
+    if(type.includes('continue') || type.includes('straight') || type.includes('depart') || instr.includes('đi thẳng') || instr.includes('tiếp tục')) return '↑';
     if(type.includes('turn') || type.includes('fork') || type.includes('merge') || type.includes('on ramp') || type.includes('off ramp')) return mod.includes('left') ? '←' : (mod.includes('right') ? '→' : '↑');
     return '↑';
+  }
+  // Text cho banner 'Sau do ...' - ghi bang chu: re trai / re phai / di thang / quay dau / di lui
+  function gManeuverText(maneuver){
+    if(!maneuver) return 'đi thẳng';
+    const type = (maneuver.type || '').toLowerCase();
+    const mod = (maneuver.modifier || '').toLowerCase();
+    const instr = (maneuver.instruction || '').toLowerCase();
+    if(type.includes('arrive') || instr.includes('đến') || instr.includes('arrive')) return 'đến nơi';
+    if(mod.includes('uturn') || type.includes('uturn') || instr.includes('quay đầu') || instr.includes('u-turn')) return 'quay đầu';
+    if(instr.includes('lùi') || instr.includes('reverse')) return 'đi lùi';
+    if(type.includes('roundabout') || instr.includes('vòng xuyến')) return 'vào vòng xuyến';
+    if(mod.includes('slight left') || instr.includes('chếch sang trái')) return 'rẽ nhẹ trái';
+    if(mod.includes('slight right') || instr.includes('chếch sang phải')) return 'rẽ nhẹ phải';
+    if(mod.includes('sharp left') || instr.includes('ngoặt sang trái')) return 'rẽ ngoặt trái';
+    if(mod.includes('sharp right') || instr.includes('ngoặt sang phải')) return 'rẽ ngoặt phải';
+    if(instr.includes('bám bên trái') || mod.includes('keep left')) return 'giữ bên trái';
+    if(instr.includes('bám bên phải') || mod.includes('keep right')) return 'giữ bên phải';
+    if(mod.includes('left') || instr.includes('rẽ trái')) return 'rẽ trái';
+    if(mod.includes('right') || instr.includes('rẽ phải')) return 'rẽ phải';
+    if(type.includes('continue') || type.includes('straight') || type.includes('depart') || instr.includes('đi thẳng') || instr.includes('tiếp tục')) return 'đi thẳng';
+    if(type.includes('merge') || instr.includes('nhập làn')) return 'nhập làn';
+    if(type.includes('turn') || type.includes('fork')) return mod.includes('left') ? 'rẽ trái' : (mod.includes('right') ? 'rẽ phải' : 'đi thẳng');
+    return 'đi thẳng';
   }
   function gFormatDist(m){
     if(!isFinite(m)) return '--';
@@ -4542,7 +4592,7 @@ try{
       const nextBanner = document.getElementById('gNavNextBanner');
       if(nextBanner){
         if(nextNext){
-          nextBanner.innerHTML = '<span>Sau đó</span><span class="next-arrow">' + gArrowFor(nextNext.maneuver) + '</span>';
+          nextBanner.innerHTML = '<span>Sau đó ' + gManeuverText(nextNext.maneuver) + '</span><span class="next-arrow">' + gArrowFor(nextNext.maneuver) + '</span>';
           nextBanner.classList.add('show');
         } else {
           nextBanner.classList.remove('show');
@@ -4813,11 +4863,13 @@ try{
       #gNavBottomInfo{ flex:1; min-width:0; text-align:center; display:flex; flex-direction:column; gap:1px; }
       #gNavRemainTime{ font-size:27px; font-weight:800; color:#188038; line-height:1.1; }
       #gNavRemainMeta{ font-size:15px; font-weight:600; color:#5f6368; }
-      #gNavFavBtn{ width:48px; height:48px; flex-shrink:0; border-radius:999px; border:1px solid #dadce0; background:#fff; color:#1a73e8; font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+      #gNavLayerBtn{ width:48px; height:48px; flex-shrink:0; border-radius:999px; border:1px solid #dadce0; background:#fff; color:#1a73e8; font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
       /* Cot nut phai - day len tren de khong de minimap */
       #gNavRightControls{ position:fixed !important; right:12px !important; bottom:calc(270px + env(safe-area-inset-bottom, 0px)) !important; z-index:800 !important; display:none; flex-direction:column; gap:12px; }
       #gNavRightControls.show{ display:flex !important; }
       .gNavRoundBtn{ width:56px; height:56px; border-radius:999px; background:#fff; border:none; box-shadow:0 4px 14px rgba(0,0,0,0.22); font-size:22px; color:#3c4043; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+      .gNavRoundBtn svg{ display:block; flex-shrink:0; }
+      #gNavLayerBtn svg, #gNavExitBtn svg{ display:block; flex-shrink:0; }
       #gNavCompassBtn .compass-arrow{ font-size:24px; font-weight:900; color:#ea4335; display:inline-block; }
       #gNavRecenterBtn{ position:fixed !important; left:16px !important; bottom:calc(132px + env(safe-area-inset-bottom, 0px)) !important; z-index:800 !important; background:#fff !important; color:#0F766E !important; border:none !important; border-radius:999px !important; padding:10px 16px !important; font-size:15px !important; font-weight:800 !important; box-shadow:0 4px 14px rgba(0,0,0,0.22) !important; display:none; align-items:center; gap:6px; cursor:pointer; }
       #gNavRecenterBtn.show{ display:flex !important; }
@@ -5330,4 +5382,339 @@ try{
   }
   try{ updateWhiteTurnArrow = updateWhiteTurnArrowBent; }catch(e){}
   setTimeout(()=>{ try{ if(isNavigating) updateWhiteTurnArrowBent(); }catch(e){} }, 600);
+})();
+
+
+/* ============================================================
+   [FIX 2026-11-22] NUT KET THUC CHUYEN DI + LUU TEN VO FIRESTORE (Google Nav)
+   - Nut "Ket thuc chuyen di" noi tren bottom sheet, chi hien khi dang dan duong Google
+   - Bam -> mo modal hoi: Luu chuyen hay khong? Neu Luu -> cho dat ten -> luu vao Firestore
+     users/{uid}/savedRoutes (co field name). Neu Khong luu -> chi ket thuc.
+   - Neu chua dang nhap: luu tam vao localStorage drivekit_saved_trips.
+   - Ghi de openEndTripModal / endTrip cu de modal cu (neu co) cung dung modal moi co o ten.
+   ============================================================ */
+(function(){
+  // ---- CSS ----
+  function injectEndTripCSS(){
+    if(document.getElementById('gNavEndTripStyle')) return;
+    const st = document.createElement('style');
+    st.id = 'gNavEndTripStyle';
+    st.textContent = `
+      #gNavEndTripBtn{ position:fixed !important; left:50% !important; transform:translateX(-50%) !important; bottom:calc(92px + env(safe-area-inset-bottom, 0px)) !important; z-index:801 !important; background:#dc2626 !important; color:#fff !important; border:none !important; border-radius:999px !important; padding:11px 22px !important; font-size:15px !important; font-weight:800 !important; box-shadow:0 4px 14px rgba(0,0,0,0.28) !important; cursor:pointer !important; display:none; align-items:center; gap:8px; }
+      #gNavEndTripBtn.show{ display:flex !important; }
+      #gNavEndTripBtn:active{ transform:translateX(-50%) scale(0.96) !important; }
+      #gNavEndTripModal{ position:fixed !important; inset:0 !important; z-index:1200 !important; background:rgba(0,0,0,0.55) !important; display:none; align-items:flex-end; justify-content:center; padding:16px; }
+      #gNavEndTripModal.open{ display:flex !important; }
+      #gNavEndTripCard{ width:100% !important; max-width:420px !important; background:#fff !important; border-radius:20px !important; padding:20px 18px 18px !important; box-shadow:0 12px 32px rgba(0,0,0,0.3) !important; }
+      #gNavEndTripCard h3{ margin:0 0 6px !important; font-size:19px !important; font-weight:800 !important; color:#111827 !important; text-align:center; }
+      #gNavEndTripCard .trip-sum{ text-align:center; color:#5f6368; font-size:14px; font-weight:600; margin-bottom:14px; }
+      #gNavEndTripCard label{ display:block; font-size:13px; font-weight:700; color:#374151; margin:0 0 6px; }
+      #gNavEndTripName{ width:100% !important; box-sizing:border-box !important; padding:12px 14px !important; border:1.5px solid #dadce0 !important; border-radius:12px !important; font-size:15px !important; outline:none !important; }
+      #gNavEndTripName:focus{ border-color:#1a73e8 !important; }
+      #gNavEndTripBtns{ display:flex; gap:10px; margin-top:16px; }
+      #gNavEndTripBtns button{ flex:1; padding:13px 10px; border-radius:12px; font-size:15px; font-weight:800; cursor:pointer; border:none; }
+      #gNavSaveTripBtn{ background:#188038 !important; color:#fff !important; }
+      #gNavNoSaveTripBtn{ background:#f1f3f4 !important; color:#3c4043 !important; }
+      #gNavCancelTripBtn{ width:100%; margin-top:10px; background:transparent !important; color:#5f6368 !important; font-size:14px; font-weight:700; }
+    `;
+    document.head.appendChild(st);
+  }
+  injectEndTripCSS();
+
+  // ---- DOM: nut Ket thuc + modal ----
+  function ensureEndTripUI(){
+    if(!document.getElementById('gNavEndTripBtn')){
+      const b = document.createElement('button');
+      b.id = 'gNavEndTripBtn';
+      b.type = 'button';
+      b.innerHTML = '■ Kết thúc chuyến đi';
+      b.onclick = ()=>{ try{ window.openEndTripModal(); }catch(e){} };
+      document.body.appendChild(b);
+    }
+    if(!document.getElementById('gNavEndTripModal')){
+      const m = document.createElement('div');
+      m.id = 'gNavEndTripModal';
+      m.innerHTML = '<div id="gNavEndTripCard">'
+        + '<h3>Kết thúc chuyến đi?</h3>'
+        + '<div class="trip-sum" id="gNavEndTripSum">—</div>'
+        + '<label for="gNavEndTripName">Tên chuyến đi (nếu lưu)</label>'
+        + '<input id="gNavEndTripName" type="text" placeholder="VD: Đi làm - Quận 1" />'
+        + '<div id="gNavEndTripBtns"><button id="gNavSaveTripBtn" type="button">💾 Lưu chuyến</button><button id="gNavNoSaveTripBtn" type="button">Không lưu</button></div>'
+        + '<button id="gNavCancelTripBtn" type="button">Hủy</button>'
+        + '</div>';
+      document.body.appendChild(m);
+      document.getElementById('gNavCancelTripBtn').onclick = ()=>{ m.classList.remove('open'); };
+      m.addEventListener('click', (e)=>{ if(e.target === m) m.classList.remove('open'); });
+      document.getElementById('gNavSaveTripBtn').onclick = async ()=>{
+        const inp = document.getElementById('gNavEndTripName');
+        const name = (inp && inp.value.trim()) || ('Chuyến đi đến ' + (typeof endPoint !== 'undefined' && endPoint && endPoint.name ? endPoint.name : 'Đích') + ' - ' + new Date().toLocaleDateString('vi-VN'));
+        m.classList.remove('open');
+        try{ await window.endTrip(true, name); }catch(e){ console.warn('endTrip save loi', e); }
+      };
+      document.getElementById('gNavNoSaveTripBtn').onclick = async ()=>{
+        m.classList.remove('open');
+        try{ await window.endTrip(false); }catch(e){ console.warn('endTrip nosave loi', e); }
+      };
+    }
+  }
+  ensureEndTripUI();
+
+  // Hien / an nut Ket thuc theo Google Nav
+  try{
+    const obs = new MutationObserver(()=>{
+      const btn = document.getElementById('gNavEndTripBtn');
+      if(!btn) return;
+      const isNav = document.body.classList.contains('google-nav') || document.body.classList.contains('navigating');
+      btn.classList.toggle('show', !!isNav);
+    });
+    obs.observe(document.body, { attributes:true, attributeFilter:['class'] });
+    // Check lan dau
+    setTimeout(()=>{
+      const btn = document.getElementById('gNavEndTripBtn');
+      if(btn) btn.classList.toggle('show', document.body.classList.contains('google-nav') || document.body.classList.contains('navigating'));
+    }, 500);
+  }catch(e){}
+
+  // ---- Ghi de openEndTripModal: mo modal moi co o dat ten ----
+  const _origOpenEnd = window.openEndTripModal;
+  window.openEndTripModal = function(){
+    try{
+      ensureEndTripUI();
+      const modal = document.getElementById('gNavEndTripModal');
+      const sumEl = document.getElementById('gNavEndTripSum');
+      const inp = document.getElementById('gNavEndTripName');
+      // Dien tom tat
+      let distTxt = '—', timeTxt = '—', destTxt = '—';
+      try{
+        if(typeof currentRouteData !== 'undefined' && currentRouteData) distTxt = (currentRouteData.distance/1000).toFixed(1) + ' km';
+        if(typeof tripStartTime !== 'undefined' && tripStartTime) timeTxt = Math.max(1, Math.round((Date.now()-tripStartTime)/60000)) + ' phút';
+        if(typeof endPoint !== 'undefined' && endPoint && endPoint.name) destTxt = endPoint.name;
+      }catch(e){}
+      if(sumEl) sumEl.textContent = destTxt + ' • ' + distTxt + ' • ' + timeTxt;
+      if(inp){
+        const defName = 'Chuyến đi đến ' + destTxt + ' - ' + new Date().toLocaleDateString('vi-VN');
+        inp.value = defName;
+        setTimeout(()=>{ try{ inp.focus(); inp.select(); }catch(e){} }, 150);
+      }
+      if(modal) modal.classList.add('open');
+      // Dong modal cu neu co (tranh 2 modal chong nhau)
+      try{ const old = document.getElementById('endTripModal'); if(old) old.classList.remove('open'); }catch(e){}
+    }catch(e){
+      // Fallback ve modal cu
+      if(typeof _origOpenEnd === 'function') return _origOpenEnd();
+    }
+  };
+  window.closeEndTripModal = function(){
+    try{ const m = document.getElementById('gNavEndTripModal'); if(m) m.classList.remove('open'); }catch(e){}
+    try{ const old = document.getElementById('endTripModal'); if(old) old.classList.remove('open'); }catch(e){}
+  };
+
+  // ---- Ghi de endTrip: luu co ten vao Firestore ----
+  window.endTrip = async function(save, tripName){
+    try{ const m = document.getElementById('gNavEndTripModal'); if(m) m.classList.remove('open'); }catch(e){}
+    try{ const old = document.getElementById('endTripModal'); if(old) old.classList.remove('open'); }catch(e){}
+    // 1. Luu neu chon Luu
+    if(save && typeof currentRouteData !== 'undefined' && currentRouteData){
+      const name = (tripName && String(tripName).trim()) || ('Chuyến đi đến ' + (typeof endPoint !== 'undefined' && endPoint && endPoint.name ? endPoint.name : 'Đích'));
+      try{
+        if(typeof currentUser !== 'undefined' && currentUser && typeof fsdb !== 'undefined' && typeof collection !== 'undefined' && typeof addDoc !== 'undefined'){
+          await addDoc(collection(fsdb, `users/${currentUser.uid}/savedRoutes`), {
+            name: name,
+            startName: (typeof startPoint !== 'undefined' && startPoint) ? startPoint.name : '',
+            startLng: (typeof startPoint !== 'undefined' && startPoint) ? startPoint.lng : null,
+            startLat: (typeof startPoint !== 'undefined' && startPoint) ? startPoint.lat : null,
+            endName: (typeof endPoint !== 'undefined' && endPoint) ? endPoint.name : '',
+            endLng: (typeof endPoint !== 'undefined' && endPoint) ? endPoint.lng : null,
+            endLat: (typeof endPoint !== 'undefined' && endPoint) ? endPoint.lat : null,
+            coords: (typeof currentRouteCoords !== 'undefined') ? currentRouteCoords : [],
+            distance: currentRouteData.distance || 0,
+            duration: currentRouteData.duration || 0,
+            timestamp: Date.now()
+          });
+        } else {
+          // Chua dang nhap: luu tam localStorage
+          try{
+            const arr = JSON.parse(localStorage.getItem('drivekit_saved_trips') || '[]');
+            arr.push({ name, startName: (typeof startPoint !== 'undefined' && startPoint) ? startPoint.name : '', endName: (typeof endPoint !== 'undefined' && endPoint) ? endPoint.name : '', coords: (typeof currentRouteCoords !== 'undefined') ? currentRouteCoords : [], distance: currentRouteData.distance || 0, timestamp: Date.now() });
+            localStorage.setItem('drivekit_saved_trips', JSON.stringify(arr));
+          }catch(e){}
+        }
+      }catch(e){ console.warn('Luu chuyen loi', e); }
+    }
+    // 2. Don dep - giong endTrip cu (khong goi lai ham cu de tranh luu 2 lan + alert 2 lan)
+    try{ if(typeof watchId !== 'undefined' && watchId){ navigator.geolocation.clearWatch(watchId); watchId = null; } }catch(e){}
+    try{ if(typeof voiceCheckTimer !== 'undefined' && voiceCheckTimer){ clearInterval(voiceCheckTimer); voiceCheckTimer = null; } }catch(e){}
+    try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
+    try{ if(map && map.getLayer('current-route-layer')) map.removeLayer('current-route-layer'); }catch(e){}
+    try{ if(map && map.getSource('current-route-source')) map.removeSource('current-route-source'); }catch(e){}
+    try{ if(window._routeBadges){ window._routeBadges.forEach(m=>m.remove()); window._routeBadges = []; } }catch(e){}
+    try{ if(typeof alternativeRoutesData !== 'undefined') alternativeRoutesData.forEach((_, i)=>{ if(map && map.getLayer(`alt-route-layer-${i}`)) map.removeLayer(`alt-route-layer-${i}`); if(map && map.getSource(`alt-route-source-${i}`)) map.removeSource(`alt-route-source-${i}`); }); }catch(e){}
+    try{ currentRouteCoords = []; currentRouteData = null; alternativeRoutesData = []; voiceRouteSteps = null; voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0; isRerouting = false; tripStartTime = null; arrivalHandled = false; }catch(e){}
+    try{ if(typeof warnedReports !== 'undefined') warnedReports.clear(); }catch(e){}
+    try{ if(typeof warnedAvoidZones !== 'undefined') warnedAvoidZones.clear(); }catch(e){}
+    try{ if(typeof warnedPois !== 'undefined') warnedPois.clear(); }catch(e){}
+    try{ localStorage.removeItem('alternativeRoutes'); }catch(e){}
+    try{ document.body.classList.remove('navigating'); document.body.classList.remove('google-nav'); }catch(e){}
+    try{ const hud = document.getElementById('hud'); if(hud) hud.classList.add('hidden'); }catch(e){}
+    try{ if(typeof updateUIState === 'function') updateUIState(); }catch(e){}
+    try{ const e1 = document.getElementById('dirInputEnd'); if(e1) e1.value = ''; }catch(e){}
+    try{ const e2 = document.getElementById('topSearchInput'); if(e2) e2.value = ''; }catch(e){}
+    try{ const e3 = document.getElementById('btnClearEnd'); if(e3) e3.classList.add('hidden'); }catch(e){}
+    try{ const e4 = document.getElementById('searchClearBtn'); if(e4) e4.classList.add('hidden'); }catch(e){}
+    try{ endPoint = null; }catch(e){}
+    try{ if(typeof lastUserPos !== 'undefined' && lastUserPos && map) map.flyTo({ center:[lastUserPos.lng, lastUserPos.lat], zoom:16 }); }catch(e){}
+    // 3. Thong bao
+    try{
+      if(save) { if(typeof showCustomToast === 'function') showCustomToast('✅ Đã lưu chuyến đi: ' + (tripName || ''), 'success'); else alert('✅ Đã lưu chuyến đi.'); }
+      else { if(typeof showCustomToast === 'function') showCustomToast('🏁 Đã kết thúc chuyến đi.', 'info'); else alert('🏁 Đã kết thúc chuyến đi.'); }
+    }catch(e){}
+  };
+})();
+
+
+/* [MIGRATION] Neu ban cu da tao nut Fav ✦ thi doi thanh nut Lop ban do ngay */
+(function(){
+  try{
+    const old = document.getElementById('gNavFavBtn');
+    if(old){
+      old.id = 'gNavLayerBtn';
+      old.title = 'Lớp bản đồ';
+      old.textContent = '🗺️';
+      old.onclick = (e)=>{ try{ e.stopPropagation(); if(typeof window.toggleLayerMenu === 'function') window.toggleLayerMenu(); }catch(err){} };
+    }
+    // La ban xich len neu CSS cu van con 150px (them style de ghi de)
+    if(!document.getElementById('gNavCompassUpFix')){
+      const st = document.createElement('style');
+      st.id = 'gNavCompassUpFix';
+      st.textContent = '#gNavRightControls{ bottom:calc(195px + env(safe-area-inset-bottom, 0px)) !important; } #gNavNextBanner{ gap:10px !important; } #gNavNextBanner .next-arrow{ font-size:22px; }';
+      document.head.appendChild(st);
+    }
+  }catch(e){}
+})();
+
+
+/* [MIGRATION ICON] Doi emoji cu sang SVG neu DOM da tao tu ban cu */
+(function(){
+  try{
+    const map = {
+      'gNavSearchBtn': '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>',
+      'gNavRoutesBtn': '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linecap="round"><path d="M6 4 v4 a4 4 0 0 0 4 4 h1 a4 4 0 0 1 4 4 v4"/><path d="M18 4 v2 a4 4 0 0 1-4 4"/><circle cx="6" cy="4" r="1.8" fill="#1a73e8" stroke="none"/><circle cx="18" cy="4" r="1.8" fill="#1a73e8" stroke="none"/><circle cx="15" cy="20" r="1.8" fill="#1a73e8" stroke="none"/></svg>',
+      'gNavLayerBtn': '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linejoin="round"><path d="M12 3 L21 8 L12 13 L3 8 Z"/><path d="M3 11 L12 16 L21 11"/><path d="M3 15 L12 20 L21 15"/></svg>'
+    };
+    Object.keys(map).forEach(id=>{
+      const el = document.getElementById(id);
+      if(el && !el.querySelector('svg')) el.innerHTML = map[id];
+    });
+    const comp = document.querySelector('#gNavCompassBtn .compass-arrow');
+    if(comp && !comp.querySelector('svg')) comp.innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 2 L15.5 12 L12 22 L8.5 12 Z" fill="#ea4335"/><path d="M12 22 L15.5 12 L8.5 12 Z" fill="#9aa0a6"/></svg>';
+    const voice = document.getElementById('gNavVoiceBtn');
+    if(voice && !voice.querySelector('svg')) voice.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 L6 9 H3 v6 h3 l5 4 Z" fill="#3c4043" stroke="none"/><path d="M15.5 8.5 a5 5 0 0 1 0 7"/><path d="M18.5 5.5 a9 9 0 0 1 0 13"/></svg>';
+    const exitBtn = document.getElementById('gNavExitBtn');
+    if(exitBtn && !exitBtn.querySelector('svg')) exitBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+  }catch(e){}
+})();
+
+
+/* ============================================================
+   [FIX 2026-11-22] DAU X CHO THANH TIM KIEM
+   - Them nut X nam TRONG o tim kiem (ben phai), chi hien khi co chu
+   - Bam X: xoa chu, an goi y ket qua, focus lai o tim kiem
+   - Lam cho ca #topSearchInput (tim kiem chinh) + #dirInputEnd (diem den) neu co
+   ============================================================ */
+(function(){
+  function injectSearchXCSS(){
+    if(document.getElementById('searchXStyle')) return;
+    const st = document.createElement('style');
+    st.id = 'searchXStyle';
+    st.textContent = `
+      .search-wrap-x{ position:relative !important; }
+      .search-x-btn{ position:absolute !important; right:10px !important; top:50% !important; transform:translateY(-50%) !important; width:28px !important; height:28px !important; min-width:28px !important; border-radius:999px !important; border:none !important; background:#e8eaed !important; color:#3c4043 !important; cursor:pointer !important; display:none; align-items:center; justify-content:center; z-index:10 !important; padding:0 !important; }
+      .search-x-btn.show{ display:flex !important; }
+      .search-x-btn:active{ transform:translateY(-50%) scale(0.92) !important; background:#dadce0 !important; }
+      .search-x-btn svg{ display:block; }
+      /* Neu o tim kiem cu da co nut clear nam ngoai, cho no dep lai thanh X tron */
+      #searchClearBtn{ width:28px !important; height:28px !important; border-radius:999px !important; background:#e8eaed !important; color:#3c4043 !important; border:none !important; display:none; align-items:center; justify-content:center; }
+      #searchClearBtn:not(.hidden){ display:flex !important; }
+    `;
+    document.head.appendChild(st);
+  }
+  injectSearchXCSS();
+
+  function hideSearchDropdown(){
+    // An cac dropdown goi y neu co - khong xoa DOM, chi an de khoi vo code cu
+    ['#searchSuggestions','#searchResults','#searchDropdown','#suggestBox','.search-suggestions','.search-results','.suggestion-box'].forEach(sel=>{
+      try{ document.querySelectorAll(sel).forEach(el=>{ el.style.display = 'none'; }); }catch(e){}
+    });
+    try{ const old = document.getElementById('searchClearBtn'); if(old) old.classList.add('hidden'); }catch(e){}
+  }
+
+  function ensureSearchX(inputId, xId){
+    const inp = document.getElementById(inputId);
+    if(!inp) return false;
+    const parent = inp.parentElement;
+    if(!parent) return false;
+    if(!parent.classList.contains('search-wrap-x')) parent.classList.add('search-wrap-x');
+    let xBtn = document.getElementById(xId);
+    if(!xBtn){
+      xBtn = document.createElement('button');
+      xBtn.id = xId;
+      xBtn.type = 'button';
+      xBtn.className = 'search-x-btn';
+      xBtn.title = 'Xóa tìm kiếm';
+      xBtn.setAttribute('aria-label', 'Xóa tìm kiếm');
+      xBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+      // De nut X khong bi che boi icon khac trong o tim kiem
+      parent.appendChild(xBtn);
+      xBtn.addEventListener('mousedown', (e)=>{ e.preventDefault(); }); // giu focus khong mat
+      xBtn.addEventListener('click', (e)=>{
+        e.preventDefault(); e.stopPropagation();
+        inp.value = '';
+        try{ inp.readOnly = false; }catch(err){}
+        xBtn.classList.remove('show');
+        hideSearchDropdown();
+        try{ inp.dispatchEvent(new Event('input', { bubbles:true })); }catch(err){}
+        try{ inp.focus(); }catch(err){}
+        // Neu la o tim kiem chinh, dong bo nut clear cu
+        try{ if(inputId === 'topSearchInput' && typeof window.clearTopSearch === 'function') window.clearTopSearch(); }catch(err){}
+      });
+    }
+    const toggle = ()=>{
+      const has = !!(inp.value && inp.value.trim());
+      xBtn.classList.toggle('show', has);
+      // Dong bo nut clear cu (neu HTML cu co)
+      try{ const old = document.getElementById('searchClearBtn'); if(old && inputId === 'topSearchInput') old.classList.toggle('hidden', !has); }catch(e){}
+    };
+    if(!inp._searchXBound){
+      inp._searchXBound = true;
+      inp.addEventListener('input', toggle);
+      inp.addEventListener('change', toggle);
+      inp.addEventListener('focus', toggle);
+    }
+    toggle();
+    return true;
+  }
+
+  // Chay ngay + thu lai sau khi UI load (vi input co the tao sau)
+  function tryEnsure(){
+    ensureSearchX('topSearchInput', 'topSearchClearX');
+    ensureSearchX('dirInputEnd', 'dirEndClearX');
+    ensureSearchX('dirInputStart', 'dirStartClearX');
+  }
+  tryEnsure();
+  setTimeout(tryEnsure, 800);
+  setTimeout(tryEnsure, 2000);
+  // Theo doi DOM: neu input bi tao lai sau thi gan X lai
+  try{
+    const obs = new MutationObserver(()=>{ tryEnsure(); });
+    obs.observe(document.body, { childList:true, subtree:true });
+    setTimeout(()=>obs.disconnect(), 15000);
+  }catch(e){}
+  // Neu HTML cu da co #searchClearBtn: doi no thanh X tron ben trong (neu no dang nam ngoai o tim kiem thi giu nguyen, chi doi icon)
+  try{
+    const old = document.getElementById('searchClearBtn');
+    if(old && !old.querySelector('svg')){
+      old.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+      old.title = 'Xóa tìm kiếm';
+    }
+  }catch(e){}
 })();
