@@ -3281,7 +3281,7 @@ window.switchToRoute = function(index) {
       const _a=currentRouteCoords[_bi], _b=currentRouteCoords[Math.min(currentRouteCoords.length-1,_bi+3)];
       if(_a&&_b&&typeof bearingBetween==='function'){
         const _br=bearingBetween(_a[0],_a[1],_b[0],_b[1]);
-        if(map && isFinite(_br)) map.easeTo({ center:[lastUserPos.lng, lastUserPos.lat], bearing:_br, pitch:60, zoom:Math.max(map.getZoom(),17.5), duration:600 });
+        if(map && isFinite(_br)) map.easeTo({ center:[lastUserPos.lng, lastUserPos.lat], bearing:_br, pitch:0, zoom:Math.max(map.getZoom(),17.5), duration:600 });
       }
     }
     if(typeof updateWhiteTurnArrow==='function') setTimeout(()=>{ try{ updateWhiteTurnArrow(); }catch(e){} }, 80);
@@ -3584,7 +3584,7 @@ function updateNavCamera(pos, heading){
     try{ if(typeof window.getRouteBearingAhead === 'function'){ const _rb = window.getRouteBearingAhead(pos); if(_rb !== null && _rb !== undefined) _useBr = _rb; } }catch(e){}
     const isMobileNav = window.innerWidth <= 640;
     const camOffset = isMobileNav ? [0, window.innerHeight * 0.16] : [0, 0];
-    map.easeTo({ center:[pos.lng, pos.lat], bearing: _useBr, pitch:60, zoom: Math.max(map.getZoom(), 17.5), duration:350, essential:false, offset: camOffset });
+    map.easeTo({ center:[pos.lng, pos.lat], bearing: _useBr, pitch:0, zoom: Math.max(map.getZoom(), 17.5), duration:350, essential:false, offset: camOffset });
   }catch(e){}
 }
 window.startNavigationMode = function(){
@@ -3939,7 +3939,7 @@ function autoFirstPerson(){
   if(lastUserPos) updateNavCamera(lastUserPos, lastUserPos.heading||0);
   else if(currentRouteCoords && currentRouteCoords.length){
     // Chua co GPS thi nhin theo diem dau tuyen
-    try{ map.easeTo({ center:[currentRouteCoords[0][1], currentRouteCoords[0][0]], pitch:60, zoom:17.5, duration:700 }); }catch(e){}
+    try{ map.easeTo({ center:[currentRouteCoords[0][1], currentRouteCoords[0][0]], pitch:0, zoom:17.5, duration:700 }); }catch(e){}
   }
 }
 // Khi body them class 'navigating' (app goc bat dau dan duong) thi tu ve Goc 1
@@ -5194,7 +5194,7 @@ try{
         const useBearing = (rb !== null && rb !== undefined) ? rb : (lastUserPos.heading || 0);
         const isMobile = window.innerWidth <= 640;
         const off = isMobile ? [0, window.innerHeight * 0.16] : [0, 110];
-        map.easeTo({ center:[lastUserPos.lng, lastUserPos.lat], bearing: useBearing, pitch:55, zoom: Math.max(map.getZoom(), 17.5), offset: off, duration:500, essential:true });
+        map.easeTo({ center:[lastUserPos.lng, lastUserPos.lat], bearing: useBearing, pitch:0, zoom: Math.max(map.getZoom(), 17.5), offset: [0, 0], duration:500, essential:true });
         const comp2 = document.querySelector('#gNavCompassBtn .compass-arrow');
         if(comp2) comp2.style.transform = 'rotate(' + (-useBearing) + 'deg)';
       }
@@ -5220,7 +5220,7 @@ try{
         _lastCamAt = nowC2;
         const isMobile2 = window.innerWidth <= 640;
         const off2 = isMobile2 ? [0, window.innerHeight * 0.16] : [0, 110];
-        map.easeTo({ center:[pos.lng, pos.lat], bearing: useBearing, pitch:55, zoom: Math.max(map.getZoom(), 17.5), offset: off2, duration:350, essential:false });
+        map.easeTo({ center:[pos.lng, pos.lat], bearing: useBearing, pitch:0, zoom: Math.max(map.getZoom(), 17.5), offset: [0, 0], duration:350, essential:false });
         const comp = document.querySelector('#gNavCompassBtn .compass-arrow');
         if(comp) comp.style.transform = 'rotate(' + (-useBearing) + 'deg)';
       }catch(e){}
@@ -5344,7 +5344,7 @@ try{
     // [FIX] Recenter luon hien khi dang dan duong de user luon bam duoc ve GPS + doc duong, khong bi ket o goc tu do
     try{ const _rb = document.getElementById('gNavRecenterBtn'); if(_rb) _rb.classList.add('show'); }catch(e){}
     if(lastUserPos) updateNavCamera(lastUserPos, lastUserPos.heading || 0);
-    else if(currentRouteCoords && currentRouteCoords.length){ try{ map.easeTo({ center:[currentRouteCoords[0][1], currentRouteCoords[0][0]], pitch:55, zoom:17.5, offset:[0,110], duration:700 }); }catch(e){} }
+    else if(currentRouteCoords && currentRouteCoords.length){ try{ map.easeTo({ center:[currentRouteCoords[0][1], currentRouteCoords[0][0]], pitch:0, zoom:17.5, offset:[0,110], duration:700 }); }catch(e){} }
     try{ updateGoogleNavBanner(); updateRemainingHUD(); }catch(e){}
     // Khi user keo map thi hien nut Ve giua + dung follow
     try{
@@ -7264,8 +7264,8 @@ function ensureNavMinimapWithControls(){ /* [CLEANUP] Minimap da bo */ return nu
   window.showFabsAfterMenuSearch = showFabs;
 })();
 
-/* DRIVEKIT_FIX_VERSION = "2026-11-21-v6 NO-MINIMAP + FREE-MAP" - Kiem tra deploy: mo Console (F12) phai thay dong nay, neu khong thay la web van chay file cu */
-try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v6 NO-MINIMAP + FREE-MAP"; console.log("%cDriveKit FIX %c2026-11-21-v6 NO-MINIMAP + FREE-MAP", "background:#0F766E;color:#fff;padding:4px 8px;border-radius:6px", "background:#fff;color:#111;padding:4px 8px;border-radius:6px"); }catch(e){}
+/* DRIVEKIT_FIX_VERSION = "2026-11-21-v7 TOPDOWN + FREE + SPEED" - Kiem tra deploy: mo Console (F12) phai thay dong nay, neu khong thay la web van chay file cu */
+try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v7 TOPDOWN + FREE + SPEED"; console.log("%cDriveKit FIX %c2026-11-21-v7 TOPDOWN + FREE + SPEED", "background:#0F766E;color:#fff;padding:4px 8px;border-radius:6px", "background:#fff;color:#111;padding:4px 8px;border-radius:6px"); }catch(e){}
 
 
 /* ============================================================
@@ -7499,6 +7499,181 @@ try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v6 NO-MINIMAP + FREE-MAP"; cons
     if(rb && !rb._fixFreeV6){
       rb._fixFreeV6=true;
       rb.addEventListener('click', ()=>{ try{ window._userFreed=false; navFollowMode='first-person'; }catch(e){} });
+    }
+  }catch(e){}
+})();
+
+
+/* ============================================================
+   [FIX 2026-11-21-v7] TOP-DOWN DOC DUONG XANH + FREE THAT + LOCATED + HUD TOC DO
+   - Camera: nhin thang tu tren xuong (pitch:0), bearing = huong duong xanh phia truoc,
+     tam = vi tri user, offset [0,0], zoom 17.5. Duong xanh nam doc giua man hinh.
+   - Free: bat ky thao tac nao tren map (keo, xoay, nghien, zoom, cham, lan) deu pha lock -> free,
+     chi bam Located / Ve giua moi quay ve follow.
+   - Located trong che do chi duong: ve lai tam user + nhin doc duong xanh + bam theo mui ten xanh la khi di chuyen.
+   - HUD toc do: pill hien km/h, cap nhat theo smoothedSpeed moi 500ms.
+   ============================================================ */
+(function fixTopDownFreeLocatedSpeed(){
+  if(window._fixTopDownV7Done) return; window._fixTopDownV7Done = true;
+
+  function getBearing(){
+    try{
+      if(typeof window.getRouteBearingAhead === 'function' && lastUserPos){
+        const b = window.getRouteBearingAhead(lastUserPos);
+        if(b !== null && b !== undefined && isFinite(b)) return b;
+      }
+    }catch(e){}
+    try{ if(lastUserPos && lastUserPos.heading) return lastUserPos.heading; }catch(e){}
+    return 0;
+  }
+
+  // ---- 1. Recenter / Located: ve tam + top-down + follow ----
+  window.recenterToRouteView = function(){
+    try{
+      window._userFreed = false;
+      navFollowMode = 'first-person';
+      try{ _isUserDraggingMap = false; }catch(e){}
+      try{ if(typeof map !== 'undefined' && map) map.stop(); }catch(e){}
+      if(typeof lastUserPos !== 'undefined' && lastUserPos && typeof map !== 'undefined' && map){
+        const br = getBearing();
+        map.easeTo({ center:[lastUserPos.lng, lastUserPos.lat], bearing: br, pitch:0, zoom: Math.max(map.getZoom(), 17.5), offset:[0,0], duration:500, essential:true });
+        try{ const comp=document.querySelector('#gNavCompassBtn .compass-arrow'); if(comp) comp.style.transform='rotate('+(-br)+'deg)'; }catch(e){}
+      }
+      try{ if(typeof hideRecenterBtn==='function') hideRecenterBtn(); }catch(e){}
+      try{ const rb=document.getElementById('gNavRecenterBtn'); if(rb) rb.classList.remove('show'); }catch(e){}
+    }catch(e){}
+  };
+  // Nut Located goc (mainLocateBtn) khi dang dan duong cung phai ve giua kieu top-down, khong phai chi flyTo thuong
+  try{
+    const locBtn = document.getElementById('mainLocateBtn');
+    if(locBtn && !locBtn._fixTopDownV7){
+      locBtn._fixTopDownV7 = true;
+      locBtn.addEventListener('click', ()=>{
+        try{
+          const _isNav = (typeof isNavigating!=='undefined' && isNavigating) || document.body.classList.contains('google-nav') || document.body.classList.contains('navigating');
+          if(_isNav) { window.recenterToRouteView(); }
+        }catch(e){}
+      });
+    }
+  }catch(e){}
+  // Nut Ve giua (gNavRecenterBtn) - dam bao onclick moi la top-down
+  try{
+    const rb = document.getElementById('gNavRecenterBtn');
+    if(rb && !rb._fixTopDownV7){
+      rb._fixTopDownV7 = true;
+      rb.addEventListener('click', ()=>{ try{ window.recenterToRouteView(); }catch(e){} });
+    }
+  }catch(e){}
+
+  // ---- 2. updateNavCamera: top-down, chi chay khi follow, khong chay khi free ----
+  try{
+    if(typeof updateNavCamera === 'function'){
+      const _orig = updateNavCamera;
+      updateNavCamera = function(pos, heading){
+        try{
+          if(typeof navFollowMode!=='undefined' && navFollowMode!=='first-person') return;
+          if(window._userFreed && typeof navFollowMode!=='undefined' && navFollowMode==='free') return;
+          if(typeof _isUserDraggingMap!=='undefined' && _isUserDraggingMap) return;
+          if(!isNavigating && !document.body.classList.contains('google-nav') && !document.body.classList.contains('navigating')) return;
+        }catch(e){}
+        try{
+          if(!map) return;
+          // Throttle nhe de khong giat, nhung khong chan khi user vua bam Located
+          const nowC = Date.now();
+          if(nowC - _lastCamAt < 600) return;
+          _lastCamAt = nowC;
+          const br = getBearing();
+          // Bam theo mui ten xanh la: tam = vi tri user hien tai, khong offset
+          map.easeTo({ center:[pos.lng, pos.lat], bearing: br, pitch:0, zoom: Math.max(map.getZoom(), 17.5), offset:[0,0], duration:350, essential:false });
+          try{ const comp=document.querySelector('#gNavCompassBtn .compass-arrow'); if(comp) comp.style.transform='rotate('+(-br)+'deg)'; }catch(e){}
+        }catch(e){}
+      };
+    }
+  }catch(e){}
+
+  // ---- 3. Free that: bat ky di chuyen map nao cung pha lock ----
+  function toFree(){
+    try{
+      const _isNav = (typeof isNavigating!=='undefined' && isNavigating) || document.body.classList.contains('google-nav') || document.body.classList.contains('navigating');
+      if(!_isNav) return;
+      navFollowMode = 'free';
+      window._userFreed = true;
+      try{ _isUserDraggingMap = true; }catch(e){}
+      try{ if(typeof map!=='undefined' && map) map.stop(); }catch(e){}
+      try{ if(typeof showRecenterBtn==='function') showRecenterBtn(); }catch(e){}
+      try{ const rb=document.getElementById('gNavRecenterBtn'); if(rb) rb.classList.add('show'); }catch(e){}
+    }catch(e){}
+  }
+  function bindFree(){
+    try{
+      if(typeof map==='undefined' || !map) return false;
+      if(map._fixTopDownV7Bound) return true;
+      map._fixTopDownV7Bound = true;
+      ['dragstart','rotatestart','pitchstart','zoomstart','touchstart','dblclickstart'].forEach(ev=>{ try{ map.on(ev, toFree); }catch(e){} });
+      try{ map.on('movestart', (e)=>{ if(e && e.originalEvent) toFree(); }); }catch(e){}
+      try{ map.on('wheel', toFree); }catch(e){}
+      try{ map.on('dragend', ()=>{ setTimeout(()=>{ try{ _isUserDraggingMap=false; }catch(e){} }, 500); }); }catch(e){}
+      try{ map.on('moveend', ()=>{ setTimeout(()=>{ try{ _isUserDraggingMap=false; }catch(e){} }, 500); }); }catch(e){}
+      try{ map.on('touchend', ()=>{ setTimeout(()=>{ try{ _isUserDraggingMap=false; }catch(e){} }, 500); }); }catch(e){}
+      // Dam bao map luon keo duoc
+      try{
+        if(map.dragPan && !map.dragPan.isEnabled()) map.dragPan.enable();
+        if(map.scrollZoom && !map.scrollZoom.isEnabled()) map.scrollZoom.enable();
+        if(map.touchZoomRotate && !map.touchZoomRotate.isEnabled()) map.touchZoomRotate.enable();
+        if(map.dragRotate && !map.dragRotate.isEnabled()) map.dragRotate.enable();
+        if(map.touchPitch && !map.touchPitch.isEnabled()) map.touchPitch.enable();
+        const mc=document.getElementById('map'); if(mc) mc.style.touchAction='auto';
+      }catch(e){}
+      return true;
+    }catch(e){ return false; }
+  }
+  try{ bindFree(); }catch(e){}
+  try{ if(typeof map!=='undefined' && map) map.on('load', bindFree); }catch(e){}
+  try{ let _n=0; const _iv=setInterval(()=>{ _n++; if(bindFree()||_n>20) clearInterval(_iv); }, 500); }catch(e){}
+
+  // ---- 4. HUD toc do ----
+  function ensureSpeedHUD(){
+    if(document.getElementById('gNavSpeedHUD')) return;
+    const el=document.createElement('div');
+    el.id='gNavSpeedHUD';
+    el.innerHTML = '<div class="spd-num" id="gNavSpeedNum">0</div><div class="spd-unit">km/h</div>';
+    document.body.appendChild(el);
+  }
+  try{
+    if(!document.getElementById('fixSpeedHUDStyle')){
+      const st=document.createElement('style'); st.id='fixSpeedHUDStyle';
+      st.textContent = `
+        #gNavSpeedHUD{
+          position:fixed !important; left:12px !important; bottom:calc(168px + env(safe-area-inset-bottom, 0px)) !important;
+          z-index:801 !important; background:rgba(15,23,42,0.92) !important; color:#fff !important;
+          border-radius:16px !important; padding:10px 14px 8px !important; text-align:center !important;
+          box-shadow:0 4px 14px rgba(0,0,0,0.28) !important; min-width:72px !important;
+          display:none !important; pointer-events:none !important; backdrop-filter:blur(6px);
+        }
+        body.google-nav #gNavSpeedHUD, body.navigating #gNavSpeedHUD{ display:block !important; }
+        #gNavSpeedHUD .spd-num{ font-size:28px !important; font-weight:900 !important; line-height:1 !important; font-variant-numeric:tabular-nums; }
+        #gNavSpeedHUD .spd-unit{ font-size:11px !important; font-weight:700 !important; opacity:0.8 !important; letter-spacing:0.5px; margin-top:2px; }
+        body:not(.google-nav):not(.navigating) #gNavSpeedHUD{ display:none !important; }
+        /* Dark / Light deu doc duoc: nen den, chu trang */
+      `;
+      document.head.appendChild(st);
+    }
+  }catch(e){}
+  try{ ensureSpeedHUD(); }catch(e){}
+  // Cap nhat toc do moi 500ms tu smoothedSpeed (da co san trong startWatching)
+  try{
+    if(!window._speedHUDInt){
+      window._speedHUDInt = setInterval(()=>{
+        try{
+          const el=document.getElementById('gNavSpeedNum'); if(!el) return;
+          const _isNav = (typeof isNavigating!=='undefined' && isNavigating) || document.body.classList.contains('google-nav') || document.body.classList.contains('navigating');
+          if(!_isNav) return;
+          let v = 0;
+          if(typeof smoothedSpeed!=='undefined' && isFinite(smoothedSpeed)) v = smoothedSpeed * 3.6;
+          else if(typeof lastUserPos!=='undefined' && lastUserPos && lastUserPos.speed) v = lastUserPos.speed * 3.6;
+          el.textContent = String(Math.max(0, Math.round(v)));
+        }catch(e){}
+      }, 500);
     }
   }catch(e){}
 })();
