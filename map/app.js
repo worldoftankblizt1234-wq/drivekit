@@ -1,4 +1,3 @@
-
 /* =====================================================
    DriveKit — app.js FULL (ĐÃ SYNC DEMO MAPILLARY + FIX)
    Part 1: Config → Route → Navigation
@@ -599,6 +598,13 @@ window.openMenu = function() {
 };
 window.closeMenu = function() {
   document.getElementById('profileModal').classList.remove('open');
+  // [FIX] Dong menu xong phai hien lai FAB ngay - truoc day khong goi updateUIState nen FAB bi ket an
+  try{ if(typeof updateUIState==='function') updateUIState(); }catch(e){}
+  try{
+    ['mainLocateBtn','mainDirBtn','btnLayerMenu','btnQuickPin','btnReport','btnRestStopFilter','btnNearbySearch'].forEach(id=>{
+      const el=document.getElementById(id); if(el && !document.body.classList.contains('navigating')) el.style.display='flex';
+    });
+  }catch(e){}
 };
 
 /* ========== DIRECTIONS SHEET ========== */
@@ -1435,7 +1441,9 @@ function updateUIState() {
   const fabReport = document.getElementById('btnReport');
   const fabRestStop = document.getElementById('btnRestStopFilter');
   const fabNearby = document.getElementById('btnNearbySearch');
-  if (isDirOpen || isSearchBoxShow || isNearbyOpen) {
+  // [FIX TRIET DE 2026-11-21] Bam 3 gach / search ma FAB bien mat: do nhanh nay an het FAB khi suggestionsBox show / dirSheet mo.
+  // Yeu cau moi: FAB 2 ben LUON hien, ke ca khi mo search / menu / dirSheet. Chi an khi DANG DAN DUONG that (isNav).
+  if (false && (isDirOpen || isSearchBoxShow || isNearbyOpen)) {
     if(fabLocate) fabLocate.style.display = 'none'; if(fabDir) fabDir.style.display = 'none';
     if(fabLayers) fabLayers.style.display = 'none'; if(fabQuickPin) fabQuickPin.style.display = 'none';
     if(fabReport) fabReport.style.display = 'none'; if(fabRestStop) fabRestStop.style.display = 'none';
@@ -7281,4 +7289,87 @@ try{
   window.cleanupNavUIAfterEnd = cleanupNavUI;
 })();
 
+
+/* ============================================================
+   [FIX TRIET DE FAB MAT KHI BAM 3 GACH / SEARCH 2026-11-21]
+   GOC: updateUIState() an het FAB khi suggestionsBox show / dirSheet open.
+   Da sua thang trong updateUIState (if(false && ...)).
+   Them lop bao hiem 2 lop nua de khong bao gio bi an oan:
+   - CSS !important: khi khong navigating, FAB luon display:flex, thang ca inline style display:none cu
+   - Watchdog + wrap activateSearch/closeSearch/openMenu: sau khi mo search/menu thi ep hien lai FAB
+   ============================================================ */
+(function fixFabNeverHide(){
+  if(window._fixFabDone) return; window._fixFabDone = true;
+  const FAB_IDS = ['mainLocateBtn','mainDirBtn','btnLayerMenu','btnQuickPin','btnReport','btnRestStopFilter','btnNearbySearch'];
+  function showFabs(){
+    try{
+      if(document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return; // Dang dan duong thi de yen theo logic nav
+      FAB_IDS.forEach(id=>{
+        const el=document.getElementById(id);
+        if(el){ el.style.display='flex'; el.style.visibility='visible'; el.style.opacity='1'; }
+      });
+    }catch(e){}
+  }
+  // CSS ep hien FAB khi khong nav - thang inline display:none
+  try{
+    if(!document.getElementById('fixFabStyle')){
+      const st=document.createElement('style'); st.id='fixFabStyle';
+      st.textContent = `
+        body:not(.navigating):not(.google-nav) #mainLocateBtn,
+        body:not(.navigating):not(.google-nav) #mainDirBtn,
+        body:not(.navigating):not(.google-nav) #btnLayerMenu,
+        body:not(.navigating):not(.google-nav) #btnQuickPin,
+        body:not(.navigating):not(.google-nav) #btnReport,
+        body:not(.navigating):not(.google-nav) #btnRestStopFilter,
+        body:not(.navigating):not(.google-nav) #btnNearbySearch{
+          display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+        }
+        /* Menu mo (profileModal) khong duoc an FAB ben duoi - khi dong menu FAB phai hien lai ngay */
+        #profileModal.open ~ #mainLocateBtn{ display:flex !important; }
+      `;
+      document.head.appendChild(st);
+    }
+  }catch(e){}
+  // Wrap activateSearch: mo search xong ep hien lai FAB
+  try{
+    if(typeof window.activateSearch==='function' && !window.activateSearch._fixFab){
+      const _o = window.activateSearch;
+      const _w = function(){ const r=_o.apply(this, arguments); setTimeout(showFabs, 0); setTimeout(showFabs, 80); setTimeout(showFabs, 200); return r; };
+      _w._fixFab = true; window.activateSearch = _w;
+    }
+  }catch(e){}
+  // Wrap openMenu: mo menu xong khong an FAB, dong menu xong hien lai
+  try{
+    if(typeof window.openMenu==='function' && !window.openMenu._fixFab){
+      const _o2 = window.openMenu;
+      const _w2 = function(){ const r=_o2.apply(this, arguments); setTimeout(showFabs, 50); return r; };
+      _w2._fixFab = true; window.openMenu = _w2;
+    }
+  }catch(e){}
+  // Bam vao 3 gach / search bar thi hien lai FAB (bat ke ham nao goi)
+  try{
+    document.addEventListener('click', (e)=>{
+      const t = e.target && e.target.closest ? e.target.closest('#mainMenuBtn, #topBarSplit, .floating-search, #searchBar, #topSearchInput, .menu-btn, .hamburger') : null;
+      if(t) setTimeout(showFabs, 120);
+    });
+    document.addEventListener('focusin', (e)=>{
+      const t = e.target && e.target.closest ? e.target.closest('#topSearchInput, #dirInputStart, #dirInputEnd') : null;
+      if(t) setTimeout(showFabs, 120);
+    });
+  }catch(e){}
+  // Watchdog nhe: neu FAB bi an oan khi khong nav thi hien lai (chi khi that su bi an)
+  try{ if(window._fixFabInt) clearInterval(window._fixFabInt); }catch(e){}
+  window._fixFabInt = setInterval(()=>{
+    try{
+      if(document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return;
+      let need=false;
+      FAB_IDS.forEach(id=>{ const el=document.getElementById(id); if(el && (el.style.display==='none' || getComputedStyle(el).display==='none')) need=true; });
+      if(need) showFabs();
+    }catch(e){}
+  }, 800);
+  window.showFabsAfterMenuSearch = showFabs;
+})();
+
+/* DRIVEKIT_FIX_VERSION = "2026-11-21-v4 FAB + AFTER_END + OVERLAP + MINIMAP" - Kiem tra deploy: mo Console (F12) phai thay dong nay, neu khong thay la web van chay file cu */
+try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v4 FAB + AFTER_END + OVERLAP + MINIMAP"; console.log("%cDriveKit FIX %c2026-11-21-v4 FAB + AFTER_END + OVERLAP + MINIMAP", "background:#0F766E;color:#fff;padding:4px 8px;border-radius:6px", "background:#fff;color:#111;padding:4px 8px;border-radius:6px"); }catch(e){}
 
