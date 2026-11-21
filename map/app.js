@@ -1551,7 +1551,7 @@ function initMap() {
     const _inNav = !!(document.body && document.body.classList.contains('google-nav')) || !!isNavigating;
     // Mo lai click khi dang dan duong: bam map van geocoding, chi an nut "Toi cho nay" trong popup
     // Dung follow de popup khong bi camera keo di
-    if (_inNav) { try{ navFollowMode = 'free'; _isUserDraggingMap = false; if(map) map.stop(); if(typeof showRecenterBtn === 'function') showRecenterBtn(); }catch(err){} }
+    if (_inNav) { try{ navFollowMode = 'free'; _isUserDraggingMap = false; /* [FIX Claude] Bo map.stop() - stop lam chet cu keo */ if(typeof showRecenterBtn === 'function') showRecenterBtn(); }catch(err){} }
     if (isNearbyPickingMode) {
       const lat = e.lngLat.lat, lon = e.lngLat.lng;
       currentNearbyCenter = { lat, lon };
@@ -3583,7 +3583,7 @@ function updateNavCamera(pos, heading){
     let _useBr = heading || 0;
     try{ if(typeof window.getRouteBearingAhead === 'function'){ const _rb = window.getRouteBearingAhead(pos); if(_rb !== null && _rb !== undefined) _useBr = _rb; } }catch(e){}
     const isMobileNav = window.innerWidth <= 640;
-    const camOffset = isMobileNav ? [0, window.innerHeight * 0.16] : [0, 0];
+    const camOffset = [0, 0]; // [FIX Claude] Tam giua, khong day xe xuong 1/3 duoi nua
     map.easeTo({ center:[pos.lng, pos.lat], bearing: _useBr, pitch:0, zoom: Math.max(map.getZoom(), 17.5), duration:350, essential:false, offset: camOffset });
   }catch(e){}
 }
@@ -5174,8 +5174,11 @@ try{
         if(acc >= 80) break;
       }
       if(aheadIdx === bestIdx) return null;
-      const lat1 = pos.lat * Math.PI/180, lat2 = currentRouteCoords[aheadIdx][0] * Math.PI/180;
-      const dLng = (currentRouteCoords[aheadIdx][1] - pos.lng) * Math.PI/180;
+      // [FIX Claude] Bearing tu doan da SNAP (lastSnapIndex -> +80m), khong tu GPS tho (GPS lech -> nhin ngang)
+      const _curPt = currentRouteCoords[bestIdx]; // [lat, lng]
+      const _aheadPt = currentRouteCoords[aheadIdx];
+      const lat1 = _curPt[0] * Math.PI/180, lat2 = _aheadPt[0] * Math.PI/180;
+      const dLng = (_aheadPt[1] - _curPt[1]) * Math.PI/180;
       const y = Math.sin(dLng) * Math.cos(lat2);
       const x = Math.cos(lat1)*Math.sin(lat2) - Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLng);
       let br = Math.atan2(y, x) * 180/Math.PI;
@@ -5355,11 +5358,11 @@ try{
           const _toFree = ()=>{ if(isNavigating){ navFollowMode = 'free'; const _rb2 = document.getElementById('gNavRecenterBtn'); if(_rb2) _rb2.classList.add('show'); } };
           map.on('rotatestart', _toFree);
           map.on('pitchstart', _toFree);
-          map.on('zoomstart', _toFree);
+          /* [FIX Claude v8] Bo zoomstart - zoom khong can pha lock */
         }catch(e){}
         // Keo map -> danh dau dang keo, chuyen sang free de camera khong giat lai
   // (ca khi dang dan duong Google lan dan duong thuong)
-  map.on('dragstart', ()=>{ _isUserDraggingMap = true; try{ if(map) map.stop(); }catch(e){} if(typeof isNavigating !== 'undefined' && isNavigating){ navFollowMode = 'free'; } if(document.body.classList.contains('google-nav')){ navFollowMode = 'free'; showRecenterBtn(); } });
+  map.on('dragstart', ()=>{ _isUserDraggingMap = true; /* [FIX Claude] Bo map.stop() - chi dat co free, khong dung animation */ if(typeof isNavigating !== 'undefined' && isNavigating){ navFollowMode = 'free'; } if(document.body.classList.contains('google-nav')){ navFollowMode = 'free'; showRecenterBtn(); } });
   map.on('movestart', (e)=>{ if(e && e.originalEvent){ _isUserDraggingMap = true; } });
   map.on('touchstart', ()=>{ _isUserDraggingMap = true; });
   map.on('dragend', ()=>{ setTimeout(()=>{ _isUserDraggingMap = false; }, 600); });
@@ -7264,8 +7267,8 @@ function ensureNavMinimapWithControls(){ /* [CLEANUP] Minimap da bo */ return nu
   window.showFabsAfterMenuSearch = showFabs;
 })();
 
-/* DRIVEKIT_FIX_VERSION = "2026-11-21-v7 TOPDOWN + FREE + SPEED" - Kiem tra deploy: mo Console (F12) phai thay dong nay, neu khong thay la web van chay file cu */
-try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v7 TOPDOWN + FREE + SPEED"; console.log("%cDriveKit FIX %c2026-11-21-v7 TOPDOWN + FREE + SPEED", "background:#0F766E;color:#fff;padding:4px 8px;border-radius:6px", "background:#fff;color:#111;padding:4px 8px;border-radius:6px"); }catch(e){}
+/* DRIVEKIT_FIX_VERSION = "2026-11-21-v8 TOPDOWN + FREE + SNAP-BEARING" - Kiem tra deploy: mo Console (F12) phai thay dong nay, neu khong thay la web van chay file cu */
+try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v8 TOPDOWN + FREE + SNAP-BEARING"; console.log("%cDriveKit FIX %c2026-11-21-v8 TOPDOWN + FREE + SNAP-BEARING", "background:#0F766E;color:#fff;padding:4px 8px;border-radius:6px", "background:#fff;color:#111;padding:4px 8px;border-radius:6px"); }catch(e){}
 
 
 /* ============================================================
@@ -7485,7 +7488,7 @@ try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v7 TOPDOWN + FREE + SPEED"; con
         const r = _origSw.apply(this, arguments);
         // Sau khi doi tuyen: neu truoc do dang free thi tra lai free ngay (ham goc + wrapper cu ep ve first-person)
         if(_wasFree){
-          setTimeout(()=>{ try{ navFollowMode='free'; window._userFreed=true; if(typeof map!=='undefined' && map) map.stop(); showRecenter(); }catch(e){} }, 150);
+          setTimeout(()=>{ try{ navFollowMode='free'; window._userFreed=true; /* [FIX Claude] Bo map.stop() */ showRecenter(); }catch(e){} }, 150);
           setTimeout(()=>{ try{ navFollowMode='free'; window._userFreed=true; }catch(e){} }, 400);
         }
         return r;
@@ -7505,7 +7508,7 @@ try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v7 TOPDOWN + FREE + SPEED"; con
 
 
 /* ============================================================
-   [FIX 2026-11-21-v7] TOP-DOWN DOC DUONG XANH + FREE THAT + LOCATED + HUD TOC DO
+   [FIX 2026-11-21-v8] TOP-DOWN + SNAP-BEARING (Claude+DeepSeek) DOC DUONG XANH + FREE THAT + LOCATED + HUD TOC DO
    - Camera: nhin thang tu tren xuong (pitch:0), bearing = huong duong xanh phia truoc,
      tam = vi tri user, offset [0,0], zoom 17.5. Duong xanh nam doc giua man hinh.
    - Free: bat ky thao tac nao tren map (keo, xoay, nghien, zoom, cham, lan) deu pha lock -> free,
@@ -7599,7 +7602,7 @@ try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v7 TOPDOWN + FREE + SPEED"; con
       navFollowMode = 'free';
       window._userFreed = true;
       try{ _isUserDraggingMap = true; }catch(e){}
-      try{ if(typeof map!=='undefined' && map) map.stop(); }catch(e){}
+      /* [FIX Claude v8] Bo map.stop() - stop lam chet cu keo, chi dat co free */
       try{ if(typeof showRecenterBtn==='function') showRecenterBtn(); }catch(e){}
       try{ const rb=document.getElementById('gNavRecenterBtn'); if(rb) rb.classList.add('show'); }catch(e){}
     }catch(e){}
@@ -7609,9 +7612,9 @@ try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v7 TOPDOWN + FREE + SPEED"; con
       if(typeof map==='undefined' || !map) return false;
       if(map._fixTopDownV7Bound) return true;
       map._fixTopDownV7Bound = true;
-      ['dragstart','rotatestart','pitchstart','zoomstart','touchstart','dblclickstart'].forEach(ev=>{ try{ map.on(ev, toFree); }catch(e){} });
-      try{ map.on('movestart', (e)=>{ if(e && e.originalEvent) toFree(); }); }catch(e){}
-      try{ map.on('wheel', toFree); }catch(e){}
+      // [FIX Claude v8] Chi nghe dragstart/rotatestart/pitchstart - bo touchstart/zoomstart/wheel/movestart (chung no ban vao dau cu keo va goi stop)
+      ['dragstart','rotatestart','pitchstart'].forEach(ev=>{ try{ map.on(ev, toFree); }catch(e){} });
+      // [FIX Claude v8] Bo map.on('wheel') va movestart - zoom/wheel khong can pha lock, de keo khong bi ngat
       try{ map.on('dragend', ()=>{ setTimeout(()=>{ try{ _isUserDraggingMap=false; }catch(e){} }, 500); }); }catch(e){}
       try{ map.on('moveend', ()=>{ setTimeout(()=>{ try{ _isUserDraggingMap=false; }catch(e){} }, 500); }); }catch(e){}
       try{ map.on('touchend', ()=>{ setTimeout(()=>{ try{ _isUserDraggingMap=false; }catch(e){} }, 500); }); }catch(e){}
