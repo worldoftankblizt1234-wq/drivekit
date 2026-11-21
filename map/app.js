@@ -4349,3 +4349,985 @@ try{
   }catch(e){ console.warn('patch updateUserMarkerOnMap fail', e); }
   setInterval(()=>{ try{ const hud = document.getElementById('hud'); if(hud && !hud.classList.contains('hidden')) applyRouteBearingToArrow(); }catch(e){} }, 300);
 })();
+
+
+/* ============================================================
+   [GOOGLE NAV 2026-11-21] DOI GOC NHIN CHI DUONG SANG KIU GOOGLE MAPS (anh 2-3-4)
+   - Bo goc nhin anh 1: map phang, nhin tu tren xuong, mui ten xanh nho, minimap, vong tron xanh to
+   - Sang kieu Google: camera nghieng 55 do, dau huong len tren, user o 1/3 duoi, cham xanh duong
+   - Banner tren xanh dam: mui ten to + "150 m / ve huong Hem 134" + "Sau do ->"
+   - Bottom sheet trang: "3 phut / 900 m - 7:11" + nut X + sao
+   - Cot phai: la ban / tim kiem / loa / doi tuyen + nut "Ve giua" trai duoi
+   - Duong xanh day hon, co vien trang, mui ten trang o cho re (giu lai)
+   ============================================================ */
+(function(){
+  // ---- 1. CSS Google Nav ----
+  function injectGoogleNavCSS(){
+    if(document.getElementById('googleNavStyle20261121')) return;
+    const st = document.createElement('style');
+    st.id = 'googleNavStyle20261121';
+    st.textContent = `
+      /* Khi dang dan duong kieu Google: an UI cu (thanh den, minimap, panel 3 nut, search noi) */
+      body.google-nav #navControls, body.google-nav #navMinimap, body.google-nav .hud-top, body.google-nav .hud-bottom, body.google-nav #hud, body.google-nav .floating-search, body.google-nav .fab-directions, body.google-nav .fab-locate, body.google-nav .fab-layers, body.google-nav .fab-report { display:none !important; }
+      body.google-nav #hudTopRemain, body.google-nav #hudEndTripBtn { display:none !important; }
+      /* Banner tren - xanh dam kieu Google */
+      #gNavTopBanner{ position:fixed !important; top:calc(12px + env(safe-area-inset-top, 0px)) !important; left:12px !important; right:12px !important; z-index:800 !important; background:#0F766E !important; background:linear-gradient(180deg,#0F766E,#0B5E55) !important; color:#fff !important; border-radius:16px !important; padding:14px 16px !important; display:none; align-items:center; gap:14px; box-shadow:0 6px 20px rgba(0,0,0,0.28) !important; }
+      #gNavTopBanner.show{ display:flex !important; }
+      #gNavTopArrow{ width:52px; height:52px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:38px; font-weight:900; line-height:1; color:#fff; }
+      #gNavTopMain{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+      #gNavTopDist{ font-size:18px; font-weight:700; color:rgba(255,255,255,0.92); line-height:1.2; }
+      #gNavTopInstr{ font-size:24px; font-weight:800; line-height:1.15; color:#fff; word-break:break-word; }
+      /* Banner "Sau do" - dinh duoi banner tren */
+      #gNavNextBanner{ position:fixed !important; top:calc(96px + env(safe-area-inset-top, 0px)) !important; left:12px !important; z-index:799 !important; background:#0B5E55 !important; color:#fff !important; border-radius:0 0 14px 14px !important; padding:8px 14px 10px !important; display:none; align-items:center; gap:8px; font-size:17px; font-weight:700; box-shadow:0 4px 14px rgba(0,0,0,0.22) !important; max-width:78vw; }
+      #gNavNextBanner.show{ display:flex !important; }
+      #gNavNextBanner .next-arrow{ font-size:22px; font-weight:900; }
+      /* Bottom sheet trang kieu Google */
+      #gNavBottomSheet{ position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important; z-index:800 !important; background:#fff !important; border-radius:20px 20px 0 0 !important; padding:12px 16px calc(14px + env(safe-area-inset-bottom, 0px)) !important; display:none; align-items:center; gap:14px; box-shadow:0 -6px 24px rgba(0,0,0,0.18) !important; }
+      #gNavBottomSheet.show{ display:flex !important; }
+      #gNavExitBtn{ width:48px; height:48px; flex-shrink:0; border-radius:999px; border:1px solid #dadce0; background:#fff; color:#3c4043; font-size:22px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+      #gNavBottomInfo{ flex:1; min-width:0; text-align:center; display:flex; flex-direction:column; gap:1px; }
+      #gNavRemainTime{ font-size:27px; font-weight:800; color:#188038; line-height:1.1; }
+      #gNavRemainMeta{ font-size:15px; font-weight:600; color:#5f6368; }
+      #gNavFavBtn{ width:48px; height:48px; flex-shrink:0; border-radius:999px; border:1px solid #dadce0; background:#fff; color:#1a73e8; font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+      /* Cot nut phai kieu Google */
+      #gNavRightControls{ position:fixed !important; right:12px !important; bottom:calc(150px + env(safe-area-inset-bottom, 0px)) !important; z-index:800 !important; display:none; flex-direction:column; gap:12px; }
+      #gNavRightControls.show{ display:flex !important; }
+      .gNavRoundBtn{ width:56px; height:56px; border-radius:999px; background:#fff; border:none; box-shadow:0 4px 14px rgba(0,0,0,0.22); font-size:22px; color:#3c4043; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+      .gNavRoundBtn:active{ transform:scale(0.94); }
+      #gNavCompassBtn .compass-arrow{ font-size:24px; font-weight:900; color:#ea4335; display:inline-block; transition:transform 0.3s; }
+      /* Nut Ve giua */
+      #gNavRecenterBtn{ position:fixed !important; left:16px !important; bottom:calc(132px + env(safe-area-inset-bottom, 0px)) !important; z-index:800 !important; background:#fff !important; color:#0F766E !important; border:none !important; border-radius:999px !important; padding:10px 16px !important; font-size:15px !important; font-weight:800 !important; box-shadow:0 4px 14px rgba(0,0,0,0.22) !important; display:none; align-items:center; gap:6px; cursor:pointer; }
+      #gNavRecenterBtn.show{ display:flex !important; }
+      /* Cham user kieu Google: cham xanh duong + vien trang */
+      .g-user-dot{ width:22px; height:22px; border-radius:999px; background:#1a73e8; border:4px solid #fff; box-shadow:0 2px 8px rgba(0,0,0,0.35), 0 0 0 8px rgba(26,115,232,0.18); }
+      .g-user-dot-wrap{ width:38px; height:38px; display:flex; align-items:center; justify-content:center; }
+    `;
+    document.head.appendChild(st);
+  }
+  injectGoogleNavCSS();
+
+  // ---- 2. Tao DOM Google Nav ----
+  function ensureGoogleNavUI(){
+    if(!document.getElementById('gNavTopBanner')){
+      const top = document.createElement('div');
+      top.id = 'gNavTopBanner';
+      top.innerHTML = '<div id="gNavTopArrow">↑</div><div id="gNavTopMain"><div id="gNavTopDist">Đi thẳng</div><div id="gNavTopInstr">Đi về hướng Tây</div></div>';
+      document.body.appendChild(top);
+    }
+    if(!document.getElementById('gNavNextBanner')){
+      const nxt = document.createElement('div');
+      nxt.id = 'gNavNextBanner';
+      nxt.innerHTML = '<span>Sau đó</span><span class="next-arrow">→</span>';
+      document.body.appendChild(nxt);
+    }
+    if(!document.getElementById('gNavBottomSheet')){
+      const bot = document.createElement('div');
+      bot.id = 'gNavBottomSheet';
+      bot.innerHTML = '<button id="gNavExitBtn" title="Thoát chỉ đường">✕</button><div id="gNavBottomInfo"><div id="gNavRemainTime">3 phút</div><div id="gNavRemainMeta">900 m • 7:11</div></div><button id="gNavFavBtn" title="Lưu">✦</button>';
+      document.body.appendChild(bot);
+      document.getElementById('gNavExitBtn').onclick = ()=>{
+        try{
+          if(typeof window.stopNavigationMode === 'function') window.stopNavigationMode();
+          if(typeof window.endTrip === 'function'){ /* khong tu dong mo modal khi bam X kieu Google - chi dung dan duong */ }
+          deactivateGoogleNav();
+        }catch(e){}
+      };
+      document.getElementById('gNavFavBtn').onclick = ()=>{
+        try{ if(typeof showCustomToast === 'function') showCustomToast('Đã lưu tuyến đường', 'success'); }catch(e){}
+      };
+    }
+    if(!document.getElementById('gNavRightControls')){
+      const rc = document.createElement('div');
+      rc.id = 'gNavRightControls';
+      rc.innerHTML = '<button class="gNavRoundBtn" id="gNavCompassBtn" title="La bàn"><span class="compass-arrow">▲</span></button><button class="gNavRoundBtn" id="gNavSearchBtn" title="Tìm kiếm">🔍</button><button class="gNavRoundBtn" id="gNavVoiceBtn" title="Âm thanh">🔊</button><button class="gNavRoundBtn" id="gNavRoutesBtn" title="Tuyến khác">↗↖</button>';
+      document.body.appendChild(rc);
+      document.getElementById('gNavCompassBtn').onclick = ()=>{
+        try{
+          navFollowMode = 'first-person';
+          if(lastUserPos) updateNavCamera(lastUserPos, lastUserPos.heading || 0);
+          hideRecenterBtn();
+        }catch(e){}
+      };
+      document.getElementById('gNavSearchBtn').onclick = ()=>{
+        try{
+          const inp = document.getElementById('topSearchInput') || document.querySelector('input[placeholder*="Tìm"]');
+          if(inp){ inp.focus(); inp.click(); }
+          else if(typeof openSearch === 'function') openSearch();
+        }catch(e){}
+      };
+      document.getElementById('gNavVoiceBtn').onclick = (e)=>{
+        try{
+          const btn = e.currentTarget;
+          voiceEnabled = !voiceEnabled;
+          btn.textContent = voiceEnabled ? '🔊' : '🔇';
+          btn.style.opacity = voiceEnabled ? '1' : '0.6';
+        }catch(err){}
+      };
+      document.getElementById('gNavRoutesBtn').onclick = ()=>{
+        try{ if(typeof window.openAlternativeRoutes === 'function') window.openAlternativeRoutes(); }catch(e){}
+      };
+    }
+    if(!document.getElementById('gNavRecenterBtn')){
+      const rb = document.createElement('button');
+      rb.id = 'gNavRecenterBtn';
+      rb.innerHTML = '△ Về giữa';
+      rb.onclick = ()=>{
+        try{
+          navFollowMode = 'first-person';
+          if(lastUserPos) updateNavCamera(lastUserPos, lastUserPos.heading || 0);
+          hideRecenterBtn();
+        }catch(e){}
+      };
+      document.body.appendChild(rb);
+    }
+  }
+  function showGoogleNavUI(){ ensureGoogleNavUI(); ['gNavTopBanner','gNavNextBanner','gNavBottomSheet','gNavRightControls'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.add('show'); }); }
+  function hideGoogleNavUI(){ ['gNavTopBanner','gNavNextBanner','gNavBottomSheet','gNavRightControls','gNavRecenterBtn'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('show'); }); }
+  function showRecenterBtn(){ const el=document.getElementById('gNavRecenterBtn'); if(el) el.classList.add('show'); }
+  function hideRecenterBtn(){ const el=document.getElementById('gNavRecenterBtn'); if(el) el.classList.remove('show'); }
+  ensureGoogleNavUI();
+
+  // ---- 3. Helpers: mui ten + format kieu Google ----
+  function gArrowFor(maneuver){
+    if(!maneuver) return '↑';
+    const type = (maneuver.type || '').toLowerCase();
+    const mod = (maneuver.modifier || '').toLowerCase();
+    const instr = (maneuver.instruction || '').toLowerCase();
+    if(type.includes('arrive') || instr.includes('đến') || instr.includes('arrive')) return '⚑';
+    if(mod.includes('uturn') || type.includes('uturn')) return mod.includes('left') ? '↩' : '↪';
+    if(type.includes('roundabout')) return '↻';
+    if(mod.includes('slight left')) return '↰';
+    if(mod.includes('slight right')) return '↱';
+    if(mod.includes('sharp left')) return '⬅';
+    if(mod.includes('sharp right')) return '➡';
+    if(mod.includes('left') || type.includes('left')) return '←';
+    if(mod.includes('right') || type.includes('right')) return '→';
+    if(type.includes('turn') || type.includes('fork') || type.includes('merge') || type.includes('on ramp') || type.includes('off ramp')) return mod.includes('left') ? '←' : (mod.includes('right') ? '→' : '↑');
+    return '↑';
+  }
+  function gFormatDist(m){
+    if(!isFinite(m)) return '--';
+    if(m < 1000) return Math.round(m) + ' m';
+    return (m/1000).toFixed(1).replace('.', ',') + ' km';
+  }
+  function gFormatETA(sec){
+    try{ const d = new Date(Date.now() + (sec||0)*1000); return d.getHours() + ':' + String(d.getMinutes()).padStart(2,'0'); }catch(e){ return '--:--'; }
+  }
+
+  // ---- 4. Cap nhat banner tren + bottom sheet kieu Google ----
+  function updateGoogleNavBanner(){
+    try{
+      if(!voiceRouteSteps || !voiceRouteSteps.length) return;
+      let next = null, nextNext = null;
+      for(let i=Math.max(0, voiceStepIndex); i<voiceRouteSteps.length; i++){
+        const s = voiceRouteSteps[i];
+        if(s && s.maneuver && s.maneuver.location){ if(!next) next = s; else { nextNext = s; break; } }
+      }
+      if(!next) return;
+      // Khoang cach toi cho re
+      let distToTurn = Infinity;
+      try{ if(lastUserPos) distToTurn = calcDist(lastUserPos.lat, lastUserPos.lng, next.maneuver.location[1], next.maneuver.location[0]); }catch(e){}
+      const arrowEl = document.getElementById('gNavTopArrow');
+      if(arrowEl) arrowEl.textContent = gArrowFor(next.maneuver);
+      const distEl = document.getElementById('gNavTopDist');
+      if(distEl) distEl.textContent = isFinite(distToTurn) ? gFormatDist(distToTurn) : '';
+      const instrEl = document.getElementById('gNavTopInstr');
+      if(instrEl){
+        let txt = next.maneuver.instruction || 'Tiếp tục di chuyển';
+        try{ if(typeof translateFallback === 'function') txt = translateFallback(txt); }catch(e){}
+        // Google viet gon: "về hướng Hẻm 134..." thay vi "Rẽ trái vào..."
+        instrEl.textContent = txt;
+      }
+      // Banner Sau do
+      const nextBanner = document.getElementById('gNavNextBanner');
+      if(nextBanner){
+        if(nextNext){
+          nextBanner.innerHTML = '<span>Sau đó</span><span class="next-arrow">' + gArrowFor(nextNext.maneuver) + '</span>';
+          nextBanner.classList.add('show');
+        } else {
+          nextBanner.classList.remove('show');
+        }
+      }
+    }catch(e){}
+  }
+  function updateGoogleBottomSheet(remainDist, remainSec){
+    try{
+      const timeEl = document.getElementById('gNavRemainTime');
+      if(timeEl){
+        const mins = Math.max(1, Math.round((remainSec||0)/60));
+        timeEl.textContent = mins + ' phút';
+      }
+      const metaEl = document.getElementById('gNavRemainMeta');
+      if(metaEl) metaEl.textContent = gFormatDist(remainDist) + ' • ' + gFormatETA(remainSec);
+    }catch(e){}
+  }
+  // Ghi de updateNextManeuverHUD + updateRemainingHUD de cap nhat ca Google HUD
+  try{
+    const _origNext = updateNextManeuverHUD;
+    updateNextManeuverHUD = function(lat, lng){
+      const r = _origNext.apply(this, arguments);
+      if(document.body.classList.contains('google-nav')) updateGoogleNavBanner();
+      return r;
+    };
+  }catch(e){}
+  try{
+    const _origRemain = updateRemainingHUD;
+    updateRemainingHUD = function(){
+      const r = _origRemain.apply(this, arguments);
+      try{
+        if(document.body.classList.contains('google-nav') && lastUserPos && currentRouteCoords && currentRouteCoords.length){
+          let remainDist = calcDist(lastUserPos.lat, lastUserPos.lng, currentRouteCoords[0][0], currentRouteCoords[0][1]);
+          for(let i=0;i<currentRouteCoords.length-1;i++) remainDist += calcDist(currentRouteCoords[i][0], currentRouteCoords[i][1], currentRouteCoords[i+1][0], currentRouteCoords[i+1][1]);
+          let speed = (typeof smoothedSpeed !== 'undefined' ? smoothedSpeed*3.6 : 0);
+          if(speed < 10){
+            const td = (currentRouteData && currentRouteData.distance) || 1;
+            const tu = (currentRouteData && currentRouteData.duration) || 1;
+            speed = (td/1000) / (tu/3600); if(speed < 10) speed = 30;
+          }
+          const remainSec = remainDist / (speed/3.6);
+          updateGoogleBottomSheet(remainDist, remainSec);
+          updateGoogleNavBanner();
+        }
+      }catch(err){}
+      return r;
+    };
+  }catch(e){}
+
+  // ---- 5. Camera kieu Google: nghieng 55, dau huong len, user o 1/3 duoi ----
+  try{
+    updateNavCamera = function(pos, heading){
+      if(!isNavigating || navFollowMode !== 'first-person' || !map) return;
+      try{
+        // Google: pitch 55, zoom 17.5, bearing = heading, offset day user xuong duoi man hinh
+        map.easeTo({ center:[pos.lng, pos.lat], bearing: heading||0, pitch:55, zoom: Math.max(map.getZoom(), 17.5), offset:[0, 110], duration:600, essential:true });
+        // Xoay la ban theo bearing
+        const comp = document.querySelector('#gNavCompassBtn .compass-arrow');
+        if(comp) comp.style.transform = 'rotate(' + (-(heading||0)) + 'deg)';
+      }catch(e){}
+    };
+  }catch(e){ console.warn('patch updateNavCamera Google fail', e); }
+
+  // ---- 6. Cham user kieu Google: cham xanh duong, khong phai mui ten xanh la ----
+  try{
+    const _origUserMarkerGoogle = updateUserMarkerOnMap;
+    updateUserMarkerOnMap = function(pos, heading){
+      const isGoogle = document.body.classList.contains('google-nav');
+      if(!isGoogle) return _origUserMarkerGoogle(pos, heading);
+      // Google mode: cham xanh duong
+      const lngLat = [pos.lng, pos.lat];
+      if(!userMarker){
+        const el = document.createElement('div');
+        el.className = 'g-user-dot-wrap';
+        el.innerHTML = '<div class="g-user-dot"></div>';
+        userMarker = new maplibregl.Marker({ element: el, anchor:'center' }).setLngLat(lngLat).addTo(map);
+      } else {
+        userMarker.setLngLat(lngLat);
+        // Doi inner thanh cham xanh neu dang la mui ten cu
+        const wrap = userMarker.getElement();
+        if(wrap && !wrap.querySelector('.g-user-dot')){
+          wrap.className = 'g-user-dot-wrap';
+          wrap.innerHTML = '<div class="g-user-dot"></div>';
+        }
+      }
+      // Vong tron accuracy: nho, xanh duong, cap 30m khi dan duong (khong de vong xanh to nhu anh 1)
+      try{
+        const acc = Math.min(pos.accuracy || 10, 30);
+        gpsCircleGeoJSON = createCircleGeoJSON(pos.lng, pos.lat, acc);
+        if(map.getSource('gps-circle-source')){
+          map.getSource('gps-circle-source').setData(gpsCircleGeoJSON);
+          // Doi mau vong tron sang xanh duong kieu Google
+          try{
+            if(map.getLayer('gps-circle-layer')) map.setPaintProperty('gps-circle-layer', 'fill-color', '#1a73e8');
+            if(map.getLayer('gps-circle-layer')) map.setPaintProperty('gps-circle-layer', 'fill-opacity', 0.12);
+            if(map.getLayer('gps-circle-outline')) map.setPaintProperty('gps-circle-outline', 'line-color', '#1a73e8');
+          }catch(err){}
+        }
+      }catch(err){}
+      // Camera theo kieu Google
+      if(navFollowMode === 'first-person') updateNavCamera(pos, heading || 0);
+    };
+  }catch(e){ console.warn('patch userMarker Google fail', e); }
+  // AnimateMarkerTo trong Google mode: cung dung cham xanh, khong xoay mui ten
+  try{
+    const _origAnimateGoogle = animateMarkerTo;
+    animateMarkerTo = function(targetPos){
+      if(!document.body.classList.contains('google-nav')) return _origAnimateGoogle(targetPos);
+      // Google: snap dung tren duong xanh, khong offset, khong xoay
+      if(!userMarker){ updateUserMarkerOnMap(targetPos, targetPos.heading); return; }
+      let snappedLat = targetPos.lat, snappedLng = targetPos.lng;
+      if(currentRouteCoords && currentRouteCoords.length > 1 && lastSnapIndex < currentRouteCoords.length - 1){
+        let minDist = Infinity, bestPoint = null;
+        const startScan = Math.max(0, lastSnapIndex - 5);
+        const endScan = Math.min(currentRouteCoords.length - 1, lastSnapIndex + 50);
+        for(let i=startScan;i<endScan;i++){
+          const pt = getClosestPointOnSegment({ lat: targetPos.lat, lng: targetPos.lng }, { lat: currentRouteCoords[i][0], lng: currentRouteCoords[i][1] }, { lat: currentRouteCoords[i+1][0], lng: currentRouteCoords[i+1][1] });
+          const d = calcDist(targetPos.lat, targetPos.lng, pt.lat, pt.lng);
+          if(d < minDist){ minDist = d; bestPoint = pt; if(i > lastSnapIndex) lastSnapIndex = i; }
+        }
+        if(bestPoint && minDist < 40){ snappedLat = bestPoint.lat; snappedLng = bestPoint.lng; }
+      }
+      userMarker.setLngLat([snappedLng, snappedLat]);
+      try{
+        const acc = Math.min(targetPos.accuracy || 10, 30);
+        gpsCircleGeoJSON = createCircleGeoJSON(snappedLng, snappedLat, acc);
+        if(map.getSource('gps-circle-source')) map.getSource('gps-circle-source').setData(gpsCircleGeoJSON);
+      }catch(e){}
+    };
+  }catch(e){ console.warn('patch animateMarker Google fail', e); }
+
+  // ---- 7. Duong xanh day + vien trang kieu Google ----
+  try{
+    const _origDrawGoogle = drawCurrentRoute;
+    drawCurrentRoute = function(){
+      const r = _origDrawGoogle.apply(this, arguments);
+      try{
+        if(!map || !document.body.classList.contains('google-nav')) return r;
+        // Them lop vien trang duoi duong xanh + lam duong day hon
+        if(map.getLayer('current-route-layer')){
+          map.setPaintProperty('current-route-layer', 'line-width', 10);
+          map.setPaintProperty('current-route-layer', 'line-color', '#1a73e8');
+        }
+        if(!map.getLayer('current-route-casing')){
+          if(map.getSource('current-route-source')){
+            map.addLayer({ id:'current-route-casing', type:'line', source:'current-route-source', layout:{ 'line-join':'round', 'line-cap':'round' }, paint:{ 'line-color':'#ffffff', 'line-width':14, 'line-opacity':0.9 } }, 'current-route-layer');
+          }
+        }
+      }catch(e){}
+      return r;
+    };
+  }catch(e){}
+
+  // ---- 8. Bat / tat Google Nav ----
+  function activateGoogleNav(){
+    document.body.classList.add('google-nav');
+    document.body.classList.add('navigating');
+    isNavigating = true;
+    navFollowMode = 'first-person';
+    // Xoa minimap + panel cu (kieu anh 1)
+    try{
+      const mm = document.getElementById('navMinimap'); if(mm) mm.style.display = 'none';
+      if(navMinimapMap){ try{ navMinimapMap.remove(); }catch(e){} navMinimapMap = null; }
+      if(navMinimap){ try{ navMinimap.remove(); }catch(e){} navMinimap = null; }
+      const nc = document.getElementById('navControls'); if(nc) nc.style.display = 'none';
+      navMinimapVisible = false;
+    }catch(e){}
+    // Xoa style an banner cu (V3) de khong anh huong banner moi
+    try{ const hs = document.getElementById('hideTopTurnStyle'); if(hs) hs.remove(); }catch(e){}
+    showGoogleNavUI();
+    hideRecenterBtn();
+    if(lastUserPos) updateNavCamera(lastUserPos, lastUserPos.heading || 0);
+    else if(currentRouteCoords && currentRouteCoords.length){ try{ map.easeTo({ center:[currentRouteCoords[0][1], currentRouteCoords[0][0]], pitch:55, zoom:17.5, offset:[0,110], duration:700 }); }catch(e){} }
+    try{ updateGoogleNavBanner(); updateRemainingHUD(); }catch(e){}
+    // Khi user keo map thi hien nut Ve giua + dung follow
+    try{
+      if(map && !map._googleDragBound){
+        map._googleDragBound = true;
+        map.on('dragstart', ()=>{ if(document.body.classList.contains('google-nav')){ navFollowMode = 'free'; showRecenterBtn(); } });
+        map.on('zoomstart', ()=>{ if(document.body.classList.contains('google-nav')){ /* giu follow khi zoom */ } });
+      }
+    }catch(e){}
+  }
+  function deactivateGoogleNav(){
+    document.body.classList.remove('google-nav');
+    document.body.classList.remove('navigating');
+    isNavigating = false;
+    hideGoogleNavUI();
+    try{ if(map) map.easeTo({ pitch:0, bearing:0, offset:[0,0], duration:600 }); }catch(e){}
+    // Tra lai vong tron xanh la + duong cu
+    try{
+      if(map.getLayer('gps-circle-layer')) map.setPaintProperty('gps-circle-layer', 'fill-color', '#10b981');
+      if(map.getLayer('current-route-casing')) map.removeLayer('current-route-casing');
+    }catch(e){}
+    if(whiteArrowMarker){ try{ whiteArrowMarker.remove(); }catch(e){} whiteArrowMarker = null; }
+    if(whiteArrowAheadMarker){ try{ whiteArrowAheadMarker.remove(); }catch(e){} whiteArrowAheadMarker = null; }
+  }
+  // Ghi de cac ham bat dau dan duong cu
+  try{
+    const _origStartHUD = startNavigationHUD;
+    startNavigationHUD = function(){
+      const r = _origStartHUD.apply(this, arguments);
+      activateGoogleNav();
+      return r;
+    };
+  }catch(e){}
+  try{
+    autoFirstPerson = function(){
+      if(!map) return;
+      activateGoogleNav();
+    };
+  }catch(e){}
+  try{
+    window.startNavigationMode = function(){ activateGoogleNav(); setTimeout(()=>{ try{ updateWhiteTurnArrow(); }catch(e){} }, 500); };
+    window.stopNavigationMode = function(){ deactivateGoogleNav(); };
+  }catch(e){}
+  // Theo doi body.navigating (app goc) -> tu bat Google Nav
+  try{
+    const _gObs = new MutationObserver((muts)=>{
+      for(const m of muts){
+        if(m.attributeName === 'class'){
+          const isNav = document.body.classList.contains('navigating');
+          if(isNav && !document.body.classList.contains('google-nav')) setTimeout(activateGoogleNav, 200);
+          else if(!isNav && document.body.classList.contains('google-nav')) deactivateGoogleNav();
+        }
+      }
+    });
+    _gObs.observe(document.body, { attributes:true, attributeFilter:['class'] });
+  }catch(e){}
+  // Ghi de ensureNavMinimap de khong hien minimap trong Google mode
+  try{
+    ensureNavMinimap = function(){ if(document.body.classList.contains('google-nav')) return; };
+    if(typeof ensureNavMinimapPassive !== 'undefined') ensureNavMinimapPassive = function(){ if(document.body.classList.contains('google-nav')) return; };
+  }catch(e){}
+})();
+
+
+/* ============================================================
+   [FIX 2026-11-21] KHOI PHUC HUD + GIU MINIMAP CO NUT X + NUT MUI TEN KEO LAI
+   - Loi truoc: Google patch an #hud (display:none) + xoa minimap -> mat luon HUD + mat minimap
+   - Fix: Khong an #hud nua, HUD goc hien lai duoi banner Google, banner Google van hien
+   - Minimap GIU NGUYEN, them nut X de tat + nut mui ten de keo lai + tay keo de di chuyen minimap
+   ============================================================ */
+(function(){
+  // ---- 1. Sua CSS: xoa rule an #hud / minimap cua Google patch cu ----
+  try{
+    const old = document.getElementById('googleNavStyle20261121');
+    if(old) old.remove();
+  }catch(e){}
+  function injectFixCSS(){
+    if(document.getElementById('googleNavFix20261121')) return;
+    const st = document.createElement('style');
+    st.id = 'googleNavFix20261121';
+    st.textContent = `
+      /* Google banner van giu, nhung KHONG an HUD goc nua */
+      #gNavTopBanner{ position:fixed !important; top:calc(12px + env(safe-area-inset-top, 0px)) !important; left:12px !important; right:12px !important; z-index:800 !important; background:#0F766E !important; background:linear-gradient(180deg,#0F766E,#0B5E55) !important; color:#fff !important; border-radius:16px !important; padding:14px 16px !important; display:none; align-items:center; gap:14px; box-shadow:0 6px 20px rgba(0,0,0,0.28) !important; }
+      #gNavTopBanner.show{ display:flex !important; }
+      #gNavTopArrow{ width:52px; height:52px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:38px; font-weight:900; line-height:1; color:#fff; }
+      #gNavTopMain{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+      #gNavTopDist{ font-size:18px; font-weight:700; color:rgba(255,255,255,0.92); line-height:1.2; }
+      #gNavTopInstr{ font-size:24px; font-weight:800; line-height:1.15; color:#fff; word-break:break-word; }
+      #gNavNextBanner{ position:fixed !important; top:calc(96px + env(safe-area-inset-top, 0px)) !important; left:12px !important; z-index:799 !important; background:#0B5E55 !important; color:#fff !important; border-radius:0 0 14px 14px !important; padding:8px 14px 10px !important; display:none; align-items:center; gap:8px; font-size:17px; font-weight:700; box-shadow:0 4px 14px rgba(0,0,0,0.22) !important; max-width:78vw; }
+      #gNavNextBanner.show{ display:flex !important; }
+      #gNavBottomSheet{ position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important; z-index:800 !important; background:#fff !important; border-radius:20px 20px 0 0 !important; padding:12px 16px calc(14px + env(safe-area-inset-bottom, 0px)) !important; display:none; align-items:center; gap:14px; box-shadow:0 -6px 24px rgba(0,0,0,0.18) !important; }
+      #gNavBottomSheet.show{ display:flex !important; }
+      #gNavExitBtn{ width:48px; height:48px; flex-shrink:0; border-radius:999px; border:1px solid #dadce0; background:#fff; color:#3c4043; font-size:22px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+      #gNavBottomInfo{ flex:1; min-width:0; text-align:center; display:flex; flex-direction:column; gap:1px; }
+      #gNavRemainTime{ font-size:27px; font-weight:800; color:#188038; line-height:1.1; }
+      #gNavRemainMeta{ font-size:15px; font-weight:600; color:#5f6368; }
+      #gNavFavBtn{ width:48px; height:48px; flex-shrink:0; border-radius:999px; border:1px solid #dadce0; background:#fff; color:#1a73e8; font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+      /* Cot nut phai - day len tren de khong de minimap */
+      #gNavRightControls{ position:fixed !important; right:12px !important; bottom:calc(270px + env(safe-area-inset-bottom, 0px)) !important; z-index:800 !important; display:none; flex-direction:column; gap:12px; }
+      #gNavRightControls.show{ display:flex !important; }
+      .gNavRoundBtn{ width:56px; height:56px; border-radius:999px; background:#fff; border:none; box-shadow:0 4px 14px rgba(0,0,0,0.22); font-size:22px; color:#3c4043; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+      #gNavCompassBtn .compass-arrow{ font-size:24px; font-weight:900; color:#ea4335; display:inline-block; }
+      #gNavRecenterBtn{ position:fixed !important; left:16px !important; bottom:calc(132px + env(safe-area-inset-bottom, 0px)) !important; z-index:800 !important; background:#fff !important; color:#0F766E !important; border:none !important; border-radius:999px !important; padding:10px 16px !important; font-size:15px !important; font-weight:800 !important; box-shadow:0 4px 14px rgba(0,0,0,0.22) !important; display:none; align-items:center; gap:6px; cursor:pointer; }
+      #gNavRecenterBtn.show{ display:flex !important; }
+      /* HUD goc: HIEN LAI, day xuong duoi banner Google de khong bi de */
+      body.google-nav #hud{ display:block !important; visibility:visible !important; opacity:1 !important; }
+      body.google-nav #hud.hidden{ display:block !important; }
+      body.google-nav .hud-bottom{ top:calc(168px + env(safe-area-inset-top, 0px)) !important; }
+      body.google-nav .hud-top{ top:calc(230px + env(safe-area-inset-top, 0px)) !important; }
+      body.google-nav .hud-next{ top:calc(290px + env(safe-area-inset-top, 0px)) !important; }
+      /* Minimap: giu nguyen, them nut X + tay keo */
+      #navMinimap{ touch-action:none; }
+      #minimapCloseBtn{ position:absolute; top:6px; right:6px; z-index:10; width:26px; height:26px; border-radius:999px; background:rgba(0,0,0,0.65); color:#fff; border:none; font-size:14px; font-weight:800; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+      #minimapDragHandle{ position:absolute; top:6px; left:6px; z-index:10; height:26px; padding:0 8px; border-radius:999px; background:rgba(0,0,0,0.65); color:#fff; border:none; font-size:12px; font-weight:700; cursor:grab; display:flex; align-items:center; gap:4px; }
+      #minimapDragHandle:active{ cursor:grabbing; }
+      #minimapLabel{ position:absolute; bottom:6px; left:6px; z-index:10; background:rgba(0,0,0,0.6); color:#fff; font-size:10px; padding:2px 6px; border-radius:999px; pointer-events:none; }
+      /* Nut mui ten khoi phuc minimap khi da tat */
+      #minimapRestoreBtn{ position:fixed !important; right:12px !important; bottom:calc(92px + env(safe-area-inset-bottom, 0px)) !important; z-index:801 !important; width:52px; height:52px; border-radius:999px; background:#fff; border:none; box-shadow:0 4px 14px rgba(0,0,0,0.28); font-size:22px; cursor:pointer; display:none; align-items:center; justify-content:center; }
+      #minimapRestoreBtn.show{ display:flex !important; }
+      body.minimap-closed #navMinimap{ display:none !important; }
+      .g-user-dot{ width:22px; height:22px; border-radius:999px; background:#1a73e8; border:4px solid #fff; box-shadow:0 2px 8px rgba(0,0,0,0.35), 0 0 0 8px rgba(26,115,232,0.18); }
+      .g-user-dot-wrap{ width:38px; height:38px; display:flex; align-items:center; justify-content:center; }
+    `;
+    document.head.appendChild(st);
+  }
+  injectFixCSS();
+
+  // ---- 2. Minimap: nut X + nut mui ten khoi phuc + keo ----
+  function ensureMinimapRestoreBtn(){
+    if(!document.getElementById('minimapRestoreBtn')){
+      const b = document.createElement('button');
+      b.id = 'minimapRestoreBtn';
+      b.title = 'Hiện lại minimap';
+      b.textContent = '🗺️↖';
+      b.onclick = ()=>{
+        document.body.classList.remove('minimap-closed');
+        b.classList.remove('show');
+        try{ navMinimapVisible = true; }catch(e){}
+        const mm = document.getElementById('navMinimap');
+        if(mm) mm.style.display = 'block';
+        else { try{ if(typeof ensureNavMinimapWithControls === 'function') ensureNavMinimapWithControls(); }catch(e){} }
+      };
+      document.body.appendChild(b);
+    }
+  }
+  function ensureMinimapControls(){
+    const mm = document.getElementById('navMinimap');
+    if(!mm) return;
+    // Cho phep tuong tac (patch cu de pointer-events:none nen khong bam duoc X)
+    mm.style.pointerEvents = 'auto';
+    mm.style.touchAction = 'none';
+    if(!document.getElementById('minimapCloseBtn')){
+      const x = document.createElement('button');
+      x.id = 'minimapCloseBtn';
+      x.textContent = '✕';
+      x.title = 'Tắt minimap';
+      x.onclick = (e)=>{
+        e.stopPropagation();
+        document.body.classList.add('minimap-closed');
+        mm.style.display = 'none';
+        try{ navMinimapVisible = false; }catch(err){}
+        ensureMinimapRestoreBtn();
+        const rb = document.getElementById('minimapRestoreBtn');
+        if(rb) rb.classList.add('show');
+      };
+      mm.appendChild(x);
+    }
+    if(!document.getElementById('minimapDragHandle')){
+      const h = document.createElement('button');
+      h.id = 'minimapDragHandle';
+      h.title = 'Giữ để kéo minimap';
+      h.innerHTML = '↕ Kéo';
+      mm.appendChild(h);
+      // Keo minimap: giu nut Keo roi keo
+      let dragging = false, startX=0, startY=0, startLeft=0, startTop=0;
+      h.addEventListener('pointerdown', (e)=>{
+        dragging = true;
+        h.setPointerCapture(e.pointerId);
+        startX = e.clientX; startY = e.clientY;
+        const r = mm.getBoundingClientRect();
+        startLeft = r.left; startTop = r.top;
+        mm.style.right = 'auto'; mm.style.bottom = 'auto';
+        mm.style.left = startLeft + 'px'; mm.style.top = startTop + 'px';
+      });
+      h.addEventListener('pointermove', (e)=>{
+        if(!dragging) return;
+        const nx = Math.max(8, Math.min(window.innerWidth - 80, startLeft + (e.clientX - startX)));
+        const ny = Math.max(8, Math.min(window.innerHeight - 80, startTop + (e.clientY - startY)));
+        mm.style.left = nx + 'px'; mm.style.top = ny + 'px';
+      });
+      const endDrag = ()=>{ dragging = false; };
+      h.addEventListener('pointerup', endDrag);
+      h.addEventListener('pointercancel', endDrag);
+    }
+    if(!document.getElementById('minimapLabel')){
+      const lb = document.createElement('div');
+      lb.id = 'minimapLabel';
+      lb.textContent = 'Minimap • X để tắt • ↕ để kéo';
+      mm.appendChild(lb);
+    }
+  }
+  function ensureNavMinimapWithControls(){
+    // Neu minimap da co thi chi them nut
+    const existing = document.getElementById('navMinimap');
+    if(existing){
+      ensureMinimapControls();
+      if(!document.body.classList.contains('minimap-closed')) existing.style.display = 'block';
+      return;
+    }
+    // Chua co -> tao moi kieu cu (interactive:true de keo duoc ban do ben trong)
+    try{
+      const el = document.createElement('div');
+      el.id = 'navMinimap';
+      el.style.cssText = 'position:fixed;right:12px;bottom:92px;width:170px;height:120px;z-index:997;border-radius:12px;overflow:hidden;border:2px solid #fff;box-shadow:0 6px 16px rgba(0,0,0,0.3);background:#e5e7eb;';
+      document.body.appendChild(el);
+      navMinimap = el;
+      navMinimapVisible = true;
+      try{
+        navMinimapMap = new maplibregl.Map({ container:'navMinimap', style: TRACKASIA_STYLE, center: map ? map.getCenter().toArray() : [105.8542, 21.0285], zoom: 13, pitch:0, bearing:0, attributionControl:false, interactive:true });
+        navMinimapMap.on('load', ()=>{ try{ syncRouteToMinimap(); syncUserToMinimap(); }catch(e){} });
+      }catch(e){}
+      ensureMinimapControls();
+    }catch(e){}
+  }
+  // Khoi phuc ham ensureNavMinimap bi Google patch ghi de thanh no-op
+  try{
+    ensureNavMinimap = function(){ ensureNavMinimapWithControls(); };
+    if(typeof ensureNavMinimapPassive !== 'undefined') ensureNavMinimapPassive = function(){ ensureNavMinimapWithControls(); };
+    window.ensureNavMinimapWithControls = ensureNavMinimapWithControls;
+  }catch(e){}
+
+  // ---- 3. Khoi phuc HUD: dam bao Google HUD + HUD goc deu hien khi dang dan duong ----
+  function forceShowHUD(){
+    try{
+      const isNav = document.body.classList.contains('navigating') || (typeof isNavigating !== 'undefined' && isNavigating);
+      if(!isNav) return;
+      // Google HUD
+      const top = document.getElementById('gNavTopBanner'); if(top) top.classList.add('show');
+      const bot = document.getElementById('gNavBottomSheet'); if(bot) bot.classList.add('show');
+      const rc = document.getElementById('gNavRightControls'); if(rc) rc.classList.add('show');
+      // HUD goc: bo hidden, hien lai
+      const hud = document.getElementById('hud');
+      if(hud){ hud.classList.remove('hidden'); hud.style.display = 'block'; hud.style.visibility = 'visible'; hud.style.opacity = '1'; }
+      // Xoa style an HUD cu neu con
+      try{ const hs = document.getElementById('hideTopTurnStyle'); if(hs) hs.remove(); }catch(e){}
+      // Minimap: neu user khong tat thi hien lai
+      if(!document.body.classList.contains('minimap-closed')){
+        const mm = document.getElementById('navMinimap');
+        if(mm){ mm.style.display = 'block'; ensureMinimapControls(); }
+        else { ensureNavMinimapWithControls(); }
+      }
+    }catch(e){}
+  }
+  // Watchdog: cu 800ms kiem tra, neu dang dan duong ma HUD mat thi hien lai
+  setInterval(forceShowHUD, 800);
+
+  // Ghi de activate: khong xoa minimap, khong an HUD
+  try{
+    const _origStartHUD2 = startNavigationHUD;
+    startNavigationHUD = function(){
+      const r = _origStartHUD2.apply(this, arguments);
+      try{
+        document.body.classList.add('google-nav');
+        forceShowHUD();
+        ensureMinimapWithControls();
+      }catch(e){}
+      return r;
+    };
+  }catch(e){}
+  try{
+    autoFirstPerson = function(){
+      if(!map) return;
+      document.body.classList.add('google-nav');
+      document.body.classList.add('navigating');
+      isNavigating = true;
+      navFollowMode = 'first-person';
+      forceShowHUD();
+      try{ ensureNavMinimapWithControls(); }catch(e){}
+      if(lastUserPos) updateNavCamera(lastUserPos, lastUserPos.heading || 0);
+    };
+  }catch(e){}
+  try{
+    window.startNavigationMode = function(){
+      document.body.classList.add('google-nav');
+      document.body.classList.add('navigating');
+      isNavigating = true;
+      forceShowHUD();
+      try{ ensureNavMinimapWithControls(); }catch(e){}
+      setTimeout(()=>{ try{ updateWhiteTurnArrow(); }catch(e){} }, 500);
+    };
+    const _origStop = window.stopNavigationMode;
+    window.stopNavigationMode = function(){
+      document.body.classList.remove('google-nav');
+      document.body.classList.remove('minimap-closed');
+      const rb = document.getElementById('minimapRestoreBtn'); if(rb) rb.classList.remove('show');
+      const hud = document.getElementById('hud');
+      if(hud){ hud.style.display = ''; }
+      try{ if(typeof deactivateGoogleNav === 'function') deactivateGoogleNav(); }catch(e){}
+      // Hien lai minimap mac dinh khi dung (de lan sau co san)
+      try{ if(map) map.easeTo({ pitch:0, bearing:0, offset:[0,0], duration:600 }); }catch(e){}
+      isNavigating = false;
+      // An Google HUD
+      ['gNavTopBanner','gNavNextBanner','gNavBottomSheet','gNavRightControls','gNavRecenterBtn'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('show'); });
+    };
+  }catch(e){}
+  // Khi body them navigating (app goc) thi hien HUD + minimap ngay
+  try{
+    const _fixObs = new MutationObserver(()=>{
+      if(document.body.classList.contains('navigating')) setTimeout(()=>{ forceShowHUD(); ensureMinimapWithControls(); }, 300);
+    });
+    _fixObs.observe(document.body, { attributes:true, attributeFilter:['class'] });
+  }catch(e){}
+  // Chay ngay neu dang dan duong
+  setTimeout(()=>{ if(document.body.classList.contains('navigating')) forceShowHUD(); }, 500);
+})();
+
+
+/* ============================================================
+   [FIX 2026-11-21] MUI TEN TRANG TREN DUONG XANH - TRANG TINH, KHONG PHAI XANH NHAT
+   - Loi cu: mui ten dung hinh doc (48x48), fill trang nhung opacity 0.95 + nam dung tai giao lo
+     nen nhin bi xanh nhat do duong xanh phia duoi hien qua + bi de boi vien trang cua route
+   - Fix kieu Google trong anh: mui ten NAM NGANG, BEO, nam TREN duong xanh, ngay SAU cho re
+     fill #FFFFFF 100% (khong opacity), vien xanh dam #1A73E8, dau mui ten chi vao huong sau khi re
+   ============================================================ */
+(function(){
+  // ---- 1. Mui ten trang moi: nam ngang, beo, trang tinh ----
+  function makeWhiteArrowGoogleEl(w, h){
+    const el = document.createElement('div');
+    // Kich thuoc that: rong x cao, khong phai vuong - giong Google: dai, beo, nam tren duong
+    el.style.cssText = 'width:'+w+'px;height:'+h+'px;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35));line-height:0;';
+    // SVG nam ngang, chi sang phai (bearing 90) mac dinh. Fill TRANG 100%, khong opacity, khong xanh nhat.
+    el.innerHTML = '<svg width="'+w+'" height="'+h+'" viewBox="0 0 72 36" fill="none" xmlns="http://www.w3.org/2000/svg">'
+      + '<path d="M3 12 L38 12 L38 4 L69 18 L38 32 L38 24 L3 24 Z" fill="#FFFFFF" stroke="#1A73E8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'
+      + '</svg>';
+    return el;
+  }
+  try{ makeWhiteArrowEl = function(size, opacity){ return makeWhiteArrowGoogleEl(size===44?84:60, size===44?42:30); }; }catch(e){}
+  // Xoa mui ten cu de tao lai hinh moi
+  try{ if(whiteArrowMarker){ whiteArrowMarker.remove(); whiteArrowMarker=null; } }catch(e){}
+  try{ if(whiteArrowAheadMarker){ whiteArrowAheadMarker.remove(); whiteArrowAheadMarker=null; } }catch(e){}
+
+  // ---- 2. Dat mui ten trang dung cho: ngay SAU cho re, nam tren duong xanh ----
+  function updateWhiteTurnArrowFixed(){
+    if(!map || !isNavigating) return;
+    let nextStep = null;
+    if(voiceRouteSteps && voiceRouteSteps.length){
+      for(let i=voiceStepIndex; i<voiceRouteSteps.length; i++){
+        const s = voiceRouteSteps[i];
+        if(s && s.maneuver && s.maneuver.location){ nextStep = s; break; }
+      }
+    }
+    if(!nextStep){
+      if(whiteArrowMarker){ try{ whiteArrowMarker.remove(); }catch(e){} whiteArrowMarker=null; }
+      return;
+    }
+    const loc = nextStep.maneuver.location;
+    const turnLng = loc[0], turnLat = loc[1];
+    // Tim doan route gan cho re nhat + huong sau khi re
+    let bestIdx = 0, bestD = Infinity, arrowBearing = 0;
+    try{
+      if(currentRouteCoords){
+        currentRouteCoords.forEach((c,i)=>{
+          const d = (c[0]-turnLat)*(c[0]-turnLat) + (c[1]-turnLng)*(c[1]-turnLng);
+          if(d<bestD){ bestD=d; bestIdx=i; }
+        });
+        if(currentRouteCoords[bestIdx+1]){
+          const nxt = currentRouteCoords[bestIdx+1];
+          arrowBearing = bearingBetween(turnLat, turnLng, nxt[0], nxt[1]);
+        } else if(currentRouteCoords[bestIdx-1]){
+          const prv = currentRouteCoords[bestIdx-1];
+          arrowBearing = bearingBetween(prv[0], prv[1], turnLat, turnLng);
+        }
+      }
+    }catch(e){}
+    // Dich mui ten ve phia TRUOC cho re ~18m de no nam HAN tren doan sau khi re (nhu anh Google),
+    // khong nam dung giua nga tu bi che boi duong ngang.
+    let arrowLat = turnLat, arrowLng = turnLng;
+    try{
+      const R = 6371000, d = 18, br = arrowBearing*Math.PI/180;
+      const lat1 = turnLat*Math.PI/180, lng1 = turnLng*Math.PI/180;
+      const lat2 = Math.asin(Math.sin(lat1)*Math.cos(d/R) + Math.cos(lat1)*Math.sin(d/R)*Math.cos(br));
+      const lng2 = lng1 + Math.atan2(Math.sin(br)*Math.sin(d/R)*Math.cos(lat1), Math.cos(d/R)-Math.sin(lat1)*Math.sin(lat2));
+      arrowLat = lat2*180/Math.PI; arrowLng = lng2*180/Math.PI;
+    }catch(e){}
+    // Tao / cap nhat marker - hinh moi: 84x42, trang tinh
+    if(!whiteArrowMarker){
+      const el = makeWhiteArrowGoogleEl(84, 42);
+      el.id = 'whiteTurnArrow';
+      whiteArrowMarker = new maplibregl.Marker({ element: el, anchor:'center', rotationAlignment:'map' });
+      whiteArrowMarker.addTo(map);
+    } else {
+      // Doi hinh cu thanh hinh moi neu van la hinh cu (48x48)
+      const oldEl = whiteArrowMarker.getElement();
+      if(oldEl && oldEl.offsetWidth === 44){
+        const newEl = makeWhiteArrowGoogleEl(84, 42);
+        newEl.id = 'whiteTurnArrow';
+        // Giu nguyen marker, doi element ben trong
+        oldEl.innerHTML = newEl.innerHTML;
+        oldEl.style.cssText = newEl.style.cssText;
+      }
+    }
+    whiteArrowMarker.setLngLat([arrowLng, arrowLat]);
+    const el = whiteArrowMarker.getElement();
+    if(el){
+      const mapBearing = map.getBearing()||0;
+      // SVG chi sang phai (90 do) -> xoay (bearing - 90 - mapBearing) de chi dung huong that
+      el.style.transform = 'rotate('+(arrowBearing - 90 - mapBearing)+'deg)';
+      el.style.opacity = '1';
+    }
+    // Mui ten thu 2: chay truoc user ~35m tren duong xanh, cung hinh trang beo
+    if(lastUserPos && currentRouteCoords && currentRouteCoords.length){
+      let bestIdx2 = 0, bestD2 = Infinity;
+      currentRouteCoords.forEach((c,i)=>{
+        const d = (c[0]-lastUserPos.lat)*(c[0]-lastUserPos.lat) + (c[1]-lastUserPos.lng)*(c[1]-lastUserPos.lng);
+        if(d<bestD2){ bestD2=d; bestIdx2=i; }
+      });
+      const aheadIdx = Math.min(currentRouteCoords.length-1, bestIdx2+4);
+      const ahead = currentRouteCoords[aheadIdx];
+      const aheadNext = currentRouteCoords[Math.min(currentRouteCoords.length-1, aheadIdx+1)];
+      if(ahead && aheadNext){
+        const b = bearingBetween(ahead[0], ahead[1], aheadNext[0], aheadNext[1]);
+        if(!whiteArrowAheadMarker){
+          const el2 = makeWhiteArrowGoogleEl(60, 30);
+          el2.id = 'whiteAheadArrow';
+          whiteArrowAheadMarker = new maplibregl.Marker({ element: el2, anchor:'center', rotationAlignment:'map' });
+          whiteArrowAheadMarker.addTo(map);
+        }
+        whiteArrowAheadMarker.setLngLat([ahead[1], ahead[0]]);
+        const el2 = whiteArrowAheadMarker.getElement();
+        if(el2){
+          const mb = map.getBearing()||0;
+          el2.style.transform = 'rotate('+(b - 90 - mb)+'deg)';
+          el2.style.opacity = '1';
+        }
+      }
+    }
+  }
+  try{ updateWhiteTurnArrow = updateWhiteTurnArrowFixed; }catch(e){}
+  // Cap nhat ngay neu dang dan duong
+  setTimeout(()=>{ try{ if(isNavigating) updateWhiteTurnArrowFixed(); }catch(e){} }, 600);
+})();
+
+
+/* ============================================================
+   [FIX 2026-11-21] MUI TEN TRANG CONG THEO CHO RE - DUNG NHU TRONG VONG DO
+   - Anh Google: mui ten TRANG nam tren duong xanh, DUOI nam tren duong vao (doc),
+     DAU nam tren duong ra (ngang), cong theo goc re - khong phai mui ten thang.
+   - Fix: Ve mui ten cong bang SVG theo goc re that (incoming -> outgoing),
+     fill #FFFFFF 100%, vien #1A73E8, dat ngay tai cho re (tail o duong vao, head o duong ra)
+   ============================================================ */
+(function(){
+  // ---- 1. Ve mui ten cong theo goc re ----
+  function makeBentWhiteArrowEl(turnAngleDeg){
+    // turnAngle = outgoing - incoming, -180..180. 0 = thang, +90 = re phai, -90 = re trai
+    let a = turnAngleDeg || 0;
+    while(a > 180) a -= 360; while(a < -180) a += 360;
+    const el = document.createElement('div');
+    el.style.cssText = 'width:96px;height:96px;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35));line-height:0;';
+    // U-turn rieng: ve chu U
+    if(Math.abs(a) > 150){
+      el.innerHTML = '<svg width="96" height="96" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">'
+        + '<path d="M38 92 L38 38 A12 12 0 0 1 62 38 L62 92" stroke="#1A73E8" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>'
+        + '<path d="M38 92 L38 38 A12 12 0 0 1 62 38 L62 92" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>'
+        + '<path d="M62 92 L50 78 L74 78 Z" fill="#FFFFFF" stroke="#1A73E8" stroke-width="2" stroke-linejoin="round"/>'
+        + '</svg>';
+      return el;
+    }
+    // Mui ten cong chung: tail (50,92) -> goc (50,50) -> head theo huong outgoing
+    const rad = a * Math.PI / 180;
+    const dx = Math.sin(rad); // huong outgoing: x
+    const dy = -Math.cos(rad); // y (SVG y xuong duoi, up = -1)
+    const endX = 50 + 32*dx;
+    const endY = 50 + 32*dy;
+    const tipX = endX + 14*dx;
+    const tipY = endY + 14*dy;
+    // Vuong goc voi huong outgoing de ve day mui ten
+    const px = -dy, py = dx;
+    const base1X = endX + 11*px, base1Y = endY + 11*py;
+    const base2X = endX - 11*px, base2Y = endY - 11*py;
+    const bodyD = 'M50 92 L50 50 L' + endX.toFixed(1) + ' ' + endY.toFixed(1);
+    const headD = 'M' + tipX.toFixed(1) + ' ' + tipY.toFixed(1) + ' L' + base1X.toFixed(1) + ' ' + base1Y.toFixed(1) + ' L' + base2X.toFixed(1) + ' ' + base2Y.toFixed(1) + ' Z';
+    el.innerHTML = '<svg width="96" height="96" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">'
+      + '<path d="' + bodyD + '" stroke="#1A73E8" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>'
+      + '<path d="' + bodyD + '" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>'
+      + '<path d="' + headD + '" fill="#FFFFFF" stroke="#1A73E8" stroke-width="2" stroke-linejoin="round"/>'
+      + '</svg>';
+    return el;
+  }
+  function makeStraightWhiteArrowEl(w, h){
+    const el = document.createElement('div');
+    el.style.cssText = 'width:'+w+'px;height:'+h+'px;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35));line-height:0;';
+    el.innerHTML = '<svg width="'+w+'" height="'+h+'" viewBox="0 0 72 36" fill="none" xmlns="http://www.w3.org/2000/svg">'
+      + '<path d="M3 12 L38 12 L38 4 L69 18 L38 32 L38 24 L3 24 Z" fill="#FFFFFF" stroke="#1A73E8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'
+      + '</svg>';
+    return el;
+  }
+  // [FIX] Bo fallback 90 do co dinh - khong dung goc co dinh nua, goc luon lay tu duong that
+  try{ if(whiteArrowMarker){ whiteArrowMarker.remove(); whiteArrowMarker=null; } }catch(e){}
+  try{ if(whiteArrowAheadMarker){ whiteArrowAheadMarker.remove(); whiteArrowAheadMarker=null; } }catch(e){}
+
+  // ---- 2. Cap nhat mui ten cong tai cho re ----
+  function updateWhiteTurnArrowBent(){
+    if(!map || !isNavigating) return;
+    let nextStep = null;
+    if(voiceRouteSteps && voiceRouteSteps.length){
+      for(let i=voiceStepIndex; i<voiceRouteSteps.length; i++){
+        const s = voiceRouteSteps[i];
+        if(s && s.maneuver && s.maneuver.location){ nextStep = s; break; }
+      }
+    }
+    if(!nextStep){
+      if(whiteArrowMarker){ try{ whiteArrowMarker.remove(); }catch(e){} whiteArrowMarker=null; }
+      return;
+    }
+    const loc = nextStep.maneuver.location;
+    const turnLng = loc[0], turnLat = loc[1];
+    // Tim diem route gan cho re nhat + huong vao / huong ra
+    let bestIdx = 0, bestD = Infinity;
+    try{
+      if(currentRouteCoords){
+        currentRouteCoords.forEach((c,i)=>{
+          const d = (c[0]-turnLat)*(c[0]-turnLat) + (c[1]-turnLng)*(c[1]-turnLng);
+          if(d<bestD){ bestD=d; bestIdx=i; }
+        });
+      }
+    }catch(e){}
+    // [FIX] Tinh huong vao/ra theo DUONG THAT: lay diem cach cho re ~25m truoc/sau de ra goc duong that
+    // Chu khong lay 1 diem ke ben (de bi nhieu) va khong dung goc co dinh
+    let incomingBearing = 0, outgoingBearing = 0;
+    function distM(lat1,lng1,lat2,lng2){
+      const R=6371000, dLa=(lat2-lat1)*Math.PI/180, dLo=(lng2-lng1)*Math.PI/180;
+      const a=Math.sin(dLa/2)*Math.sin(dLa/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLo/2)*Math.sin(dLo/2);
+      return 2*R*Math.asin(Math.sqrt(a));
+    }
+    function pointAtDist(startIdx, dir, targetM){
+      // di doc route tu cho re theo huong dir (-1 = lui, +1 = toi) den khi du ~targetM
+      let acc=0, idx=startIdx;
+      while(idx+dir>=0 && idx+dir<currentRouteCoords.length){
+        const cur=currentRouteCoords[idx], nxt=currentRouteCoords[idx+dir];
+        acc += distM(cur[0],cur[1],nxt[0],nxt[1]);
+        idx+=dir;
+        if(acc>=targetM) break;
+      }
+      return currentRouteCoords[idx];
+    }
+    try{
+      if(currentRouteCoords && currentRouteCoords.length){
+        // Huong vao: tu diem cach cho re 25m phia truoc -> cho re
+        const farIn = pointAtDist(bestIdx, -1, 25);
+        if(farIn) incomingBearing = bearingBetween(farIn[0], farIn[1], turnLat, turnLng);
+        // Huong ra: tu cho re -> diem cach cho re 25m phia sau
+        const farOut = pointAtDist(bestIdx, 1, 25);
+        if(farOut) outgoingBearing = bearingBetween(turnLat, turnLng, farOut[0], farOut[1]);
+        if(!isFinite(incomingBearing)) incomingBearing = outgoingBearing;
+        if(!isFinite(outgoingBearing)) outgoingBearing = incomingBearing;
+      }
+    }catch(e){}
+    let turnAngle = outgoingBearing - incomingBearing;
+    while(turnAngle > 180) turnAngle -= 360; while(turnAngle < -180) turnAngle += 360;
+    // Tao mui ten cong - dat NGAY tai cho re, duoi o duong vao, dau o duong ra (nhu anh Google)
+    if(!whiteArrowMarker){
+      const el = makeBentWhiteArrowEl(turnAngle);
+      el.id = 'whiteTurnArrow';
+      whiteArrowMarker = new maplibregl.Marker({ element: el, anchor:'center', rotationAlignment:'map' });
+      whiteArrowMarker.addTo(map);
+      whiteArrowMarker._bentTurnAngle = turnAngle;
+    } else {
+      // Neu goc re doi (qua cho re moi) thi ve lai hinh cong moi
+      if(Math.abs((whiteArrowMarker._bentTurnAngle||0) - turnAngle) > 2){ // duong lech 2 do la ve lai - khong dung goc co dinh
+        const newEl = makeBentWhiteArrowEl(turnAngle);
+        const oldEl = whiteArrowMarker.getElement();
+        if(oldEl){ oldEl.innerHTML = newEl.innerHTML; oldEl.style.cssText = newEl.style.cssText; }
+        whiteArrowMarker._bentTurnAngle = turnAngle;
+      }
+    }
+    whiteArrowMarker.setLngLat([turnLng, turnLat]);
+    const el = whiteArrowMarker.getElement();
+    if(el){
+      const mapBearing = map.getBearing()||0;
+      // SVG ve san: huong vao = len tren (0 do). Xoay theo huong vao that.
+      el.style.transform = 'rotate(' + (incomingBearing - mapBearing) + 'deg)';
+      el.style.opacity = '1';
+    }
+    // Mui ten thu 2: chay truoc user ~35m, mui ten thang trang (khong cong) de chi huong di
+    if(lastUserPos && currentRouteCoords && currentRouteCoords.length){
+      let bestIdx2 = 0, bestD2 = Infinity;
+      currentRouteCoords.forEach((c,i)=>{
+        const d = (c[0]-lastUserPos.lat)*(c[0]-lastUserPos.lat) + (c[1]-lastUserPos.lng)*(c[1]-lastUserPos.lng);
+        if(d<bestD2){ bestD2=d; bestIdx2=i; }
+      });
+      const aheadIdx = Math.min(currentRouteCoords.length-1, bestIdx2+4);
+      const ahead = currentRouteCoords[aheadIdx];
+      const aheadNext = currentRouteCoords[Math.min(currentRouteCoords.length-1, aheadIdx+1)];
+      if(ahead && aheadNext){
+        const b = bearingBetween(ahead[0], ahead[1], aheadNext[0], aheadNext[1]);
+        if(!whiteArrowAheadMarker){
+          const el2 = makeStraightWhiteArrowEl(60, 30);
+          el2.id = 'whiteAheadArrow';
+          whiteArrowAheadMarker = new maplibregl.Marker({ element: el2, anchor:'center', rotationAlignment:'map' });
+          whiteArrowAheadMarker.addTo(map);
+        }
+        whiteArrowAheadMarker.setLngLat([ahead[1], ahead[0]]);
+        const el2 = whiteArrowAheadMarker.getElement();
+        if(el2){
+          const mb = map.getBearing()||0;
+          el2.style.transform = 'rotate(' + (b - 90 - mb) + 'deg)';
+          el2.style.opacity = '1';
+        }
+      }
+    }
+  }
+  try{ updateWhiteTurnArrow = updateWhiteTurnArrowBent; }catch(e){}
+  setTimeout(()=>{ try{ if(isNavigating) updateWhiteTurnArrowBent(); }catch(e){} }, 600);
+})();
