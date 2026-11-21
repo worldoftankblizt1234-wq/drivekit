@@ -1507,6 +1507,10 @@ function initMap() {
     showLocationPopup(e.lngLat);
   });
   map.on('click', (e) => {
+    const _inNav = !!(document.body && document.body.classList.contains('google-nav')) || !!isNavigating;
+    // Mo lai click khi dang dan duong: bam map van geocoding, chi an nut "Toi cho nay" trong popup
+    // Dung follow de popup khong bi camera keo di
+    if (_inNav) { try{ navFollowMode = 'free'; if(typeof showRecenterBtn === 'function') showRecenterBtn(); }catch(err){} }
     if (isNearbyPickingMode) {
       const lat = e.lngLat.lat, lon = e.lngLat.lng;
       currentNearbyCenter = { lat, lon };
@@ -1518,7 +1522,7 @@ function initMap() {
     }
     if (document.getElementById('poiDetailSheet').classList.contains('open')) { closePoiDetail(); return; }
     if (touchMarker) { closePopupSmoothly(touchMarker); touchMarker = null; return; }
-    if (document.getElementById('dirSheet').classList.contains('open') || document.getElementById('suggestionsBox').classList.contains('show')) {
+    if ((document.getElementById('dirSheet').classList.contains('open') || document.getElementById('suggestionsBox').classList.contains('show'))) {
       closeDirections();
       if (document.getElementById('suggestionsBox').classList.contains('show')) closeSearch();
       return;
@@ -1596,12 +1600,15 @@ function showLocationPopup(lngLat) {
     try { const raw = await apiReverseGeocode(lngLat.lat, lngLat.lng); if (raw) name = raw.split(',').slice(0, 3).join(', '); } catch (e) {}
     const displayName = name || `Tọa độ: ${lngLat.lat.toFixed(5)}, ${lngLat.lng.toFixed(5)}`;
     const safeName = jsSafe(displayName);
+    // Dang dan duong: popup chi 3 nut - Ghim / Them moi / Share (an nut Toi cho nay)
+    const _inNavPopup = !!(document.body && document.body.classList.contains('google-nav')) || !!isNavigating;
+    const _goBtn = _inNavPopup ? '' : `<button onclick="event.stopPropagation(); goToLongPressLocation(${lngLat.lat}, ${lngLat.lng}, '${safeName}')" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; margin-bottom: 6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>`;
     const popupHtml = `
       <div style="min-width: 180px;">
         <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: var(--text);">${escapeHtml(displayName)}</div>
         <button onclick="event.stopPropagation(); openSavePlaceModal(${lngLat.lat}, ${lngLat.lng}, '${safeName}')" style="width: 100%; padding: 10px; background: var(--success); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; margin-bottom: 6px;"><i class="fas fa-bookmark"></i> Ghim địa điểm</button>
         <button onclick="event.stopPropagation(); openPoiSheet(${lngLat.lat}, ${lngLat.lng}, '${safeName}')" style="width: 100%; padding: 10px; background: linear-gradient(135deg,#10b981,#059669); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; margin-bottom: 6px;"><i class="fas fa-plus-circle"></i> Thêm địa điểm mới</button>
-        <button onclick="event.stopPropagation(); goToLongPressLocation(${lngLat.lat}, ${lngLat.lng}, '${safeName}')" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; margin-bottom: 6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
+        ${_goBtn}
         <button onclick="event.stopPropagation(); shareLocation(${lngLat.lat}, ${lngLat.lng}, '${safeName}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer;"><i class="fas fa-share-alt"></i> Chia sẻ</button>
       </div>`;
     if (touchMarker === markerRef) { try { popup.setHTML(popupHtml); } catch(e) {} }
@@ -1876,6 +1883,8 @@ window.closeSearch = function() {
   searchResultMarkers = [];
   const ti = document.getElementById('topSearchInput');
   if (ti) ti.readOnly = true;
+  // Dang dan duong: dong luon overlay search de tra lai banner dan duong
+  try{ const fs = document.querySelector('.floating-search'); if(fs) fs.classList.remove('show-in-nav'); }catch(e){}
   updateUIState();
 };
 window.clearPoint = function(which) {
@@ -2036,12 +2045,14 @@ async function selectLocation(lat, lng, name) {
     if (raw) finalName = raw.split(',').slice(0, 3).join(', ');
   } catch (e) {}
   const safeName = jsSafe(finalName);
+  const _inNavSel = !!(document.body && document.body.classList.contains('google-nav')) || !!isNavigating;
+  const _goBtnSel = _inNavSel ? '' : `<button onclick="event.stopPropagation(); goToLongPressLocation(${lat}, ${lng}, '${safeName}')" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; margin-bottom: 6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>`;
   const popupHtml = `
     <div style="min-width: 180px;">
       <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.3; color: var(--text);">${escapeHtml(finalName)}</div>
       <button onclick="event.stopPropagation(); openSavePlaceModal(${lat}, ${lng}, '${safeName}')" style="width: 100%; padding: 10px; background: var(--success); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; margin-bottom: 6px;"><i class="fas fa-bookmark"></i> Ghim địa điểm</button>
       <button onclick="event.stopPropagation(); openPoiSheet(${lat}, ${lng}, '${safeName}')" style="width: 100%; padding: 10px; background: linear-gradient(135deg,#10b981,#059669); color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; margin-bottom: 6px;"><i class="fas fa-plus-circle"></i> Thêm địa điểm mới</button>
-      <button onclick="event.stopPropagation(); goToLongPressLocation(${lat}, ${lng}, '${safeName}')" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; margin-bottom: 6px;"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
+      ${_goBtnSel}
       <button onclick="event.stopPropagation(); shareLocation(${lat}, ${lng}, '${safeName}')" style="width: 100%; padding: 10px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer;"><i class="fas fa-share-alt"></i> Chia sẻ</button>
     </div>`;
   const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeButton: false }).setLngLat([lng, lat]).setHTML(popupHtml);
@@ -4368,7 +4379,12 @@ try{
     st.id = 'googleNavStyle20261121';
     st.textContent = `
       /* Khi dang dan duong kieu Google: an UI cu (thanh den, minimap, panel 3 nut, search noi) */
-      body.google-nav #navControls, body.google-nav #navMinimap, body.google-nav .hud-top, body.google-nav .hud-bottom, body.google-nav #hud, body.google-nav .floating-search, body.google-nav .fab-directions, body.google-nav .fab-locate, body.google-nav .fab-layers, body.google-nav .fab-report { display:none !important; }
+      body.google-nav #navControls, body.google-nav #navMinimap, body.google-nav .hud-top, body.google-nav .hud-bottom, body.google-nav #hud, body.google-nav .fab-directions, body.google-nav .fab-locate, body.google-nav .fab-layers, body.google-nav .fab-report { display:none !important; }
+      body.google-nav .floating-search{ display:none !important; }
+      body.google-nav .floating-search.show-in-nav{ display:none !important; } /* [BAT BUOC] Dang dan duong: khoa search - khong hien overlay nua */
+      body.google-nav #gNavSearchBtn{ opacity:0.4 !important; filter:grayscale(1) !important; }
+      body.google-nav #suggestionsBox{ z-index:1210 !important; }
+      body.google-nav #suggestionsBox.show{ display:block !important; }
       body.google-nav #hudTopRemain, body.google-nav #hudEndTripBtn { display:none !important; }
       /* Banner tren - xanh dam kieu Google */
       #gNavTopBanner{ position:fixed !important; top:calc(12px + env(safe-area-inset-top, 0px)) !important; left:12px !important; right:12px !important; z-index:800 !important; background:#0F766E !important; background:linear-gradient(180deg,#0F766E,#0B5E55) !important; color:#fff !important; border-radius:16px !important; padding:14px 16px !important; display:none; align-items:center; gap:14px; box-shadow:0 6px 20px rgba(0,0,0,0.28) !important; }
@@ -4382,10 +4398,10 @@ try{
       #gNavNextBanner.show{ display:flex !important; }
       #gNavNextBanner .next-arrow{ font-size:22px; font-weight:900; }
       /* Bottom sheet trang kieu Google */
-      #gNavBottomSheet{ position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important; z-index:800 !important; background:#fff !important; border-radius:20px 20px 0 0 !important; padding:12px 16px calc(14px + env(safe-area-inset-bottom, 0px)) !important; display:none; flex-direction:column; gap:10px; box-shadow:0 -6px 24px rgba(0,0,0,0.18) !important; }
+      #gNavBottomSheet{ position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important; z-index:800 !important; background:#fff !important; border-radius:20px 20px 0 0 !important; padding:12px 16px calc(14px + env(safe-area-inset-bottom, 0px)) !important; display:none; align-items:center; gap:14px; box-shadow:0 -6px 24px rgba(0,0,0,0.18) !important; }
       #gNavBottomRow{ display:flex !important; align-items:center !important; gap:14px !important; width:100% !important; }
-      #gNavBottomEndTripBtn{ width:100% !important; background:#dc2626 !important; color:#fff !important; border:none !important; border-radius:12px !important; padding:12px !important; font-size:15px !important; font-weight:800 !important; cursor:pointer !important; display:flex !important; align-items:center; justify-content:center; gap:8px; }
-      #gNavBottomEndTripBtn:active{ transform:scale(0.98); }
+      /* Bo nut Ket thuc chuyen di - chi dung nut X de thoat */
+      #gNavBottomEndTripBtn, #gNavEndTripBtn{ display:none !important; }
       /* Popup lop ban do trong Google Nav: neo gan nut lop o bottom-sheet, khong de o goc tren trai nua */
       body.google-nav #layerMenu{ position:fixed !important; left:auto !important; right:12px !important; bottom:calc(168px + env(safe-area-inset-bottom, 0px)) !important; top:auto !important; z-index:1100 !important; }
       /* An la ban cu (dark) trong Google Nav - chi dung 1 la ban o stack trai */
@@ -4439,7 +4455,7 @@ try{
     if(!document.getElementById('gNavBottomSheet')){
       const bot = document.createElement('div');
       bot.id = 'gNavBottomSheet';
-      bot.innerHTML = '<div id="gNavBottomRow"><button id="gNavExitBtn" title="Thoát chỉ đường"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button><div id="gNavBottomInfo"><div id="gNavRemainTime">3 phút</div><div id="gNavRemainMeta">900 m • 7:11</div></div><button id="gNavLayerBtn" title="Lớp bản đồ"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linejoin="round"><path d="M12 3 L21 8 L12 13 L3 8 Z"/><path d="M3 11 L12 16 L21 11"/><path d="M3 15 L12 20 L21 15"/></svg></button></div><button id="gNavBottomEndTripBtn" type="button">■ Kết thúc chuyến đi</button>';
+      bot.innerHTML = '<div id="gNavBottomRow"><button id="gNavExitBtn" title="Thoát chỉ đường"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button><div id="gNavBottomInfo"><div id="gNavRemainTime">3 phút</div><div id="gNavRemainMeta">900 m • 7:11</div></div><button id="gNavLayerBtn" title="Lớp bản đồ"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linejoin="round"><path d="M12 3 L21 8 L12 13 L3 8 Z"/><path d="M3 11 L12 16 L21 11"/><path d="M3 15 L12 20 L21 15"/></svg></button></div>';
       document.body.appendChild(bot);
       document.getElementById('gNavExitBtn').onclick = ()=>{
         try{
@@ -4464,13 +4480,12 @@ try{
           }
         }catch(err){ console.warn('Layer btn loi', err); }
       };
-      // Nut Ket thuc trong bottom-sheet (luon hien khi dang dan duong)
-      try{ const eb = document.getElementById('gNavBottomEndTripBtn'); if(eb) eb.onclick = ()=>{ try{ if(typeof window.openEndTripModal === 'function') window.openEndTripModal(); }catch(e){} }; }catch(e){}
+      // Da bo nut Ket thuc - chi dung nut X de thoat
     }
     if(!document.getElementById('gNavRightControls')){
       const rc = document.createElement('div');
       rc.id = 'gNavRightControls';
-      rc.innerHTML = '<button class="gNavRoundBtn" id="gNavCompassBtn" title="La bàn"><span class="compass-arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 2 L15.5 12 L12 22 L8.5 12 Z" fill="#ea4335"/><path d="M12 22 L15.5 12 L8.5 12 Z" fill="#9aa0a6"/></svg></span></button><button class="gNavRoundBtn" id="gNavSearchBtn" title="Tìm kiếm"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button><button class="gNavRoundBtn" id="gNavVoiceBtn" title="Âm thanh"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 L6 9 H3 v6 h3 l5 4 Z" fill="#3c4043" stroke="none"/><path d="M15.5 8.5 a5 5 0 0 1 0 7"/><path d="M18.5 5.5 a9 9 0 0 1 0 13"/></svg></button><button class="gNavRoundBtn" id="gNavRoutesBtn" title="Tuyến khác"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linecap="round"><path d="M6 4 v4 a4 4 0 0 0 4 4 h1 a4 4 0 0 1 4 4 v4"/><path d="M18 4 v2 a4 4 0 0 1-4 4"/><circle cx="6" cy="4" r="1.8" fill="#1a73e8" stroke="none"/><circle cx="18" cy="4" r="1.8" fill="#1a73e8" stroke="none"/><circle cx="15" cy="20" r="1.8" fill="#1a73e8" stroke="none"/></svg></button>';
+      rc.innerHTML = '<button class="gNavRoundBtn" id="gNavCompassBtn" title="La bàn"><span class="compass-arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 2 L15.5 12 L12 22 L8.5 12 Z" fill="#ea4335"/><path d="M12 22 L15.5 12 L8.5 12 Z" fill="#9aa0a6"/></svg></span></button><button class="gNavRoundBtn" id="gNavSearchBtn" title="Tìm kiếm"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button><button class="gNavRoundBtn" id="gNavVoiceBtn" title="Âm thanh"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 L6 9 H3 v6 h3 l5 4 Z" fill="#3c4043" stroke="none"/><path d="M15.5 8.5 a5 5 0 0 1 0 7"/><path d="M18.5 5.5 a9 9 0 0 1 0 13"/></svg></button><button class="gNavRoundBtn" id="gNavRoutesBtn" title="Tuyến khác"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linecap="round"><path d="M6 4 v4 a4 4 0 0 0 4 4 h1 a4 4 0 0 1 4 4 v4"/><path d="M18 4 v2 a4 4 0 0 1-4 4"/><circle cx="6" cy="4" r="1.8" fill="#1a73e8" stroke="none"/><circle cx="18" cy="4" r="1.8" fill="#1a73e8" stroke="none"/><circle cx="15" cy="20" r="1.8" fill="#1a73e8" stroke="none"/></svg></button><button class="gNavRoundBtn" id="gNavPoiWarnBtn" title="POI cảnh báo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L22 20 H2 Z" fill="#fef3c7"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r="1" fill="#ea580c" stroke="none"/></svg></button><button class="gNavRoundBtn" id="gNavPoiPublicBtn" title="POI công cộng"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 a6 6 0 0 1 6 6 c0 5 -6 10 -6 10 S6 13 6 8 a6 6 0 0 1 6-6 Z" fill="#d1fae5"/><circle cx="12" cy="8" r="2.2"/></svg></button>';
       document.body.appendChild(rc);
       document.getElementById('gNavCompassBtn').onclick = ()=>{
         try{
@@ -4480,11 +4495,8 @@ try{
         }catch(e){}
       };
       document.getElementById('gNavSearchBtn').onclick = ()=>{
-        try{
-          const inp = document.getElementById('topSearchInput') || document.querySelector('input[placeholder*="Tìm"]');
-          if(inp){ inp.focus(); inp.click(); }
-          else if(typeof openSearch === 'function') openSearch();
-        }catch(e){}
+        // [BAT BUOC] Dang dan duong: khoa search - khong mo o tim kiem
+        try{ if(typeof showCustomToast === 'function') showCustomToast('Đang dẫn đường - tìm kiếm tạm khóa', 'info'); }catch(e){}
       };
       document.getElementById('gNavVoiceBtn').onclick = (e)=>{
         try{
@@ -4499,6 +4511,10 @@ try{
       document.getElementById('gNavRoutesBtn').onclick = ()=>{
         try{ if(typeof window.openAlternativeRoutes === 'function') window.openAlternativeRoutes(); }catch(e){}
       };
+      // POI canh bao: mo modal Bao cao (canh bao toc do, cam, chan duong...)
+      try{ const wb = document.getElementById('gNavPoiWarnBtn'); if(wb) wb.onclick = ()=>{ try{ if(typeof window.openReportMenu === 'function') window.openReportMenu(); else if(typeof showCustomToast === 'function') showCustomToast('Mở báo cáo cảnh báo', 'info'); }catch(e){} }; }catch(e){}
+      // POI cong cong: mo sheet Them dia diem moi tai vi tri hien tai
+      try{ const pb = document.getElementById('gNavPoiPublicBtn'); if(pb) pb.onclick = ()=>{ try{ let la=0, ln=0; if(typeof lastUserPos !== 'undefined' && lastUserPos){ la = lastUserPos.lat; ln = lastUserPos.lng; } else if(map){ const c = map.getCenter(); la = c.lat; ln = c.lng; } if(typeof window.openPoiSheet === 'function') window.openPoiSheet(la, ln, 'Vị trí hiện tại'); }catch(e){} }; }catch(e){}
     }
     if(!document.getElementById('gNavRecenterBtn')){
       const rb = document.createElement('button');
@@ -4873,10 +4889,10 @@ try{
       #gNavTopInstr{ font-size:24px; font-weight:800; line-height:1.15; color:#fff; word-break:break-word; }
       #gNavNextBanner{ position:fixed !important; top:calc(96px + env(safe-area-inset-top, 0px)) !important; left:12px !important; z-index:799 !important; background:#0B5E55 !important; color:#fff !important; border-radius:0 0 14px 14px !important; padding:8px 14px 10px !important; display:none; align-items:center; gap:8px; font-size:17px; font-weight:700; box-shadow:0 4px 14px rgba(0,0,0,0.22) !important; max-width:78vw; }
       #gNavNextBanner.show{ display:flex !important; }
-      #gNavBottomSheet{ position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important; z-index:800 !important; background:#fff !important; border-radius:20px 20px 0 0 !important; padding:12px 16px calc(14px + env(safe-area-inset-bottom, 0px)) !important; display:none; flex-direction:column; gap:10px; box-shadow:0 -6px 24px rgba(0,0,0,0.18) !important; }
+      #gNavBottomSheet{ position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important; z-index:800 !important; background:#fff !important; border-radius:20px 20px 0 0 !important; padding:12px 16px calc(14px + env(safe-area-inset-bottom, 0px)) !important; display:none; align-items:center; gap:14px; box-shadow:0 -6px 24px rgba(0,0,0,0.18) !important; }
       #gNavBottomRow{ display:flex !important; align-items:center !important; gap:14px !important; width:100% !important; }
-      #gNavBottomEndTripBtn{ width:100% !important; background:#dc2626 !important; color:#fff !important; border:none !important; border-radius:12px !important; padding:12px !important; font-size:15px !important; font-weight:800 !important; cursor:pointer !important; display:flex !important; align-items:center; justify-content:center; gap:8px; }
-      #gNavBottomEndTripBtn:active{ transform:scale(0.98); }
+      /* Bo nut Ket thuc chuyen di - chi dung nut X de thoat */
+      #gNavBottomEndTripBtn, #gNavEndTripBtn{ display:none !important; }
       /* Popup lop ban do trong Google Nav: neo gan nut lop o bottom-sheet, khong de o goc tren trai nua */
       body.google-nav #layerMenu{ position:fixed !important; left:auto !important; right:12px !important; bottom:calc(168px + env(safe-area-inset-bottom, 0px)) !important; top:auto !important; z-index:1100 !important; }
       /* An la ban cu (dark) trong Google Nav - chi dung 1 la ban o stack trai */
@@ -4916,7 +4932,8 @@ try{
       #minimapDragHandle:active{ cursor:grabbing; }
       #minimapLabel{ position:absolute; bottom:6px; left:6px; z-index:10; background:rgba(0,0,0,0.6); color:#fff; font-size:10px; padding:2px 6px; border-radius:999px; pointer-events:none; }
       /* Nut mui ten khoi phuc minimap khi da tat */
-      #minimapRestoreBtn{ position:fixed !important; right:12px !important; bottom:calc(92px + env(safe-area-inset-bottom, 0px)) !important; z-index:801 !important; width:52px; height:52px; border-radius:999px; background:#fff; border:none; box-shadow:0 4px 14px rgba(0,0,0,0.28); font-size:22px; cursor:pointer; display:none; align-items:center; justify-content:center; }
+      /* Nut vuong + mui ten (khoi phuc minimap) - de gan goc duoi-trai HUD, ngay tren bottom-sheet */
+      #minimapRestoreBtn{ position:fixed !important; left:12px !important; right:auto !important; bottom:calc(92px + env(safe-area-inset-bottom, 0px)) !important; z-index:801 !important; width:48px; height:48px; border-radius:999px; background:#fff; border:none; box-shadow:0 4px 14px rgba(0,0,0,0.28); font-size:22px; cursor:pointer; display:none; align-items:center; justify-content:center; }
       #minimapRestoreBtn.show{ display:flex !important; }
       body.minimap-closed #navMinimap{ display:none !important; }
       .g-user-dot{ width:22px; height:22px; border-radius:999px; background:#1a73e8; border:4px solid #fff; box-shadow:0 2px 8px rgba(0,0,0,0.35), 0 0 0 8px rgba(26,115,232,0.18); }
@@ -4932,7 +4949,7 @@ try{
       const b = document.createElement('button');
       b.id = 'minimapRestoreBtn';
       b.title = 'Hiện lại minimap';
-      b.textContent = '🗺️↖';
+      b.innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="12" height="12" rx="1"/><path d="M14 9l6-6"/><path d="M15 3h5v5"/></svg>';
       b.onclick = ()=>{
         document.body.classList.remove('minimap-closed');
         b.classList.remove('show');
@@ -5453,14 +5470,8 @@ try{
 
   // ---- DOM: nut Ket thuc + modal ----
   function ensureEndTripUI(){
-    if(!document.getElementById('gNavEndTripBtn')){
-      const b = document.createElement('button');
-      b.id = 'gNavEndTripBtn';
-      b.type = 'button';
-      b.innerHTML = '■ Kết thúc chuyến đi';
-      b.onclick = ()=>{ try{ window.openEndTripModal(); }catch(e){} };
-      document.body.appendChild(b);
-    }
+    // Da bo nut Ket thuc (theo yeu cau) - chi giu modal, khong tao nut noi nua
+    try{ const _old = document.getElementById('gNavEndTripBtn'); if(_old) _old.remove(); }catch(e){}
     if(!document.getElementById('gNavEndTripModal')){
       const m = document.createElement('div');
       m.id = 'gNavEndTripModal';
@@ -5780,33 +5791,8 @@ try{
   }
   // 2. Migration bottom sheet cu (da tao tu ban cu): them nut Ket thuc neu chua co
   function ensureBottomEndTrip(){
-    const bot = document.getElementById('gNavBottomSheet');
-    if(!bot) return;
-    if(!document.getElementById('gNavBottomEndTripBtn')){
-      // Neu bottom sheet cu dang la flex-row (khong co BottomRow), boc lai
-      let row = document.getElementById('gNavBottomRow');
-      if(!row){
-        row = document.createElement('div');
-        row.id = 'gNavBottomRow';
-        // Chuyen tat ca con cu vao row
-        while(bot.firstChild) row.appendChild(bot.firstChild);
-        bot.appendChild(row);
-        bot.style.flexDirection = 'column';
-      }
-      const b = document.createElement('button');
-      b.id = 'gNavBottomEndTripBtn';
-      b.type = 'button';
-      b.textContent = '■ Kết thúc chuyến đi';
-      b.onclick = ()=>{ try{ if(typeof window.openEndTripModal === 'function') window.openEndTripModal(); }catch(e){} };
-      bot.appendChild(b);
-    } else {
-      // Dam bao onclick con hoat dong
-      const b = document.getElementById('gNavBottomEndTripBtn');
-      if(b && !b._bound){ b._bound = true; b.onclick = ()=>{ try{ if(typeof window.openEndTripModal === 'function') window.openEndTripModal(); }catch(e){} }; }
-    }
-    // An nut noi cu de tranh 2 nut
-    const oldFloat = document.getElementById('gNavEndTripBtn');
-    if(oldFloat) oldFloat.style.display = 'none';
+    // Da bo nut Ket thuc - chi xoa neu con sot
+    try{ const b = document.getElementById('gNavBottomEndTripBtn'); if(b) b.remove(); const f = document.getElementById('gNavEndTripBtn'); if(f) f.remove(); }catch(e){}
   }
   // 3. Dong bo show/hide stack trai + bottom EndTrip theo Google Nav
   function sync(){
@@ -5844,5 +5830,74 @@ try{
         return r;
       };
     }
+  }catch(e){}
+})();
+
+
+/* ============================================================
+   [FIX 2026-11-22] SEARCH + CLICK MAP KHI DANG CHI DUONG - MIGRATION
+   - Nut kinh lup trong Google Nav phai mo duoc search that (khong chi focus o an)
+   - Bam map khi dang dan duong van geocoding, khong bi dirSheet chan
+   ============================================================ */
+(function(){
+  // [BAT BUOC] Dang dan duong: khoa search - KHONG mo search nua (ghi de migration cu)
+  try{
+    const btn = document.getElementById('gNavSearchBtn');
+    if(btn){
+      btn.style.opacity = '0.4'; btn.style.filter = 'grayscale(1)';
+      // Chan listener cu neu co: thay bang toast khoa
+      btn.addEventListener('click', (e)=>{ e.stopImmediatePropagation(); try{ if(typeof showCustomToast === 'function') showCustomToast('Đang dẫn đường - tìm kiếm tạm khóa', 'info'); }catch(err){} }, true);
+    }
+  }catch(e){}
+  // Neu user bam X tren overlay search -> dong overlay luon
+  try{
+    const x = document.getElementById('topSearchClearX');
+    if(x && !x._navXFixed){
+      x._navXFixed = true;
+      x.addEventListener('click', ()=>{
+        try{ const fs = document.querySelector('.floating-search'); if(fs) fs.classList.remove('show-in-nav'); }catch(e){}
+      });
+    }
+  }catch(e){}
+})();
+
+
+/* ============================================================
+   [FIX 2026-11-22b] POPUP 3 NUT + BO NUT DO + MINIMAP TRAI + 2 NUT POI - MIGRATION
+   ============================================================ */
+(function(){
+  // Bo nut Ket thuc (ca noi + trong bottom-sheet) neu DOM cu con
+  try{
+    const f = document.getElementById('gNavEndTripBtn'); if(f) f.remove();
+    const b = document.getElementById('gNavBottomEndTripBtn'); if(b) b.remove();
+    const bot = document.getElementById('gNavBottomSheet'); if(bot){ bot.style.flexDirection = ''; }
+  }catch(e){}
+  // Them 2 nut POI neu cot phai cu chua co
+  try{
+    const rc = document.getElementById('gNavRightControls');
+    if(rc && !document.getElementById('gNavPoiWarnBtn')){
+      const wb = document.createElement('button');
+      wb.className = 'gNavRoundBtn'; wb.id = 'gNavPoiWarnBtn'; wb.title = 'POI cảnh báo';
+      wb.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L22 20 H2 Z" fill="#fef3c7"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r="1" fill="#ea580c" stroke="none"/></svg>';
+      wb.onclick = ()=>{ try{ if(typeof window.openReportMenu === 'function') window.openReportMenu(); }catch(e){} };
+      rc.appendChild(wb);
+    }
+    if(rc && !document.getElementById('gNavPoiPublicBtn')){
+      const pb = document.createElement('button');
+      pb.className = 'gNavRoundBtn'; pb.id = 'gNavPoiPublicBtn'; pb.title = 'POI công cộng';
+      pb.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 a6 6 0 0 1 6 6 c0 5 -6 10 -6 10 S6 13 6 8 a6 6 0 0 1 6-6 Z" fill="#d1fae5"/><circle cx="12" cy="8" r="2.2"/></svg>';
+      pb.onclick = ()=>{ try{ let la=0, ln=0; if(typeof lastUserPos !== 'undefined' && lastUserPos){ la = lastUserPos.lat; ln = lastUserPos.lng; } else if(typeof map !== 'undefined' && map){ const c = map.getCenter(); la = c.lat; ln = c.lng; } if(typeof window.openPoiSheet === 'function') window.openPoiSheet(la, ln, 'Vị trí hiện tại'); }catch(e){} };
+      rc.appendChild(pb);
+    }
+  }catch(e){}
+  // Dua nut vuong + mui ten ra goc duoi-trai HUD
+  try{
+    const rb = document.getElementById('minimapRestoreBtn');
+    if(rb){ rb.style.left = '12px'; rb.style.right = 'auto'; rb.style.bottom = 'calc(92px + env(safe-area-inset-bottom, 0px))'; }
+  }catch(e){}
+  // Khoa search khi dan duong van giu: nut kinh lup chi hien toast (khong mo search)
+  try{
+    const sb = document.getElementById('gNavSearchBtn');
+    if(sb){ sb.style.opacity = '0.4'; sb.style.filter = 'grayscale(1)'; }
   }catch(e){}
 })();
