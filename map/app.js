@@ -5165,13 +5165,15 @@ try{
         const d = calcDist(pos.lat, pos.lng, currentRouteCoords[i][0], currentRouteCoords[i][1]);
         if(d < bestD){ bestD = d; bestIdx = i; }
       }
-      // Lay diem cach phia truoc ~80m tren duong de tinh huong nhin doc duong
-      let aheadIdx = bestIdx;
-      let acc = 0;
-      for(let i=bestIdx;i<currentRouteCoords.length-1;i++){
-        acc += calcDist(currentRouteCoords[i][0], currentRouteCoords[i][1], currentRouteCoords[i+1][0], currentRouteCoords[i+1][1]);
-        aheadIdx = i+1;
-        if(acc >= 80) break;
+      // [FIX v9 - video] Bearing cua doan NGAY DUOI CHAN (snap -> snap+1), khong lay +80m
+      // Vi +80m nhay qua cua 90 do -> bearing cheo 45 do nhu video. Doan ngay duoi chan moi lam duong xanh thang dung.
+      let aheadIdx = Math.min(bestIdx + 1, currentRouteCoords.length - 1);
+      // Neu doan nay qua ngan (<8m, do Valhalla chia nho), moi lay them toi 30m, khong lay 80m
+      let acc = calcDist(currentRouteCoords[bestIdx][0], currentRouteCoords[bestIdx][1], currentRouteCoords[aheadIdx][0], currentRouteCoords[aheadIdx][1]);
+      while(aheadIdx < currentRouteCoords.length - 1 && acc < 8){
+        aheadIdx++;
+        acc += calcDist(currentRouteCoords[aheadIdx-1][0], currentRouteCoords[aheadIdx-1][1], currentRouteCoords[aheadIdx][0], currentRouteCoords[aheadIdx][1]);
+        if(acc >= 30) break;
       }
       if(aheadIdx === bestIdx) return null;
       // [FIX Claude] Bearing tu doan da SNAP (lastSnapIndex -> +80m), khong tu GPS tho (GPS lech -> nhin ngang)
@@ -6724,7 +6726,7 @@ function ensureNavMinimapWithControls(){ /* [CLEANUP] Minimap da bo */ return nu
           if(typeof isNavigating !== 'undefined' && isNavigating || document.body.classList.contains('google-nav')){
             navFollowMode = 'free';
             window._userFreed = true;
-            try{ if(map) map.stop(); }catch(e){}
+            /* [FIX v9] Bo map.stop() - thu pham chinh lam keo khong nhuc nhich (video) */
             if(typeof showRecenterBtn === 'function') try{ showRecenterBtn(); }catch(e){}
             // Hien nut Ve giua luon
             try{ const rb=document.getElementById('gNavRecenterBtn'); if(rb) rb.classList.add('show'); }catch(e){}
@@ -6733,10 +6735,10 @@ function ensureNavMinimapWithControls(){ /* [CLEANUP] Minimap da bo */ return nu
       };
       // Dung ca dragstart + touchstart + rotatestart + pitchstart + zoomstart
       try{ map.on('dragstart', _toFreeHard); }catch(e){}
-      try{ map.on('touchstart', _toFreeHard); }catch(e){}
+      /* [FIX v9] Bo touchstart - touchstart ban truoc dragstart, lam chet keo */
       try{ map.on('rotatestart', _toFreeHard); }catch(e){}
       try{ map.on('pitchstart', _toFreeHard); }catch(e){}
-      try{ map.on('zoomstart', _toFreeHard); }catch(e){}
+      /* [FIX v9] Bo zoomstart - zoom khong can pha lock */
       // Khi bam Ve giua -> xoa co free, cho phep follow lai
       const _origRecenter = window.recenterToRouteView;
       window.recenterToRouteView = function(){
@@ -7267,8 +7269,8 @@ function ensureNavMinimapWithControls(){ /* [CLEANUP] Minimap da bo */ return nu
   window.showFabsAfterMenuSearch = showFabs;
 })();
 
-/* DRIVEKIT_FIX_VERSION = "2026-11-21-v8 TOPDOWN + FREE + SNAP-BEARING" - Kiem tra deploy: mo Console (F12) phai thay dong nay, neu khong thay la web van chay file cu */
-try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v8 TOPDOWN + FREE + SNAP-BEARING"; console.log("%cDriveKit FIX %c2026-11-21-v8 TOPDOWN + FREE + SNAP-BEARING", "background:#0F766E;color:#fff;padding:4px 8px;border-radius:6px", "background:#fff;color:#111;padding:4px 8px;border-radius:6px"); }catch(e){}
+/* DRIVEKIT_FIX_VERSION = "2026-11-21-v9 TOPDOWN + FREE + IMMEDIATE-BEARING" - Kiem tra deploy: mo Console (F12) phai thay dong nay, neu khong thay la web van chay file cu */
+try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v9 TOPDOWN + FREE + IMMEDIATE-BEARING"; console.log("%cDriveKit FIX %c2026-11-21-v9 TOPDOWN + FREE + IMMEDIATE-BEARING", "background:#0F766E;color:#fff;padding:4px 8px;border-radius:6px", "background:#fff;color:#111;padding:4px 8px;border-radius:6px"); }catch(e){}
 
 
 /* ============================================================
@@ -7421,7 +7423,7 @@ try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v8 TOPDOWN + FREE + SNAP-BEARIN
       navFollowMode = 'free';
       window._userFreed = true;
       try{ _isUserDraggingMap = true; }catch(e){}
-      try{ if(typeof map!=='undefined' && map) map.stop(); }catch(e){}
+      /* [FIX v9] Bo map.stop() - giong tren */
       showRecenter();
     }catch(e){}
   }
@@ -7508,7 +7510,7 @@ try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v8 TOPDOWN + FREE + SNAP-BEARIN
 
 
 /* ============================================================
-   [FIX 2026-11-21-v8] TOP-DOWN + SNAP-BEARING (Claude+DeepSeek) DOC DUONG XANH + FREE THAT + LOCATED + HUD TOC DO
+   [FIX 2026-11-21-v9] TOP-DOWN + IMMEDIATE-BEARING (fix video) + SNAP-BEARING (Claude+DeepSeek) DOC DUONG XANH + FREE THAT + LOCATED + HUD TOC DO
    - Camera: nhin thang tu tren xuong (pitch:0), bearing = huong duong xanh phia truoc,
      tam = vi tri user, offset [0,0], zoom 17.5. Duong xanh nam doc giua man hinh.
    - Free: bat ky thao tac nao tren map (keo, xoay, nghien, zoom, cham, lan) deu pha lock -> free,
@@ -7680,4 +7682,3 @@ try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v8 TOPDOWN + FREE + SNAP-BEARIN
     }
   }catch(e){}
 })();
-
