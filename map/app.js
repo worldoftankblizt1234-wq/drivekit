@@ -1,4 +1,21 @@
 /* =====================================================
+   DriveKit - app.js FULL - 2026-11-22
+   File duy nhat, thay cho viec noi v4 + v5 + v6 + v7 le te
+   Gom:
+   - Base: off-route popup (lech huong -> hoi doi huong), search pill + hamburger,
+     bottom sheet 5 nut premium, top bar + sheet map var(--...) trong styles.css
+   - V5: fix Located Me - tra lai nut Vi tri, ngoai bottom sheet
+   - V6: fix La ban - tra lai nut #btnCompass, ngoai bottom sheet
+   - V7: Sheet noi + Cum FAB dinh lien - La ban + Vi tri vao 1 pill trai (gap 2px),
+     Layers + Bao cao + Tram dung vao 1 pill phai, sheet floating bo 28px
+   Cach dung:
+   - Thay file app.js cu bang file nay (1 file duy nhat)
+   - Dung kem styles.css FULL moi nhat (da co V7)
+   - KHONG can them v5/v6/v7 rieng nua - da gop san trong nay
+   Thu tu chay trong file: Base (v4) -> V5 -> V6 -> V7 (V7 thang, ghi de CSS loi bottom:auto cua v4)
+   ===================================================== */
+
+/* =====================================================
    DriveKit — app.js FULL (ĐÃ SYNC DEMO MAPILLARY + FIX)
    Part 1: Config → Route → Navigation
    ===================================================== */
@@ -8955,3 +8972,536 @@ try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v9 TOPDOWN + FREE + IMMEDIATE-B
   window.applyStylesCssMapV4 = inject;
 })();
 
+/* ================= V5 ================= */
+/* =====================================================
+   DriveKit - FIX LOCATED ME v5 - 2026-11-22
+   Tra lai nut "Vi tri cua toi" / #mainLocateBtn
+   - NAM NGOAI bottom sheet, KHONG dua vao bottom sheet
+   - Loi v4: inject CSS bottom:auto + translateY(-150px) -> nut mat
+   - Fix: inject CSS moi GHI DE v4 (bottom cu the + transform:none)
+     + watchdog hien lai nut neu updateUIState() an no
+     + neu nut bi xoa mat khoi DOM thi tao lai, giu nguyen handler goc
+   Cach dung: paste file nay SAU app-v4-styles-mapped.js (cuoi file / truoc </body>)
+   ===================================================== */
+(function fixLocatedMeV5(){
+  if (window._fixLocatedMeV5Done) return; window._fixLocatedMeV5Done = true;
+
+  /* 1. CSS ghi de v4 - phai chay SAU stylesMappedV4 nen append sau */
+  function injectFixCSS(){
+    let st = document.getElementById('fixLocatedMeV5');
+    if (!st){
+      st = document.createElement('style'); st.id = 'fixLocatedMeV5';
+      document.head.appendChild(st);
+    }
+    st.textContent = `
+      /* Ghi de #stylesMappedV4 bi loi bottom:auto */
+      html body:not(.navigating):not(.google-nav) #mainLocateBtn,
+      html body:not(.navigating):not(.google-nav) .fab-locate{
+        display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+        position:fixed !important; left:16px !important; right:auto !important; top:auto !important;
+        bottom:calc(168px + var(--safe-bottom, 0px)) !important;
+        transform:none !important;
+        width:50px !important; height:50px !important; min-width:50px !important; min-height:50px !important;
+        border-radius:50% !important; background:var(--card) !important;
+        border:1px solid var(--border) !important; color:var(--text) !important;
+        align-items:center !important; justify-content:center !important;
+        font-size:1.3rem !important; box-shadow:0 4px 15px rgba(0,0,0,.10) !important;
+        z-index:1100 !important;
+      }
+      html body:not(.navigating):not(.google-nav) #btnLayerMenu,
+      html body:not(.navigating):not(.google-nav) .fab-layers{
+        bottom:calc(230px + var(--safe-bottom, 0px)) !important; transform:none !important;
+      }
+      html body:not(.navigating):not(.google-nav) #btnCompass,
+      html body:not(.navigating):not(.google-nav) .fab-compass{
+        bottom:calc(290px + var(--safe-bottom, 0px)) !important; transform:none !important;
+      }
+      html body:not(.navigating):not(.google-nav) #btnReport,
+      html body:not(.navigating):not(.google-nav) .fab-report{
+        bottom:calc(230px + var(--safe-bottom, 0px)) !important; transform:none !important;
+      }
+      html body:not(.navigating):not(.google-nav) #btnRestStopFilter,
+      html body:not(.navigating):not(.google-nav) .fab-rest-stop-filter{
+        bottom:calc(350px + var(--safe-bottom, 0px)) !important; transform:none !important;
+      }
+      /* Locate KHONG nam trong bottom sheet */
+      #homeBottomSheet #mainLocateBtn, #homeBottomSheet .fab-locate{ display:none !important; }
+    `;
+  }
+
+  /* 2. Tao lai nut neu bi xoa mat - giu nguyen id + class goc de handler cu an theo */
+  function ensureLocatedBtn(){
+    try{
+      // Dang dan duong / google-nav thi de logic nav tu xu ly, khong ep hien o day
+      if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return;
+      // Neu nut con trong bottom sheet (bi keo nham vao) thi loi ra ngoai body
+      const inSheet = document.querySelector('#homeBottomSheet #mainLocateBtn, #homeBottomSheet .fab-locate');
+      if (inSheet){
+        inSheet.remove();
+      }
+      let btn = document.getElementById('mainLocateBtn');
+      if (!btn){
+        // Tim theo class neu id bi doi
+        btn = document.querySelector('.fab-locate');
+        if (btn) btn.id = 'mainLocateBtn';
+      }
+      if (!btn){
+        btn = document.createElement('button');
+        btn.id = 'mainLocateBtn';
+        btn.className = 'fab-locate';
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'Vị trí của tôi');
+        btn.title = 'Vị trí của tôi';
+        btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i>';
+        document.body.appendChild(btn);
+        // Gan lai handler: thu cac ham goc neu co, fallback ve geolocation + map
+        btn.addEventListener('click', ()=>{
+          try{
+            if (typeof window.locateUser === 'function') return window.locateUser();
+            if (typeof window.goToMyLocation === 'function') return window.goToMyLocation();
+            if (typeof window.recenterToUser === 'function') return window.recenterToUser();
+            if (typeof window.centerOnUser === 'function') return window.centerOnUser();
+            if (typeof window.recenterToRouteView === 'function') return window.recenterToRouteView();
+          }catch(e){}
+          try{
+            // Fallback: dung lastUserPos / geolocation de flyTo
+            if (typeof lastUserPos !== 'undefined' && lastUserPos && lastUserPos.lat && typeof map !== 'undefined' && map){
+              if (map.flyTo) return map.flyTo({ center:[lastUserPos.lng, lastUserPos.lat], zoom: Math.max(map.getZoom ? map.getZoom() : 16, 16) });
+              if (map.setCenter) return map.setCenter({ lat:lastUserPos.lat, lng:lastUserPos.lng });
+            }
+          }catch(e){}
+          try{
+            if (navigator.geolocation){
+              navigator.geolocation.getCurrentPosition((pos)=>{
+                try{
+                  if (typeof map !== 'undefined' && map && map.flyTo) map.flyTo({ center:[pos.coords.longitude, pos.coords.latitude], zoom:16 });
+                }catch(e){}
+              });
+            }
+          }catch(e){}
+        });
+      } else {
+        // Nut con ton tai nhung bi an bang inline style (updateUIState) -> mo lai
+        if (btn.style.display === 'none') btn.style.display = '';
+        if (btn.style.visibility === 'hidden') btn.style.visibility = '';
+        if (btn.style.opacity === '0') btn.style.opacity = '';
+        btn.style.pointerEvents = '';
+        // Dam bao khong bi bottom:auto / translateY(-150px) cua v4 con sot trong inline style
+        if (btn.style.bottom === 'auto') btn.style.bottom = '';
+        if (btn.style.transform) btn.style.transform = '';
+        // Neu nut dang nam trong sheet (truong hop DOM bi move) -> dua ra body
+        if (btn.closest && btn.closest('#homeBottomSheet')){
+          document.body.appendChild(btn);
+        }
+        // Neu nut bi mat icon do innerHTML bi ghi de -> khoi phuc icon
+        if (!btn.innerHTML || !btn.innerHTML.trim()){
+          btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i>';
+        }
+      }
+    }catch(e){}
+  }
+
+  /* 3. Chay + watchdog: v4 inject lai sau 500ms nen phai inject sau no + kiem tra dinh ky */
+  function run(){
+    injectFixCSS();
+    ensureLocatedBtn();
+  }
+  run();
+  document.addEventListener('DOMContentLoaded', run);
+  setTimeout(run, 100);
+  setTimeout(run, 500);   // sau v4 inject
+  setTimeout(run, 1000);
+  // Watchdog nhe: neu updateUIState / search / menu an nut thi hien lai, khong chay lien tuc
+  setInterval(()=>{
+    try{
+      if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return;
+      const btn = document.getElementById('mainLocateBtn') || document.querySelector('.fab-locate');
+      if (!btn) { ensureLocatedBtn(); injectFixCSS(); return; }
+      const cs = window.getComputedStyle(btn);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0'){
+        ensureLocatedBtn();
+      }
+    }catch(e){}
+  }, 1500);
+  // Bam vao search / menu / dong sheet xong thi hien lai ngay
+  document.addEventListener('click', (e)=>{
+    try{
+      const t = e.target && e.target.closest ? e.target.closest('#hbToggle, #hbHandle, #mainMenuBtn, .floating-search, #searchClearBtn, #topSearchGoBtn') : null;
+      if (t) setTimeout(run, 120);
+    }catch(e){}
+  });
+})();
+
+/* ================= V6 ================= */
+/* =====================================================
+   DriveKit - FIX LA BAN + LOCATED v6 - 2026-11-22
+   Tra lai nut La ban #btnCompass + Vi tri #mainLocateBtn
+   - CA 2 DEU NAM NGOAI bottom sheet, KHONG dua vao sheet
+   - Loi v4: inject bottom:auto + translateY(-150px) -> ca 2 nut bay mat
+   - Fix: inject CSS moi SAU v4 (bottom cu the + transform:none)
+     + watchdog hien lai neu bi an
+     + neu nut bi xoa mat khoi DOM thi tao lai, giu nguyen id/class goc
+   Cach dung: paste file nay SAU app-v4 + app-v5 (cuoi file / truoc </body>)
+   Neu da co v5 thi chi can them v6 nay, no fix ca 2 nut luon.
+   ===================================================== */
+(function fixFabV6(){
+  if (window._fixFabV6Done) return; window._fixFabV6Done = true;
+
+  function injectFixCSS(){
+    let st = document.getElementById('fixFabV6');
+    if (!st){ st = document.createElement('style'); st.id = 'fixFabV6'; document.head.appendChild(st); }
+    st.textContent = `
+      html body:not(.navigating):not(.google-nav) #mainLocateBtn,
+      html body:not(.navigating):not(.google-nav) .fab-locate{
+        display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+        position:fixed !important; left:16px !important; right:auto !important; top:auto !important;
+        bottom:calc(168px + var(--safe-bottom, 0px)) !important; transform:none !important;
+        width:50px !important; height:50px !important; border-radius:50% !important;
+        background:var(--card) !important; border:1px solid var(--border) !important; color:var(--text) !important;
+        z-index:1100 !important;
+      }
+      html body:not(.navigating):not(.google-nav) #btnCompass,
+      html body:not(.navigating):not(.google-nav) .fab-compass{
+        display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+        position:fixed !important; left:16px !important; right:auto !important; top:auto !important;
+        bottom:calc(290px + var(--safe-bottom, 0px)) !important; transform:none !important;
+        width:52px !important; height:52px !important; border-radius:50% !important;
+        background:rgba(30,41,59,.7) !important; backdrop-filter:blur(10px) !important;
+        border:1px solid rgba(255,255,255,.1) !important; color:var(--text) !important;
+        z-index:1100 !important;
+      }
+      html body:not(.navigating):not(.google-nav) #btnLayerMenu,
+      html body:not(.navigating):not(.google-nav) .fab-layers{
+        bottom:calc(230px + var(--safe-bottom, 0px)) !important; transform:none !important;
+      }
+      html body:not(.navigating):not(.google-nav) #btnReport,
+      html body:not(.navigating):not(.google-nav) .fab-report{
+        bottom:calc(230px + var(--safe-bottom, 0px)) !important; transform:none !important;
+      }
+      html body:not(.navigating):not(.google-nav) #btnRestStopFilter,
+      html body:not(.navigating):not(.google-nav) .fab-rest-stop-filter{
+        bottom:calc(350px + var(--safe-bottom, 0px)) !important; transform:none !important;
+      }
+      html body #btnCompass #compassNeedle, html body #btnCompass .compass-needle{
+        display:block !important; visibility:visible !important; opacity:1 !important;
+        width:24px !important; height:24px !important;
+      }
+      #homeBottomSheet #btnCompass, #homeBottomSheet .fab-compass,
+      #homeBottomSheet #mainLocateBtn, #homeBottomSheet .fab-locate{ display:none !important; }
+    `;
+  }
+
+  function clearBadInline(el){
+    if (!el) return;
+    if (el.style.display === 'none') el.style.display = '';
+    if (el.style.visibility === 'hidden') el.style.visibility = '';
+    if (el.style.opacity === '0') el.style.opacity = '';
+    el.style.pointerEvents = '';
+    if (el.style.bottom === 'auto') el.style.bottom = '';
+    if (el.style.transform) el.style.transform = '';
+    if (el.closest && el.closest('#homeBottomSheet')) document.body.appendChild(el);
+  }
+
+  function ensureCompass(){
+    try{
+      if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return;
+      // Neu la ban bi keo nham vao sheet thi loi ra
+      const inSheet = document.querySelector('#homeBottomSheet #btnCompass, #homeBottomSheet .fab-compass');
+      if (inSheet) inSheet.remove();
+
+      let btn = document.getElementById('btnCompass');
+      if (!btn){
+        btn = document.querySelector('.fab-compass');
+        if (btn) btn.id = 'btnCompass';
+      }
+      if (!btn){
+        btn = document.createElement('button');
+        btn.id = 'btnCompass';
+        btn.className = 'fab-compass';
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'La bàn - Về hướng Bắc');
+        btn.title = 'La bàn - Bấm để về hướng Bắc';
+        // Giong cau truc goc: .compass-bg + #compassNeedle (de updateCompassNeedle() xoay duoc)
+        btn.innerHTML = '<div class="compass-bg"></div>'
+          + '<svg id="compassNeedle" class="compass-needle" width="24" height="24" viewBox="0 0 24 24" fill="none">'
+          + '<path d="M12 2 L15.5 12 L12 10 L8.5 12 Z" fill="#ef4444"/>'
+          + '<path d="M12 22 L15.5 12 L12 14 L8.5 12 Z" fill="#e5e7eb"/>'
+          + '<circle cx="12" cy="12" r="1.8" fill="#fff"/></svg>';
+        document.body.appendChild(btn);
+      } else {
+        clearBadInline(btn);
+        if (!btn.innerHTML || !btn.innerHTML.trim()){
+          btn.innerHTML = '<div class="compass-bg"></div>'
+            + '<svg id="compassNeedle" class="compass-needle" width="24" height="24" viewBox="0 0 24 24" fill="none">'
+            + '<path d="M12 2 L15.5 12 L12 10 L8.5 12 Z" fill="#ef4444"/>'
+            + '<path d="M12 22 L15.5 12 L12 14 L8.5 12 Z" fill="#e5e7eb"/>'
+            + '<circle cx="12" cy="12" r="1.8" fill="#fff"/></svg>';
+        }
+      }
+      // Dam bao kim la ban ton tai - neu mat thi tao lai trong nut
+      let needle = document.getElementById('compassNeedle');
+      if (!needle){
+        needle = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        needle.setAttribute('id', 'compassNeedle');
+        needle.setAttribute('class', 'compass-needle');
+        needle.setAttribute('width', '24'); needle.setAttribute('height', '24');
+        needle.setAttribute('viewBox', '0 0 24 24');
+        needle.innerHTML = '<path d="M12 2 L15.5 12 L12 10 L8.5 12 Z" fill="#ef4444"/><path d="M12 22 L15.5 12 L12 14 L8.5 12 Z" fill="#e5e7eb"/><circle cx="12" cy="12" r="1.8" fill="#fff"/>';
+        btn.appendChild(needle);
+      }
+      // Gan click 1 lan: bam la ban -> ve huong Bac (giong window.resetNorth goc)
+      if (!btn._fixCompassV6){
+        btn._fixCompassV6 = true;
+        btn.addEventListener('click', ()=>{
+          try{
+            if (typeof window.resetNorth === 'function') return window.resetNorth();
+            if (typeof map !== 'undefined' && map && map.easeTo) return map.easeTo({ bearing: 0, pitch: 0, duration: 600 });
+          }catch(e){}
+        });
+      }
+      // Cap nhat kim ngay neu map co bearing
+      try{
+        if (typeof map !== 'undefined' && map && map.getBearing && needle){
+          needle.style.transform = 'rotate(' + (-map.getBearing()) + 'deg)';
+        }
+      }catch(e){}
+    }catch(e){}
+  }
+
+  function ensureLocate(){
+    try{
+      if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return;
+      const inSheet = document.querySelector('#homeBottomSheet #mainLocateBtn, #homeBottomSheet .fab-locate');
+      if (inSheet) inSheet.remove();
+      let btn = document.getElementById('mainLocateBtn');
+      if (!btn){
+        btn = document.querySelector('.fab-locate');
+        if (btn) btn.id = 'mainLocateBtn';
+      }
+      if (!btn){
+        btn = document.createElement('button');
+        btn.id = 'mainLocateBtn'; btn.className = 'fab-locate'; btn.type = 'button';
+        btn.setAttribute('aria-label', 'Vị trí của tôi'); btn.title = 'Vị trí của tôi';
+        btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i>';
+        document.body.appendChild(btn);
+        btn.addEventListener('click', ()=>{
+          try{
+            if (typeof window.locateUser === 'function') return window.locateUser();
+            if (typeof window.goToMyLocation === 'function') return window.goToMyLocation();
+            if (typeof window.recenterToUser === 'function') return window.recenterToUser();
+          }catch(e){}
+          try{
+            if (typeof lastUserPos !== 'undefined' && lastUserPos && lastUserPos.lat && typeof map !== 'undefined' && map && map.flyTo){
+              return map.flyTo({ center:[lastUserPos.lng, lastUserPos.lat], zoom:16 });
+            }
+          }catch(e){}
+        });
+      } else {
+        clearBadInline(btn);
+        if (!btn.innerHTML || !btn.innerHTML.trim()) btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i>';
+      }
+    }catch(e){}
+  }
+
+  function run(){ injectFixCSS(); ensureCompass(); ensureLocate(); }
+  run();
+  document.addEventListener('DOMContentLoaded', run);
+  setTimeout(run, 100);
+  setTimeout(run, 500);
+  setTimeout(run, 1000);
+  setInterval(()=>{
+    try{
+      if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return;
+      const comp = document.getElementById('btnCompass') || document.querySelector('.fab-compass');
+      const loc = document.getElementById('mainLocateBtn') || document.querySelector('.fab-locate');
+      if (!comp || !loc){ run(); return; }
+      const cs1 = window.getComputedStyle(comp);
+      const cs2 = window.getComputedStyle(loc);
+      if (cs1.display === 'none' || cs1.visibility === 'hidden' || cs2.display === 'none' || cs2.visibility === 'hidden'){ run(); }
+    }catch(e){}
+  }, 1500);
+  document.addEventListener('click', (e)=>{
+    try{
+      const t = e.target && e.target.closest ? e.target.closest('#hbToggle, #hbHandle, #mainMenuBtn, .floating-search, #searchClearBtn, #topSearchGoBtn') : null;
+      if (t) setTimeout(run, 120);
+    }catch(e){}
+  });
+})();
+
+/* ================= V7 ================= */
+/* =====================================================
+   DriveKit - V7 SHEET NOI + CUM FAB DINH LIEN - 2026-11-22
+   Van de cu: La ban cach Vi tri 122px, sheet bit kin day, map bi che
+   Moi:
+   - Sheet: floating card (cach day 12px, bo 28px), thu gon chi con header
+   - Cum trai: [La ban | - | Vi tri] trong 1 pill dung, gap 2px, dinh sat mep tren sheet
+   - Cum phai: [Layers | Bao cao | Tram dung] trong 1 pill dung, doi xung
+   - CA 2 CUM NAM NGOAI bottom sheet (DOM rieng), chi nhin nhu dinh vao sheet
+   - Cum tu ha / nang theo sheet khi mo / thu gon (JS tinh bottom = sheet height + 16)
+   Cach dung: paste SAU v4 + v5 + v6
+   ===================================================== */
+(function fabClusterV7(){
+  if (window._fabClusterV7Done) return; window._fabClusterV7Done = true;
+
+  function injectCSS(){
+    let st = document.getElementById('fabClusterV7');
+    if (!st){ st = document.createElement('style'); st.id = 'fabClusterV7'; document.head.appendChild(st); }
+    st.textContent = `
+      html body:not(.navigating):not(.google-nav) #homeBottomSheet{
+        left:12px !important; right:12px !important; bottom:calc(12px + var(--safe-bottom, 0px)) !important;
+        border-radius:28px !important; border:1px solid var(--border) !important;
+        box-shadow:0 12px 32px rgba(0,0,0,.22) !important; backdrop-filter:blur(12px) !important;
+      }
+      html body:not(.navigating):not(.google-nav) #fabClusterLeft,
+      html body:not(.navigating):not(.google-nav) #fabClusterRight{
+        position:fixed !important; z-index:1100 !important; display:flex !important; flex-direction:column !important; gap:2px !important;
+        background:var(--card) !important; border:1px solid var(--border) !important;
+        border-radius:28px !important; padding:4px !important; box-shadow:0 8px 24px rgba(0,0,0,.18) !important;
+      }
+      html body:not(.navigating):not(.google-nav) #fabClusterLeft{ left:16px !important; }
+      html body:not(.navigating):not(.google-nav) #fabClusterRight{ right:16px !important; }
+      html body:not(.navigating):not(.google-nav) #fabClusterLeft #btnCompass,
+      html body:not(.navigating):not(.google-nav) #fabClusterLeft #mainLocateBtn,
+      html body:not(.navigating):not(.google-nav) #fabClusterRight #btnLayerMenu,
+      html body:not(.navigating):not(.google-nav) #fabClusterRight #btnReport,
+      html body:not(.navigating):not(.google-nav) #fabClusterRight #btnRestStopFilter{
+        position:static !important; bottom:auto !important; transform:none !important;
+        width:48px !important; height:48px !important; border-radius:50% !important;
+        border:none !important; box-shadow:none !important; background:transparent !important;
+        display:flex !important; visibility:visible !important; opacity:1 !important;
+      }
+      html body:not(.navigating):not(.google-nav) #fabClusterLeft #mainLocateBtn{ background:var(--card-2) !important; }
+      html body:not(.navigating):not(.google-nav) #fabClusterRight #btnReport{
+        background:linear-gradient(135deg,var(--danger),#f97316) !important; color:#fff !important;
+      }
+      html body #fabClusterLeft .fab-divider, html body #fabClusterRight .fab-divider{
+        height:1px !important; background:var(--border) !important; margin:2px 10px !important;
+      }
+      #homeBottomSheet #fabClusterLeft, #homeBottomSheet #fabClusterRight{ display:none !important; }
+    `;
+  }
+
+  function getBtn(id, cls){
+    let b = document.getElementById(id);
+    if (!b && cls) b = document.querySelector(cls);
+    if (b && !b.id) b.id = id;
+    return b;
+  }
+
+  function ensureClusters(){
+    try{
+      if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return;
+      // Neu cum bi keo nham vao sheet thi loi ra body
+      const inSheet = document.querySelector('#homeBottomSheet #fabClusterLeft, #homeBottomSheet #fabClusterRight');
+      if (inSheet) inSheet.remove();
+
+      let left = document.getElementById('fabClusterLeft');
+      if (!left){ left = document.createElement('div'); left.id = 'fabClusterLeft'; document.body.appendChild(left); }
+      let right = document.getElementById('fabClusterRight');
+      if (!right){ right = document.createElement('div'); right.id = 'fabClusterRight'; document.body.appendChild(right); }
+
+      // Cum trai: La ban tren, Vi tri duoi - move giu nguyen handler (appendChild khong mat listener)
+      const compass = getBtn('btnCompass', '.fab-compass');
+      const locate = getBtn('mainLocateBtn', '.fab-locate');
+      if (compass && compass.parentNode !== left) left.appendChild(compass);
+      if (locate && locate.parentNode !== left) left.appendChild(locate);
+      // Divider giua 2 nut, chi tao 1 lan
+      if (compass && locate && !left.querySelector('.fab-divider')){
+        const div = document.createElement('div'); div.className = 'fab-divider';
+        left.insertBefore(div, locate);
+      }
+      // Dam bao thu tu: La ban -> divider -> Vi tri
+      if (compass && locate){
+        if (left.firstChild !== compass) left.insertBefore(compass, left.firstChild);
+        const div = left.querySelector('.fab-divider');
+        if (div && div.nextSibling !== locate) left.insertBefore(div, locate);
+      }
+      // Xoa inline style cu (bottom:auto / translateY / display:none) de pill quan ly
+      [compass, locate].forEach(b=>{
+        if (!b) return;
+        if (b.style.bottom === 'auto') b.style.bottom = '';
+        if (b.style.transform) b.style.transform = '';
+        if (b.style.display === 'none') b.style.display = '';
+        if (b.style.position === 'fixed') b.style.position = '';
+        b.style.left = ''; b.style.right = '';
+      });
+
+      // Cum phai: Layers -> Bao cao -> Tram dung
+      const layers = getBtn('btnLayerMenu', '.fab-layers');
+      const report = getBtn('btnReport', '.fab-report');
+      const rest = getBtn('btnRestStopFilter', '.fab-rest-stop-filter');
+      [layers, report, rest].forEach(b=>{
+        if (b && b.parentNode !== right) right.appendChild(b);
+        if (!b) return;
+        if (b.style.bottom === 'auto') b.style.bottom = '';
+        if (b.style.transform) b.style.transform = '';
+        if (b.style.display === 'none') b.style.display = '';
+        b.style.position = ''; b.style.left = ''; b.style.right = '';
+      });
+      // Divider giua cac nut phai
+      if (layers && report && !right.querySelector('.fab-divider')){
+        // Them 2 divider: sau Layers, sau Report
+        const d1 = document.createElement('div'); d1.className = 'fab-divider';
+        const d2 = document.createElement('div'); d2.className = 'fab-divider';
+        right.insertBefore(d1, report);
+        right.insertBefore(d2, rest);
+      }
+
+      updateClusterBottom();
+    }catch(e){}
+  }
+
+  function updateClusterBottom(){
+    try{
+      const sheet = document.getElementById('homeBottomSheet');
+      const left = document.getElementById('fabClusterLeft');
+      const right = document.getElementById('fabClusterRight');
+      if (!sheet || !left) return;
+      if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return;
+      // Sheet noi: bottom 12 + safe-bottom, chieu cao thuc te + 16 gap = cum dinh sat mep tren sheet
+      const h = sheet.offsetHeight || 140;
+      const safe = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom') || '0', 10) || 0;
+      const bottom = 12 + safe + h + 12; // 12 (sheet bottom) + h + 12 gap
+      left.style.bottom = bottom + 'px';
+      if (right) right.style.bottom = bottom + 'px';
+      // Khi sheet thu gon (chi con header) thi cum tu ha xuong, khong treo lo lung giua map
+      // Khi sheet an (hb-hidden) thi cum cung ha xuong sat day
+      if (sheet.classList.contains('hb-hidden')){
+        left.style.bottom = 'calc(28px + var(--safe-bottom, 0px))';
+        if (right) right.style.bottom = 'calc(28px + var(--safe-bottom, 0px))';
+      }
+    }catch(e){}
+  }
+
+  function run(){ injectCSS(); ensureClusters(); setTimeout(updateClusterBottom, 50); setTimeout(updateClusterBottom, 300); }
+  run();
+  document.addEventListener('DOMContentLoaded', run);
+  setTimeout(run, 200); setTimeout(run, 800); setTimeout(run, 1500);
+  // Sheet thu / mo -> cum chay theo sheet (transition mem)
+  document.addEventListener('click', (e)=>{
+    try{
+      const t = e.target && e.target.closest ? e.target.closest('#hbToggle, #hbHandle, #homeBottomSheet .hb-head') : null;
+      if (t){ setTimeout(updateClusterBottom, 30); setTimeout(updateClusterBottom, 320); }
+    }catch(e){}
+  });
+  // Theo doi sheet doi class hb-collapsed / hb-hidden
+  try{
+    const obs = new MutationObserver(()=> setTimeout(updateClusterBottom, 30));
+    const sheet = document.getElementById('homeBottomSheet');
+    if (sheet) obs.observe(sheet, { attributes:true, attributeFilter:['class'] });
+    else setTimeout(()=>{ const s2 = document.getElementById('homeBottomSheet'); if (s2) obs.observe(s2, { attributes:true, attributeFilter:['class'] }); }, 1000);
+  }catch(e){}
+  window.addEventListener('resize', updateClusterBottom);
+  // Watchdog: neu nut bi tach khoi cum (do patch cu) thi gom lai
+  setInterval(()=>{
+    try{
+      if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return;
+      const compass = document.getElementById('btnCompass');
+      const locate = document.getElementById('mainLocateBtn');
+      const left = document.getElementById('fabClusterLeft');
+      if (!left || (compass && compass.parentNode !== left) || (locate && locate.parentNode !== left)) ensureClusters();
+      else updateClusterBottom();
+    }catch(e){}
+  }, 2000);
+  window.updateFabClusterV7 = updateClusterBottom;
+})();
