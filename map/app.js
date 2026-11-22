@@ -8639,3 +8639,319 @@ try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v9 TOPDOWN + FREE + IMMEDIATE-B
   window.buildHomeBottomSheet = buildBottomSheet;
 })();
 
+
+
+/* ============================================================
+   [FINAL v3 2026-11-22] BOTTOM SHEET PREMIUM + THEM POI CANH BAO
+   - Ghi de sheet 4 nut cu -> sheet 5 nut premium
+   - 5 nut: Chi duong / Quanh day / Them dia diem / Them POI / POI canh bao
+   - POI canh bao = openReportMenu() (mo reportModal), giong nut canh bao o gNav
+   - Premium: bo 28px, glass blur, icon gradient 56px + bong do, label dam, header co subtitle
+   - Neu sau nay co styles.css: chi can map lai bien mau o day, cau truc giu nguyen
+   ============================================================ */
+(function premiumBottomSheetV3(){
+  if (window._premiumSheetV3Done) return; window._premiumSheetV3Done = true;
+
+  function injectPremiumCSS(){
+    if (document.getElementById('premiumBottomSheetStyle')) return;
+    const st = document.createElement('style');
+    st.id = 'premiumBottomSheetStyle';
+    st.textContent = `
+      /* Sheet: glass + bo lon + bong mem */
+      html body #homeBottomSheet{
+        background:rgba(255,255,255,.97) !important;
+        backdrop-filter:blur(20px) saturate(1.2) !important;
+        -webkit-backdrop-filter:blur(20px) saturate(1.2) !important;
+        border-radius:28px 28px 0 0 !important;
+        border-top:1px solid rgba(255,255,255,.7) !important;
+        box-shadow:0 -8px 32px rgba(0,0,0,.14), 0 -1px 0 rgba(0,0,0,.04) !important;
+        padding:10px 14px calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+      }
+      html body:not(.light-mode) #homeBottomSheet{
+        background:rgba(31,41,55,.97) !important;
+        border-top:1px solid rgba(255,255,255,.08) !important;
+        box-shadow:0 -8px 32px rgba(0,0,0,.55) !important;
+      }
+      html body #homeBottomSheet .hb-handle{
+        width:48px !important; height:5px !important; background:#D1D5DB !important; margin:0 auto 10px !important;
+      }
+      html body:not(.light-mode) #homeBottomSheet .hb-handle{ background:#4B5563 !important; }
+      /* Header premium: title + subtitle ben trai, nut thu gon ben phai */
+      html body #homeBottomSheet .hb-head{ padding:0 4px 10px !important; align-items:flex-start !important; }
+      html body #homeBottomSheet .hb-title-wrap{ display:flex !important; flex-direction:column !important; gap:2px !important; }
+      html body #homeBottomSheet .hb-title{ font-size:14px !important; font-weight:800 !important; letter-spacing:.1px !important; }
+      html body #homeBottomSheet .hb-subtitle{ font-size:11px !important; font-weight:500 !important; color:#80868B !important; }
+      html body:not(.light-mode) #homeBottomSheet .hb-subtitle{ color:#9CA3AF !important; }
+      html body #homeBottomSheet .hb-toggle{
+        width:32px !important; height:32px !important; background:#F1F3F4 !important; font-size:16px !important;
+        transition:transform .2s ease !important;
+      }
+      html body #homeBottomSheet.hb-collapsed .hb-toggle{ transform:rotate(180deg) !important; }
+      /* Grid 5 nut - vua 1 hang tren mobile */
+      html body #homeBottomSheet .hb-grid{
+        grid-template-columns:repeat(5, 1fr) !important; gap:4px !important;
+      }
+      html body #homeBottomSheet .hb-action{ padding:8px 1px 6px !important; gap:7px !important; border-radius:16px !important; transition:background .15s ease, transform .12s ease !important; }
+      html body #homeBottomSheet .hb-action:active{ transform:scale(.94) !important; }
+      /* Icon gradient 56px + bong do - nhin xin hon icon tron don sac cu */
+      html body #homeBottomSheet .hb-icon{
+        width:56px !important; height:56px !important; border-radius:18px !important;
+        box-shadow:0 6px 16px rgba(0,0,0,.16) !important; color:#fff !important;
+      }
+      html body #homeBottomSheet .hb-icon svg{ width:24px !important; height:24px !important; }
+      html body #homeBottomSheet .hb-icon--dir{ background:linear-gradient(135deg,#4285F4,#1A73E8) !important; box-shadow:0 6px 16px rgba(26,115,232,.35) !important; }
+      html body #homeBottomSheet .hb-icon--nearby{ background:linear-gradient(135deg,#34A853,#188038) !important; box-shadow:0 6px 16px rgba(24,128,56,.32) !important; }
+      html body #homeBottomSheet .hb-icon--place{ background:linear-gradient(135deg,#FBBC04,#F29900) !important; box-shadow:0 6px 16px rgba(242,153,0,.32) !important; }
+      html body #homeBottomSheet .hb-icon--poi{ background:linear-gradient(135deg,#A142F4,#7C3AED) !important; box-shadow:0 6px 16px rgba(124,58,237,.35) !important; }
+      html body #homeBottomSheet .hb-icon--warn{ background:linear-gradient(135deg,#FF6B35,#EA4335) !important; box-shadow:0 6px 16px rgba(234,67,53,.35) !important; }
+      html body #homeBottomSheet .hb-label{ font-size:11px !important; font-weight:700 !important; line-height:1.25 !important; }
+      /* FAB con lai day cao them 1 chut vi sheet premium cao hon */
+      html body:not(.navigating):not(.google-nav) #mainLocateBtn,
+      html body:not(.navigating):not(.google-nav) #btnLayerMenu,
+      html body:not(.navigating):not(.google-nav) #btnReport,
+      html body:not(.navigating):not(.google-nav) #btnRestStopFilter{ bottom:168px !important; }
+      @media (max-width:380px){
+        html body #homeBottomSheet .hb-icon{ width:48px !important; height:48px !important; border-radius:16px !important; }
+        html body #homeBottomSheet .hb-label{ font-size:10.5px !important; }
+        html body #homeBottomSheet{ padding-left:8px !important; padding-right:8px !important; }
+      }
+      @media (min-width:640px){
+        html body #homeBottomSheet{ left:50% !important; transform:translateX(-50%) !important; max-width:480px !important; border-radius:28px 28px 0 0 !important; }
+        html body #homeBottomSheet.hb-hidden{ transform:translate(-50%,100%) !important; }
+      }
+    `;
+    document.head.appendChild(st);
+  }
+
+  function getCurrentLatLng(){
+    try{ if (typeof lastUserPos !== 'undefined' && lastUserPos && lastUserPos.lat) return { lat: lastUserPos.lat, lng: lastUserPos.lng }; }catch(e){}
+    try{ if (map){ const c = map.getCenter(); return { lat: c.lat, lng: c.lng }; } }catch(e){}
+    return { lat: 10.776, lng: 106.700 };
+  }
+
+  function buildPremiumSheet(){
+    injectPremiumCSS();
+    // Xoa sheet cu 4 nut de khong bi trung
+    try{ const old = document.getElementById('homeBottomSheet'); if (old) old.remove(); }catch(e){}
+    const sheet = document.createElement('div');
+    sheet.id = 'homeBottomSheet';
+    sheet.innerHTML = `
+      <div class="hb-handle" id="hbHandle"></div>
+      <div class="hb-head">
+        <div class="hb-title-wrap">
+          <span class="hb-title">Tính năng nhanh</span>
+          <span class="hb-subtitle">Chạm để mở nhanh &nbsp;•&nbsp; Kéo tay cầm để thu gọn</span>
+        </div>
+        <button type="button" class="hb-toggle" id="hbToggle" title="Thu / mở">˄</button>
+      </div>
+      <div class="hb-grid">
+        <button type="button" class="hb-action" id="hbDir">
+          <span class="hb-icon hb-icon--dir"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L17 10 L12 8 L7 10 Z" fill="#fff" stroke="none"/><path d="M12 8 L12 21"/><circle cx="12" cy="21" r="1.6" fill="#fff" stroke="none"/></svg></span>
+          <span class="hb-label">Chỉ đường</span>
+        </button>
+        <button type="button" class="hb-action" id="hbNearby">
+          <span class="hb-icon hb-icon--nearby"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2 v3 M12 19 v3 M2 12 h3 M19 12 h3"/><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/></svg></span>
+          <span class="hb-label">Quanh đây</span>
+        </button>
+        <button type="button" class="hb-action" id="hbAddPlace">
+          <span class="hb-icon hb-icon--place"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21 s-7 -5.5 -7 -11 a7 7 0 0 1 14 0 c0 5.5 -7 11 -7 11 Z"/><circle cx="12" cy="10" r="2.5"/><path d="M12 7.5 v5 M9.5 10 h5"/></svg></span>
+          <span class="hb-label">Thêm<br>địa điểm</span>
+        </button>
+        <button type="button" class="hb-action" id="hbAddPoi">
+          <span class="hb-icon hb-icon--poi"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13 L13 20 a2 2 0 0 1 -2.8 0 L3 12.8 V4 h8.8 Z"/><circle cx="8.5" cy="8.5" r="1.6" fill="#fff" stroke="none"/><path d="M12 7.5 v5 M9.5 10 h5"/></svg></span>
+          <span class="hb-label">Thêm POI</span>
+        </button>
+        <button type="button" class="hb-action" id="hbWarnPoi">
+          <span class="hb-icon hb-icon--warn"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L22 20 H2 Z" fill="rgba(255,255,255,.18)"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r="1.2" fill="#fff" stroke="none"/></svg></span>
+          <span class="hb-label">POI<br>cảnh báo</span>
+        </button>
+      </div>`;
+    document.body.appendChild(sheet);
+
+    const toggle = ()=>{ sheet.classList.toggle('hb-collapsed'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = sheet.classList.contains('hb-collapsed') ? '˅' : '˄'; };
+    sheet.querySelector('#hbHandle').addEventListener('click', toggle);
+    sheet.querySelector('#hbToggle').addEventListener('click', toggle);
+    try{
+      let sy = 0, dragging = false;
+      const h = sheet.querySelector('#hbHandle');
+      h.addEventListener('touchstart', (e)=>{ sy = e.touches[0].clientY; dragging = true; }, { passive:true });
+      h.addEventListener('touchmove', (e)=>{ if (!dragging) return; const dy = e.touches[0].clientY - sy; if (dy > 28) { sheet.classList.add('hb-collapsed'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = '˅'; dragging = false; } if (dy < -28) { sheet.classList.remove('hb-collapsed'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = '˄'; dragging = false; } }, { passive:true });
+      h.addEventListener('touchend', ()=>{ dragging = false; });
+    }catch(e){}
+
+    const collapseToPeek = ()=>{ sheet.classList.add('hb-collapsed'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = '˅'; };
+    sheet.querySelector('#hbDir').addEventListener('click', ()=>{ collapseToPeek(); try{ if (typeof window.openDirections === 'function') window.openDirections(); }catch(e){} });
+    sheet.querySelector('#hbNearby').addEventListener('click', ()=>{ collapseToPeek(); try{ if (typeof window.openNearbySearchPanel === 'function') window.openNearbySearchPanel(); }catch(e){} });
+    sheet.querySelector('#hbAddPlace').addEventListener('click', ()=>{ collapseToPeek(); try{ if (typeof window.openQuickPin === 'function') window.openQuickPin(); }catch(e){} });
+    sheet.querySelector('#hbAddPoi').addEventListener('click', ()=>{ collapseToPeek(); try{ const p = getCurrentLatLng(); if (typeof window.openPoiSheet === 'function') window.openPoiSheet(p.lat, p.lng, 'Vị trí hiện tại'); }catch(e){} });
+    // POI CANH BAO moi: giong nut canh bao o gNav, mo reportModal
+    sheet.querySelector('#hbWarnPoi').addEventListener('click', ()=>{
+      collapseToPeek();
+      try{
+        if (typeof window.openReportMenu === 'function') window.openReportMenu();
+        else { const b = document.getElementById('btnReport'); if (b) b.click(); else if (typeof showCustomToast === 'function') showCustomToast('Không mở được báo cáo cảnh báo', 'warning'); }
+      }catch(e){}
+    });
+    return sheet;
+  }
+
+  // Ghi de builder cu
+  try{ window.buildHomeBottomSheet = buildPremiumSheet; }catch(e){}
+  buildPremiumSheet();
+  document.addEventListener('DOMContentLoaded', buildPremiumSheet);
+  setTimeout(buildPremiumSheet, 500);
+  window.buildHomeBottomSheetPremium = buildPremiumSheet;
+})();
+
+
+
+/* ============================================================
+   [FINAL v4 2026-11-22] MAP styles.css -> TOP BAR + BOTTOM SHEET
+   Doc styles.css user gui:
+   - :root dark: --bg #0f172a, --card #1e293b, --card-2 #334155, --border #334155,
+     --text #f1f5f9, --text-muted #94a3b8, --primary #3b82f6, --success #10b981,
+     --danger #ef4444, --warning #f59e0b, --voice #8b5cf6, --font-main Be Vietnam Pro
+   - body.light-mode: --bg #f8fafc, --card #ffffff, --card-2 #f1f5f9, --border #cbd5e1,
+     --text #0f172a, --text-muted #64748b
+   - .floating-search: top calc(16px+var(--safe-top)), left 16 right 60, bg var(--card),
+     radius 24px, border var(--border), shadow 0 4px 15px rgba(0,0,0,.1)
+   - .fab-menu: 42px tron, bg var(--card), border var(--border)
+   - .fab-report: gradient var(--danger) -> #f97316
+   - .dir-sheet / .poi-sheet: radius 20px tren, bg var(--card), handle 36x4 bg var(--border)
+   => v3 hardcode trang / #1A73E8 / #4285F4 bi lech tong -> v4 ghi de het bang var(--...)
+   => Doi dark/light chi can body.light-mode, khong can sua CSS tay
+   => Sua luon loi v3: FAB day len bang bottom:168px lam 2 FAB trai chong nhau
+      (locate 20 + layers 80 + compass 140 trong styles.css) -> doi sang translateY(-150px)
+      de giu nguyen khoang cach xep chong doc cua FAB.
+   ============================================================ */
+(function mapStylesCssV4(){
+  if (window._stylesMappedV4Done) return; window._stylesMappedV4Done = true;
+  function inject(){
+    if (document.getElementById('stylesMappedV4')) return;
+    const st = document.createElement('style');
+    st.id = 'stylesMappedV4';
+    st.textContent = `
+      /* ---------- TOP BAR: theo .floating-search + .fab-menu trong styles.css ---------- */
+      html body #topBarSplit{
+        top:calc(16px + var(--safe-top, 0px)) !important;
+        left:16px !important; right:16px !important; gap:8px !important;
+      }
+      html body #topBarSplit .floating-search, html body #topBarSplit #searchBar{
+        background:var(--card) !important;
+        border:1px solid var(--border) !important;
+        border-radius:24px !important;
+        box-shadow:0 4px 15px rgba(0,0,0,.10) !important;
+        color:var(--text) !important;
+        font-family:var(--font-main) !important;
+        height:52px !important; min-height:52px !important; max-height:52px !important;
+        padding:0 6px 0 16px !important;
+      }
+      html body #topBarSplit .floating-search input{
+        color:var(--text) !important; font-family:var(--font-main) !important;
+        caret-color:var(--primary) !important;
+      }
+      html body #topBarSplit .floating-search input::placeholder{ color:var(--text-muted) !important; }
+      /* X nho: dung --card-2 + --text-muted nhu .btn-clear-input / .settings-row */
+      html body #topBarSplit .floating-search #searchClearBtn{
+        background:var(--card-2) !important; color:var(--text-muted) !important;
+      }
+      /* Nut kinh lup: --primary #3b82f6, bong giong .fab-directions */
+      html body #topBarSplit .floating-search #topSearchGoBtn{
+        background:var(--primary) !important; color:#fff !important;
+        box-shadow:0 6px 20px rgba(59,130,246,.40) !important;
+      }
+      /* Nut 3 gach: giong .fab-menu, bg var(--card) */
+      html body #topBarSplit #mainMenuBtn, html body #topBarSplit #menuBtn, html body #topBarSplit .menu-btn{
+        background:var(--card) !important; border:1px solid var(--border) !important;
+        color:var(--text) !important; box-shadow:0 4px 15px rgba(0,0,0,.10) !important;
+        font-family:var(--font-main) !important;
+      }
+      /* Goi y: dung top theo top bar moi, bg var(--card) nhu .suggestions-box */
+      html body #suggestionsBox{
+        top:calc(76px + var(--safe-top, 0px)) !important;
+        background:var(--card) !important; border:1px solid var(--border) !important;
+        font-family:var(--font-main) !important;
+      }
+      @media (max-width:640px){
+        html body #topBarSplit{ left:12px !important; right:12px !important; }
+      }
+
+      /* ---------- BOTTOM SHEET: theo .dir-sheet / .poi-sheet ---------- */
+      html body #homeBottomSheet{
+        background:var(--card) !important;
+        border:1px solid var(--border) !important; border-bottom:none !important;
+        border-radius:20px 20px 0 0 !important;
+        box-shadow:0 -10px 30px rgba(0,0,0,.20) !important;
+        backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+        padding:12px 16px calc(12px + var(--safe-bottom, 0px)) !important;
+        font-family:var(--font-main) !important;
+      }
+      html body #homeBottomSheet .hb-handle{
+        width:36px !important; height:4px !important; background:var(--border) !important;
+      }
+      html body #homeBottomSheet .hb-title{ color:var(--text) !important; font-family:var(--font-main) !important; }
+      html body #homeBottomSheet .hb-subtitle{ color:var(--text-muted) !important; }
+      html body #homeBottomSheet .hb-toggle{
+        background:var(--card-2) !important; color:var(--text-muted) !important;
+        border:1px solid var(--border) !important;
+      }
+      html body #homeBottomSheet .hb-action:active{ background:var(--bg-2) !important; }
+      html body #homeBottomSheet .hb-label{ color:var(--text) !important; font-family:var(--font-main) !important; }
+
+      /* Icon 5 nut: dung dung palette styles.css, khong dung palette Google nua */
+      /* Chi duong: primary, giong .fab-rest-stop-filter / .layer-option.active */
+      html body #homeBottomSheet .hb-icon--dir{
+        background:linear-gradient(135deg,#3b82f6,#1d4ed8) !important;
+        box-shadow:0 4px 15px rgba(59,130,246,.50) !important;
+      }
+      /* Quanh day: success, giong .poi-btn.save */
+      html body #homeBottomSheet .hb-icon--nearby{
+        background:linear-gradient(135deg,#10b981,#059669) !important;
+        box-shadow:0 4px 15px rgba(16,185,129,.45) !important;
+      }
+      /* Them dia diem: warning, giong .hud-btn.swap */
+      html body #homeBottomSheet .hb-icon--place{
+        background:linear-gradient(135deg,#fbbf24,#f59e0b) !important;
+        box-shadow:0 4px 15px rgba(245,158,11,.45) !important;
+      }
+      /* Them POI: voice, giong .profile-header gradient primary->voice */
+      html body #homeBottomSheet .hb-icon--poi{
+        background:linear-gradient(135deg,#a78bfa,#8b5cf6) !important;
+        box-shadow:0 4px 15px rgba(139,92,246,.45) !important;
+      }
+      /* POI canh bao: danger -> orange, giong .fab-report */
+      html body #homeBottomSheet .hb-icon--warn{
+        background:linear-gradient(135deg,#ef4444,#f97316) !important;
+        box-shadow:0 4px 15px rgba(239,68,68,.45) !important;
+      }
+
+      /* ---------- FAB CON LAI: day len bang translate, GIU khoang cach xep chong ---------- */
+      /* styles.css: locate bottom 20, layers 80, compass 140, report 80, rest-stop 200 */
+      /* Neu set tat ca bottom:168px thi locate + layers chong nhau -> dung translateY */
+      html body:not(.navigating):not(.google-nav) #mainLocateBtn,
+      html body:not(.navigating):not(.google-nav) #btnLayerMenu,
+      html body:not(.navigating):not(.google-nav) #btnReport,
+      html body:not(.navigating):not(.google-nav) #btnRestStopFilter,
+      html body:not(.navigating):not(.google-nav) #btnCompass,
+      html body:not(.navigating):not(.google-nav) .fab-compass{
+        bottom:auto !important;
+        transform:translateY(-150px) !important;
+      }
+      /* Layer menu mo tu nut Layers cung phai len tren sheet */
+      html body .layer-menu{ bottom:calc(290px + var(--safe-bottom, 0px)) !important; }
+      html body .zoom-hint-toast{ bottom:calc(300px + var(--safe-bottom, 0px)) !important; }
+
+      @media (min-width:640px){
+        html body #homeBottomSheet{ border-radius:20px 20px 0 0 !important; }
+      }
+    `;
+    document.head.appendChild(st);
+  }
+  inject();
+  // Dam bao sheet premium v3 da tao, neu chua co thi tao lai
+  try{ if (!document.getElementById('homeBottomSheet') && typeof window.buildHomeBottomSheet === 'function') window.buildHomeBottomSheet(); }catch(e){}
+  document.addEventListener('DOMContentLoaded', inject);
+  setTimeout(inject, 500);
+  window.applyStylesCssMapV4 = inject;
+})();
+
