@@ -538,3 +538,329 @@ html body .zoom-hint-toast{ bottom:calc(300px + var(--safe-bottom, 0px)) !import
   #homeBottomSheet.hb-hidden{ transform:translate(-50%,100%) !important; }
 }
 
+
+/* =====================================================
+   FIX LOCATED ME - 2026-11-22
+   Tra lai nut "Vi tri cua toi" / #mainLocateBtn
+   - NAM NGOAI bottom sheet, KHONG dua vao bottom sheet
+   - Loi v4: set bottom:auto + translateY(-150px) lam nut mat tieu
+     -> Fix: bottom cu the + transform:none, ghi de lai
+   - Sheet cao ~150px nen FAB day len 150px so voi goc
+     goc: locate 20, layers 80, compass 140, report 80, rest-stop 200
+     moi: locate 168, layers 230, compass 290, report 230, rest-stop 350
+   ===================================================== */
+
+/* Nut Vi tri cua toi - LUON HIEN khi khong dan duong */
+html body:not(.navigating):not(.google-nav) #mainLocateBtn,
+html body:not(.navigating):not(.google-nav) .fab-locate{
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  position:fixed !important; left:16px !important; right:auto !important; top:auto !important;
+  bottom:calc(168px + var(--safe-bottom, 0px)) !important;
+  transform:none !important;
+  width:50px !important; height:50px !important; min-width:50px !important; min-height:50px !important;
+  border-radius:50% !important; background:var(--card) !important;
+  border:1px solid var(--border) !important; color:var(--text) !important;
+  align-items:center !important; justify-content:center !important;
+  font-size:1.3rem !important; box-shadow:0 4px 15px rgba(0,0,0,.10) !important;
+  z-index:1100 !important;
+}
+/* Cac FAB con lai cung fix tuong tu: bo translateY, dung bottom cu the de khong chong nhau */
+html body:not(.navigating):not(.google-nav) #btnLayerMenu,
+html body:not(.navigating):not(.google-nav) .fab-layers{
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  position:fixed !important; left:16px !important; right:auto !important; top:auto !important;
+  bottom:calc(230px + var(--safe-bottom, 0px)) !important; transform:none !important; z-index:1100 !important;
+}
+html body:not(.navigating):not(.google-nav) #btnCompass,
+html body:not(.navigating):not(.google-nav) .fab-compass{
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  position:fixed !important; left:16px !important; right:auto !important; top:auto !important;
+  bottom:calc(290px + var(--safe-bottom, 0px)) !important; transform:none !important; z-index:1100 !important;
+}
+html body:not(.navigating):not(.google-nav) #btnReport,
+html body:not(.navigating):not(.google-nav) .fab-report{
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  position:fixed !important; right:16px !important; left:auto !important; top:auto !important;
+  bottom:calc(230px + var(--safe-bottom, 0px)) !important; transform:none !important; z-index:1100 !important;
+}
+html body:not(.navigating):not(.google-nav) #btnRestStopFilter,
+html body:not(.navigating):not(.google-nav) .fab-rest-stop-filter{
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  position:fixed !important; right:16px !important; left:auto !important; top:auto !important;
+  bottom:calc(350px + var(--safe-bottom, 0px)) !important; transform:none !important; z-index:1100 !important;
+}
+/* Dam bao bottom sheet KHONG chua nut locate - locate la FAB rieng ngoai sheet */
+#homeBottomSheet #mainLocateBtn,
+#homeBottomSheet .fab-locate{ display:none !important; }
+
+/* =====================================================
+   FIX LA BAN - 2026-11-22
+   Tra lai nut #btnCompass / .fab-compass
+   - NAM NGOAI bottom sheet, KHONG dua vao bottom sheet
+   - Loi v4: bottom:auto + translateY(-150px) -> la ban bay mat
+   - Fix: dung selector co them .fab-compass de specificity cao hon
+     style JS v4 inject (html body #btnCompass), nen thang duoc
+     du styles.css load truoc JS
+   - Vi tri: tren nut Layers, duoi khong bi sheet che
+     locate 168, layers 230, LA BAN 290, report 230, rest-stop 350
+   ===================================================== */
+html body:not(.navigating):not(.google-nav) #btnCompass.fab-compass,
+html body:not(.navigating):not(.google-nav) .fab-compass#btnCompass{
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  position:fixed !important; left:16px !important; right:auto !important; top:auto !important;
+  bottom:calc(290px + var(--safe-bottom, 0px)) !important;
+  transform:none !important;
+  width:52px !important; height:52px !important; min-width:52px !important; min-height:52px !important;
+  border-radius:50% !important;
+  background:rgba(30,41,59,.7) !important;
+  backdrop-filter:blur(10px) !important;
+  border:1px solid rgba(255,255,255,.1) !important; color:var(--text) !important;
+  align-items:center !important; justify-content:center !important;
+  box-shadow:0 8px 24px rgba(0,0,0,.4), inset 0 2px 4px rgba(255,255,255,.1) !important;
+  z-index:1100 !important;
+}
+body.light-mode:not(.navigating):not(.google-nav) #btnCompass.fab-compass{
+  background:rgba(255,255,255,.8) !important; border-color:rgba(0,0,0,.1) !important;
+}
+/* Kim la ban phai luon thay, xoay theo map.getBearing() */
+html body #btnCompass #compassNeedle,
+html body #btnCompass .compass-needle{
+  display:block !important; visibility:visible !important; opacity:1 !important;
+  width:24px !important; height:24px !important; flex-shrink:0 !important;
+  transition:transform .1s linear !important;
+}
+/* Locate cung tang specificity de chac chan thang JS v4 */
+html body:not(.navigating):not(.google-nav) #mainLocateBtn.fab-locate{
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  position:fixed !important; left:16px !important; right:auto !important; top:auto !important;
+  bottom:calc(168px + var(--safe-bottom, 0px)) !important; transform:none !important;
+  width:50px !important; height:50px !important; border-radius:50% !important;
+  background:var(--card) !important; border:1px solid var(--border) !important; color:var(--text) !important;
+  z-index:1100 !important;
+}
+/* La ban KHONG nam trong bottom sheet */
+#homeBottomSheet #btnCompass,
+#homeBottomSheet .fab-compass,
+#homeBottomSheet #compassNeedle{ display:none !important; }
+
+/* =====================================================
+   V7 - SHEET NOI + CUM FAB DINH LIEN - 2026-11-22
+   Van de cu: la ban (290px) cach Vi tri (168px) toi 122px, sheet bit kin day
+   Fix:
+   - Sheet: tu full-bleed -> floating card (cach day 12px, bo 28px), map tho hon, it che map
+   - La ban + Vi tri: gom vao 1 pill dung, gap 2px, dinh sat mep tren cua sheet
+   - Layers + Bao cao + Tram dung: gom vao 1 pill dung ben phai, doi xung
+   - Ca 2 cum VAN NAM NGOAI bottom sheet (DOM rieng), chi nhin nhu dinh vao sheet
+   ===================================================== */
+
+/* --- Sheet noi, khong bit kin day --- */
+html body:not(.navigating):not(.google-nav) #homeBottomSheet{
+  left:12px !important; right:12px !important; bottom:calc(12px + var(--safe-bottom, 0px)) !important;
+  border-radius:28px !important; border:1px solid var(--border) !important;
+  background:var(--card) !important; backdrop-filter:blur(12px) !important;
+  box-shadow:0 12px 32px rgba(0,0,0,.22) !important;
+  padding:10px 14px calc(10px + var(--safe-bottom, 0px)) !important;
+  max-width:480px !important;
+}
+@media (min-width:640px){
+  html body:not(.navigating):not(.google-nav) #homeBottomSheet{
+    left:50% !important; transform:translateX(-50%) !important;
+  }
+  html body:not(.navigating):not(.google-nav) #homeBottomSheet.hb-hidden{
+    transform:translate(-50%,120%) !important;
+  }
+}
+html body #homeBottomSheet .hb-head{ padding:0 4px 8px !important; }
+html body #homeBottomSheet .hb-title{ font-size:15px !important; }
+html body #homeBottomSheet .hb-subtitle{ font-size:11px !important; }
+html body #homeBottomSheet .hb-grid{ gap:2px !important; }
+html body #homeBottomSheet .hb-icon{ width:48px !important; height:48px !important; border-radius:16px !important; }
+html body #homeBottomSheet .hb-icon svg{ width:22px !important; height:22px !important; }
+html body #homeBottomSheet .hb-label{ font-size:10.5px !important; }
+/* Khi thu gon: sheet chi con header ~56px, cum FAB tu ha xuong theo */
+html body #homeBottomSheet.hb-collapsed .hb-grid{ display:none !important; }
+
+/* --- Cum FAB trai: La ban + Vi tri dinh nhau --- */
+html body:not(.navigating):not(.google-nav) #fabClusterLeft,
+html body:not(.navigating):not(.google-nav) #fabClusterRight{
+  position:fixed !important; z-index:1100 !important;
+  display:flex !important; flex-direction:column !important; gap:2px !important;
+  background:var(--card) !important; border:1px solid var(--border) !important;
+  border-radius:28px !important; padding:4px !important;
+  box-shadow:0 8px 24px rgba(0,0,0,.18) !important;
+  backdrop-filter:blur(10px) !important;
+}
+html body:not(.navigating):not(.google-nav) #fabClusterLeft{ left:16px !important; right:auto !important; }
+html body:not(.navigating):not(.google-nav) #fabClusterRight{ right:16px !important; left:auto !important; }
+/* Nut trong cum: bo fixed cu, de static trong pill, gap chi 2px */
+html body:not(.navigating):not(.google-nav) #fabClusterLeft #btnCompass,
+html body:not(.navigating):not(.google-nav) #fabClusterLeft #mainLocateBtn,
+html body:not(.navigating):not(.google-nav) #fabClusterRight #btnLayerMenu,
+html body:not(.navigating):not(.google-nav) #fabClusterRight #btnReport,
+html body:not(.navigating):not(.google-nav) #fabClusterRight #btnRestStopFilter,
+html body:not(.navigating):not(.google-nav) #fabClusterLeft .fab-compass,
+html body:not(.navigating):not(.google-nav) #fabClusterLeft .fab-locate,
+html body:not(.navigating):not(.google-nav) #fabClusterRight .fab-layers,
+html body:not(.navigating):not(.google-nav) #fabClusterRight .fab-report,
+html body:not(.navigating):not(.google-nav) #fabClusterRight .fab-rest-stop-filter{
+  position:static !important; left:auto !important; right:auto !important; top:auto !important; bottom:auto !important;
+  transform:none !important; width:48px !important; height:48px !important; min-width:48px !important; min-height:48px !important;
+  border-radius:50% !important; border:none !important; box-shadow:none !important; background:transparent !important;
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  align-items:center !important; justify-content:center !important;
+}
+html body:not(.navigating):not(.google-nav) #fabClusterLeft #mainLocateBtn{
+  background:var(--card-2) !important; color:var(--text) !important;
+}
+/* La ban trong cum: nen trong suot de thay kim, khong can nen xam dam */
+html body:not(.navigating):not(.google-nav) #fabClusterLeft #btnCompass{
+  background:transparent !important; backdrop-filter:none !important;
+}
+html body:not(.navigating):not(.google-nav) #fabClusterLeft #btnCompass:active,
+html body:not(.navigating):not(.google-nav) #fabClusterLeft #mainLocateBtn:active{
+  transform:scale(.92) !important; background:var(--bg-2) !important;
+}
+/* Vach ngan giua La ban va Vi tri */
+html body #fabClusterLeft .fab-divider,
+html body #fabClusterRight .fab-divider{
+  height:1px !important; background:var(--border) !important; margin:2px 10px !important; flex-shrink:0 !important;
+}
+/* Report trong cum phai: giu gradient nhung nho lai */
+html body:not(.navigating):not(.google-nav) #fabClusterRight #btnReport{
+  background:linear-gradient(135deg,var(--danger),#f97316) !important; color:#fff !important;
+}
+/* Cum FAB KHONG nam trong sheet */
+#homeBottomSheet #fabClusterLeft, #homeBottomSheet #fabClusterRight{ display:none !important; }
+
+/* =====================================================
+   V8 - ROUTE PREVIEW GIONG GOOGLE MAPS - 2026-11-22
+   Bam Chi duong -> hien 3 tuyen cung luc, moi tuyen co nhan "9 phut" + so 1 2 3
+   Bam vao tuyen nao -> tuyen do dam len, chua dan ngay
+   Bam Bat dau -> moi dan tuyen da chon
+   ===================================================== */
+
+/* --- Sheet preview tuyen duong, noi tren homeBottomSheet --- */
+html body #routePreviewSheet{
+  position:fixed !important; left:12px !important; right:12px !important;
+  bottom:calc(12px + var(--safe-bottom, 0px)) !important; z-index:1400 !important;
+  background:var(--card) !important; border:1px solid var(--border) !important;
+  border-radius:24px !important; box-shadow:0 12px 32px rgba(0,0,0,.22) !important;
+  padding:10px 14px calc(12px + var(--safe-bottom, 0px)) !important;
+  font-family:var(--font-main) !important; box-sizing:border-box !important;
+  transform:translateY(120%) !important; transition:transform .3s cubic-bezier(.4,0,.2,1) !important;
+}
+html body #routePreviewSheet.rp-open{ transform:translateY(0) !important; }
+html body #routePreviewSheet .rp-handle{
+  width:36px !important; height:4px !important; border-radius:4px !important;
+  background:var(--border) !important; margin:0 auto 10px !important;
+}
+html body #routePreviewSheet .rp-top{
+  display:flex !important; align-items:center !important; justify-content:space-between !important;
+  gap:8px !important; padding:0 2px 10px !important;
+}
+html body #routePreviewSheet .rp-vehicle{
+  display:flex !important; align-items:center !important; gap:8px !important;
+  min-width:0 !important; flex:1 !important;
+}
+html body #routePreviewSheet .rp-vehicle-icon{
+  width:36px !important; height:36px !important; border-radius:12px !important; flex-shrink:0 !important;
+  background:var(--card-2) !important; display:flex !important; align-items:center !important; justify-content:center !important;
+  font-size:1.1rem !important; color:var(--text) !important;
+}
+html body #routePreviewSheet .rp-vehicle-text{ min-width:0 !important; display:flex !important; flex-direction:column !important; gap:1px !important; }
+html body #routePreviewSheet .rp-vehicle-name{
+  font-size:14px !important; font-weight:800 !important; color:var(--text) !important;
+  white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important;
+}
+html body #routePreviewSheet .rp-vehicle-sub{
+  font-size:11.5px !important; font-weight:600 !important; color:var(--text-muted) !important;
+}
+html body #routePreviewSheet .rp-top-btns{ display:flex !important; gap:6px !important; flex-shrink:0 !important; }
+html body #routePreviewSheet .rp-icon-btn{
+  width:36px !important; height:36px !important; border-radius:999px !important;
+  background:var(--card-2) !important; border:1px solid var(--border) !important; color:var(--text) !important;
+  display:flex !important; align-items:center !important; justify-content:center !important;
+  font-size:1rem !important; cursor:pointer !important; padding:0 !important;
+}
+html body #routePreviewSheet .rp-icon-btn:active{ transform:scale(.92) !important; }
+/* Chips 1 2 3: moi chip la 1 tuyen */
+html body #routePreviewSheet .rp-chips{
+  display:flex !important; gap:8px !important; overflow-x:auto !important;
+  padding:0 2px 10px !important; scrollbar-width:none !important;
+}
+html body #routePreviewSheet .rp-chips::-webkit-scrollbar{ display:none !important; }
+html body #routePreviewSheet .rp-chip{
+  flex-shrink:0 !important; display:flex !important; align-items:center !important; gap:8px !important;
+  padding:8px 12px 8px 8px !important; border-radius:16px !important;
+  background:var(--bg-2) !important; border:2px solid transparent !important; cursor:pointer !important;
+  transition:background .15s, border-color .15s, transform .12s !important;
+}
+html body #routePreviewSheet .rp-chip:active{ transform:scale(.96) !important; }
+html body #routePreviewSheet .rp-chip.rp-chip-active{
+  background:var(--card) !important; border-color:var(--primary) !important;
+  box-shadow:0 4px 14px rgba(59,130,246,.25) !important;
+}
+html body #routePreviewSheet .rp-chip-num{
+  width:26px !important; height:26px !important; border-radius:50% !important; flex-shrink:0 !important;
+  display:flex !important; align-items:center !important; justify-content:center !important;
+  font-size:13px !important; font-weight:900 !important; color:#fff !important;
+  background:var(--text-muted) !important;
+}
+html body #routePreviewSheet .rp-chip.rp-chip-active .rp-chip-num{ background:var(--primary) !important; }
+html body #routePreviewSheet .rp-chip-info{ display:flex !important; flex-direction:column !important; gap:1px !important; }
+html body #routePreviewSheet .rp-chip-time{ font-size:13px !important; font-weight:800 !important; color:var(--text) !important; line-height:1.2 !important; }
+html body #routePreviewSheet .rp-chip-dist{ font-size:11px !important; font-weight:600 !important; color:var(--text-muted) !important; line-height:1.2 !important; }
+/* Hang nut duoi: Bat dau + Them diem dung + Chia se */
+html body #routePreviewSheet .rp-actions{
+  display:flex !important; gap:8px !important; align-items:center !important;
+  overflow-x:auto !important; padding:2px !important; scrollbar-width:none !important;
+}
+html body #routePreviewSheet .rp-actions::-webkit-scrollbar{ display:none !important; }
+html body #routePreviewSheet .rp-start-btn{
+  flex-shrink:0 !important; display:flex !important; align-items:center !important; gap:8px !important;
+  background:#0f766e !important; color:#fff !important; border:none !important;
+  padding:12px 22px !important; border-radius:999px !important;
+  font-size:15px !important; font-weight:800 !important; cursor:pointer !important;
+  box-shadow:0 6px 18px rgba(15,118,110,.35) !important;
+}
+html body #routePreviewSheet .rp-start-btn:active{ transform:scale(.96) !important; }
+html body #routePreviewSheet .rp-action-btn{
+  flex-shrink:0 !important; display:flex !important; align-items:center !important; gap:6px !important;
+  background:var(--bg-2) !important; color:var(--text) !important; border:1px solid var(--border) !important;
+  padding:12px 16px !important; border-radius:999px !important;
+  font-size:13.5px !important; font-weight:700 !important; cursor:pointer !important; white-space:nowrap !important;
+}
+html body #routePreviewSheet .rp-action-btn:active{ transform:scale(.96) !important; }
+/* Khi preview mo: an sheet Tinh nang nhanh de khong chong 2 sheet */
+html body.rp-preview-open #homeBottomSheet{ transform:translateY(120%) !important; pointer-events:none !important; }
+html body.rp-preview-open #fabClusterLeft,
+html body.rp-preview-open #fabClusterRight{ opacity:.35 !important; pointer-events:none !important; }
+
+/* --- Nhan tren map: pill "9 phut" + badge so 1 2 3 --- */
+.rp-map-marker{
+  display:flex !important; align-items:center !important; gap:0 !important;
+  cursor:pointer !important; pointer-events:auto !important; transform:translate(-50%,-50%) !important;
+}
+.rp-map-num{
+  width:28px !important; height:28px !important; border-radius:50% !important; flex-shrink:0 !important;
+  display:flex !important; align-items:center !important; justify-content:center !important;
+  font-size:13px !important; font-weight:900 !important; color:#fff !important;
+  border:2.5px solid #fff !important; box-shadow:0 3px 10px rgba(0,0,0,.35) !important; z-index:2 !important;
+}
+.rp-map-time{
+  margin-left:-6px !important; padding:6px 10px 6px 12px !important; border-radius:999px !important;
+  font-size:12.5px !important; font-weight:800 !important; white-space:nowrap !important;
+  background:#fff !important; color:#1e293b !important; border:1px solid var(--border) !important;
+  box-shadow:0 4px 14px rgba(0,0,0,.20) !important; display:flex !important; align-items:center !important; gap:4px !important;
+}
+.rp-map-marker.rp-selected .rp-map-time{
+  background:#1d4ed8 !important; color:#fff !important; border-color:#1d4ed8 !important;
+  box-shadow:0 6px 18px rgba(29,78,216,.45) !important;
+}
+.rp-map-marker.rp-selected .rp-map-num{ box-shadow:0 4px 14px rgba(29,78,216,.55) !important; }
+body:not(.light-mode) .rp-map-time{ background:#1e293b !important; color:#f1f5f9 !important; border-color:#334155 !important; }
+body:not(.light-mode) .rp-map-marker.rp-selected .rp-map-time{ background:#1d4ed8 !important; color:#fff !important; }
+@media (min-width:640px){
+  html body #routePreviewSheet{ left:50% !important; transform:translate(-50%,120%) !important; max-width:480px !important; }
+  html body #routePreviewSheet.rp-open{ transform:translate(-50%,0) !important; }
+}
