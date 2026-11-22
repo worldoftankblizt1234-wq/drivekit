@@ -538,3 +538,107 @@ html body .zoom-hint-toast{ bottom:calc(300px + var(--safe-bottom, 0px)) !import
   #homeBottomSheet.hb-hidden{ transform:translate(-50%,100%) !important; }
 }
 
+
+/* =====================================================
+   FIX LOCATED ME - 2026-11-22
+   Tra lai nut "Vi tri cua toi" / #mainLocateBtn
+   - NAM NGOAI bottom sheet, KHONG dua vao bottom sheet
+   - Loi v4: set bottom:auto + translateY(-150px) lam nut mat tieu
+     -> Fix: bottom cu the + transform:none, ghi de lai
+   - Sheet cao ~150px nen FAB day len 150px so voi goc
+     goc: locate 20, layers 80, compass 140, report 80, rest-stop 200
+     moi: locate 168, layers 230, compass 290, report 230, rest-stop 350
+   ===================================================== */
+
+/* Nut Vi tri cua toi - LUON HIEN khi khong dan duong */
+html body:not(.navigating):not(.google-nav) #mainLocateBtn,
+html body:not(.navigating):not(.google-nav) .fab-locate{
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  position:fixed !important; left:16px !important; right:auto !important; top:auto !important;
+  bottom:calc(168px + var(--safe-bottom, 0px)) !important;
+  transform:none !important;
+  width:50px !important; height:50px !important; min-width:50px !important; min-height:50px !important;
+  border-radius:50% !important; background:var(--card) !important;
+  border:1px solid var(--border) !important; color:var(--text) !important;
+  align-items:center !important; justify-content:center !important;
+  font-size:1.3rem !important; box-shadow:0 4px 15px rgba(0,0,0,.10) !important;
+  z-index:1100 !important;
+}
+/* Cac FAB con lai cung fix tuong tu: bo translateY, dung bottom cu the de khong chong nhau */
+html body:not(.navigating):not(.google-nav) #btnLayerMenu,
+html body:not(.navigating):not(.google-nav) .fab-layers{
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  position:fixed !important; left:16px !important; right:auto !important; top:auto !important;
+  bottom:calc(230px + var(--safe-bottom, 0px)) !important; transform:none !important; z-index:1100 !important;
+}
+html body:not(.navigating):not(.google-nav) #btnCompass,
+html body:not(.navigating):not(.google-nav) .fab-compass{
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  position:fixed !important; left:16px !important; right:auto !important; top:auto !important;
+  bottom:calc(290px + var(--safe-bottom, 0px)) !important; transform:none !important; z-index:1100 !important;
+}
+html body:not(.navigating):not(.google-nav) #btnReport,
+html body:not(.navigating):not(.google-nav) .fab-report{
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  position:fixed !important; right:16px !important; left:auto !important; top:auto !important;
+  bottom:calc(230px + var(--safe-bottom, 0px)) !important; transform:none !important; z-index:1100 !important;
+}
+html body:not(.navigating):not(.google-nav) #btnRestStopFilter,
+html body:not(.navigating):not(.google-nav) .fab-rest-stop-filter{
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  position:fixed !important; right:16px !important; left:auto !important; top:auto !important;
+  bottom:calc(350px + var(--safe-bottom, 0px)) !important; transform:none !important; z-index:1100 !important;
+}
+/* Dam bao bottom sheet KHONG chua nut locate - locate la FAB rieng ngoai sheet */
+#homeBottomSheet #mainLocateBtn,
+#homeBottomSheet .fab-locate{ display:none !important; }
+
+/* =====================================================
+   FIX LA BAN - 2026-11-22
+   Tra lai nut #btnCompass / .fab-compass
+   - NAM NGOAI bottom sheet, KHONG dua vao bottom sheet
+   - Loi v4: bottom:auto + translateY(-150px) -> la ban bay mat
+   - Fix: dung selector co them .fab-compass de specificity cao hon
+     style JS v4 inject (html body #btnCompass), nen thang duoc
+     du styles.css load truoc JS
+   - Vi tri: tren nut Layers, duoi khong bi sheet che
+     locate 168, layers 230, LA BAN 290, report 230, rest-stop 350
+   ===================================================== */
+html body:not(.navigating):not(.google-nav) #btnCompass.fab-compass,
+html body:not(.navigating):not(.google-nav) .fab-compass#btnCompass{
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  position:fixed !important; left:16px !important; right:auto !important; top:auto !important;
+  bottom:calc(290px + var(--safe-bottom, 0px)) !important;
+  transform:none !important;
+  width:52px !important; height:52px !important; min-width:52px !important; min-height:52px !important;
+  border-radius:50% !important;
+  background:rgba(30,41,59,.7) !important;
+  backdrop-filter:blur(10px) !important;
+  border:1px solid rgba(255,255,255,.1) !important; color:var(--text) !important;
+  align-items:center !important; justify-content:center !important;
+  box-shadow:0 8px 24px rgba(0,0,0,.4), inset 0 2px 4px rgba(255,255,255,.1) !important;
+  z-index:1100 !important;
+}
+body.light-mode:not(.navigating):not(.google-nav) #btnCompass.fab-compass{
+  background:rgba(255,255,255,.8) !important; border-color:rgba(0,0,0,.1) !important;
+}
+/* Kim la ban phai luon thay, xoay theo map.getBearing() */
+html body #btnCompass #compassNeedle,
+html body #btnCompass .compass-needle{
+  display:block !important; visibility:visible !important; opacity:1 !important;
+  width:24px !important; height:24px !important; flex-shrink:0 !important;
+  transition:transform .1s linear !important;
+}
+/* Locate cung tang specificity de chac chan thang JS v4 */
+html body:not(.navigating):not(.google-nav) #mainLocateBtn.fab-locate{
+  display:flex !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  position:fixed !important; left:16px !important; right:auto !important; top:auto !important;
+  bottom:calc(168px + var(--safe-bottom, 0px)) !important; transform:none !important;
+  width:50px !important; height:50px !important; border-radius:50% !important;
+  background:var(--card) !important; border:1px solid var(--border) !important; color:var(--text) !important;
+  z-index:1100 !important;
+}
+/* La ban KHONG nam trong bottom sheet */
+#homeBottomSheet #btnCompass,
+#homeBottomSheet .fab-compass,
+#homeBottomSheet #compassNeedle{ display:none !important; }
