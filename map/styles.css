@@ -1,5 +1,6 @@
 /* =====================================================
    DriveKit — styles.css (Full Cập Nhật UI/UX + Sub-selectors + Settings)
+   + Top bar + Bottom sheet premium (map var(--...))
    ===================================================== */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -385,3 +386,155 @@ body.navigating .fab-rest-stop-filter { display: none; }
 .btn { cursor: pointer; }
 .btn-primary { background: var(--primary); color: white; }
 .btn-outline { background: transparent; }
+
+/* =====================================================
+   APPEND VAO CUOI styles.css - DriveKit
+   Top bar + Bottom sheet premium, dung bien cua styles.css
+   - Khong can sua gi khac, chi paste block nay vao cuoi file
+   - Sau khi append, JS v4 van chay duoc (CSS trung nhau, khong sao)
+   - Muon sach han: sau nay rut CSS inject trong JS, chi giu CSS o day
+   ===================================================== */
+
+/* ---------- TOP BAR: [ Search pill | Nut 3 gach ] ---------- */
+#topBarSplit{
+  position:fixed !important; left:16px !important; right:16px !important;
+  top:calc(16px + var(--safe-top, 0px)) !important;
+  display:flex !important; align-items:center !important; gap:8px !important;
+  z-index:1000 !important; pointer-events:none !important; box-sizing:border-box !important;
+}
+#topBarSplit > *{ pointer-events:auto !important; }
+#topBarSplit .floating-search, #topBarSplit #searchBar{
+  flex:1 !important; min-width:0 !important; width:auto !important;
+  height:52px !important; min-height:52px !important; max-height:52px !important;
+  background:var(--card) !important; border:1px solid var(--border) !important;
+  border-radius:24px !important; box-shadow:0 4px 15px rgba(0,0,0,.10) !important;
+  color:var(--text) !important; font-family:var(--font-main) !important;
+  display:flex !important; align-items:center !important; gap:6px !important;
+  padding:0 6px 0 16px !important; margin:0 !important;
+  position:relative !important; left:auto !important; right:auto !important; top:auto !important;
+  overflow:hidden !important; box-sizing:border-box !important;
+}
+#topBarSplit .floating-search input{
+  flex:1 !important; min-width:0 !important; width:auto !important; height:100% !important;
+  border:none !important; outline:none !important; background:transparent !important;
+  font-size:15px !important; font-weight:500 !important; padding:0 !important;
+  color:var(--text) !important; font-family:var(--font-main) !important; caret-color:var(--primary) !important;
+}
+#topBarSplit .floating-search input::placeholder{ color:var(--text-muted) !important; }
+#topBarSplit .floating-search .search-icon, #topBarSplit .floating-search .fa-search{ display:none !important; }
+/* X nho trong pill, chi hien khi co chu */
+#topBarSplit .floating-search #searchClearBtn{
+  position:static !important; width:24px !important; height:24px !important; min-width:24px !important;
+  border-radius:999px !important; background:var(--card-2) !important; color:var(--text-muted) !important;
+  display:none !important; align-items:center !important; justify-content:center !important;
+  flex-shrink:0 !important; margin:0 !important; border:none !important; cursor:pointer !important; padding:0 !important;
+}
+#topBarSplit .floating-search #searchClearBtn:not(.hidden){ display:flex !important; }
+/* Xoa cac nut X nhan doi nam ngoai pill */
+#topBarSplit > #searchClearBtn, #topBarSplit > .search-x-btn,
+#topSearchClearX, .search-x-btn, #dirEndClearX, #dirStartClearX{ display:none !important; }
+/* Nut kinh lup xanh ben phai, thay cho X to trang */
+#topBarSplit .floating-search #topSearchGoBtn{
+  flex-shrink:0 !important; width:36px !important; height:36px !important; min-width:36px !important;
+  border-radius:999px !important; background:var(--primary) !important; color:#fff !important; border:none !important;
+  display:flex !important; align-items:center !important; justify-content:center !important;
+  cursor:pointer !important; margin:0 !important; padding:0 !important;
+  box-shadow:0 6px 20px rgba(59,130,246,.40) !important;
+}
+#topBarSplit .floating-search #topSearchGoBtn:active{ transform:scale(.92) !important; }
+/* Nut 3 gach: tron rieng, giong .fab-menu */
+#topBarSplit #mainMenuBtn, #topBarSplit #menuBtn, #topBarSplit .menu-btn{
+  flex-shrink:0 !important; width:52px !important; height:52px !important; min-width:52px !important;
+  border-radius:999px !important; background:var(--card) !important; border:1px solid var(--border) !important;
+  color:var(--text) !important; box-shadow:0 4px 15px rgba(0,0,0,.10) !important;
+  display:flex !important; align-items:center !important; justify-content:center !important;
+  margin:0 !important; padding:0 !important; position:static !important;
+  left:auto !important; right:auto !important; top:auto !important; transform:none !important;
+  cursor:pointer !important; font-family:var(--font-main) !important;
+}
+#topBarSplit #mainMenuBtn:active{ transform:scale(.94) !important; }
+#topBarSplit .dk-burger{ display:flex !important; flex-direction:column !important; gap:5px !important; align-items:center !important; }
+#topBarSplit .dk-burger span{ display:block !important; width:20px !important; height:2.6px !important; border-radius:2px !important; background:currentColor !important; }
+body.google-nav #topBarSplit, body.navigating #topBarSplit{ display:none !important; }
+body.google-nav .floating-search, body.navigating .floating-search{ display:none !important; }
+#suggestionsBox{ top:calc(76px + var(--safe-top, 0px)) !important; }
+@media (max-width:640px){
+  #topBarSplit{ left:12px !important; right:12px !important; }
+  #topBarSplit .floating-search, #topBarSplit #searchBar{ height:48px !important; min-height:48px !important; max-height:48px !important; }
+  #topBarSplit #mainMenuBtn{ width:48px !important; height:48px !important; min-width:48px !important; }
+  #topBarSplit .floating-search #topSearchGoBtn{ width:34px !important; height:34px !important; min-width:34px !important; }
+}
+
+/* ---------- AN FAB CU DA CHUYEN XUONG BOTTOM SHEET ---------- */
+html body:not(.navigating):not(.google-nav) #mainDirBtn,
+html body:not(.navigating):not(.google-nav) #btnNearbySearch,
+html body:not(.navigating):not(.google-nav) #btnQuickPin{
+  display:none !important; visibility:hidden !important; opacity:0 !important; pointer-events:none !important;
+}
+
+/* ---------- BOTTOM SHEET PREMIUM: 5 NUT ---------- */
+#homeBottomSheet{
+  position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important; z-index:900 !important;
+  background:var(--card) !important; border:1px solid var(--border) !important; border-bottom:none !important;
+  border-radius:20px 20px 0 0 !important; box-shadow:0 -10px 30px rgba(0,0,0,.20) !important;
+  padding:12px 16px calc(12px + var(--safe-bottom, 0px)) !important;
+  box-sizing:border-box !important; transition:transform .28s ease !important;
+  font-family:var(--font-main) !important;
+}
+body.google-nav #homeBottomSheet, body.navigating #homeBottomSheet{ display:none !important; }
+#homeBottomSheet.hb-hidden{ transform:translateY(100%) !important; pointer-events:none !important; }
+#homeBottomSheet .hb-handle{ width:36px !important; height:4px !important; border-radius:4px !important; background:var(--border) !important; margin:0 auto 10px !important; cursor:grab !important; }
+#homeBottomSheet .hb-head{ display:flex !important; align-items:flex-start !important; justify-content:space-between !important; padding:0 4px 10px !important; }
+#homeBottomSheet .hb-title-wrap{ display:flex !important; flex-direction:column !important; gap:2px !important; }
+#homeBottomSheet .hb-title{ font-size:14px !important; font-weight:800 !important; color:var(--text) !important; letter-spacing:.1px !important; }
+#homeBottomSheet .hb-subtitle{ font-size:11px !important; font-weight:500 !important; color:var(--text-muted) !important; }
+#homeBottomSheet .hb-toggle{
+  width:32px !important; height:32px !important; border-radius:999px !important; border:1px solid var(--border) !important;
+  background:var(--card-2) !important; color:var(--text-muted) !important;
+  display:flex !important; align-items:center !important; justify-content:center !important;
+  cursor:pointer !important; font-size:16px !important; padding:0 !important; transition:transform .2s ease !important;
+}
+#homeBottomSheet.hb-collapsed .hb-toggle{ transform:rotate(180deg) !important; }
+#homeBottomSheet .hb-grid{ display:grid !important; grid-template-columns:repeat(5, 1fr) !important; gap:4px !important; }
+#homeBottomSheet.hb-collapsed .hb-grid{ display:none !important; }
+#homeBottomSheet .hb-action{
+  display:flex !important; flex-direction:column !important; align-items:center !important; gap:7px !important;
+  padding:8px 1px 6px !important; border-radius:16px !important; background:transparent !important;
+  border:none !important; cursor:pointer !important; color:inherit !important;
+  transition:background .15s ease, transform .12s ease !important;
+}
+#homeBottomSheet .hb-action:active{ background:var(--bg-2) !important; transform:scale(.94) !important; }
+#homeBottomSheet .hb-icon{
+  width:56px !important; height:56px !important; border-radius:18px !important;
+  display:flex !important; align-items:center !important; justify-content:center !important; flex-shrink:0 !important; color:#fff !important;
+}
+#homeBottomSheet .hb-icon svg{ width:24px !important; height:24px !important; display:block !important; }
+#homeBottomSheet .hb-icon--dir{ background:linear-gradient(135deg,#3b82f6,#1d4ed8) !important; box-shadow:0 4px 15px rgba(59,130,246,.50) !important; }
+#homeBottomSheet .hb-icon--nearby{ background:linear-gradient(135deg,#10b981,#059669) !important; box-shadow:0 4px 15px rgba(16,185,129,.45) !important; }
+#homeBottomSheet .hb-icon--place{ background:linear-gradient(135deg,#fbbf24,#f59e0b) !important; box-shadow:0 4px 15px rgba(245,158,11,.45) !important; }
+#homeBottomSheet .hb-icon--poi{ background:linear-gradient(135deg,#a78bfa,#8b5cf6) !important; box-shadow:0 4px 15px rgba(139,92,246,.45) !important; }
+#homeBottomSheet .hb-icon--warn{ background:linear-gradient(135deg,#ef4444,#f97316) !important; box-shadow:0 4px 15px rgba(239,68,68,.45) !important; }
+#homeBottomSheet .hb-label{ font-size:11px !important; font-weight:700 !important; line-height:1.25 !important; text-align:center !important; color:var(--text) !important; font-family:var(--font-main) !important; }
+
+/* FAB con lai: day len bang translate, giu khoang cach xep chong trong styles.css */
+html body:not(.navigating):not(.google-nav) #mainLocateBtn,
+html body:not(.navigating):not(.google-nav) #btnLayerMenu,
+html body:not(.navigating):not(.google-nav) #btnReport,
+html body:not(.navigating):not(.google-nav) #btnRestStopFilter,
+html body:not(.navigating):not(.google-nav) #btnCompass,
+html body:not(.navigating):not(.google-nav) .fab-compass{
+  transform:translateY(-150px) !important;
+}
+html body .layer-menu{ bottom:calc(290px + var(--safe-bottom, 0px)) !important; }
+html body .zoom-hint-toast{ bottom:calc(300px + var(--safe-bottom, 0px)) !important; }
+
+@media (max-width:380px){
+  #homeBottomSheet .hb-icon{ width:48px !important; height:48px !important; border-radius:16px !important; }
+  #homeBottomSheet .hb-label{ font-size:10.5px !important; }
+  #homeBottomSheet{ padding-left:8px !important; padding-right:8px !important; }
+}
+@media (min-width:640px){
+  #homeBottomSheet{ left:50% !important; transform:translateX(-50%) !important; max-width:480px !important; }
+  #homeBottomSheet.hb-hidden{ transform:translate(-50%,100%) !important; }
+}
+
