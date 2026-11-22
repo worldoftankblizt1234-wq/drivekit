@@ -435,6 +435,22 @@ let initialZoom = 16;
 let lastSnapIndex = 0;
 let smoothedSpeed = 0;
 let offRouteCount = 0;
+/* ============================================================
+   [MOI 2026-11-22] POPUP HOI DOI TUYEN KHI LECH HUONG
+   - Cu: checkOffRoute lech >35m x 2 lan -> autoReroute NGAY, khong hoi user.
+   - Moi: lech >35m x 2 lan -> hien popup "Ban dang di lech huong... Co muon doi huong khong? [Khong] [Co]"
+     + Bam Co -> autoReroute(tu vi tri hien tai)
+     + Bam Khong -> giu tuyen cu, khong hoi lai trong 45s (hoac cho den khi user quay lai dung tuyen thi reset)
+   - Reroute BAT BUOC do vung cam moi (recomputeAvoidZones) van goi autoReroute() truc tiep, KHONG qua popup.
+   ============================================================ */
+let offRoutePopupEl = null;
+let isOffRoutePopupOpen = false;
+let offRoutePopupAt = 0;
+let offRouteDeclinedUntil = 0;
+let offRoutePendingPos = null;
+let offRoutePendingDist = 0;
+const OFF_ROUTE_POPUP_COOLDOWN_MS = 45000; // Sau khi bam Khong, 45s sau moi hoi lai (neu van lech)
+const OFF_ROUTE_ASK_DIST_M = 35; // Giong nguong cu: lech >35m moi tinh la lech
 let isRerouting = false;
 let isSearchDebugMode = localStorage.getItem('drivekit_search_debug') === '1';
 
@@ -863,7 +879,7 @@ function startNavigationHUD() {
     document.getElementById('hud').classList.remove('hidden');
     updateUIState();
     voiceRouteSteps = currentRouteData.legs[0].steps;
-    voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0;
+    voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0; try{ if(typeof hideOffRoutePopup==='function') hideOffRoutePopup(); offRouteDeclinedUntil = 0; offRoutePendingPos = null; }catch(e){} // [MOI] Bat dau chuyen moi -> reset popup lech huong
     tripStartTime = Date.now(); arrivalHandled = false;
     const dist = currentRouteData.distance || 0;
     const dur = currentRouteData.duration || 0;
@@ -1436,7 +1452,7 @@ function checkRouteAgainstAvoidZones(routeCoords) {
     }
     if (segments.length === 0) segments.push({ a: { lat: zone.lat1, lng: zone.lng1 }, b: { lat: zone.lat2, lng: zone.lng2 } });
     for (let i = 0; i < routeCoords.length; i += 3) {
-      const p = { lat: routeCoords[i][1], lng: routeCoords[i][0] };
+      const p = { lat: routeCoords[i][0], lng: routeCoords[i][1] }; // [FIX 2026-11-22] routeCoords là [lat,lng] như mọi chỗ khác (drawCurrentRoute map [c1,c0], checkOffRoute dùng [0]=lat). Trước đây đảo ngược -> check vùng cấm sai: tuyến cấm thì không chặn, tuyến sạch lại bị chặn oan.
       for (const seg of segments) {
         const closestPt = getClosestPointOnSegment(p, seg.a, seg.b);
         const dist = calcDist(p.lat, p.lng, closestPt.lat, closestPt.lng);
@@ -3215,6 +3231,99 @@ function showArrivalToast() {
   requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateX(-50%) translateY(0)'; });
   setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(-30px)'; setTimeout(() => toast.remove(), 300); }, 2800);
 }
+/* ---------- POPUP LECH HUONG: tao / hien / an ---------- */
+function ensureOffRoutePopup() {
+  if (offRoutePopupEl && document.body.contains(offRoutePopupEl)) return offRoutePopupEl;
+  // CSS 1 lan duy nhat
+  if (!document.getElementById('offRoutePopupStyle')) {
+    const st = document.createElement('style');
+    st.id = 'offRoutePopupStyle';
+    st.textContent = `
+      #offRoutePopup{ position:fixed; inset:0; z-index:10001; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); padding:16px; }
+      #offRoutePopup.show{ display:flex; }
+      #offRoutePopup .orp-card{ width:100%; max-width:360px; background:#fff; color:#0f172a; border-radius:18px; padding:20px 18px 16px; box-shadow:0 20px 50px rgba(0,0,0,.35); text-align:center; animation:orpPop .22s ease-out; }
+      @keyframes orpPop{ from{ transform:scale(.92) translateY(8px); opacity:0; } to{ transform:scale(1) translateY(0); opacity:1; } }
+      #offRoutePopup .orp-icon{ width:52px; height:52px; margin:0 auto 10px; border-radius:50%; background:#fef3c7; display:flex; align-items:center; justify-content:center; font-size:26px; }
+      #offRoutePopup .orp-title{ font-size:17px; font-weight:800; margin:0 0 6px; }
+      #offRoutePopup .orp-sub{ font-size:14px; color:#475569; line-height:1.5; margin:0 0 16px; }
+      #offRoutePopup .orp-sub b{ color:#dc2626; }
+      #offRoutePopup .orp-row{ display:flex; gap:10px; }
+      #offRoutePopup .orp-btn{ flex:1; padding:13px 10px; border-radius:12px; font-size:15px; font-weight:800; cursor:pointer; border:0; }
+      #offRoutePopup .orp-no{ background:#f1f5f9; color:#334155; }
+      #offRoutePopup .orp-yes{ background:#2563eb; color:#fff; box-shadow:0 6px 18px rgba(37,99,235,.4); }
+      #offRoutePopup .orp-btn:active{ transform:scale(.97); }
+    `;
+    document.head.appendChild(st);
+  }
+  const el = document.createElement('div');
+  el.id = 'offRoutePopup';
+  el.innerHTML = `
+    <div class="orp-card" role="dialog" aria-modal="true" aria-label="Đi lệch hướng">
+      <div class="orp-icon">⚠️</div>
+      <p class="orp-title">Bạn đang đi lệch hướng chỉ đường</p>
+      <p class="orp-sub">Bạn đã lệch <b id="offRoutePopupDist">~0 m</b> khỏi tuyến đường.<br>Bạn có muốn chúng tôi đổi hướng không?</p>
+      <div class="orp-row">
+        <button type="button" class="orp-btn orp-no" id="offRouteBtnNo">Không</button>
+        <button type="button" class="orp-btn orp-yes" id="offRouteBtnYes">Có, đổi hướng</button>
+      </div>
+    </div>`;
+  // Chan click ra ngoai lam tat popup vo tinh (user phai chon Co/Khong) - nhung van cho bam nut
+  el.addEventListener('click', (e) => { if (e.target === el) e.stopPropagation(); });
+  el.querySelector('#offRouteBtnYes').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); confirmOffRouteReroute(); });
+  el.querySelector('#offRouteBtnNo').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); dismissOffRoutePopup(); });
+  document.body.appendChild(el);
+  offRoutePopupEl = el;
+  return el;
+}
+function showOffRoutePopup(userLat, userLng, distM) {
+  // Chi hoi khi dang dan duong that (tranh popup hien khi chi xem map)
+  try {
+    const _isNav = (typeof isNavigating !== 'undefined' && isNavigating) || (document.body && (document.body.classList.contains('google-nav') || document.body.classList.contains('navigating')));
+    if (!_isNav) return;
+  } catch(e) {}
+  if (Date.now() < offRouteDeclinedUntil) return; // Vua bam Khong -> dang trong thoi gian tam khong hoi
+  offRoutePendingPos = { lat: userLat, lng: userLng };
+  offRoutePendingDist = Math.round(distM);
+  const el = ensureOffRoutePopup();
+  const distEl = document.getElementById('offRoutePopupDist');
+  if (distEl) distEl.textContent = distM >= 1000 ? ('~' + (distM/1000).toFixed(1) + ' km') : ('~' + Math.round(distM) + ' m');
+  if (!isOffRoutePopupOpen) {
+    isOffRoutePopupOpen = true;
+    offRoutePopupAt = Date.now();
+    el.classList.add('show');
+    try { if (navigator.vibrate) navigator.vibrate(120); } catch(e) {}
+    try { if (typeof speak === 'function') speak('Bạn đang đi lệch hướng. Bạn có muốn đổi hướng không?', 'nav'); } catch(e) {}
+  }
+}
+function hideOffRoutePopup() {
+  isOffRoutePopupOpen = false;
+  try { if (offRoutePopupEl) offRoutePopupEl.classList.remove('show'); } catch(e) {}
+}
+function confirmOffRouteReroute() {
+  // Bam CO -> tim duong khac tu vi tri MOI NHAT (uu tien lastUserPos, vi GPS co the da chay them tu luc popup hien)
+  const pos = (typeof lastUserPos !== 'undefined' && lastUserPos) ? lastUserPos : offRoutePendingPos;
+  const lat = pos ? pos.lat : null, lng = pos ? pos.lng : null;
+  hideOffRoutePopup();
+  offRouteDeclinedUntil = 0;
+  offRouteCount = 0;
+  if (lat == null || lng == null) return;
+  try { if (typeof showCustomToast === 'function') showCustomToast('Đang tìm tuyến đường mới...', 'info'); } catch(e) {}
+  autoReroute(lat, lng);
+}
+function dismissOffRoutePopup() {
+  // Bam KHONG -> giu tuyen cu, khong doi tuyen, tam 45s khong hoi lai
+  hideOffRoutePopup();
+  offRouteDeclinedUntil = Date.now() + OFF_ROUTE_POPUP_COOLDOWN_MS;
+  offRouteCount = 0;
+  offRoutePendingPos = null;
+  try { if (typeof showCustomToast === 'function') showCustomToast('Đã giữ tuyến đường cũ', 'info'); } catch(e) {}
+}
+// Cho phep HTML / nut khac goi neu can + de test tu Console: window.showOffRoutePopup(10.7, 106.6, 120)
+window.showOffRoutePopup = showOffRoutePopup;
+window.hideOffRoutePopup = hideOffRoutePopup;
+window.confirmOffRouteReroute = confirmOffRouteReroute;
+window.dismissOffRoutePopup = dismissOffRoutePopup;
+
 function checkOffRoute(userLat, userLng) {
   if (!currentRouteCoords || currentRouteCoords.length < 2 || isRerouting || arrivalHandled) return;
   // GPS kem (accuracy >60) thi dung reroute - do la GPS nhay, khong phai lac duong
@@ -3234,16 +3343,37 @@ function checkOffRoute(userLat, userLng) {
   }
   // [CLEANUP LOGIC] Cập nhật snap để lần sau scan gần đúng chỗ, không scan từ đầu -> đỡ false reroute
   if (minDist < 20) lastSnapIndex = _bestIdx;
-  // [AUTO-REROUTE] Nhay hon: lech >35m, 2 lan lien tiep la tu doi tuyen - truoc la 50m/3 lan nen di sai xa moi doi
-  if (minDist > 35) {
+  // User quay lai dung tuyen (<20m) -> tat popup neu dang mo + xoa cooldown "Khong"
+  if (minDist < 20) {
+    if (isOffRoutePopupOpen) hideOffRoutePopup();
+    offRouteDeclinedUntil = 0;
+    offRouteCount = 0;
+    return;
+  }
+  // [MOI] Lech >35m, 2 lan lien tiep -> HOI user qua popup, KHONG tu doi tuyen nua
+  // (truoc day: autoReroute ngay -> user khong biet vi sao tuyen tu doi)
+  if (minDist > OFF_ROUTE_ASK_DIST_M) {
+    // Dang mo popup roi -> chi cap nhat vi tri + khoang cach lech moi nhat, khong mo them popup
+    if (isOffRoutePopupOpen) {
+      offRoutePendingPos = { lat: userLat, lng: userLng };
+      offRoutePendingDist = Math.round(minDist);
+      const dEl = document.getElementById('offRoutePopupDist');
+      if (dEl) dEl.textContent = minDist >= 1000 ? ('~' + (minDist/1000).toFixed(1) + ' km') : ('~' + Math.round(minDist) + ' m');
+      return;
+    }
     offRouteCount++;
-    if (offRouteCount >= 2) { offRouteCount = 0; autoReroute(userLat, userLng); }
+    if (offRouteCount >= 2) {
+      offRouteCount = 0;
+      showOffRoutePopup(userLat, userLng, minDist);
+    }
   } else offRouteCount = 0;
 }
 
 // Reroute check avoid zones
 async function autoReroute(userLat, userLng, bypassCache = false) {
   if (isRerouting) return;
+  if (!endPoint || typeof endPoint.lat !== 'number' || typeof endPoint.lng !== 'number') return; // [FIX 2026-11-22] Chưa có điểm đến thì apiRoute sẽ crash ở dest.lat
+  try{ if(typeof hideOffRoutePopup === 'function') hideOffRoutePopup(); }catch(e){} // Đã đồng ý đổi tuyến (hoặc reroute bắt buộc do vùng cấm) -> tắt popup lệch hướng nếu còn mở
   isRerouting = true;
   // [CLEANUP] Anti-stuck: neu apiRoute treo >15s thi reset co
   const _rerouteGuard = setTimeout(()=>{ isRerouting = false; }, 15000);
@@ -3454,7 +3584,7 @@ window.endTrip = async function(save) {
     if (map.getSource(`alt-route-source-${i}`)) map.removeSource(`alt-route-source-${i}`);
   });
   currentRouteCoords = []; currentRouteData = null; alternativeRoutesData = []; voiceRouteSteps = null;
-  voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0; isRerouting = false;
+  voiceStepIndex = 0; lastSnapIndex = 0; offRouteCount = 0; isRerouting = false; try{ if(typeof hideOffRoutePopup==='function') hideOffRoutePopup(); offRouteDeclinedUntil = 0; offRoutePendingPos = null; }catch(e){} // [MOI] Ket thuc chuyen -> tat popup lech huong
   tripStartTime = null; arrivalHandled = false; warnedReports.clear(); warnedAvoidZones.clear(); warnedPois.clear();
   localStorage.removeItem('alternativeRoutes');
   document.body.classList.remove('navigating');
@@ -8091,3 +8221,421 @@ try{ window.__DRIVEKIT_FIX_VERSION = "2026-11-21-v9 TOPDOWN + FREE + IMMEDIATE-B
   }catch(e){}
   console.log('[DriveKit] Double-start guard active');
 })();
+
+
+/* ============================================================
+   [FINAL 2026-11-22] REDESIGN TOP BAR + BOTTOM SHEET - GHI DE TAT CA PATCH CU
+   Van de trong anh user gui:
+   - Search bar den, nut X trang TO nam de len nut 3 gach den -> do 2 patch cu danh nhau:
+     fixTopBarOverlap keo menu VAO TRONG search, redesignSearchBarSplit keo menu RA NGOAI search.
+   - Nut X bi nhan doi (searchClearBtn + topSearchClearX) -> hien thanh nut trang to.
+   - FAB chi duong / nearby / ghim / POI rac 2 ben map.
+   Giai phap: 1 patch cuoi duy nhat, chay sau tat ca, thang moi patch cu bang selector
+   dac hieu hon (html body...) + !important + chay sau cung.
+   - Top bar: [ Search pill | Nut 3 gach tron rieng ]
+     Search pill: [ Input | X nho 24px (chi khi co chu) | Nut kinh lup xanh 36px ]
+     X to trang ngoai pill -> XOA HAN. Kinh lup phai la nut bam duoc, khong phai icon trang tri.
+   - Bottom sheet moi #homeBottomSheet: Chi duong / Quanh day / Them dia diem / Them POI
+     3 FAB cu (mainDirBtn, btnNearbySearch, btnQuickPin) -> AN HAN, chi goi qua bottom sheet.
+   ============================================================ */
+(function finalTopBarAndBottomSheet(){
+  if (window._finalTopBottomDone) return; window._finalTopBottomDone = true;
+  // --- Diet watchdog cu hay hien lai FAB da chuyen xuong bottom sheet ---
+  try{ if (window._fixFabInt) { clearInterval(window._fixFabInt); window._fixFabInt = null; } }catch(e){}
+  try{ window.showFabsAfterMenuSearch = function(){}; }catch(e){}
+  try{ window.fixTopBarOverlap = function(){ try{ buildTopBar(); }catch(e){} }; }catch(e){}
+
+  const LUP_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>';
+  const X_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+
+  function injectCSS(){
+    if (document.getElementById('finalTopBottomStyle')) return;
+    const st = document.createElement('style');
+    st.id = 'finalTopBottomStyle';
+    st.textContent = `
+      /* ---------- TOP BAR: 1 hang [Search pill | 3 gach] ---------- */
+      html body #topBarSplit{
+        position:fixed !important; left:12px !important; right:12px !important;
+        top:calc(10px + env(safe-area-inset-top, 0px)) !important;
+        display:flex !important; align-items:center !important; gap:10px !important;
+        z-index:1000 !important; pointer-events:none !important; box-sizing:border-box !important;
+      }
+      html body #topBarSplit > *{ pointer-events:auto !important; }
+      /* Search pill - thang moi style cu vi them html body + !important + dat sau cung */
+      html body #topBarSplit .floating-search, html body #topBarSplit #searchBar, html body .floating-search{
+        flex:1 !important; min-width:0 !important; width:auto !important;
+        height:52px !important; min-height:52px !important; max-height:52px !important;
+        border-radius:26px !important; display:flex !important; align-items:center !important;
+        gap:6px !important; padding:0 6px 0 16px !important; margin:0 !important;
+        position:relative !important; left:auto !important; right:auto !important; top:auto !important;
+        overflow:hidden !important; box-sizing:border-box !important;
+        background:#FFFFFF !important; border:1px solid rgba(0,0,0,.07) !important;
+        box-shadow:0 4px 16px rgba(0,0,0,.14), 0 1px 3px rgba(0,0,0,.10) !important; color:#202124 !important;
+      }
+      html body:not(.light-mode) #topBarSplit .floating-search, html body:not(.light-mode) #topBarSplit #searchBar{
+        background:#232A35 !important; border:1px solid rgba(255,255,255,.14) !important;
+        box-shadow:0 4px 16px rgba(0,0,0,.45) !important; color:#F3F4F6 !important;
+      }
+      html body #topBarSplit .floating-search input, html body #topBarSplit #searchBar input{
+        flex:1 !important; min-width:0 !important; width:auto !important; height:100% !important;
+        border:none !important; outline:none !important; background:transparent !important;
+        font-size:15px !important; font-weight:500 !important; padding:0 !important; color:inherit !important;
+      }
+      html body #topBarSplit .floating-search input::placeholder{ color:#80868B !important; }
+      html body:not(.light-mode) #topBarSplit .floating-search input::placeholder{ color:#9CA3AF !important; }
+      /* An icon kinh lup trang tri ben trai (neu HTML cu co) - chi giu 1 kinh lup la nut xanh ben phai */
+      html body #topBarSplit .floating-search .search-icon, html body #topBarSplit .floating-search .fa-search{
+        display:none !important;
+      }
+      /* X NHO trong pill - chi hien khi co chu, 24px, khong phai nut trang to */
+      html body #topBarSplit .floating-search #searchClearBtn, html body #topBarSplit .floating-search .dk-clear-btn{
+        position:static !important; width:24px !important; height:24px !important; min-width:24px !important;
+        border-radius:999px !important; background:#E8EAED !important; color:#5F6368 !important;
+        display:none !important; align-items:center !important; justify-content:center !important;
+        flex-shrink:0 !important; margin:0 !important; border:none !important; cursor:pointer !important; padding:0 !important;
+      }
+      html body:not(.light-mode) #topBarSplit .floating-search #searchClearBtn{
+        background:#374151 !important; color:#D1D5DB !important;
+      }
+      html body #topBarSplit .floating-search #searchClearBtn:not(.hidden), html body #topBarSplit .floating-search .dk-clear-btn.show{
+        display:flex !important;
+      }
+      /* XOA HAN cac nut X nhan doi nam NGOAI pill / tuyet doi */
+      html body #topBarSplit > #searchClearBtn, html body #topBarSplit > .search-x-btn,
+      html body #topSearchClearX, html body .search-x-btn, html body #dirEndClearX, html body #dirStartClearX{
+        display:none !important;
+      }
+      /* Nut KINH LUP xanh ben phai - thay cho X to trang */
+      html body #topBarSplit .floating-search #topSearchGoBtn{
+        flex-shrink:0 !important; width:36px !important; height:36px !important; min-width:36px !important;
+        border-radius:999px !important; background:#1A73E8 !important; color:#fff !important; border:none !important;
+        display:flex !important; align-items:center !important; justify-content:center !important;
+        cursor:pointer !important; margin:0 !important; padding:0 !important;
+        box-shadow:0 2px 8px rgba(26,115,232,.35) !important;
+      }
+      html body #topBarSplit .floating-search #topSearchGoBtn:active{ transform:scale(.92) !important; }
+      /* Nut 3 GACH - tron rieng, tach khoi search, 3 vach dep */
+      html body #topBarSplit #mainMenuBtn, html body #topBarSplit #menuBtn, html body #topBarSplit .menu-btn, html body #topBarSplit .hamburger{
+        flex-shrink:0 !important; width:52px !important; height:52px !important; min-width:52px !important;
+        border-radius:999px !important; display:flex !important; align-items:center !important; justify-content:center !important;
+        margin:0 !important; padding:0 !important; position:static !important; left:auto !important; right:auto !important; top:auto !important;
+        transform:none !important; cursor:pointer !important; font-size:0 !important; line-height:1 !important;
+        background:#FFFFFF !important; border:1px solid rgba(0,0,0,.07) !important; color:#202124 !important;
+        box-shadow:0 4px 16px rgba(0,0,0,.14), 0 1px 3px rgba(0,0,0,.10) !important;
+      }
+      html body:not(.light-mode) #topBarSplit #mainMenuBtn, html body:not(.light-mode) #topBarSplit #menuBtn, html body:not(.light-mode) #topBarSplit .menu-btn{
+        background:#232A35 !important; border:1px solid rgba(255,255,255,.14) !important; color:#F3F4F6 !important;
+        box-shadow:0 4px 16px rgba(0,0,0,.45) !important;
+      }
+      html body #topBarSplit #mainMenuBtn:active, html body #topBarSplit .menu-btn:active{ transform:scale(.94) !important; }
+      html body #topBarSplit .dk-burger{ display:flex !important; flex-direction:column !important; gap:5px !important; align-items:center !important; }
+      html body #topBarSplit .dk-burger span{ display:block !important; width:20px !important; height:2.6px !important; border-radius:2px !important; background:currentColor !important; }
+      /* Khi dang dan duong: an ca top bar */
+      html body.google-nav #topBarSplit, html body.navigating #topBarSplit{ display:none !important; }
+      html body.google-nav .floating-search, html body.navigating .floating-search{ display:none !important; }
+      /* Goi y search nam ngay duoi top bar, khong de len top bar */
+      html body #suggestionsBox{ top:calc(68px + env(safe-area-inset-top, 0px)) !important; left:12px !important; right:12px !important; width:auto !important; }
+      @media (max-width:640px){
+        html body #topBarSplit{ left:10px !important; right:10px !important; gap:8px !important; top:calc(8px + env(safe-area-inset-top, 0px)) !important; }
+        html body #topBarSplit .floating-search, html body #topBarSplit #searchBar{ height:48px !important; min-height:48px !important; max-height:48px !important; padding:0 5px 0 14px !important; }
+        html body #topBarSplit #mainMenuBtn, html body #topBarSplit #menuBtn, html body #topBarSplit .menu-btn{ width:48px !important; height:48px !important; min-width:48px !important; }
+        html body #topBarSplit .floating-search #topSearchGoBtn{ width:34px !important; height:34px !important; min-width:34px !important; }
+        html body #topBarSplit .floating-search input{ font-size:14px !important; }
+      }
+      /* ---------- AN FAB CU DA CHUYEN XUONG BOTTOM SHEET ---------- */
+      /* Dung html body + 2 :not de thang fixFabStyle cu (chi co body + 2 :not) */
+      html body:not(.navigating):not(.google-nav) #mainDirBtn,
+      html body:not(.navigating):not(.google-nav) #btnNearbySearch,
+      html body:not(.navigating):not(.google-nav) #btnQuickPin{
+        display:none !important; visibility:hidden !important; opacity:0 !important; pointer-events:none !important;
+      }
+      /* ---------- BOTTOM SHEET HOME ---------- */
+      html body #homeBottomSheet{
+        position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important; z-index:900 !important;
+        background:#FFFFFF !important; border-radius:20px 20px 0 0 !important;
+        box-shadow:0 -4px 24px rgba(0,0,0,.14) !important; padding:8px 12px calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+        box-sizing:border-box !important; transition:transform .28s ease !important;
+      }
+      html body:not(.light-mode) #homeBottomSheet{
+        background:#1F2937 !important; box-shadow:0 -4px 24px rgba(0,0,0,.5) !important;
+      }
+      html body.google-nav #homeBottomSheet, html body.navigating #homeBottomSheet{ display:none !important; }
+      html body #homeBottomSheet.hb-hidden{ transform:translateY(100%) !important; pointer-events:none !important; }
+      html body #homeBottomSheet .hb-handle{
+        width:36px !important; height:4px !important; border-radius:999px !important;
+        background:#D1D5DB !important; margin:0 auto 8px !important; cursor:grab !important;
+      }
+      html body:not(.light-mode) #homeBottomSheet .hb-handle{ background:#4B5563 !important; }
+      html body #homeBottomSheet .hb-head{
+        display:flex !important; align-items:center !important; justify-content:space-between !important;
+        padding:0 4px 8px !important;
+      }
+      html body #homeBottomSheet .hb-title{ font-size:13px !important; font-weight:800 !important; color:#202124 !important; letter-spacing:.1px !important; }
+      html body:not(.light-mode) #homeBottomSheet .hb-title{ color:#F3F4F6 !important; }
+      html body #homeBottomSheet .hb-toggle{
+        width:28px !important; height:28px !important; border-radius:999px !important; border:none !important;
+        background:#F1F3F4 !important; color:#5F6368 !important; display:flex !important; align-items:center !important; justify-content:center !important;
+        cursor:pointer !important; font-size:14px !important; padding:0 !important;
+      }
+      html body:not(.light-mode) #homeBottomSheet .hb-toggle{ background:#374151 !important; color:#D1D5DB !important; }
+      html body #homeBottomSheet .hb-grid{
+        display:grid !important; grid-template-columns:repeat(4, 1fr) !important; gap:6px !important;
+      }
+      html body #homeBottomSheet.hb-collapsed .hb-grid{ display:none !important; }
+      html body #homeBottomSheet .hb-action{
+        display:flex !important; flex-direction:column !important; align-items:center !important; gap:6px !important;
+        padding:10px 2px 8px !important; border-radius:14px !important; background:transparent !important;
+        border:none !important; cursor:pointer !important; color:inherit !important;
+      }
+      html body #homeBottomSheet .hb-action:active{ background:#F1F3F4 !important; transform:scale(.97) !important; }
+      html body:not(.light-mode) #homeBottomSheet .hb-action:active{ background:#374151 !important; }
+      html body #homeBottomSheet .hb-icon{
+        width:48px !important; height:48px !important; border-radius:16px !important;
+        display:flex !important; align-items:center !important; justify-content:center !important; flex-shrink:0 !important;
+      }
+      html body #homeBottomSheet .hb-icon svg{ display:block !important; }
+      html body #homeBottomSheet .hb-label{
+        font-size:11px !important; font-weight:700 !important; line-height:1.2 !important; text-align:center !important;
+        color:#202124 !important; white-space:nowrap !important;
+      }
+      html body:not(.light-mode) #homeBottomSheet .hb-label{ color:#F3F4F6 !important; }
+      /* Day FAB con lai len tren bottom sheet de khong bi che */
+      html body:not(.navigating):not(.google-nav) #mainLocateBtn,
+      html body:not(.navigating):not(.google-nav) #btnLayerMenu,
+      html body:not(.navigating):not(.google-nav) #btnReport,
+      html body:not(.navigating):not(.google-nav) #btnRestStopFilter{
+        bottom:150px !important;
+      }
+    `;
+    document.head.appendChild(st);
+  }
+
+  function findMenuBtn(){
+    return document.getElementById('mainMenuBtn') || document.getElementById('menuBtn') ||
+      document.querySelector('.menu-btn, .hamburger');
+  }
+  function findSearch(){
+    return document.querySelector('.floating-search') || document.getElementById('searchBar') ||
+      document.getElementById('searchBar');
+  }
+
+  function buildTopBar(){
+    injectCSS();
+    if (document.body.classList.contains('google-nav') || document.body.classList.contains('navigating')) return;
+    const search = findSearch();
+    if (!search) return;
+    let wrap = document.getElementById('topBarSplit');
+    if (!wrap){
+      wrap = document.createElement('div'); wrap.id = 'topBarSplit';
+      search.parentNode.insertBefore(wrap, search);
+    }
+    if (search.parentNode !== wrap) wrap.appendChild(search);
+    // Search pill: dam bao input la con truc tiep, khong bi wrapper phu lam lech
+    const input = document.getElementById('topSearchInput') || search.querySelector('input');
+    // Menu: RA NGOAI search, vao wrap ben phai - ghi de patch cu keo menu vao trong
+    const menu = findMenuBtn();
+    if (menu){
+      if (menu.parentNode !== wrap) wrap.appendChild(menu);
+      // Thu tu: search trai, menu phai
+      if (wrap.firstChild !== search) wrap.insertBefore(search, wrap.firstChild);
+      // Chuan hoa 3 gach: luon la 3 vach, khong phai X / chu
+      menu.classList.add('dk-menu-btn');
+      menu.setAttribute('aria-label','Mở menu');
+      menu.setAttribute('title','Menu');
+      if (!menu.querySelector('.dk-burger')){
+        menu.innerHTML = '<span class="dk-burger"><span></span><span></span><span></span></span>';
+      }
+      menu.style.position = 'static';
+    }
+    // Xoa cac nut X tuyet doi / ngoai pill neu con sot trong search (tru searchClearBtn chinh)
+    try{
+      search.querySelectorAll('.search-x-btn').forEach(el=>{ el.remove(); });
+    }catch(e){}
+    // Clear btn chinh: dua vao trong search, doi thanh X nho 12px
+    const clr = document.getElementById('searchClearBtn');
+    if (clr){
+      if (!search.contains(clr)) search.appendChild(clr);
+      clr.classList.add('dk-clear-btn');
+      clr.innerHTML = X_SVG;
+      clr.title = 'Xóa tìm kiếm';
+      clr.setAttribute('aria-label','Xóa tìm kiếm');
+      const syncClear = ()=>{
+        const has = !!(input && input.value && input.value.trim());
+        clr.classList.toggle('hidden', !has);
+        clr.classList.toggle('show', has);
+      };
+      if (input && !input._finalTopBound){
+        input._finalTopBound = true;
+        input.addEventListener('input', syncClear);
+        input.addEventListener('change', syncClear);
+      }
+      if (!clr._finalTopBound){
+        clr._finalTopBound = true;
+        clr.addEventListener('click', (e)=>{
+          e.preventDefault(); e.stopPropagation();
+          if (input) input.value = '';
+          syncClear();
+          try{ if (typeof window.clearTopSearch === 'function') window.clearTopSearch(); }catch(err){}
+          try{ if (input) input.focus(); }catch(err){}
+        });
+      }
+      syncClear();
+    }
+    // Nut KINH LUP xanh ben phai - thay cho X to trang
+    let go = document.getElementById('topSearchGoBtn');
+    if (!go){
+      go = document.createElement('button');
+      go.id = 'topSearchGoBtn'; go.type = 'button';
+      go.title = 'Tìm kiếm'; go.setAttribute('aria-label','Tìm kiếm');
+      go.innerHTML = LUP_SVG;
+      go.addEventListener('click', (e)=>{
+        e.preventDefault(); e.stopPropagation();
+        const q = (input && input.value || '').trim();
+        try{
+          if (typeof window.activateSearch === 'function') window.activateSearch('view');
+        }catch(err){}
+        if (q.length >= 2 && typeof doSearch === 'function'){
+          try{ doSearch(q); }catch(err){}
+        } else {
+          try{ if (input) input.focus(); }catch(err){}
+        }
+      });
+      search.appendChild(go);
+    } else {
+      if (!search.contains(go)) search.appendChild(go);
+      go.innerHTML = LUP_SVG;
+    }
+    // Dam bao thu tu trong pill: input -> X nho -> kinh lup
+    try{
+      if (input && input.parentNode === search) search.insertBefore(input, search.firstChild);
+      // Neu search co wrapper phu chua input thi bo qua - khong ep buoc
+      if (clr && search.contains(clr)) search.appendChild(clr);
+      if (go && search.contains(go)) search.appendChild(go);
+    }catch(e){}
+    // Ghi de ham cu cua patch truoc (no keo menu vao trong search)
+    try{ window.fixTopBarOverlap = buildTopBar; }catch(e){}
+  }
+
+  function getCurrentLatLng(){
+    try{
+      if (typeof lastUserPos !== 'undefined' && lastUserPos && lastUserPos.lat) return { lat: lastUserPos.lat, lng: lastUserPos.lng };
+    }catch(e){}
+    try{
+      if (map){ const c = map.getCenter(); return { lat: c.lat, lng: c.lng }; }
+    }catch(e){}
+    return { lat: 10.776, lng: 106.700 };
+  }
+
+  function buildBottomSheet(){
+    if (document.getElementById('homeBottomSheet')) return document.getElementById('homeBottomSheet');
+    const sheet = document.createElement('div');
+    sheet.id = 'homeBottomSheet';
+    sheet.innerHTML = `
+      <div class="hb-handle" id="hbHandle"></div>
+      <div class="hb-head">
+        <span class="hb-title">Tính năng nhanh</span>
+        <button type="button" class="hb-toggle" id="hbToggle" title="Thu / mở">˄</button>
+      </div>
+      <div class="hb-grid">
+        <button type="button" class="hb-action" id="hbDir">
+          <span class="hb-icon" style="background:#E8F0FE;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1A73E8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L17 10 L12 8 L7 10 Z" fill="#1A73E8" stroke="none"/><path d="M12 8 L12 21"/><circle cx="12" cy="21" r="1.6" fill="#1A73E8" stroke="none"/></svg></span>
+          <span class="hb-label">Chỉ đường</span>
+        </button>
+        <button type="button" class="hb-action" id="hbNearby">
+          <span class="hb-icon" style="background:#E6F4EA;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#188038" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2 v3 M12 19 v3 M2 12 h3 M19 12 h3"/><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/></svg></span>
+          <span class="hb-label">Quanh đây</span>
+        </button>
+        <button type="button" class="hb-action" id="hbAddPlace">
+          <span class="hb-icon" style="background:#FEF3C7;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21 s-7 -5.5 -7 -11 a7 7 0 0 1 14 0 c0 5.5 -7 11 -7 11 Z"/><circle cx="12" cy="10" r="2.5"/><path d="M12 7.5 v5 M9.5 10 h5"/></svg></span>
+          <span class="hb-label">Thêm địa điểm</span>
+        </button>
+        <button type="button" class="hb-action" id="hbAddPoi">
+          <span class="hb-icon" style="background:#F3E8FF;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13 L13 20 a2 2 0 0 1 -2.8 0 L3 12.8 V4 h8.8 Z"/><circle cx="8.5" cy="8.5" r="1.6" fill="#7C3AED" stroke="none"/><path d="M12 7.5 v5 M9.5 10 h5"/></svg></span>
+          <span class="hb-label">Thêm POI</span>
+        </button>
+      </div>`;
+    document.body.appendChild(sheet);
+
+    const toggle = ()=>{ sheet.classList.toggle('hb-collapsed'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = sheet.classList.contains('hb-collapsed') ? '˅' : '˄'; };
+    sheet.querySelector('#hbHandle').addEventListener('click', toggle);
+    sheet.querySelector('#hbToggle').addEventListener('click', toggle);
+    // Keo handle de thu / mo
+    try{
+      let sy = 0, dragging = false;
+      const h = sheet.querySelector('#hbHandle');
+      h.addEventListener('touchstart', (e)=>{ sy = e.touches[0].clientY; dragging = true; }, { passive:true });
+      h.addEventListener('touchmove', (e)=>{ if (!dragging) return; const dy = e.touches[0].clientY - sy; if (dy > 28) { sheet.classList.add('hb-collapsed'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = '˅'; dragging = false; } if (dy < -28) { sheet.classList.remove('hb-collapsed'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = '˄'; dragging = false; } }, { passive:true });
+      h.addEventListener('touchend', ()=>{ dragging = false; });
+    }catch(e){}
+
+    const collapseToPeek = ()=>{ sheet.classList.add('hb-collapsed'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = '˅'; };
+    sheet.querySelector('#hbDir').addEventListener('click', ()=>{
+      collapseToPeek();
+      try{ if (typeof window.openDirections === 'function') window.openDirections(); else { const b = document.getElementById('mainDirBtn'); if (b) b.click(); } }catch(e){}
+    });
+    sheet.querySelector('#hbNearby').addEventListener('click', ()=>{
+      collapseToPeek();
+      try{ if (typeof window.openNearbySearchPanel === 'function') window.openNearbySearchPanel(); else { const b = document.getElementById('btnNearbySearch'); if (b) b.click(); } }catch(e){}
+    });
+    sheet.querySelector('#hbAddPlace').addEventListener('click', ()=>{
+      collapseToPeek();
+      try{ if (typeof window.openQuickPin === 'function') window.openQuickPin(); else { const b = document.getElementById('btnQuickPin'); if (b) b.click(); } }catch(e){}
+    });
+    sheet.querySelector('#hbAddPoi').addEventListener('click', ()=>{
+      collapseToPeek();
+      try{
+        const p = getCurrentLatLng();
+        if (typeof window.openPoiSheet === 'function') window.openPoiSheet(p.lat, p.lng, 'Vị trí hiện tại');
+        else if (typeof showCustomToast === 'function') showCustomToast('Không mở được form thêm POI', 'warning');
+      }catch(e){}
+    });
+    return sheet;
+  }
+
+  function hideMovedFabs(){
+    ['mainDirBtn','btnNearbySearch','btnQuickPin'].forEach(id=>{
+      try{ const el = document.getElementById(id); if (el) el.style.display = 'none'; }catch(e){}
+    });
+  }
+
+  // Wrap updateUIState: ham goc hay set FAB display:flex -> sau do an lai 3 FAB da chuyen xuong sheet
+  try{
+    if (typeof updateUIState === 'function' && !updateUIState._finalTopBottom){
+      const _orig = updateUIState;
+      const _w = function(){ const r = _orig.apply(this, arguments); hideMovedFabs(); return r; };
+      _w._finalTopBottom = true;
+      // updateUIState la function declaration, gan lai qua window neu co the
+      try{ window.updateUIState = _w; }catch(e){}
+      updateUIState = _w;
+    }
+  }catch(e){}
+
+  function run(){
+    injectCSS();
+    buildTopBar();
+    buildBottomSheet();
+    hideMovedFabs();
+    // Watchdog nhe: neu panel khac mo (chi duong / nearby / POI / menu) thi an bottom sheet de khong de len nhau
+    if (!window._hbWatchdog){
+      window._hbWatchdog = setInterval(()=>{
+        try{
+          const sheet = document.getElementById('homeBottomSheet'); if (!sheet) return;
+          if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')){ sheet.classList.add('hb-hidden'); return; }
+          const openIds = ['dirSheet','nearbySearchPanel','poiSheet','savePlaceModal','profileModal','routeOptionsModal','reportModal'];
+          const anyOpen = openIds.some(id=>{ const el = document.getElementById(id); return el && (el.classList.contains('open') || el.style.display === 'block'); });
+          sheet.classList.toggle('hb-hidden', anyOpen);
+          if (anyOpen) return;
+          // Dam bao top bar khong bi patch cu keo lech lai
+          buildTopBar();
+          hideMovedFabs();
+        }catch(e){}
+      }, 700);
+    }
+  }
+  run();
+  document.addEventListener('DOMContentLoaded', run);
+  setTimeout(run, 400); setTimeout(run, 1200); setTimeout(run, 2500);
+  window.buildTopBarFinal = buildTopBar;
+  window.buildHomeBottomSheet = buildBottomSheet;
+})();
+
