@@ -1797,6 +1797,8 @@ function initMap() {
     showLocationPopup(e.lngLat);
   });
   map.on('click', (e) => {
+    /* [V6-DEBUG TEMP] Hien chu ngay tren man hinh khi handler click nhan duoc cham; xoa sau khi chan doan xong. */
+    try { const _dk = document.createElement('div'); _dk.textContent = 'DK-CLICK ' + e.lngLat.lat.toFixed(5) + ',' + e.lngLat.lng.toFixed(5); _dk.style.cssText = 'position:fixed;left:8px;top:96px;z-index:99999;background:#000;color:#fff;padding:6px 10px;border-radius:8px;font-size:13px;pointer-events:none;'; document.body.appendChild(_dk); setTimeout(() => _dk.remove(), 4000); } catch (_e) {}
     const _inNav = !!(document.body && document.body.classList.contains('google-nav')) || !!isNavigating;
     // Mo lai click khi dang dan duong: bam map van geocoding, chi an nut "Toi cho nay" trong popup
     // Dung follow de popup khong bi camera keo di
@@ -1882,6 +1884,8 @@ function renderStaticWarningsOnMap(warnings) {
 
 /* ========== POPUP & MARKERS ========== */
 function showLocationPopup(lngLat) {
+  /* [V6-DEBUG TEMP] Hien chu ngay tren man hinh khi vao duoc showLocationPopup; xoa sau khi chan doan xong. */
+  try { const _dk2 = document.createElement('div'); _dk2.textContent = 'DK-POPUP'; _dk2.style.cssText = 'position:fixed;left:8px;top:132px;z-index:99999;background:#b91c1c;color:#fff;padding:6px 10px;border-radius:8px;font-size:13px;pointer-events:none;'; document.body.appendChild(_dk2); setTimeout(() => _dk2.remove(), 4000); } catch (_e) {}
   const pixel = map.project(lngLat);
   const ripple = document.createElement('div');
   ripple.className = 'map-ripple';
