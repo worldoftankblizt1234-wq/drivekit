@@ -1520,7 +1520,7 @@ function initDataSubscriptions() {
   if (!currentUser) return;
   cleanupDataSubscriptions();
   _unsub.fsRest = onSnapshot(collection(fsdb, 'rest_stops'), snap => {
-    _fsRestStops = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
+    _fsRestStops = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data(), tag: d.data().tag || 'rest_stop' }));
     recomputeRestStops();
   }, err => console.warn('FS rest_stops:', err));
   _unsub.fsPoi = onSnapshot(collection(fsdb, 'community_pois'), snap => {
@@ -1796,7 +1796,11 @@ function initMap() {
     if (document.getElementById('suggestionsBox')?.classList.contains('show')) closeSearch();
     showLocationPopup(e.lngLat);
   });
-  map.on('click', (e) => {
+  let _tapHandledAt = 0;
+  const handleMapTap = (e) => {
+    const _tapNow = Date.now();
+    if (_tapNow - _tapHandledAt < 1000) return;
+    _tapHandledAt = _tapNow;
     const _inNav = !!(document.body && document.body.classList.contains('google-nav')) || !!isNavigating;
     // Mo lai click khi dang dan duong: bam map van geocoding, chi an nut "Toi cho nay" trong popup
     // Dung follow de popup khong bi camera keo di
@@ -1825,7 +1829,21 @@ function initMap() {
       return;
     }
     showLocationPopup(e.lngLat);
-  });
+  };
+  map.on('click', handleMapTap);
+  let _tapStart = null;
+  try {
+    const _cv = map.getCanvas();
+    _cv.addEventListener('touchstart', (ev) => { if (ev.touches && ev.touches.length === 1) { const t = ev.touches[0]; _tapStart = { x: t.clientX, y: t.clientY, at: Date.now() }; } else { _tapStart = null; } }, { passive: true });
+    _cv.addEventListener('touchend', (ev) => {
+      if (!_tapStart) return;
+      const t = ev.changedTouches && ev.changedTouches[0]; const st = _tapStart; _tapStart = null;
+      if (!t) return;
+      const dx = t.clientX - st.x, dy = t.clientY - st.y;
+      if (Date.now() - st.at > 500 || Math.hypot(dx, dy) > 16) return;
+      try { const _r = _cv.getBoundingClientRect(); const pt = map.unproject([t.clientX - _r.left, t.clientY - _r.top]); handleMapTap({ lngLat: pt }); } catch (e) {}
+    }, { passive: true });
+  } catch (e) {}
   map.on('moveend', () => {
     if (map.getZoom() < 13) { staticWarningMarkers.forEach(m => m.remove()); staticWarningMarkers = []; return; }
     if (staticWarningsTimer) clearTimeout(staticWarningsTimer);
@@ -2003,8 +2021,9 @@ function renderRestStopMarkers() {
   const _desiredRest = new Map();
   allRestStops.forEach(poi => {
     if (restStopFilterActive && poi.tag !== 'rest_stop' && poi.tag !== 'gas_station') return;
-    const _la = Number(poi.lat ?? poi.latitude ?? (poi.location && poi.location.latitude));
-    const _ln = Number(poi.lng ?? poi.lon ?? poi.longitude ?? (poi.location && poi.location.longitude));
+    let _la = Number(poi.lat ?? poi.latitude ?? (poi.location && poi.location.latitude));
+    let _ln = Number(poi.lng ?? poi.lon ?? poi.longitude ?? (poi.location && poi.location.longitude));
+    if (_la > 90 && _ln < 90) { const _sw = _la; _la = _ln; _ln = _sw; }
     if (!isFinite(_la) || !isFinite(_ln)) return;
     const _poi = { ...poi, lat: _la, lng: _ln };
     if (!_drivekitInView(_la, _ln)) return;
@@ -2036,8 +2055,9 @@ function renderCommunityPoisOnMap() {
      marker mới; marker không đổi giữ nguyên đối tượng (không tạo lại DOM). */
   const _desiredPoi = new Map();
   allCommunityPois.forEach(poi => {
-    const _la2 = Number(poi.lat ?? poi.latitude ?? (poi.location && poi.location.latitude));
-    const _ln2 = Number(poi.lng ?? poi.lon ?? poi.longitude ?? (poi.location && poi.location.longitude));
+    let _la2 = Number(poi.lat ?? poi.latitude ?? (poi.location && poi.location.latitude));
+    let _ln2 = Number(poi.lng ?? poi.lon ?? poi.longitude ?? (poi.location && poi.location.longitude));
+    if (_la2 > 90 && _ln2 < 90) { const _sw2 = _la2; _la2 = _ln2; _ln2 = _sw2; }
     if (!isFinite(_la2) || !isFinite(_ln2)) return;
     const _poi2 = { ...poi, lat: _la2, lng: _ln2 };
     if (!_drivekitInView(_la2, _ln2)) return;
