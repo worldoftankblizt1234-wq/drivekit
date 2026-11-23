@@ -410,6 +410,8 @@
   <div class="vps-footer"><button type="button" class="vps-done-btn" onclick="closeVehicleParamsSheet()">Xong</button></div>
 </div>
 
+<!-- [V10] dictionary.js: classic script, runs before the module loader below, so window.DRIVEKIT_DICT exists when app.js runs. If it fails to load, app.js translateFallback still works. -->
+<script src="./dictionary.js"></script>
 <!-- PHAI LA type="module" - app.js co 4 dong import firebase, doi sang script thuong la loi ngay. Moi onclick="..." trong HTML da duoc window.xxx = ... trong app.js nen van chay duoc -->
 <script type="module">
 let __drivekitLoaded = false;

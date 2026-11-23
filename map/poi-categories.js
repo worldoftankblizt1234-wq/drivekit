@@ -2,7 +2,7 @@
  * Chỉ dữ liệu + hàm tra cứu thuần túy, không DOM, không Firebase, không fetch, không API key.
  * Mỗi key DriveKit map sang mã Overture / TomTom / HERE. Trường null = CHƯA XÁC MINH, không đoán.
  * Nguồn: Overture Maps API, TomTom POI Categories / StandardCategoryID, HERE Places category system.
- * File này hiện là bản tách sẵn, CHƯA nối vào app.js v4 (app.js v4 vẫn giữ bảng inline để tránh xung đột khi đang sửa).
+ * Từ v10, app.js import trực tiếp file này; bảng inline trong app.js đã gỡ, đây là nguồn duy nhất của bảng mã.
  */
 export const POI_CATEGORY_LIBRARY_VERSION = '1.0.0-v3';
 export const POI_CATEGORY_SOURCES = [

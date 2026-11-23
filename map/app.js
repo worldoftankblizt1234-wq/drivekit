@@ -56,6 +56,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getDatabase, ref, set, get, onValue, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getFirestore, collection, doc, addDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+/* [V10] POI codes: single source of truth in ./poi-categories.js (it also sets the window globals). */
+import { POI_CATEGORY_CODES, getPoiCategoryIds } from "./poi-categories.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
@@ -625,75 +627,7 @@ const POI_TAG_CONFIG = {
   car_wash: { icon: 'fa-soap', label: 'Rửa xe', color: '#a855f7' }
 };
 
-/* ========== POI CATEGORY CODES (v3, chỉ thêm mới) ==========
-   Bảng tra mã chuẩn cho từng loại POI/nearby, dùng chung cho POI cộng
-   đồng và Nearby. POI_TAG_CONFIG ở trên KHÔNG đổi (icon/label/color
-   giữ nguyên). Key/tag và giá trị option cũ KHÔNG đổi; các cặp cùng ý
-   nghĩa được giữ làm alias trỏ cùng 1 nhóm mã (xem cuối bảng).
-   - overture: taxonomy.primary của Overture Maps (chuỗi snake_case),
-     hoặc mã nhóm top-level đã xác minh khi chưa có mã riêng.
-   - tomtom: mã chữ POICategory của TomTom (dùng cho discoverPlaces /
-     getPOICategoryCodes); tomtomId: StandardCategoryID (số, dùng cho
-     categorySet của Search API cũ).
-   - here: mã 3 cấp xxx-xxxx-xxxx của HERE Places, hoặc mã cấp cha
-     (level 1/2) đã xác minh khi chưa có mã riêng.
-   Trường nào CHƯA XÁC MINH được từ tài liệu chính thức thì để null,
-   TUYỆT ĐỐI không đoán. Xem báo cáo v3 để biết nguồn từng mã.
-   ============================================================ */
-const POI_CATEGORY_CODES = {
-  supermarket: { overture: 'supermarket', tomtom: 'SUPERMARKET', tomtomId: 7332005, here: '600-6300-0066' }, // here: Grocery (chưa có mã Supermarket riêng)
-  rest_stop: { overture: null, tomtom: 'REST_AREA', tomtomId: 7395, here: '400-4300-0000' },
-  gas_station: { overture: 'gas_station', tomtom: 'FUEL_STATION', tomtomId: 7311, here: '700-7600-0116' },
-  cafe: { overture: 'cafe', tomtom: 'CAFE', tomtomId: 9376002, here: '100-1100-0010' }, // here: Coffee Shop
-  restaurant: { overture: 'restaurant', tomtom: 'RESTAURANT', tomtomId: 7315, here: '100-1000-0000' },
-  pharmacy: { overture: 'pharmacy', tomtom: 'PHARMACY', tomtomId: 7326, here: '600-6400-0070' },
-  atm: { overture: null, tomtom: 'ATM', tomtomId: 7397, here: '700-7010-0108' },
-  repair: { overture: null, tomtom: 'CAR_REPAIR_AND_SERVICE', tomtomId: 7310, here: null },
-  hotel: { overture: 'hotel', tomtom: 'HOTEL', tomtomId: 7314003, here: '500-5000-0053' }, // tomtomId: hotel (cha: hotelMotel 7314)
-  hospital: { overture: 'health_care', tomtom: 'HOSPITAL', tomtomId: 7321, here: '800-8000-0159' }, // overture: mã nhóm cha
-  parking: { overture: null, tomtom: 'PARKING_GARAGE', tomtomId: 7313, here: '800-8500-0000' },
-  ev_charging: { overture: null, tomtom: 'CHARGING_LOCATION', tomtomId: 7309, here: '700-7600-0322' },
-  market: { overture: null, tomtom: 'MARKETPLACE', tomtomId: 7332, here: '600-6900-0247' },
-  wc: { overture: null, tomtom: 'PUBLIC_BATHROOM', tomtomId: null, here: '800-8700-0198' }, // tomtomId: chưa xác minh
-  car_wash: { overture: null, tomtom: 'CAR_WASH', tomtomId: 9155, here: '700-7850-0121' },
-  bank_or_credit_union: { overture: null, tomtom: 'BANK', tomtomId: 7328, here: '700-7000-0107' }, // here Bank gồm cả credit union theo mô tả
-  convenience_store: { overture: 'convenience_store', tomtom: 'CONVENIENCE_STORE', tomtomId: 9361009, here: '600-6000-0061' },
-  food_and_drink: { overture: 'food_and_drink', tomtom: null, tomtomId: null, here: '100' }, // here: level 1 Eat and Drink
-  bar: { overture: 'bar', tomtom: 'BAR', tomtomId: 9379004, here: '200-2000-0011' },
-  fast_food_restaurant: { overture: 'fast_food_restaurant', tomtom: 'FAST_FOOD', tomtomId: 7315015, here: '100-1000-0009' },
-  food_court: { overture: 'food_and_drink', tomtom: null, tomtomId: null, here: '100' }, // chỉ có mã cấp cha đã xác minh
-  shopping: { overture: 'shopping', tomtom: null, tomtomId: null, here: '600' }, // here: level 1 Shopping
-  shopping_mall: { overture: 'shopping', tomtom: 'MALL', tomtomId: 7373, here: '600-6100-0062' }, // overture: mã nhóm cha; tomtomId: shoppingCenter
-  laundry_service: { overture: null, tomtom: 'DRY_CLEANER', tomtomId: 9361010, here: null },
-  health_care: { overture: 'health_care', tomtom: 'HEALTHCARE_SERVICE', tomtomId: 9663, here: null },
-  dental_clinic: { overture: 'health_care', tomtom: 'DENTIST', tomtomId: 9374, here: null }, // overture: mã nhóm cha
-  gym: { overture: 'gym', tomtom: 'FITNESS_CLUB_AND_CENTER', tomtomId: 7320002, here: null },
-  airport: { overture: null, tomtom: 'AIRPORT', tomtomId: 7383, here: '400-4000-4581' },
-  train_station: { overture: null, tomtom: 'RAILWAY_STATION', tomtomId: 7380, here: '400-4100-0035' },
-  education: { overture: 'education', tomtom: null, tomtomId: null, here: null },
-  college_university: { overture: 'education', tomtom: 'COLLEGE_OR_UNIVERSITY', tomtomId: 7377, here: null }, // overture: mã nhóm cha
-  high_school: { overture: 'education', tomtom: 'HIGH_SCHOOL', tomtomId: 7372006, here: null }, // overture: mã nhóm cha
-  library: { overture: null, tomtom: 'PUBLIC_LIBRARY', tomtomId: 9913, here: null },
-  community_and_government: { overture: 'community_and_government', tomtom: null, tomtomId: null, here: null },
-  police_station: { overture: null, tomtom: 'POLICE_STATION', tomtomId: 7322, here: null },
-  fire_station: { overture: null, tomtom: 'FIRE_STATION', tomtomId: 7392, here: null },
-  post_office: { overture: null, tomtom: 'POST_OFFICE', tomtomId: 7324, here: null }
-};
-// Alias: tên khác cùng ý nghĩa -> cùng 1 nhóm mã, giữ cả 2 key cũ.
-POI_CATEGORY_CODES.superstore = POI_CATEGORY_CODES.supermarket;
-POI_CATEGORY_CODES.pharmacy_and_drug_store = POI_CATEGORY_CODES.pharmacy;
-POI_CATEGORY_CODES.ev_charging_station = POI_CATEGORY_CODES.ev_charging;
-POI_CATEGORY_CODES.public_restroom = POI_CATEGORY_CODES.wc;
-// Tra mã chuẩn của 1 key DriveKit/nearby. Key lạ hoặc lỗi -> null, không throw.
-function getPoiCategoryIds(key) {
-  try {
-    if (!key || typeof key !== 'string') return null;
-    const entry = POI_CATEGORY_CODES[key];
-    if (!entry) return null;
-    return { overture: entry.overture != null ? entry.overture : null, tomtom: entry.tomtom != null ? entry.tomtom : null, tomtomId: entry.tomtomId != null ? entry.tomtomId : null, here: entry.here != null ? entry.here : null };
-  } catch (e) { return null; }
-}
-window.getPoiCategoryIds = getPoiCategoryIds;
+/* [V10] POI codes imported from ./poi-categories.js; inline copy removed. No function renamed, call sites unchanged. */
 
 const ZOOM_CONFIG = { communityPoi: 15, restStop: 13, savedPlace: 14, report: 14, savedPlaceAlwaysShow: ['home', 'company'] };
 
