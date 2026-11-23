@@ -1811,7 +1811,15 @@ function initMap() {
       return;
     }
     if (document.getElementById('poiDetailSheet')?.classList.contains('open')) { closePoiDetail(); return; }
-    if (touchMarker) { closePopupSmoothly(touchMarker); touchMarker = null; return; }
+    if (touchMarker) {
+      /* [V5] Marker đã bị remove() từ nút trong popup (Ghìm/Tới chỗ này/Thêm địa điểm)
+         nhưng touchMarker vẫn truthy: cú bấm này phải hiện popup mới, không được
+         nuốt mất để đóng một marker vốn đã không còn trên bản đồ. */
+      let _tmEl = null;
+      try { _tmEl = touchMarker.getElement(); } catch (e) {}
+      if (_tmEl && !_tmEl.isConnected) { touchMarker = null; }
+      else { closePopupSmoothly(touchMarker); touchMarker = null; return; }
+    }
     if ((document.getElementById('dirSheet')?.classList.contains('open') || document.getElementById('suggestionsBox')?.classList.contains('show'))) {
       closeDirections();
       if (document.getElementById('suggestionsBox')?.classList.contains('show')) closeSearch();
@@ -1882,11 +1890,20 @@ function showLocationPopup(lngLat) {
   setTimeout(() => ripple.remove(), 600);
   if (navigator.vibrate) navigator.vibrate(30);
   const loadingHtml = `<div style="text-align:center; padding:8px; color:var(--text); min-width: 140px;"><i class="fas fa-spinner fa-spin" style="color:var(--primary); font-size:1.2rem; margin-bottom:6px;"></i><br><span style="font-size:0.85rem; font-weight:600;">Đang lấy địa chỉ...</span></div>`;
-  const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeOnClick: false, closeButton: false }).setLngLat([lngLat.lng, lngLat.lat]).setHTML(loadingHtml);
-  const el = createTouchMarkerElement();
-  touchMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lngLat.lng, lngLat.lat]).setPopup(popup).addTo(map);
-  touchMarker.togglePopup();
-  const markerRef = touchMarker;
+  /* [V5] Nếu tạo marker/popup chính lỗi thì vẫn phải hiện popup dự phòng với
+     tọa độ, không được im lặng: cú bấm đã tới đây thì người dùng phải thấy gì đó. */
+  let popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeOnClick: false, closeButton: false }).setLngLat([lngLat.lng, lngLat.lat]).setHTML(loadingHtml);
+  let markerRef = null;
+  try {
+    const el = createTouchMarkerElement();
+    touchMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lngLat.lng, lngLat.lat]).setPopup(popup).addTo(map);
+    touchMarker.togglePopup();
+    markerRef = touchMarker;
+  } catch (e) {
+    console.error('[DriveKit] showLocationPopup marker failed, fallback popup:', e);
+    touchMarker = null;
+    try { popup.addTo(map); } catch (_) {}
+  }
   (async () => {
     let name = '';
     try { const raw = await apiReverseGeocode(lngLat.lat, lngLat.lng); if (raw) name = raw.split(',').slice(0, 3).join(', '); } catch (e) {}
@@ -2772,7 +2789,7 @@ window.goToLongPressLocation = function(lat, lng, name) {
   document.getElementById('topSearchInput').value = name;
   document.getElementById('btnClearEnd').classList.remove('hidden');
   document.getElementById('searchClearBtn').classList.remove('hidden');
-  if (touchMarker) touchMarker.remove();
+  if (touchMarker) { try { touchMarker.remove(); } catch (e) {} touchMarker = null; } /* [V5] null để cú bấm sau không bị nuốt */
   openDirections();
   if (!startPoint) refreshGPS();
 };
@@ -2787,7 +2804,7 @@ window.openPoiSheet = function(lat, lng, addressHint) {
   document.getElementById('poiSaveBtn').disabled = true;
   document.querySelectorAll('.poi-tag-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('poiSheet').classList.add('open');
-  if (touchMarker) touchMarker.remove();
+  if (touchMarker) { try { touchMarker.remove(); } catch (e) {} touchMarker = null; } /* [V5] null để cú bấm sau không bị nuốt */
   setTimeout(() => document.getElementById('poiNameInput').focus(), 350);
 };
 window.closePoiSheet = function() { document.getElementById('poiSheet').classList.remove('open'); tempPoiLatLng = null; tempPoiTag = null; };
@@ -2858,7 +2875,7 @@ window.openPoiDetail = function(source, id) {
       <button class="poi-detail-btn share" onclick="sharePoiFromDetail()"><i class="fas fa-share-alt"></i> Chia sẻ</button>
     </div>`;
   document.getElementById('poiDetailSheet')?.classList.add('open');
-  if (touchMarker) touchMarker.remove();
+  if (touchMarker) { try { touchMarker.remove(); } catch (e) {} touchMarker = null; } /* [V5] null để cú bấm sau không bị nuốt */
 };
 window.closePoiDetail = function() { document.getElementById('poiDetailSheet')?.classList.remove('open'); currentDetailPoi = null; };
 window.goToPoiFromDetail = function() {
