@@ -1554,7 +1554,7 @@ function initDataSubscriptions() {
     recomputeSavedRoutes();
   }, err => console.warn('FS savedRoutes:', err));
 }
-function recomputeRestStops() { allRestStops = [..._fsRestStops]; renderCommunityPoisOnMap(); renderRestStopMarkers(); try { const _d = document.createElement('div'); _d.textContent = 'DK-REST: n=' + allRestStops.length + ' zoom=' + (map ? map.getZoom() : '?'); _d.style.cssText = 'position:fixed;left:8px;top:168px;z-index:99999;background:#1d4ed8;color:#fff;padding:6px 10px;border-radius:8px;font-size:13px;pointer-events:none;'; document.body.appendChild(_d); setTimeout(() => _d.remove(), 4000); } catch (e) {} }
+function recomputeRestStops() { allRestStops = [..._fsRestStops]; renderCommunityPoisOnMap(); renderRestStopMarkers(); }
 function recomputeCommunityPois() { allCommunityPois = [..._fsCommunityPois]; renderCommunityPoisOnMap(); }
 function recomputeReports() { allReports = { ..._rtdbReports }; renderReportsOnMap(); }
 function recomputeSavedPlaces() { allSavedPlaces = { ..._fsSavedPlaces }; renderSavedPlacesOnMap(); }
@@ -1772,7 +1772,7 @@ function initMap() {
     container: 'map', style: TRACKASIA_STYLE,
     center: [initialCenter[1], initialCenter[0]], zoom: initialZoom,
     pitch: 0, bearing: 0, attributionControl: true,
-    touchZoomRotate: true, dragRotate: true
+    touchZoomRotate: true, dragRotate: true, clickTolerance: 12
   });
 
   // [DEBUG] expose ra window để Console truy cập
@@ -1796,7 +1796,6 @@ function initMap() {
     if (document.getElementById('suggestionsBox')?.classList.contains('show')) closeSearch();
     showLocationPopup(e.lngLat);
   });
-  const _dkBlock = (r) => { try { const d = document.createElement('div'); d.textContent = 'DK-BLOCK: ' + r; d.style.cssText = 'position:fixed;left:8px;top:96px;z-index:99999;background:#b91c1c;color:#fff;padding:6px 10px;border-radius:8px;font-size:13px;pointer-events:none;'; document.body.appendChild(d); setTimeout(() => d.remove(), 4000); } catch (e) {} };
   map.on('click', (e) => {
     const _inNav = !!(document.body && document.body.classList.contains('google-nav')) || !!isNavigating;
     // Mo lai click khi dang dan duong: bam map van geocoding, chi an nut "Toi cho nay" trong popup
@@ -1809,23 +1808,20 @@ function initMap() {
       toggleNearbyPickMode(false);
       document.getElementById('nearbySearchPanel')?.classList.add('open');
       fetchNearbyPlaces();
-      _dkBlock('nearby');
       return;
     }
-    if (document.getElementById('poiDetailSheet')?.classList.contains('open')) { closePoiDetail(); _dkBlock('poiDetail'); return; }
+    if (document.getElementById('poiDetailSheet')?.classList.contains('open')) { closePoiDetail(); return; }
     if (touchMarker) {
-      /* [V5] Marker đã bị remove() từ nút trong popup (Ghìm/Tới chỗ này/Thêm địa điểm)
-         nhưng touchMarker vẫn truthy: cú bấm này phải hiện popup mới, không được
-         nuốt mất để đóng một marker vốn đã không còn trên bản đồ. */
+      let _tmOpen = false;
+      try { const _tmPop = touchMarker.getPopup(); _tmOpen = !!(_tmPop && _tmPop.isOpen()); } catch (e) {}
       let _tmEl = null;
       try { _tmEl = touchMarker.getElement(); } catch (e) {}
-      if (_tmEl && !_tmEl.isConnected) { touchMarker = null; }
-      else { closePopupSmoothly(touchMarker); touchMarker = null; _dkBlock('touchMarker'); return; }
+      if (!_tmEl || !_tmEl.isConnected || !_tmOpen) { try { touchMarker.remove(); } catch (e) {} touchMarker = null; }
+      else { closePopupSmoothly(touchMarker); touchMarker = null; return; }
     }
     if ((document.getElementById('dirSheet')?.classList.contains('open') || document.getElementById('suggestionsBox')?.classList.contains('show'))) {
       closeDirections();
       if (document.getElementById('suggestionsBox')?.classList.contains('show')) closeSearch();
-      _dkBlock('sheet/search');
       return;
     }
     showLocationPopup(e.lngLat);
@@ -1901,6 +1897,7 @@ function showLocationPopup(lngLat) {
     const el = createTouchMarkerElement();
     touchMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lngLat.lng, lngLat.lat]).setPopup(popup).addTo(map);
     touchMarker.togglePopup();
+    try { if (popup && !popup.isOpen()) popup.addTo(map); } catch (e) {}
     markerRef = touchMarker;
   } catch (e) {
     console.error('[DriveKit] showLocationPopup marker failed, fallback popup:', e);
