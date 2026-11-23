@@ -1554,7 +1554,7 @@ function initDataSubscriptions() {
     recomputeSavedRoutes();
   }, err => console.warn('FS savedRoutes:', err));
 }
-function recomputeRestStops() { allRestStops = [..._fsRestStops]; renderCommunityPoisOnMap(); renderRestStopMarkers(); }
+function recomputeRestStops() { allRestStops = [..._fsRestStops]; renderCommunityPoisOnMap(); renderRestStopMarkers(); try { const _d = document.createElement('div'); _d.textContent = 'DK-REST: n=' + allRestStops.length + ' zoom=' + (map ? map.getZoom() : '?'); _d.style.cssText = 'position:fixed;left:8px;top:168px;z-index:99999;background:#1d4ed8;color:#fff;padding:6px 10px;border-radius:8px;font-size:13px;pointer-events:none;'; document.body.appendChild(_d); setTimeout(() => _d.remove(), 4000); } catch (e) {} }
 function recomputeCommunityPois() { allCommunityPois = [..._fsCommunityPois]; renderCommunityPoisOnMap(); }
 function recomputeReports() { allReports = { ..._rtdbReports }; renderReportsOnMap(); }
 function recomputeSavedPlaces() { allSavedPlaces = { ..._fsSavedPlaces }; renderSavedPlacesOnMap(); }
@@ -1796,9 +1796,8 @@ function initMap() {
     if (document.getElementById('suggestionsBox')?.classList.contains('show')) closeSearch();
     showLocationPopup(e.lngLat);
   });
+  const _dkBlock = (r) => { try { const d = document.createElement('div'); d.textContent = 'DK-BLOCK: ' + r; d.style.cssText = 'position:fixed;left:8px;top:96px;z-index:99999;background:#b91c1c;color:#fff;padding:6px 10px;border-radius:8px;font-size:13px;pointer-events:none;'; document.body.appendChild(d); setTimeout(() => d.remove(), 4000); } catch (e) {} };
   map.on('click', (e) => {
-    /* [V6-DEBUG TEMP] Hien chu ngay tren man hinh khi handler click nhan duoc cham; xoa sau khi chan doan xong. */
-    try { const _dk = document.createElement('div'); _dk.textContent = 'DK-CLICK ' + e.lngLat.lat.toFixed(5) + ',' + e.lngLat.lng.toFixed(5); _dk.style.cssText = 'position:fixed;left:8px;top:96px;z-index:99999;background:#000;color:#fff;padding:6px 10px;border-radius:8px;font-size:13px;pointer-events:none;'; document.body.appendChild(_dk); setTimeout(() => _dk.remove(), 4000); } catch (_e) {}
     const _inNav = !!(document.body && document.body.classList.contains('google-nav')) || !!isNavigating;
     // Mo lai click khi dang dan duong: bam map van geocoding, chi an nut "Toi cho nay" trong popup
     // Dung follow de popup khong bi camera keo di
@@ -1810,9 +1809,10 @@ function initMap() {
       toggleNearbyPickMode(false);
       document.getElementById('nearbySearchPanel')?.classList.add('open');
       fetchNearbyPlaces();
+      _dkBlock('nearby');
       return;
     }
-    if (document.getElementById('poiDetailSheet')?.classList.contains('open')) { closePoiDetail(); return; }
+    if (document.getElementById('poiDetailSheet')?.classList.contains('open')) { closePoiDetail(); _dkBlock('poiDetail'); return; }
     if (touchMarker) {
       /* [V5] Marker đã bị remove() từ nút trong popup (Ghìm/Tới chỗ này/Thêm địa điểm)
          nhưng touchMarker vẫn truthy: cú bấm này phải hiện popup mới, không được
@@ -1820,11 +1820,12 @@ function initMap() {
       let _tmEl = null;
       try { _tmEl = touchMarker.getElement(); } catch (e) {}
       if (_tmEl && !_tmEl.isConnected) { touchMarker = null; }
-      else { closePopupSmoothly(touchMarker); touchMarker = null; return; }
+      else { closePopupSmoothly(touchMarker); touchMarker = null; _dkBlock('touchMarker'); return; }
     }
     if ((document.getElementById('dirSheet')?.classList.contains('open') || document.getElementById('suggestionsBox')?.classList.contains('show'))) {
       closeDirections();
       if (document.getElementById('suggestionsBox')?.classList.contains('show')) closeSearch();
+      _dkBlock('sheet/search');
       return;
     }
     showLocationPopup(e.lngLat);
@@ -1884,8 +1885,6 @@ function renderStaticWarningsOnMap(warnings) {
 
 /* ========== POPUP & MARKERS ========== */
 function showLocationPopup(lngLat) {
-  /* [V6-DEBUG TEMP] Hien chu ngay tren man hinh khi vao duoc showLocationPopup; xoa sau khi chan doan xong. */
-  try { const _dk2 = document.createElement('div'); _dk2.textContent = 'DK-POPUP'; _dk2.style.cssText = 'position:fixed;left:8px;top:132px;z-index:99999;background:#b91c1c;color:#fff;padding:6px 10px;border-radius:8px;font-size:13px;pointer-events:none;'; document.body.appendChild(_dk2); setTimeout(() => _dk2.remove(), 4000); } catch (_e) {}
   const pixel = map.project(lngLat);
   const ripple = document.createElement('div');
   ripple.className = 'map-ripple';
@@ -2007,8 +2006,12 @@ function renderRestStopMarkers() {
   const _desiredRest = new Map();
   allRestStops.forEach(poi => {
     if (restStopFilterActive && poi.tag !== 'rest_stop' && poi.tag !== 'gas_station') return;
-    if (!_drivekitInView(poi.lat, poi.lng)) return;
-    _desiredRest.set(poi._id || poi.id || `${poi.lng}|${poi.lat}|${poi.tag}`, { poi, sig: `${poi.lng}|${poi.lat}|${poi.tag}` });
+    const _la = Number(poi.lat ?? poi.latitude ?? (poi.location && poi.location.latitude));
+    const _ln = Number(poi.lng ?? poi.lon ?? poi.longitude ?? (poi.location && poi.location.longitude));
+    if (!isFinite(_la) || !isFinite(_ln)) return;
+    const _poi = { ...poi, lat: _la, lng: _ln };
+    if (!_drivekitInView(_la, _ln)) return;
+    _desiredRest.set(_poi._id || _poi.id || `${_ln}|${_la}|${_poi.tag}`, { poi: _poi, sig: `${_ln}|${_la}|${_poi.tag}` });
   });
   _restStopMarkerMap.forEach((entry, _key) => {
     const want = _desiredRest.get(_key);
@@ -2036,8 +2039,12 @@ function renderCommunityPoisOnMap() {
      marker mới; marker không đổi giữ nguyên đối tượng (không tạo lại DOM). */
   const _desiredPoi = new Map();
   allCommunityPois.forEach(poi => {
-    if (!_drivekitInView(poi.lat, poi.lng)) return;
-    _desiredPoi.set(poi._id || poi.id || `${poi.lng}|${poi.lat}|${poi.tag}`, { poi, sig: `${poi.lng}|${poi.lat}|${poi.tag}` });
+    const _la2 = Number(poi.lat ?? poi.latitude ?? (poi.location && poi.location.latitude));
+    const _ln2 = Number(poi.lng ?? poi.lon ?? poi.longitude ?? (poi.location && poi.location.longitude));
+    if (!isFinite(_la2) || !isFinite(_ln2)) return;
+    const _poi2 = { ...poi, lat: _la2, lng: _ln2 };
+    if (!_drivekitInView(_la2, _ln2)) return;
+    _desiredPoi.set(_poi2._id || _poi2.id || `${_ln2}|${_la2}|${_poi2.tag}`, { poi: _poi2, sig: `${_ln2}|${_la2}|${_poi2.tag}` });
   });
   _communityPoiMarkerMap.forEach((entry, _key) => {
     const want = _desiredPoi.get(_key);
