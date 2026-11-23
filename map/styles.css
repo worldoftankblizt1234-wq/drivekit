@@ -1,4 +1,10 @@
 /* =====================================================
+   STYLES.CSS - CLEANUP 2026-11-22
+   - Gop cac selector trung nhau, xoa block CSS trung y het
+   - Giu nguyen: :root, light-mode, top bar, bottom sheet premium, V5/V6/V7 FAB, V8 preview
+   - CSS trong app.js (inject) + styles.css: styles.css la nguon that duy nhat cho top bar / sheet / FAB
+   ===================================================== */
+/* =====================================================
    DriveKit — styles.css (Full Cập Nhật UI/UX + Sub-selectors + Settings)
    + Top bar + Bottom sheet premium (map var(--...))
    ===================================================== */
@@ -863,4 +869,186 @@ body:not(.light-mode) .rp-map-marker.rp-selected .rp-map-time{ background:#1d4ed
 @media (min-width:640px){
   html body #routePreviewSheet{ left:50% !important; transform:translate(-50%,120%) !important; max-width:480px !important; }
   html body #routePreviewSheet.rp-open{ transform:translate(-50%,0) !important; }
+}
+
+/* =====================================================
+   V9 - BO NUT BAT DAU O BUOC DAU - 2026-11-22
+   Buoc dau CHI CO "Xem tat ca tuyen duong"
+   Nut Bat dau chi hien trong #routePreviewSheet (sau khi chon tuyen)
+   ===================================================== */
+#dirSheet #btnViewAllRoutesStep1,
+#dirSheet .v9-viewall-btn{
+  display:flex !important; align-items:center !important; justify-content:center !important;
+  width:100% !important; padding:14px 16px !important; margin:12px 0 0 !important;
+  background:#0f766e !important; color:#fff !important; border:none !important;
+  border-radius:14px !important; font-size:15px !important; font-weight:800 !important;
+  cursor:pointer !important; box-shadow:0 6px 18px rgba(15,118,110,.30) !important;
+}
+#routePreviewSheet #rpStartBtn{ display:flex !important; }
+
+/* =====================================================
+   V10 - THAM SO XE BOTTOM SHEET - 2026-11-22
+   An tham so inline trong #dirSheet, chi hien trong sheet moi
+   ===================================================== */
+#dirSheet #carSeatsSelector, #dirSheet #truckAxlesSelector, #dirSheet #busTypeSelector, #dirSheet #truckWarning{ display:none !important; }
+.vps-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:2900; opacity:0; pointer-events:none; transition:opacity .25s; }
+.vps-overlay.open{ opacity:1; pointer-events:auto; }
+.vps-sheet{ position:fixed; left:0; right:0; bottom:0; z-index:2950; background:var(--card, #fff); border-radius:20px 20px 0 0; box-shadow:0 -10px 40px rgba(0,0,0,.30); border-top:1px solid var(--border, #e2e8f0); transform:translateY(100%); transition:transform .30s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column; max-height:72dvh; padding:0 0 calc(16px + env(safe-area-inset-bottom)); }
+.vps-sheet.open{ transform:translateY(0); }
+.vps-handle{ width:40px; height:5px; border-radius:99px; background:var(--border, #e2e8f0); margin:10px auto 6px; }
+.vps-header{ display:flex; align-items:center; gap:10px; padding:6px 16px 12px; border-bottom:1px solid var(--border, #e2e8f0); }
+.vps-back-btn{ background:var(--bg-2, #f1f5f9); color:var(--text, #0f172a); border:1px solid var(--border, #e2e8f0); border-radius:99px; padding:8px 12px; font-size:13px; font-weight:800; cursor:pointer; white-space:nowrap; }
+.vps-title-wrap{ flex:1; min-width:0; }
+.vps-title{ margin:0; font-size:17px; font-weight:900; color:var(--text, #0f172a); }
+.vps-subtitle{ margin:2px 0 0; font-size:12px; color:var(--text-muted, #64748b); font-weight:600; }
+.vps-close-btn{ width:32px; height:32px; border-radius:99px; background:var(--bg-2, #f1f5f9); border:none; color:var(--text, #0f172a); font-size:14px; cursor:pointer; }
+.vps-body{ flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:16px; }
+.vps-label{ font-size:14px; font-weight:800; color:var(--text, #0f172a); margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+.vps-options{ display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; }
+.vps-option-btn{ padding:12px 6px; border-radius:12px; border:1px solid var(--border, #e2e8f0); background:var(--bg-2, #f8fafc); color:var(--text, #0f172a); font-size:14px; font-weight:800; cursor:pointer; }
+.vps-option-btn.active{ background:#0f766e; color:#fff; border-color:#0f766e; box-shadow:0 4px 14px rgba(15,118,110,.35); }
+.vps-option-wide{ grid-column:span 2; }
+.vps-hint{ margin:10px 0 0; font-size:12px; color:var(--text-muted, #64748b); }
+.vps-warning{ margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:rgba(245,158,11,.15); border:1px solid var(--warning, #f59e0b); border-radius:10px; padding:10px; font-size:12px; line-height:1.4; color:var(--text, #0f172a); }
+.vps-footer{ padding:12px 16px 0; }
+.vps-done-btn{ width:100%; padding:14px; border:none; border-radius:14px; background:#0f766e; color:#fff; font-size:15px; font-weight:800; cursor:pointer; box-shadow:0 6px 18px rgba(15,118,110,.30); }
+
+/* =====================================================
+   FIX-2026-11-23 — THEM VAO CUOI FILE, KHONG SUA 914 DONG TREN
+   Muc dich: responsive dien thoai + giam lag + on dinh FAB.
+   Nguyen tac: chi THEM override o cuoi file; khong xoa selector,
+   khong doi ten class/id, khong xoa tinh nang nao.
+   Override cai gi (de doi chieu):
+   - FAB: cac dinh nghia trung o dong ~172-178, ~526-535, ~560-648,
+     ~702-739 (V5/V6/V7 + cum fabCluster). Block A dung selector
+     (1 ID + html/body + 2 :not) thang duoc style JS inject dang
+     "html body #..." (1 ID, it class hon), nhung THUA selector cum
+     "#fabClusterLeft #btnCompass" (2 ID) — co tinh de vay: nut
+     trong cum giu position:static, chi nut dung rieng moi lay bottom.
+   - Sheet/report: .report-body dong 210, .vps-options dong 907.
+   - Blur: .hud-stat 136, .hud-bottom 151, .fab-compass 178/613-628,
+     #homeBottomSheet 666, cum FAB ~697.
+   - Animation vo han: dong 42, 96, 194, 346, 366, 378.
+   ===================================================== */
+:root{
+  --fab-locate-bottom:168px;
+  --fab-layers-bottom:230px;
+  --fab-compass-bottom:290px;
+  --fab-report-bottom:230px;
+  --fab-reststop-bottom:350px;
+}
+
+/* --- A. FAB dung rieng: thong nhat bottom + safe-area --- */
+html body:not(.navigating):not(.google-nav) #mainLocateBtn,
+html body:not(.navigating):not(.google-nav) #btnLayerMenu,
+html body:not(.navigating):not(.google-nav) #btnCompass,
+html body:not(.navigating):not(.google-nav) #btnReport,
+html body:not(.navigating):not(.google-nav) #btnRestStopFilter{
+  display:flex !important; visibility:visible !important; opacity:1 !important;
+  pointer-events:auto !important; position:fixed !important;
+  transform:none !important; z-index:1100 !important;
+}
+html body:not(.navigating):not(.google-nav) #mainLocateBtn{
+  left:16px !important; right:auto !important; top:auto !important;
+  bottom:calc(var(--fab-locate-bottom) + var(--safe-bottom, 0px)) !important;
+}
+html body:not(.navigating):not(.google-nav) #btnLayerMenu{
+  left:16px !important; right:auto !important; top:auto !important;
+  bottom:calc(var(--fab-layers-bottom) + var(--safe-bottom, 0px)) !important;
+}
+html body:not(.navigating):not(.google-nav) #btnCompass{
+  left:16px !important; right:auto !important; top:auto !important;
+  bottom:calc(var(--fab-compass-bottom) + var(--safe-bottom, 0px)) !important;
+}
+html body:not(.navigating):not(.google-nav) #btnReport{
+  right:16px !important; left:auto !important; top:auto !important;
+  bottom:calc(var(--fab-report-bottom) + var(--safe-bottom, 0px)) !important;
+}
+html body:not(.navigating):not(.google-nav) #btnRestStopFilter{
+  right:16px !important; left:auto !important; top:auto !important;
+  bottom:calc(var(--fab-reststop-bottom) + var(--safe-bottom, 0px)) !important;
+}
+
+/* --- B. May nho (<=380px, bao gom 360px): giam cot, giam padding --- */
+@media (max-width:380px){
+  .report-body{ grid-template-columns:repeat(2, 1fr); gap:8px; padding:12px; }
+  .vps-options{ grid-template-columns:repeat(3, 1fr); }
+  .dir-sheet, .poi-sheet, .poi-detail-sheet{ padding-left:12px; padding-right:12px; }
+}
+@media (max-width:360px){
+  .report-body{ padding:10px; gap:6px; }
+  .vps-body{ padding:12px; }
+}
+
+/* --- C. Man hinh thap / xoay ngang: thu sheet, an FAB phu, giu nut vi tri --- */
+@media (max-height:520px), (orientation:landscape) and (max-width:900px){
+  #homeBottomSheet{
+    padding-top:6px !important;
+    padding-bottom:calc(6px + var(--safe-bottom, 0px)) !important;
+  }
+  .dir-sheet, .poi-sheet, .poi-detail-sheet, .vps-sheet{ max-height:62dvh; }
+  html body:not(.navigating):not(.google-nav) #btnCompass,
+  html body:not(.navigating):not(.google-nav) #fabClusterLeft #btnCompass,
+  html body:not(.navigating):not(.google-nav) #btnRestStopFilter,
+  html body:not(.navigating):not(.google-nav) #fabClusterRight #btnRestStopFilter{
+    display:none !important;
+  }
+}
+
+/* --- D. Giam lag tren dien thoai (<=640px): bo blur, nen dac --- */
+@media (max-width:640px){
+  .hud-stat{ background:#0f172a; backdrop-filter:none; -webkit-backdrop-filter:none; }
+  .hud-bottom{ background:var(--card); backdrop-filter:none; -webkit-backdrop-filter:none; }
+  html body:not(.navigating):not(.google-nav) #btnCompass.fab-compass,
+  html body .fab-compass{
+    background:var(--card) !important;
+    backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+  }
+  html body:not(.navigating):not(.google-nav) #homeBottomSheet{
+    background:var(--card) !important;
+    backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+  }
+  html body:not(.navigating):not(.google-nav) #fabClusterLeft,
+  html body:not(.navigating):not(.google-nav) #fabClusterRight{
+    backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+  }
+}
+
+/* --- E. Giam chuyen dong: tat animation VO HAN, giu spinner + animation 1 lan --- */
+@media (prefers-reduced-motion: reduce){
+  .nearby-center-marker,
+  .map-touch-marker .pulse,
+  .community-poi-pin.rest-stop-pin,
+  .sheet-swipe-text i,
+  .live-badge-status.on,
+  .live-me-pin{ animation:none !important; }
+  /* Co tinh giu: .spinner (spin, bao trang thai dang tai),
+     popupFadeIn/slideDown/popIn/rippleAnim (chay 1 lan, khong lap). */
+}
+
+/* --- F. Cong khai / accessibility + khong tran ngang --- */
+button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-visible{
+  outline:2px solid var(--primary); outline-offset:2px;
+}
+input, textarea{ user-select:text; -webkit-user-select:text; }
+#map{ user-select:none; -webkit-user-select:none; }
+.dir-sheet, .poi-sheet, .poi-detail-sheet, .vps-sheet{
+  max-width:100%; box-sizing:border-box;
+}
+/* html,body da co overflow:hidden o dong 28; khong co 100vw trong file
+   nen khong them rule tran ngang moi. */
+
+/* =====================================================
+   FIX-V2 - 2026-11-23 (Nhom 3: may yeu / touch target)
+   Chi THEM, khong xoa selector cu, khong doi ten class.
+   ===================================================== */
+.report-btn, #homeBottomSheet .hb-action, .vps-option-btn{
+  min-height:44px; box-sizing:border-box;
+}
+.report-btn{ min-width:44px; }
+.vps-option-btn{ min-height:44px; }
+@media (max-width:380px){
+  .report-btn{ padding:10px 8px; font-size:0.8rem; }
+  .vps-option-btn{ padding:10px 4px; font-size:13px; }
+  #homeBottomSheet .hb-action{ padding:6px 1px 4px; }
 }

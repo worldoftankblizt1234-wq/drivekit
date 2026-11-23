@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0f172a" />
 <title>DriveKit — Mọi hành trình, một giải pháp</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -10,11 +10,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&family=Fira+Code:wght@500;600;700&display=swap&subset=vietnamese" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" onerror="window.__maplibreFailed=true;document.addEventListener('DOMContentLoaded',function(){var e=document.getElementById('loadingText');if(e)e.textContent='Không tải được bản đồ, kiểm tra mạng rồi tải lại trang.';});"></script>
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<!-- ========== LOADING SCREEN ========== -->
+<noscript><div style="position:fixed;inset:0;z-index:9999;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;">DriveKit cần JavaScript để hoạt động. Vui lòng bật JavaScript trong trình duyệt rồi tải lại trang.</div></noscript>
 <div class="loading-screen" id="loadingScreen">
   <div class="spinner"></div>
   <div style="text-align:center;">
@@ -23,7 +23,6 @@
     <div class="loading-percent" id="loadingPercent">0%</div>
   </div>
 </div>
-<!-- ========== AUTH SCREEN ========== -->
 <div class="auth-screen hidden" id="authScreen">
   <div class="auth-box">
     <h2 id="authTitle">DriveKit 🚌</h2>
@@ -40,7 +39,6 @@
     </div>
   </div>
 </div>
-<!-- ========== MAIN APP UI ========== -->
 <div id="appUI" class="hidden">
   <div id="map"></div>
   <div class="floating-search" id="searchBar" onclick="activateSearch('view')">
@@ -93,48 +91,12 @@
       <button class="vehicle-mode-btn" data-mode="walking" onclick="setVehicleMode('walking', this)"><i class="fas fa-walking"></i> Đi bộ</button>
       <button class="vehicle-mode-btn" data-mode="bicycle" onclick="setVehicleMode('bicycle', this)"><i class="fas fa-bicycle"></i> Xe đạp</button>
     </div>
-    <div class="sub-selector" id="carSeatsSelector">
-      <div class="sub-selector-label"><i class="fas fa-chair" style="color:#3b82f6;"></i> Số chỗ ngồi</div>
-      <div class="sub-options">
-        <button class="sub-option-btn" onclick="setCarSeats(3, this)">3</button>
-        <button class="sub-option-btn" onclick="setCarSeats(4, this)">4</button>
-        <button class="sub-option-btn active" onclick="setCarSeats(5, this)">5</button>
-        <button class="sub-option-btn" onclick="setCarSeats(6, this)">6</button>
-        <button class="sub-option-btn" onclick="setCarSeats(7, this)">7</button>
-        <button class="sub-option-btn" onclick="setCarSeats(8, this)">8</button>
-        <button class="sub-option-btn" onclick="setCarSeats(9, this)">9</button>
-        <button class="sub-option-btn" onclick="setCarSeats(10, this)">10</button>
-        <button class="sub-option-btn" onclick="setCarSeats(11, this)">11</button>
-        <button class="sub-option-btn" onclick="setCarSeats(12, this)">12+</button>
-      </div>
+    <!-- V10: Tham so xe da chuyen sang #vehicleParamsSheet, khong hien inline trong dirSheet -->
     </div>
-    <div class="sub-selector hidden" id="truckAxlesSelector">
-      <div class="sub-selector-label"><i class="fas fa-truck" style="color:#f59e0b;"></i> Số trục xe</div>
-      <div class="sub-options">
-        <button class="sub-option-btn" onclick="setTruckAxles(1, this)">1</button>
-        <button class="sub-option-btn active" onclick="setTruckAxles(2, this)">2</button>
-        <button class="sub-option-btn" onclick="setTruckAxles(3, this)">3</button>
-        <button class="sub-option-btn" onclick="setTruckAxles(4, this)">4</button>
-        <button class="sub-option-btn" onclick="setTruckAxles(5, this)">5</button>
-        <button class="sub-option-btn" onclick="setTruckAxles(6, this)">6</button>
-        <button class="sub-option-btn" onclick="setTruckAxles(7, this)">7</button>
-        <button class="sub-option-btn" onclick="setTruckAxles(8, this)">8</button>
-        <button class="sub-option-btn" onclick="setTruckAxles(9, this)">9</button>
-        <button class="sub-option-btn" onclick="setTruckAxles(10, this)">10</button>
-      </div>
     </div>
-    <div class="sub-selector hidden" id="busTypeSelector">
-      <div class="sub-selector-label"><i class="fas fa-bus" style="color:#8b5cf6;"></i> Loại xe buýt</div>
-      <div class="sub-options">
-        <button class="sub-option-btn active" onclick="setBusType('regular', this)"><i class="fas fa-bus"></i> Thường</button>
-        <button class="sub-option-btn" onclick="setBusType('sleeper', this)"><i class="fas fa-bed"></i> Giường nằm</button>
-      </div>
     </div>
-    <div id="truckWarning" class="hidden" style="background: rgba(245, 158, 11, 0.15); border: 1px solid var(--warning); border-radius: 8px; padding: 10px; margin-bottom: 10px; display: flex; gap: 8px; align-items: flex-start;">
-      <i class="fas fa-exclamation-triangle" style="color: var(--warning); font-size: 1.1rem; margin-top: 2px;"></i>
-      <div style="font-size: 0.75rem; color: var(--text); line-height: 1.4;"><b style="color: var(--warning);">Lưu ý:</b> Vui lòng tự quan sát biển báo cấm tải trên thực tế!</div>
-    </div>
-    <button class="btn-auth btn-email" style="margin-top:6px; margin-bottom:0;" onclick="fetchAndShowRouteOptions()"><i class="fas fa-search-location"></i> Xem tất cả tuyến đường</button>
+    <!-- V9: BUOC DAU CHI CO Xem tat ca - KHONG CO nut Bat dau dan duong o day. Nut Bat dau chi nam trong #routePreviewSheet (JS tu tao) sau khi chon tuyen 1/2/3 -->
+    <button id="btnViewAllRoutesStep1" class="btn-auth btn-email v9-viewall-btn" style="margin-top:6px; margin-bottom:0;" onclick="fetchAndShowRouteOptions()"><i class="fas fa-search-location"></i> Xem tất cả tuyến đường</button>
   </div>
   <div class="suggestions-box" id="suggestionsBox"></div>
   <div class="hidden" id="hud">
@@ -157,12 +119,10 @@
     </div>
   </div>
 </div>
-<!-- ========== ROUTE OPTIONS MODAL ========== -->
 <div class="route-options-modal" id="routeOptionsModal">
   <div class="route-options-header"><h2><i class="fas fa-route"></i> Các tuyến đường gợi ý</h2><button class="report-close" onclick="closeRouteOptions()" style="background:var(--bg-2);color:var(--text);"><i class="fas fa-times"></i></button></div>
   <div class="route-options-body" id="routeOptionsBody"></div>
 </div>
-<!-- ========== REPORT MODAL ========== -->
 <div class="report-modal" id="reportModal">
   <div class="report-header"><h2>Báo cáo sự cố</h2><button class="report-close" onclick="closeReportMenu()"><i class="fas fa-times"></i></button></div>
   <div class="report-body" style="grid-template-columns: repeat(3, 1fr);">
@@ -176,7 +136,6 @@
     <button class="report-btn" onclick="submitReport('road_collapse')"><i class="fas fa-triangle-exclamation" style="color:#b91c1c;"></i> Sập đường</button>
   </div>
 </div>
-<!-- ========== SIGNS MENU MODAL ========== -->
 <div class="report-modal" id="signsMenuModal" style="z-index: 2600;">
   <div class="report-header" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
     <h2>Chọn loại biển báo</h2><button class="report-close" onclick="closeSignsMenu()"><i class="fas fa-times"></i></button>
@@ -188,7 +147,6 @@
     <button class="report-btn" onclick="selectSignsType('toll')" style="flex-direction:row; justify-content:flex-start; padding:16px;"><i class="fas fa-money-bill" style="color:#f59e0b;"></i> <span style="margin-left:12px; font-size:1rem;">Trạm thu phí</span></button>
   </div>
 </div>
-<!-- ========== SPEED LIMIT MODAL ========== -->
 <div class="report-modal" id="speedLimitModal" style="z-index: 2700;">
   <div class="report-header" style="background: #10b981;"><h2>Chọn tốc độ tối đa</h2><button class="report-close" onclick="closeSpeedLimitMenu()"><i class="fas fa-times"></i></button></div>
   <div class="report-body" style="grid-template-columns: repeat(4, 1fr); gap:8px; padding:20px;">
@@ -207,7 +165,6 @@
     <button class="report-btn" onclick="submitSpeedLimit(120)">120</button>
   </div>
 </div>
-<!-- ========== NEARBY SEARCH PANEL ========== -->
 <div class="report-modal" id="nearbySearchPanel" style="z-index: 2600;">
   <div class="report-header" style="background: linear-gradient(135deg, #f59e0b, #d97706);"><h2><i class="fas fa-street-view"></i> Tìm kiếm xung quanh</h2><button class="report-close" onclick="closeNearbySearchPanel()"><i class="fas fa-times"></i></button></div>
   <div class="report-body" style="display:flex; flex-direction:column; gap:16px; padding:20px;">
@@ -244,7 +201,6 @@
     <button class="btn btn-primary" onclick="fetchNearbyPlaces()" style="padding:16px; border-radius:10px; font-size:1.1rem; font-weight:800; margin-top:10px; background:var(--primary); color:white;"><i class="fas fa-search"></i> TÌM KIẾM</button>
   </div>
 </div>
-<!-- ========== NEARBY RESULTS ========== -->
 <div id="nearbyResultsOverlay" onclick="closeNearbyResultsSheet()" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:2700; display:none; opacity:0; transition:opacity 0.3s;"></div>
 <div id="nearbyResultsSheet" style="position:fixed; bottom:0; left:0; right:0; z-index:2800; background:var(--card); border-top-left-radius:20px; border-top-right-radius:20px; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.4,0,0.2,1); display:flex; flex-direction:column; max-height:70vh; box-shadow:0 -10px 40px rgba(0,0,0,0.3); border-top:1px solid var(--border);">
   <div class="sheet-swipe-hint" id="nearbyResultsSwipeHandle"><div class="sheet-swipe-bar"></div><div class="sheet-swipe-text"><span>Vuốt xuống để đóng</span><i class="fas fa-chevron-down"></i></div></div>
@@ -254,7 +210,6 @@
   </div>
   <div id="nearbyResultsList" style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px;"></div>
 </div>
-<!-- ========== PROFILE MODAL (DAU 3 GACH) ========== -->
 <div class="profile-modal" id="profileModal">
   <div class="profile-header">
     <button class="profile-close" onclick="closeMenu()"><i class="fas fa-times"></i></button>
@@ -281,7 +236,6 @@
     </div>
     <button class="profile-btn" onclick="shareRoute()"><span><i class="fas fa-share-alt"></i> Chia sẻ lộ trình hiện tại</span><i class="fas fa-chevron-right"></i></button>
     <div class="profile-btn" style="cursor: default;"><span><i class="fas fa-moon"></i> Chế độ Sáng / Tối</span><label class="switch"><input type="checkbox" id="themeToggle" onchange="toggleTheme()"><span class="slider"></span></label></div>
-    <!-- DOI: Cai dat Giong noi -> Cai dat chung -->
     <button class="profile-btn" onclick="openSettings()"><span><i class="fas fa-cog"></i> Cài đặt</span><i class="fas fa-chevron-right"></i></button>
     <div class="profile-card"><h3><i class="fas fa-bookmark"></i> Lộ trình đã lưu <button onclick="clearAllSavedRoutes()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button></h3><div class="history-list" id="savedRoutesList"><div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có lộ trình nào</div></div></div>
     <div class="profile-card"><h3><i class="fas fa-history"></i> Lịch sử chuyến đi <button onclick="clearAllHistory()" style="background:transparent;color:var(--danger);font-size:0.8rem;padding:4px;" title="Xoá tất cả"><i class="fas fa-trash-alt"></i></button></h3><div class="history-list" id="historyList"><div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Chưa có chuyến đi nào</div></div></div>
@@ -289,7 +243,6 @@
     <button class="profile-btn logout" onclick="logout()"><span><i class="fas fa-sign-out-alt"></i> Đăng xuất</span></button>
   </div>
 </div>
-<!-- ========== END TRIP MODAL ========== -->
 <div class="end-trip-modal" id="endTripModal">
   <div class="end-trip-box">
     <h2>🏁 Hoàn thành chuyến đi</h2>
@@ -304,7 +257,6 @@
     <button class="end-trip-btn cancel" onclick="closeEndTripModal()"><i class="fas fa-arrow-left"></i> Tiếp tục chuyến đi</button>
   </div>
 </div>
-<!-- ========== SAVE PLACE MODAL ========== -->
 <div class="end-trip-modal" id="savePlaceModal">
   <div class="end-trip-box">
     <h2>📍 Lưu địa điểm</h2>
@@ -320,12 +272,10 @@
     <button class="end-trip-btn cancel" onclick="closeSavePlaceModal()"><i class="fas fa-times"></i> Huỷ</button>
   </div>
 </div>
-<!-- ========== POI DETAIL SHEET ========== -->
 <div class="poi-detail-sheet" id="poiDetailSheet">
   <div class="sheet-swipe-hint" id="poiDetailSwipeHandle"><div class="sheet-swipe-bar"></div><div class="sheet-swipe-text"><span>Vuốt xuống để đóng</span><i class="fas fa-chevron-down"></i></div></div>
   <div id="poiDetailContent"></div>
 </div>
-<!-- ========== POI SHEET ========== -->
 <div class="poi-sheet" id="poiSheet">
   <div class="sheet-swipe-hint" id="poiSheetSwipeHandle"><div class="sheet-swipe-bar"></div><div class="sheet-swipe-text"><span>Vuốt xuống để đóng</span><i class="fas fa-chevron-down"></i></div></div>
   <h3><i class="fas fa-map-marker-alt" style="color:var(--success);"></i> Thêm địa điểm cộng đồng</h3>
@@ -353,7 +303,6 @@
     <button class="poi-btn save" id="poiSaveBtn" onclick="submitCommunityPoi()" disabled><i class="fas fa-check"></i> Lưu địa điểm</button>
   </div>
 </div>
-<!-- ========== SETTINGS MODAL (MOI) ========== -->
 <div class="report-modal" id="settingsModal" style="z-index: 2600;">
   <div class="report-header" style="background: var(--card); border-bottom: 1px solid var(--border); color: var(--text);">
     <h2><i class="fas fa-cog" style="color:var(--primary);"></i> Cài đặt</h2>
@@ -370,7 +319,6 @@
     </button>
   </div>
 </div>
-<!-- ========== SIGN DISPLAY SETTINGS MODAL (MOI) ========== -->
 <div class="report-modal" id="signDisplaySettingsModal" style="z-index: 2650;">
   <div class="report-header" style="background: var(--card); border-bottom: 1px solid var(--border); color: var(--text);">
     <h2><i class="fas fa-traffic-light" style="color:#ef4444;"></i> Hiển thị biển báo</h2>
@@ -402,7 +350,6 @@
     <button class="btn-auth btn-email" style="margin-top:6px;" onclick="closeSignDisplaySettings()">Xong</button>
   </div>
 </div>
-<!-- ========== VOICE SETTINGS MODAL ========== -->
 <div class="report-modal" id="voiceSettingsModal" style="z-index: 2600;">
   <div class="report-header" style="background: var(--card); border-bottom: 1px solid var(--border); color: var(--text);">
     <h2><i class="fas fa-volume-up" style="color:var(--primary);"></i> Cài đặt Giọng nói</h2>
@@ -421,14 +368,76 @@
     <button class="btn-auth btn-email" style="margin-top:10px;" onclick="closeVoiceSettings()">Lưu & Đóng</button>
   </div>
 </div>
-<!-- ========== SCRIPTS ========== -->
 <script>
   window.addEventListener('error', function (e) { var t = document.getElementById('loadingText'); if (t) t.textContent = 'Lỗi tải: ' + (e.message || 'không rõ'); });
-  setTimeout(function () { var el = document.getElementById('loadingPercent'); if (el && el.textContent === '0%') { var t = document.getElementById('loadingText'); if (t) t.textContent = 'Không tải được ứng dụng.'; } }, 3500);
+  setTimeout(function () {
+    var ls = document.getElementById('loadingScreen');
+    var el = document.getElementById('loadingPercent');
+    if (ls && !ls.classList.contains('hidden') && el && el.textContent === '0%') {
+      var t = document.getElementById('loadingText'); if (t) t.textContent = 'Không tải được ứng dụng.';
+    }
+  }, 10000);
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW error:', err)); });
   }
 </script>
-<script type="module" src="app.js"></script>
+
+<!-- ========== VEHICLE PARAMS SHEET - V10 ========== -->
+<div class="vps-overlay" id="vehicleParamsOverlay" onclick="closeVehicleParamsSheet()"></div>
+<div class="vps-sheet" id="vehicleParamsSheet">
+  <div class="vps-handle"></div>
+  <div class="vps-header">
+    <button type="button" class="vps-back-btn" onclick="closeVehicleParamsSheet()">←&nbsp;Quay lại</button>
+    <div class="vps-title-wrap"><h3 class="vps-title" id="vpsTitle">Tham số xe hơi</h3><p class="vps-subtitle" id="vpsSubtitle">Ô tô • 5 chỗ</p></div>
+    <button type="button" class="vps-close-btn" onclick="closeVehicleParamsSheet()">✕</button>
+  </div>
+  <div class="vps-body">
+    <div class="vps-section" id="vpsCarSection">
+      <div class="vps-label"><i class="fas fa-chair" style="color:#3b82f6;"></i> Số chỗ ngồi</div>
+      <div class="vps-options" id="vpsCarOptions"></div>
+      <p class="vps-hint">Chọn số chỗ để tính tuyến phù hợp với xe của bạn.</p>
+    </div>
+    <div class="vps-section" id="vpsTruckSection" style="display:none;">
+      <div class="vps-label"><i class="fas fa-truck" style="color:#f59e0b;"></i> Số trục xe</div>
+      <div class="vps-options" id="vpsTruckOptions"></div>
+      <div class="vps-warning"><i class="fas fa-exclamation-triangle"></i><div><b>Lưu ý:</b> Vui lòng tự quan sát biển báo cấm tải trên thực tế!</div></div>
+    </div>
+    <div class="vps-section" id="vpsBusSection" style="display:none;">
+      <div class="vps-label"><i class="fas fa-bus" style="color:#8b5cf6;"></i> Loại xe buýt</div>
+      <div class="vps-options" id="vpsBusOptions"></div>
+    </div>
+  </div>
+  <div class="vps-footer"><button type="button" class="vps-done-btn" onclick="closeVehicleParamsSheet()">Xong</button></div>
+</div>
+
+<!-- PHAI LA type="module" - app.js co 4 dong import firebase, doi sang script thuong la loi ngay. Moi onclick="..." trong HTML da duoc window.xxx = ... trong app.js nen van chay duoc -->
+<script type="module">
+let __drivekitLoaded = false;
+const __drivekitWatchdog = setTimeout(function(){
+  if (__drivekitLoaded) return;
+  const el = document.getElementById('loadingText');
+  if (el) el.textContent = 'Đang chờ mạng... Kiểm tra kết nối, hoặc bấm Tải lại trang.';
+}, 12000);
+try {
+  await import('./app.js');
+  __drivekitLoaded = true;
+  clearTimeout(__drivekitWatchdog);
+} catch (e) {
+  clearTimeout(__drivekitWatchdog);
+  console.error('[DriveKit] Không tải được app.js:', e);
+  const el = document.getElementById('loadingText');
+  if (el) el.textContent = 'Không tải được DriveKit. Kiểm tra mạng rồi bấm Thử lại.';
+  const screen = document.getElementById('loadingScreen');
+  if (screen && !document.getElementById('drivekitRetryBtn')) {
+    const btn = document.createElement('button');
+    btn.id = 'drivekitRetryBtn';
+    btn.type = 'button';
+    btn.textContent = 'Thử lại';
+    btn.style.cssText = 'min-height:44px;min-width:120px;padding:12px 22px;border:0;border-radius:999px;background:#0f766e;color:#fff;font-size:15px;font-weight:800;cursor:pointer;';
+    btn.addEventListener('click', function(){ location.reload(); });
+    screen.appendChild(btn);
+  }
+}
+</script>
 </body>
 </html>
