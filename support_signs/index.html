@@ -3,27 +3,50 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Xem thử khung gom biển báo — DriveKit</title>
+<title>Khung gom biển báo — Xem thử | DriveKit</title>
 <style>
   *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#0f172a;color:#e2e8f0;padding:16px}
-  .wrap{max-width:780px;margin:0 auto}
-  h1{font-size:20px;margin:8px 0 4px}
-  p.sub{color:#94a3b8;font-size:14px;margin:0 0 12px}
-  a{color:#7dd3fc}
-  .bar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-  button{border:0;border-radius:999px;padding:9px 16px;font-weight:700;font-size:14px;cursor:pointer;background:#2563eb;color:#fff}
-  button.off{background:#334155}
-  .count{font-size:14px;color:#cbd5e1;align-self:center}
-  .stage-wrap{overflow-x:auto;border-radius:14px}
-  .stage{position:relative;width:720px;height:460px;background:#e8f0e4;border-radius:14px;overflow:hidden}
-  .road{position:absolute;background:#fff;border:1px solid #d6dee6}
-  .road.h{height:64px;left:0;right:0}
-  .road.v{width:64px;top:0;bottom:0}
-  .road-label{position:absolute;font-size:12px;font-weight:700;color:#64748b}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;background:#eef2f7;color:#334155;line-height:1.55}
+  .topbar{background:#0f172a;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .brand{font-weight:800;font-size:18px;letter-spacing:.2px}
+  .brand small{display:block;font-size:11px;font-weight:600;color:#94a3b8;letter-spacing:1.2px;text-transform:uppercase}
+  .topbar a{background:#0f766e;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:8px 14px;border-radius:999px;white-space:nowrap}
+  .wrap{max-width:780px;margin:0 auto;padding:0 16px 32px}
+  .hero{padding:26px 4px 8px}
+  .eyebrow{color:#0f766e;font-weight:800;font-size:13px;letter-spacing:1.2px;text-transform:uppercase}
+  h1{color:#0f172a;font-size:30px;line-height:1.2;margin:8px 0 10px}
+  .lede{font-size:16px;margin:0;max-width:620px}
+  .stats{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 4px}
+  .stat{background:#fff;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:700;color:#0f172a;box-shadow:0 1px 4px rgba(15,23,42,.08)}
+  .stat span{color:#0f766e}
+  .card{background:#fff;border-radius:18px;box-shadow:0 4px 18px rgba(15,23,42,.07);padding:18px;margin-top:18px}
+  h2{color:#0f172a;font-size:19px;margin:0 0 6px}
+  .hint{color:#64748b;font-size:14px;margin:0 0 12px}
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:560px){.duo{grid-template-columns:1fr}}
+  .mini{position:relative;height:150px;border-radius:12px;overflow:hidden;background:#dce8dc;border:1px solid #d3e0d3}
+  .mini .road{position:absolute;background:#fff}
+  .mini .tag{position:absolute;left:10px;bottom:8px;font-size:12px;font-weight:800;color:#475569;background:rgba(255,255,255,.9);padding:3px 9px;border-radius:999px}
+  .mini .signimg{position:absolute;width:34px;height:34px;transform:translate(-50%,-50%);filter:drop-shadow(0 2px 3px rgba(0,0,0,.3))}
+  .mini .frame-demo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:12px;padding:6px;display:flex;flex-wrap:wrap;gap:4px;max-width:168px;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.3);border:2px solid #0f766e}
+  .mini .frame-demo img{width:28px;height:28px}
+  .mini .frame-demo .n{position:absolute;top:-9px;right:-9px;background:#0f766e;color:#fff;font-size:12px;font-weight:800;border-radius:999px;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;padding:0 5px}
+  .duo h3{color:#0f172a;font-size:15px;margin:12px 0 4px}
+  .duo p{font-size:14px;margin:0}
+  .seg{display:inline-flex;background:#e2e8f0;border-radius:999px;padding:4px;gap:4px}
+  .seg button{border:0;border-radius:999px;padding:9px 18px;font-weight:700;font-size:14px;cursor:pointer;background:transparent;color:#475569}
+  .seg button.active{background:#0f766e;color:#fff;box-shadow:0 2px 8px rgba(15,118,110,.35)}
+  .count{font-size:14px;color:#475569;margin-left:10px}
+  .stage{position:relative;width:100%;aspect-ratio:720/460;background:#dce8dc;border-radius:14px;overflow:hidden;border:1px solid #d3e0d3;margin-top:12px}
+  .road{position:absolute;background:#fff;border:1px solid #d3dbe0}
+  .road .dash{position:absolute;background:repeating-linear-gradient(90deg,#cbd5e1 0 14px,transparent 14px 28px);height:3px;left:0;right:0;top:50%}
+  .road.v .dash{background:repeating-linear-gradient(180deg,#cbd5e1 0 14px,transparent 14px 28px);width:3px;top:0;bottom:0;left:50%}
+  .park{position:absolute;background:#c6dcc2;border-radius:14px}
+  .road-label{position:absolute;font-size:12px;font-weight:700;color:#64748b;z-index:1}
   .sign{position:absolute;width:34px;height:34px;transform:translate(-50%,-50%);cursor:pointer;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35));z-index:3}
   .sign img{width:100%;height:100%;display:block}
-  .frame{position:absolute;transform:translate(-50%,-50%);background:#fff;border-radius:12px;padding:6px;display:flex;flex-wrap:wrap;gap:4px;max-width:172px;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.35);cursor:pointer;z-index:4;border:2px solid #0f766e}
+  .frame{position:absolute;transform:translate(-50%,-50%);background:#fff;border-radius:12px;padding:6px;display:flex;flex-wrap:wrap;gap:4px;max-width:172px;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.35);cursor:pointer;z-index:4;border:2px solid #0f766e;transition:transform .12s}
+  .frame:active{transform:translate(-50%,-50%) scale(.96)}
   .frame img{width:28px;height:28px;display:block}
   .frame .n{position:absolute;top:-9px;right:-9px;background:#0f766e;color:#fff;font-size:12px;font-weight:800;border-radius:999px;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;padding:0 5px}
   .popup{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);width:min(430px,92%);background:#fff;color:#0f172a;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:10;display:none}
@@ -34,43 +57,136 @@
   .popup li img{width:38px;height:38px;flex-shrink:0}
   .popup li small{color:#64748b}
   .popup .close{position:absolute;top:8px;right:10px;border:0;background:#f1f5f9;border-radius:999px;width:28px;height:28px;font-size:15px;cursor:pointer;color:#0f172a;padding:0}
-  .rules{background:#1e293b;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.65;margin-top:14px}
-  .rules b{color:#fff}
-  .foot{color:#64748b;font-size:13px;margin-top:12px}
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+  @media (max-width:560px){.steps{grid-template-columns:1fr}}
+  .step{background:#f8fafc;border-radius:14px;padding:14px}
+  .step .num{width:30px;height:30px;border-radius:999px;background:#0f766e;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+  .step b{color:#0f172a}
+  .step p{font-size:14px;margin:4px 0 0}
+  .rules{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+  @media (max-width:560px){.rules{grid-template-columns:1fr}}
+  .rule{border:1px solid #e2e8f0;border-radius:14px;padding:14px}
+  .rule b{color:#0f172a;display:block;font-size:15px}
+  .rule span{font-size:14px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
+  .legend div{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#0f172a}
+  .legend img{width:34px;height:34px}
+  .foot{color:#64748b;font-size:13px;margin-top:14px}
+  .cta{display:block;text-align:center;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;padding:13px;border-radius:12px;margin-top:16px}
 </style>
 </head>
 <body>
+<div class="topbar">
+  <div class="brand">DriveKit<small>Bản xem thử tính năng</small></div>
+  <a href="../map/">Mở bản đồ →</a>
+</div>
 <div class="wrap">
-  <a href="../map/">← Về bản đồ DriveKit</a>
-  <h1>Xem thử khung gom biển báo</h1>
-  <p class="sub">Bản xem thử thiết kế khung gom (24/11/2026): các biển đè lên nhau gom thành <b>một khung chữ nhật bo góc</b> chứa hình biển thật. Không phải app chính.</p>
-  <div class="bar">
-    <button id="toggleBtn">Khung gom: BẬT</button>
-    <span class="count" id="count"></span>
+  <div class="hero">
+    <div class="eyebrow">Tính năng mới trong DriveKit</div>
+    <h1>Biển báo không còn đè lên nhau</h1>
+    <p class="lede">Ở chỗ đông biển báo, các hình biển hay chồng lên nhau nên rất khó đọc. DriveKit gom những biển đứng sát nhau vào <b>một khung duy nhất</b> — bạn chỉ cần chạm vào khung là thấy đủ tất cả các biển bên trong.</p>
+    <div class="stats">
+      <div class="stat"><span>22</span> biển trong bản thử</div>
+      <div class="stat"><span>3</span> khung gom</div>
+      <div class="stat"><span>Chạm</span> để xem đủ biển</div>
+    </div>
   </div>
-  <div class="stage-wrap">
+
+  <div class="card">
+    <h2>Trước và sau khi gom khung</h2>
+    <p class="hint">Cùng một ngã tư, cùng 6 biển báo.</p>
+    <div class="duo">
+      <div>
+        <div class="mini">
+          <div class="road" style="left:0;right:0;top:58px;height:34px"></div>
+          <img class="signimg" style="left:46%;top:46%" src="../map/mapillary_signs/regulatory--no-entry--g1.svg" alt="">
+          <img class="signimg" style="left:52%;top:50%" src="../map/mapillary_signs/regulatory--no-left-turn--g1.svg" alt="">
+          <img class="signimg" style="left:48%;top:56%" src="../map/mapillary_signs/regulatory--no-right-turn--g1.svg" alt="">
+          <img class="signimg" style="left:55%;top:44%" src="../map/mapillary_signs/regulatory--maximum-speed-limit-50--g1.svg" alt="">
+          <img class="signimg" style="left:43%;top:54%" src="../map/mapillary_signs/warning--curve-left--g1.svg" alt="">
+          <img class="signimg" style="left:57%;top:56%" src="../map/mapillary_signs/warning--children--g1.svg" alt="">
+          <span class="tag">Trước đây</span>
+        </div>
+        <h3>Biển đè lên nhau</h3>
+        <p>6 biển chồng chéo, không đọc được biển nào là biển nào.</p>
+      </div>
+      <div>
+        <div class="mini">
+          <div class="road" style="left:0;right:0;top:58px;height:34px"></div>
+          <div class="frame-demo">
+            <span class="n">6</span>
+            <img src="../map/mapillary_signs/regulatory--no-entry--g1.svg" alt="">
+            <img src="../map/mapillary_signs/regulatory--no-left-turn--g1.svg" alt="">
+            <img src="../map/mapillary_signs/regulatory--no-right-turn--g1.svg" alt="">
+            <img src="../map/mapillary_signs/regulatory--maximum-speed-limit-50--g1.svg" alt="">
+            <img src="../map/mapillary_signs/warning--curve-left--g1.svg" alt="">
+            <img src="../map/mapillary_signs/warning--children--g1.svg" alt="">
+          </div>
+          <span class="tag">Với khung gom</span>
+        </div>
+        <h3>Một khung gọn gàng</h3>
+        <p>Cả 6 biển nằm ngay ngắn trong một khung, vẫn thấy rõ từng hình biển.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Thử ngay trên bản đồ mẫu</h2>
+    <p class="hint">Chạm vào một khung để xem danh sách biển bên trong. Bấm nút dưới đây để so sánh với kiểu biển lẻ như cũ.</p>
+    <div>
+      <span class="seg">
+        <button id="btnFrames" class="active">Gom khung</button>
+        <button id="btnSingle">Biển lẻ</button>
+      </span>
+      <span class="count" id="count"></span>
+    </div>
     <div class="stage" id="stage">
-      <div class="road h" style="top:80px"></div>
-      <div class="road h" style="top:290px"></div>
-      <div class="road v" style="left:330px"></div>
-      <div class="road-label" style="top:60px;left:16px">Quốc lộ 1</div>
-      <div class="road-label" style="top:272px;left:560px">Đường ngang</div>
+      <div class="park" style="left:6%;top:8%;width:26%;height:26%"></div>
+      <div class="park" style="left:62%;top:58%;width:30%;height:30%"></div>
+      <div class="road" style="left:0;right:0;top:17.4%;height:13.9%"><div class="dash"></div></div>
+      <div class="road" style="left:0;right:0;top:63%;height:13.9%"><div class="dash"></div></div>
+      <div class="road v" style="left:45.8%;width:8.9%;top:0;bottom:0"><div class="dash"></div></div>
+      <div class="road-label" style="top:12%;left:3%">Quốc lộ 1</div>
+      <div class="road-label" style="top:58%;left:78%">Đường ngang</div>
       <div class="popup" id="popup">
         <button class="close" id="popupClose" aria-label="Đóng">✕</button>
         <h3 id="popupTitle"></h3>
         <ul id="popupList"></ul>
       </div>
     </div>
+    <p class="foot">Mẹo: khung có số ở góc phải trên là số biển bên trong. Biển đứng một mình thì không có khung, vẫn hiện như bình thường.</p>
   </div>
-  <div class="rules">
-    <b>Luật gom khung:</b> biển nào chồng lên nhau trong bán kính 42px thì gom chung 1 khung; ít nhất <b>2 biển</b> mới có khung (biển lẻ vẫn hiện icon thường); tối đa <b>10 biển</b> mỗi khung, số dư gom thành khung riêng. Chạm vào khung để xem đủ danh sách biển trong đó. Tắt khung gom để thấy cảnh biển đè nhau như cũ.
+
+  <div class="card">
+    <h2>Đọc khung như thế nào?</h2>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><b>Tìm khung trắng</b><p>Biển đứng gần nhau gom thành khung trắng viền xanh, có con số ở góc.</p></div>
+      <div class="step"><div class="num">2</div><b>Chạm vào khung</b><p>Một bảng hiện lên, liệt kê đủ từng biển bên trong kèm tên biển.</p></div>
+      <div class="step"><div class="num">3</div><b>Xem xong, chạm ra ngoài</b><p>Bảng đóng lại. Phóng to bản đồ thì các biển tự tách ra xem từng biển.</p></div>
+    </div>
   </div>
-  <p class="foot">Hình biển lấy từ chính kho ảnh Mapillary của DriveKit (<code>map/mapillary_signs/</code>). Trang này chỉ để xem thử, không đọc dữ liệu thật.</p>
+
+  <div class="card">
+    <h2>Khung gom theo luật nào?</h2>
+    <div class="rules">
+      <div class="rule"><b>Ít nhất 2 biển</b><span>Một biển đứng một mình thì không có khung, vẫn hiện icon thường.</span></div>
+      <div class="rule"><b>Tối đa 10 biển</b><span>Cụm đông hơn 10 biển thì tách thành khung thứ hai, không nhồi nhét.</span></div>
+      <div class="rule"><b>Đúng hình thật</b><span>Trong khung là hình biển thật, không phải con số — nhìn là nhận ra ngay.</span></div>
+    </div>
+    <div class="legend">
+      <div><img src="../map/mapillary_signs/regulatory--no-entry--g1.svg" alt=""> Biển cấm</div>
+      <div><img src="../map/mapillary_signs/warning--children--g1.svg" alt=""> Biển cảnh báo</div>
+      <div><img src="../map/mapillary_signs/information--parking--g1.svg" alt=""> Biển chỉ dẫn</div>
+    </div>
+    <p class="foot">Khung gom dùng chung cho mọi loại biển: cấm, cảnh báo, hiệu lệnh, chỉ dẫn. Dữ liệu biển không thay đổi — khung chỉ giúp nhìn gọn hơn, phóng to vẫn thấy đủ từng biển.</p>
+  </div>
+
+  <a class="cta" href="../map/">Mở bản đồ DriveKit →</a>
+  <p class="foot">Trang này chỉ để xem thử thiết kế. Trong app DriveKit, khung gom hiện ngay trên bản đồ thật. Hình biển lấy từ kho ảnh Mapillary của DriveKit.</p>
 </div>
 <script>
 var BASE = '../map/mapillary_signs/';
 var SIGNS = [
-  // Cum A: 8 bien sat nhau -> 1 khung 8
   {code:'regulatory--no-entry--g1', ma:'P.101', ten:'Đường cấm', x:150, y:110},
   {code:'regulatory--no-left-turn--g1', ma:'P.103a', ten:'Cấm rẽ trái', x:168, y:118},
   {code:'regulatory--no-right-turn--g1', ma:'P.103b', ten:'Cấm rẽ phải', x:138, y:126},
@@ -79,7 +195,6 @@ var SIGNS = [
   {code:'regulatory--no-overtaking--g1', ma:'P.125', ten:'Cấm vượt', x:175, y:104},
   {code:'warning--curve-left--g1', ma:'W.201a', ten:'Ngoặt trái nguy hiểm', x:132, y:108},
   {code:'warning--children--g1', ma:'W.225', ten:'Trẻ em', x:166, y:140},
-  // Cum B: 11 bien -> 1 khung 10 + 1 bien le
   {code:'regulatory--maximum-speed-limit-30--g1', ma:'P.127-30', ten:'Tốc độ tối đa 30', x:480, y:320},
   {code:'regulatory--maximum-speed-limit-40--g1', ma:'P.127-40', ten:'Tốc độ tối đa 40', x:498, y:328},
   {code:'regulatory--stop--g1', ma:'P.124a', ten:'Dừng lại', x:468, y:336},
@@ -91,13 +206,11 @@ var SIGNS = [
   {code:'information--parking--g1', ma:'I.408', ten:'Nơi đỗ xe', x:486, y:316},
   {code:'information--hospital--g1', ma:'I.434a', ten:'Bệnh viện', x:472, y:346},
   {code:'information--gas-station--g1', ma:'I.431', ten:'Trạm xăng', x:508, y:322},
-  // Cum C: 2 bien -> 1 khung 2
   {code:'warning--turn-left--g1', ma:'—', ten:'Cảnh báo rẽ trái', x:600, y:110},
   {code:'warning--turn-right--g1', ma:'—', ten:'Cảnh báo rẽ phải', x:616, y:120},
-  // Bien le o xa
   {code:'information--rest-area--g1', ma:'I.432', ten:'Trạm nghỉ', x:90, y:380}
 ];
-var RADIUS = 42, MAX = 10, framesOn = true;
+var MAX = 10, R_NORM = 42 / 720, YSCALE = 460 / 720, framesOn = true;
 var stage = document.getElementById('stage');
 var popup = document.getElementById('popup');
 function imgTag(s, px){
@@ -111,6 +224,10 @@ function openPopup(title, list){
   popup.classList.add('show');
 }
 function closePopup(){ popup.classList.remove('show'); }
+function distN(a, b){
+  var dx = (a.x - b.x) / 720, dy = (a.y - b.y) / 720 * YSCALE;
+  return Math.sqrt(dx * dx + dy * dy);
+}
 function render(){
   stage.querySelectorAll('.sign,.frame').forEach(function(el){ el.remove(); });
   closePopup();
@@ -121,8 +238,7 @@ function render(){
       var g = [s]; used[i] = true;
       SIGNS.forEach(function(o, j){
         if (used[j] || g.length >= MAX) return;
-        var dx = o.x - s.x, dy = o.y - s.y;
-        if (Math.sqrt(dx*dx + dy*dy) <= RADIUS) { g.push(o); used[j] = true; }
+        if (distN(o, s) <= R_NORM) { g.push(o); used[j] = true; }
       });
       groups.push(g);
     });
@@ -137,7 +253,7 @@ function render(){
       var cy = g.reduce(function(a,s){ return a + s.y; }, 0) / g.length;
       var f = document.createElement('div');
       f.className = 'frame';
-      f.style.left = cx + 'px'; f.style.top = cy + 'px';
+      f.style.left = (cx / 720 * 100) + '%'; f.style.top = (cy / 460 * 100) + '%';
       f.innerHTML = '<span class="n">' + g.length + '</span>' + g.map(function(s){ return imgTag(s, 28); }).join('');
       f.addEventListener('click', function(e){ e.stopPropagation(); openPopup(g.length + ' biển báo tại đây', g); });
       stage.appendChild(f);
@@ -146,17 +262,18 @@ function render(){
       var s = g[0];
       var d = document.createElement('div');
       d.className = 'sign';
-      d.style.left = s.x + 'px'; d.style.top = s.y + 'px';
+      d.style.left = (s.x / 720 * 100) + '%'; d.style.top = (s.y / 460 * 100) + '%';
       d.innerHTML = imgTag(s, 34);
       d.addEventListener('click', function(e){ e.stopPropagation(); openPopup('1 biển báo', g); });
       stage.appendChild(d);
     }
   });
   document.getElementById('count').textContent = SIGNS.length + ' biển → ' + nFrames + ' khung + ' + nSingle + ' biển lẻ';
-  document.getElementById('toggleBtn').textContent = 'Khung gom: ' + (framesOn ? 'BẬT' : 'TẮT');
-  document.getElementById('toggleBtn').classList.toggle('off', !framesOn);
+  document.getElementById('btnFrames').classList.toggle('active', framesOn);
+  document.getElementById('btnSingle').classList.toggle('active', !framesOn);
 }
-document.getElementById('toggleBtn').addEventListener('click', function(){ framesOn = !framesOn; render(); });
+document.getElementById('btnFrames').addEventListener('click', function(){ framesOn = true; render(); });
+document.getElementById('btnSingle').addEventListener('click', function(){ framesOn = false; render(); });
 document.getElementById('popupClose').addEventListener('click', closePopup);
 stage.addEventListener('click', function(e){ if (e.target === stage) closePopup(); });
 render();
