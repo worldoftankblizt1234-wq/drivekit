@@ -1,0 +1,42 @@
+name: Count Mapillary signs in Vietnam
+
+# Counts traffic-sign features inside Vietnam from Mapillary z14 vector tiles.
+# Runs on manual dispatch and once a day; each run fetches at most 45,000 tiles
+# (under the 50,000/day tile quota) and commits its progress, so the count
+# resumes where it stopped. When finished it writes test/count-result.json
+# and later runs exit immediately without fetching anything.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 17 * * *'
+
+concurrency:
+  group: count-signs
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install tile decoder
+        run: npm install --prefix .github/scripts --no-audit --no-fund pbf @mapbox/vector-tile
+      - name: Count signs
+        env:
+          MAPILLARY_TOKEN: ${{ secrets.MAPILLARY_TOKEN }}
+        run: node .github/scripts/count-signs.mjs
+      - name: Commit progress
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add test/count-progress.json test/count-result.json
+          git diff --cached --quiet || git commit -m "test: Mapillary sign count progress"
+          git pull --rebase || true
+          git push || true
