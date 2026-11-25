@@ -232,13 +232,12 @@
   </div>
 </footer>
 <script type="module">
-  // Dem that so tram dung nghi tu Firebase; loi thi giu so 36 ghi san.
+  // Dem that so tram dung nghi tu Firebase, KHONG dang nhap (rules dang mo); loi thi giu so 36 ghi san.
   (async () => {
     try {
       const el = document.getElementById('statRestStops');
       if (!el) return;
       const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-      const { getAuth, signInAnonymously } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
       const { getFirestore, collection, getCountFromServer } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
       const app = initializeApp({
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
@@ -249,7 +248,6 @@
   messagingSenderId: "1073887619343",
   appId: "1:1073887619343:web:d89a872968bc4ee871f67a"
 });
-      await signInAnonymously(getAuth(app));
       const snap = await getCountFromServer(collection(getFirestore(app), 'rest_stops'));
       const n = snap.data().count;
       if (Number.isFinite(n) && n > 0) el.textContent = String(n);
