@@ -45,7 +45,7 @@
 <div id="map"></div>
 <div id="mapWarn" hidden></div>
 <div id="log"></div>
-<div class="note">Mở web là tự đếm. Trang hỏi Mapillary từng ô nhỏ (giới hạn của Mapillary: mỗi ô tối đa 0,01 độ vuông), lọc chỉ biển báo nằm trong biên giới Việt Nam, trừ trùng lặp, rồi hiện dần từng biển lên bản đồ. Nền bản đồ: © OpenStreetMap. Dữ liệu biển báo: Mapillary.</div>
+<div class="note">Mở web là tự đếm. Trang hỏi Mapillary từng ô nhỏ (giới hạn của Mapillary: mỗi ô tối đa 0,01 độ vuông), lọc chỉ biển báo nằm trong biên giới Việt Nam, trừ trùng lặp, rồi hiện dần từng biển lên bản đồ. Nền bản đồ: MapTiler. Dữ liệu biển báo: Mapillary.</div>
 <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script>
 const TOKEN = 'MLY|29249168751358312|a5696ee10fc78ffba69a9a34515c63a8';
@@ -105,9 +105,7 @@ function initMap(){
     }
     map = new maplibregl.Map({
       container: 'map',
-      style: { version: 8,
-        sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors', maxzoom: 19 } },
-        layers: [{ id: 'osm', type: 'raster', source: 'osm' }] },
+      style: 'https://api.maptiler.com/maps/streets-v4/style.json?key=aEzMCP0ANRz52vd1RvrW',
       center: [106.0, 16.0], zoom: 5.5
     });
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
