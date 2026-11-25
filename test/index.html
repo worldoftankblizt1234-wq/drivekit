@@ -3,59 +3,68 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dem bien bao Mapillary o Viet Nam</title>
+<title>Đếm biển báo Mapillary ở Việt Nam</title>
+<link href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
 <style>
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;padding:20px;background:#f6f8fa;color:#1c2530}
-  h1{font-size:20px;margin:0 0 6px}
-  p{margin:6px 0;line-height:1.5}
-  .card{background:#fff;border:1px solid #dfe5ea;border-radius:10px;padding:16px;max-width:720px;margin:0 auto}
-  label{font-size:13px;color:#5b6b7a}
-  input[type=password],input[type=text]{width:100%;box-sizing:border-box;padding:9px 10px;font-size:15px;border:1px solid #c9d3dc;border-radius:8px;margin:4px 0 10px}
-  button{padding:10px 18px;font-size:15px;border:0;border-radius:8px;background:#1a73e8;color:#fff;cursor:pointer}
+  html,body{height:100%}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f6f8fa;color:#1c2530;display:flex;flex-direction:column}
+  header{background:#fff;border-bottom:1px solid #dfe5ea;padding:10px 14px}
+  h1{font-size:18px;margin:0 0 4px}
+  .big{font-size:44px;font-weight:700;line-height:1.1}
+  .sub{color:#5b6b7a;font-size:13px;margin:2px 0 8px}
+  .row{display:flex;gap:14px;flex-wrap:wrap;font-size:13px}
+  .row b{font-size:16px}
+  .btns{margin-top:8px;display:flex;gap:8px}
+  button{padding:8px 16px;font-size:14px;border:0;border-radius:8px;background:#1a73e8;color:#fff;cursor:pointer}
   button.stop{background:#d93025}
   button:disabled{opacity:.5;cursor:default}
-  .big{font-size:52px;font-weight:700;margin:14px 0 2px}
-  .sub{color:#5b6b7a;font-size:14px}
-  .row{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px}
-  .stat{font-size:14px}
-  .stat b{font-size:18px}
-  #log{background:#0f1720;color:#c8e6c9;font-family:monospace;font-size:12px;border-radius:8px;padding:10px;height:150px;overflow:auto;white-space:pre-wrap;margin-top:12px}
-  .warn{background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px;font-size:13px;margin-top:12px}
+  #map{flex:1;min-height:320px}
+  #mapWarn{background:#fff8e1;border-top:1px solid #ffe082;padding:8px 14px;font-size:13px}
+  #log{background:#0f1720;color:#c8e6c9;font-family:monospace;font-size:12px;padding:8px 14px;height:96px;overflow:auto;white-space:pre-wrap}
+  .note{padding:6px 14px;font-size:12px;color:#5b6b7a;background:#fff;border-top:1px solid #dfe5ea}
 </style>
 </head>
 <body>
-<div class="card">
-  <h1>Dem bien bao Mapillary o Viet Nam</h1>
-  <p>Trang nay hoi thang Mapillary API (<code>map_features</code>), chia Viet Nam thanh o nho, dem so <b>node bien bao giao thong</b> (object_type = trafficsign) <b>khong trung lap</b> nam trong bien gioi Viet Nam, roi hien so tong. Qua trinh co the mat vai phut.</p>
-  <label for="token">Mapillary access token (giong token app / Worker dang dung):</label>
-  <input type="password" id="token" placeholder="Dan token vao day" autocomplete="off">
-  <label><input type="checkbox" id="remember"> Nho token trong trinh duyet nay (localStorage)</label>
-  <p>
-    <button id="runBtn">Chay dem</button>
-    <button id="stopBtn" class="stop" disabled>Dung</button>
-  </p>
+<header>
+  <h1>Đếm biển báo Mapillary ở Việt Nam</h1>
   <div class="big" id="total">—</div>
-  <div class="sub" id="status">Chua chay.</div>
+  <div class="sub" id="status">Đang tải bản đồ, chuẩn bị đếm...</div>
   <div class="row">
-    <div class="stat">O da xong: <b id="cells">0</b></div>
-    <div class="stat">Request: <b id="reqs">0</b></div>
-    <div class="stat">Node lay ve (chua loc): <b id="raw">0</b></div>
-    <div class="stat">Loi: <b id="errs">0</b></div>
-    <div class="stat">Thoi gian: <b id="elapsed">0s</b></div>
+    <span>Ô đã xong: <b id="cells">0 / 0</b></span>
+    <span>Request: <b id="reqs">0</b></span>
+    <span>Node lấy về: <b id="raw">0</b></span>
+    <span>Đã hiện lên bản đồ: <b id="drawn">0</b></span>
+    <span>Ô lỗi: <b id="errs">0</b></span>
+    <span>Thời gian: <b id="elapsed">0s</b></span>
   </div>
-  <div id="log"></div>
-  <div class="warn">Luoc theo bien gioi Viet Nam don gian hoa (Natural Earth 1:110m) — bien bao sat bien gioi co the lech vai km. Token chi dung trong trinh duyet cua ban, khong gui di dau khac ngoai api Mapillary.</div>
-</div>
+  <div class="btns">
+    <button id="stopBtn">Dừng</button>
+    <button id="restartBtn">Đếm lại từ đầu</button>
+  </div>
+</header>
+<div id="map"></div>
+<div id="mapWarn" hidden></div>
+<div id="log"></div>
+<div class="note">Mở web là tự đếm. Trang hỏi Mapillary từng ô nhỏ (giới hạn của Mapillary: mỗi ô tối đa 0,01 độ vuông), lọc chỉ biển báo nằm trong biên giới Việt Nam, trừ trùng lặp, rồi hiện dần từng biển lên bản đồ. Nền bản đồ: © OpenStreetMap. Dữ liệu biển báo: Mapillary.</div>
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script>
+const TOKEN = 'MLY|29249168751358312|a5696ee10fc78ffba69a9a34515c63a8';
 const VN_RING = [[104.334335,10.486544],[105.199915,10.88931],[106.24967,10.961812],[105.810524,11.567615],[107.491403,12.337206],[107.614548,13.535531],[107.382727,14.202441],[107.564525,15.202173],[107.312706,15.908538],[106.556008,16.604284],[105.925762,17.485315],[105.094598,18.666975],[103.896532,19.265181],[104.183388,19.624668],[104.822574,19.886642],[104.435,20.758733],[103.203861,20.766562],[102.754896,21.675137],[102.170436,22.464753],[102.706992,22.708795],[103.504515,22.703757],[104.476858,22.81915],[105.329209,23.352063],[105.811247,22.976892],[106.725403,22.794268],[106.567273,22.218205],[107.04342,21.811899],[108.05018,21.55238],[106.715068,20.696851],[105.881682,19.75205],[105.662006,19.058165],[106.426817,18.004121],[107.361954,16.697457],[108.269495,16.079742],[108.877107,15.276691],[109.33527,13.426028],[109.200136,11.666859],[108.36613,11.008321],[107.220929,10.364484],[106.405113,9.53084],[105.158264,8.59976],[104.795185,9.241038],[105.076202,9.918491],[104.334335,10.486544]];
 const BBOX = [102.14, 8.55, 109.34, 23.40];
-const CELL0 = 0.5, MAXDEPTH = 4, LIMIT = 2000, CONC = 6;
-let running = false, stopFlag = false, fatalError = null;
+const CELL0 = 0.1, MAXDEPTH = 4, LIMIT = 2000, CONC = 6;
+const PACE_MS = 120, REQ_TIMEOUT_MS = 45000, CHUNK = 20000;
+let running = false, stopFlag = false, restartWanted = false, fatalError = null;
 const seen = new Set();
 let cellsDone = 0, cellsQueued = 0, reqCount = 0, rawCount = 0, errCount = 0, startAt = 0, timerId = null;
+let lastStart = 0;
 
 const $ = id => document.getElementById(id);
-function log(msg){ const el = $('log'); el.textContent = new Date().toLocaleTimeString() + '  ' + msg + '\n' + el.textContent; const lines = el.textContent.split('\n'); if(lines.length > 40) el.textContent = lines.slice(0, 40).join('\n'); }
+function log(msg){
+  const el = $('log');
+  el.textContent = new Date().toLocaleTimeString() + '  ' + msg + '\n' + el.textContent;
+  const lines = el.textContent.split('\n');
+  if(lines.length > 30) el.textContent = lines.slice(0, 30).join('\n');
+}
 function inRing(x, y){
   let ins = false; const n = VN_RING.length;
   for(let i = 0, j = n - 1; i < n; j = i++){
@@ -72,71 +81,163 @@ function cellMayIntersect(c){
   for(const [x,y] of VN_RING) if(x >= w && x <= e && y >= s && y <= n) return true;
   return false;
 }
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 function updateUI(){
   $('total').textContent = seen.size.toLocaleString('vi-VN');
   $('cells').textContent = cellsDone + ' / ' + cellsQueued;
   $('reqs').textContent = reqCount;
   $('raw').textContent = rawCount;
+  $('drawn').textContent = drawnTotal().toLocaleString('vi-VN');
   $('errs').textContent = errCount;
   $('elapsed').textContent = Math.round((Date.now() - startAt) / 1000) + 's';
 }
-function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
-async function fetchJson(url, tries){
-  for(let a = 0; a < tries; a++){
+
+/* ---- Hien du lieu len ban do: chia thanh tung cum GeoJSON 20.000 diem ---- */
+let map = null, mapReady = false;
+let chunks = [[]], syncedLens = [], syncedChunks = 0, pendingDraw = [], flushTimer = null;
+function drawnTotal(){ let t = pendingDraw.length; for(const c of chunks) t += c.length; return t; }
+function initMap(){
+  try{
+    if(typeof maplibregl === 'undefined'){
+      const w = $('mapWarn'); w.hidden = false;
+      w.textContent = 'Không tải được thư viện bản đồ. Phần đếm vẫn chạy bình thường, chỉ không hiện bản đồ.';
+      return;
+    }
+    map = new maplibregl.Map({
+      container: 'map',
+      style: { version: 8,
+        sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors', maxzoom: 19 } },
+        layers: [{ id: 'osm', type: 'raster', source: 'osm' }] },
+      center: [106.0, 16.0], zoom: 5.5
+    });
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+    map.fitBounds([[102.14, 8.55], [109.34, 23.40]], { padding: 10, duration: 0 });
+    map.on('load', () => { mapReady = true; flushDrawn(); });
+  }catch(e){
+    const w = $('mapWarn'); w.hidden = false;
+    w.textContent = 'Không mở được bản đồ: ' + e.message + '. Phần đếm vẫn chạy.';
+  }
+}
+function scheduleFlush(){
+  if(flushTimer) return;
+  flushTimer = setTimeout(() => { flushTimer = null; flushDrawn(); }, 1200);
+}
+function flushDrawn(){
+  let arr = pendingDraw; pendingDraw = [];
+  while(arr.length){
+    const cur = chunks[chunks.length - 1];
+    const room = CHUNK - cur.length;
+    const take = arr.slice(0, room);
+    for(const f of take) cur.push(f);
+    arr = arr.slice(room);
+    if(cur.length >= CHUNK) chunks.push([]);
+  }
+  if(!mapReady || !map) return;
+  for(let i = 0; i < chunks.length; i++){
+    if(syncedLens[i] === chunks[i].length) continue;
+    const srcId = 'dk-signs-src-' + i, lyrId = 'dk-signs-' + i;
+    try{
+      if(i >= syncedChunks){
+        map.addSource(srcId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        map.addLayer({ id: lyrId, type: 'circle', source: srcId,
+          paint: { 'circle-radius': 3, 'circle-color': '#1a73e8', 'circle-opacity': 0.85 } });
+        syncedChunks = i + 1;
+      }
+      map.getSource(srcId).setData({ type: 'FeatureCollection', features: chunks[i] });
+      syncedLens[i] = chunks[i].length;
+    }catch(e){ /* lop chua san sang: lan flush sau thu lai */ }
+  }
+}
+function resetDraw(){
+  if(map && mapReady){
+    for(let i = 0; i < syncedChunks; i++){
+      try{ if(map.getLayer('dk-signs-' + i)) map.removeLayer('dk-signs-' + i); }catch(e){}
+      try{ if(map.getSource('dk-signs-src-' + i)) map.removeSource('dk-signs-src-' + i); }catch(e){}
+    }
+  }
+  chunks = [[]]; syncedLens = []; syncedChunks = 0; pendingDraw = [];
+}
+
+/* ---- Dem: hoi Mapillary tung o, chia nho khi gap loi 500 ---- */
+async function pace(){
+  const wait = PACE_MS - (Date.now() - lastStart);
+  if(wait > 0) await sleep(wait);
+  lastStart = Date.now();
+}
+async function fetchJson(url){
+  for(let a = 0; a < 4; a++){
+    await pace();
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), REQ_TIMEOUT_MS);
     try{
       reqCount++;
-      const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      const r = await fetch(url, { headers: { 'Accept': 'application/json' }, signal: ctl.signal });
       const j = await r.json().catch(() => ({}));
-      if(r.status === 429 || r.status >= 500){
-        const wait = Math.min(8000, 1000 * Math.pow(2, a));
-        log('Retry ' + r.status + ' sau ' + wait + 'ms');
-        await sleep(wait); continue;
+      if(r.status === 429){
+        await sleep(Math.min(10000, 2000 * Math.pow(2, a)));
+        continue;
       }
       return { status: r.status, json: j };
     }catch(e){
-      if(a === tries - 1) throw e;
+      if(a === 3) throw e;
       await sleep(1000 * Math.pow(2, a));
-    }
+    }finally{ clearTimeout(t); }
   }
   throw new Error('het luot thu');
 }
+function splitCell(cell, depth, queue){
+  const [w, s, e, n] = cell, mw = (w + e) / 2, mh = (s + n) / 2;
+  for(const c of [[w,s,mw,mh],[mw,s,e,mh],[w,mh,mw,n],[mw,mh,e,n]]){
+    if(cellMayIntersect(c)){ queue.push({ cell: c, depth: depth + 1 }); cellsQueued++; }
+  }
+}
+function cellLabel(c){ return '[' + c[0].toFixed(2) + ',' + c[1].toFixed(2) + ']'; }
 async function fetchCell(cell, depth, queue){
   if(stopFlag || fatalError) return;
   const [w, s, e, n] = cell;
-  const token = $('token').value.trim();
-  const base = 'https://graph.mapillary.com/map_features?access_token=' + encodeURIComponent(token)
+  const base = 'https://graph.mapillary.com/map_features?access_token=' + encodeURIComponent(TOKEN)
     + '&fields=id,geometry,object_type&bbox=' + [w, s, e, n].map(v => v.toFixed(6)).join(',') + '&limit=' + LIMIT;
   let url = base, pages = 0;
   while(url){
     if(stopFlag || fatalError) return;
     let res;
-    try{ res = await fetchJson(url, 3); }
-    catch(e){ errCount++; log('Loi mang o [' + w.toFixed(2) + ',' + s.toFixed(2) + ']: ' + e.message); updateUI(); return; }
+    try{ res = await fetchJson(url); }
+    catch(e){
+      if(depth < MAXDEPTH){ splitCell(cell, depth, queue); cellsDone++; updateUI(); return; }
+      errCount++; log('Loi mang o ' + cellLabel(cell) + ': ' + e.message); cellsDone++; updateUI(); return;
+    }
     if(res.status === 401 || res.status === 403){
-      fatalError = 'Token khong dung hoac khong co quyen (HTTP ' + res.status + '). Kiem tra lai token.';
+      fatalError = 'Token khong dung hoac khong co quyen (HTTP ' + res.status + ').';
       log(fatalError); return;
     }
-    if(res.status === 400){
-      const msg = (res.json && res.json.error && res.json.error.message) || 'Bad request';
-      if(/too large/i.test(msg) && depth < MAXDEPTH){ splitCell(cell, depth, queue); cellsDone++; updateUI(); return; }
-      errCount++; log('HTTP 400 o [' + w.toFixed(2) + ',' + s.toFixed(2) + ']: ' + msg); cellsDone++; updateUI(); return;
+    if(res.status === 400 || res.status === 500){
+      const msg = (res.json && res.json.error && res.json.error.message) || '';
+      if(depth < MAXDEPTH){ splitCell(cell, depth, queue); cellsDone++; updateUI(); return; }
+      errCount++; log('HTTP ' + res.status + ' o ' + cellLabel(cell) + ': ' + msg); cellsDone++; updateUI(); return;
     }
     if(res.status !== 200){
-      errCount++; log('HTTP ' + res.status + ' o [' + w.toFixed(2) + ',' + s.toFixed(2) + ']'); cellsDone++; updateUI(); return;
+      errCount++; log('HTTP ' + res.status + ' o ' + cellLabel(cell)); cellsDone++; updateUI(); return;
     }
     const data = (res.json && res.json.data) || [];
     rawCount += data.length;
+    let added = 0;
     for(const f of data){
       if(f.object_type !== 'trafficsign' && f.object_type !== 'traffic_sign') continue;
       const g = f.geometry;
       if(!g || g.type !== 'Point' || !g.coordinates) continue;
-      if(inRing(g.coordinates[0], g.coordinates[1])) seen.add(f.id);
+      const x = g.coordinates[0], y = g.coordinates[1];
+      if(inRing(x, y) && !seen.has(f.id)){
+        seen.add(f.id);
+        pendingDraw.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [x, y] }, properties: {} });
+        added++;
+      }
     }
+    if(added) scheduleFlush();
     pages++;
     const next = res.json && res.json.paging && res.json.paging.next;
     if(next && data.length >= LIMIT){
       if(depth < MAXDEPTH){ splitCell(cell, depth, queue); cellsDone++; updateUI(); return; }
-      if(pages >= 50){ errCount++; log('Qua 50 trang o [' + w.toFixed(2) + ',' + s.toFixed(2) + '], bo qua phan con lai'); cellsDone++; updateUI(); return; }
+      if(pages >= 50){ errCount++; log('Qua 50 trang o ' + cellLabel(cell) + ', bo phan con lai'); cellsDone++; updateUI(); return; }
       url = next;
     } else {
       url = null;
@@ -146,31 +247,23 @@ async function fetchCell(cell, depth, queue){
   cellsDone++;
   updateUI();
 }
-function splitCell(cell, depth, queue){
-  const [w, s, e, n] = cell, mw = (w + e) / 2, mh = (s + n) / 2;
-  for(const c of [[w,s,mw,mh],[mw,s,e,mh],[w,mh,mw,n],[mw,mh,e,n]]){
-    if(cellMayIntersect(c)){ queue.push({ cell: c, depth: depth + 1 }); cellsQueued++; }
-  }
-  log('Chia nho o [' + w.toFixed(2) + ',' + s.toFixed(2) + '] (sau ' + (depth + 1) + ')');
-}
-async function worker(queue){
+async function runner(queue){
   while(queue.length && !stopFlag && !fatalError){
     const job = queue.shift();
     await fetchCell(job.cell, job.depth, queue);
   }
 }
 async function run(){
-  const token = $('token').value.trim();
-  if(!token){ $('status').textContent = 'Hay dan Mapillary access token truoc.'; return; }
-  if($('remember').checked){ try{ localStorage.setItem('dk_mapillary_token', token); }catch(e){} }
+  if(running) return;
   running = true; stopFlag = false; fatalError = null;
   seen.clear(); cellsDone = 0; cellsQueued = 0; reqCount = 0; rawCount = 0; errCount = 0;
-  $('runBtn').disabled = true; $('stopBtn').disabled = false;
+  resetDraw();
+  $('stopBtn').disabled = false;
   $('log').textContent = ''; $('total').textContent = '0';
   startAt = Date.now();
   timerId = setInterval(updateUI, 1000);
-  $('status').textContent = 'Dang dem...';
-  log('Bat dau. O khoi tao: ' + CELL0 + ' do, sau toi da ' + MAXDEPTH + '.');
+  $('status').textContent = 'Đang đếm...';
+  log('Bắt đầu. Ô khởi tạo: ' + CELL0 + ' độ, chia nhỏ tối đa ' + MAXDEPTH + ' lần khi gặp lỗi.');
   const queue = [];
   for(let lng = BBOX[0]; lng < BBOX[2]; lng += CELL0){
     for(let lat = BBOX[1]; lat < BBOX[3]; lat += CELL0){
@@ -178,21 +271,26 @@ async function run(){
       if(cellMayIntersect(c)){ queue.push({ cell: c, depth: 0 }); cellsQueued++; }
     }
   }
-  log('So o khoi tao sau khi bo o ngoai bien gioi: ' + cellsQueued);
-  const workers = [];
-  for(let i = 0; i < CONC; i++) workers.push(worker(queue));
-  await Promise.all(workers);
+  log('Số ô khởi tạo sau khi bỏ ô ngoài biên giới: ' + cellsQueued);
+  const runners = [];
+  for(let i = 0; i < CONC; i++) runners.push(runner(queue));
+  await Promise.all(runners);
   clearInterval(timerId);
+  flushDrawn();
   updateUI();
   running = false;
-  $('runBtn').disabled = false; $('stopBtn').disabled = true;
-  if(fatalError){ $('status').textContent = 'DUNG VI LOI: ' + fatalError; }
-  else if(stopFlag){ $('status').textContent = 'Da dung giua chung. So hien tai la so dem duoc mot phan (' + seen.size.toLocaleString('vi-VN') + ' node), chua phai tong cuoi.'; }
-  else { $('status').textContent = 'HOAN TAT. Tong so node bien bao trong bien gioi Viet Nam: ' + seen.size.toLocaleString('vi-VN') + '. Loi ' + errCount + ' o.'; log('XONG.'); }
+  $('stopBtn').disabled = true;
+  if(fatalError){ $('status').textContent = 'DỪNG VÌ LỖI: ' + fatalError; }
+  else if(stopFlag){ $('status').textContent = 'Đã dừng giữa chừng. Số hiện tại là số đếm được một phần (' + seen.size.toLocaleString('vi-VN') + ' biển), chưa phải tổng cuối.'; }
+  else { $('status').textContent = 'HOÀN TẤT. Tổng số biển báo trong biên giới Việt Nam: ' + seen.size.toLocaleString('vi-VN') + '. Ô lỗi: ' + errCount + '.'; log('XONG.'); }
+  if(restartWanted){ restartWanted = false; setTimeout(run, 100); }
 }
-$('runBtn').addEventListener('click', run);
-$('stopBtn').addEventListener('click', () => { stopFlag = true; $('status').textContent = 'Dang dung...'; });
-try{ const saved = localStorage.getItem('dk_mapillary_token'); if(saved){ $('token').value = saved; $('remember').checked = true; } }catch(e){}
+$('stopBtn').addEventListener('click', () => { stopFlag = true; $('status').textContent = 'Đang dừng...'; });
+$('restartBtn').addEventListener('click', () => {
+  if(running){ restartWanted = true; stopFlag = true; $('status').textContent = 'Đang dừng để đếm lại...'; }
+  else run();
+});
+document.addEventListener('DOMContentLoaded', () => { initMap(); run(); });
 </script>
 </body>
 </html>
