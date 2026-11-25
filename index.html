@@ -117,7 +117,7 @@
   <div class="stats">
     <div class="stat"><b>1.500+</b><span>loại biển báo (dữ liệu Mapillary)</span></div>
     <div class="stat"><b>270</b><span>biển báo Việt Nam có tên và hình đầy đủ</span></div>
-    <div class="stat"><b>36</b><span>trạm dừng nghỉ do cộng đồng đóng góp</span></div>
+    <div class="stat"><b id="statRestStops">36</b><span>trạm dừng nghỉ do cộng đồng đóng góp</span></div>
     <div class="stat"><b>15</b><span>loại địa điểm cộng đồng</span></div>
   </div>
 
@@ -231,5 +231,30 @@
     </span>
   </div>
 </footer>
+<script type="module">
+  // Dem that so tram dung nghi tu Firebase; loi thi giu so 36 ghi san.
+  (async () => {
+    try {
+      const el = document.getElementById('statRestStops');
+      if (!el) return;
+      const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+      const { getAuth, signInAnonymously } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+      const { getFirestore, collection, getCountFromServer } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      const app = initializeApp({
+  apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
+  authDomain: "drivekit-c88ef.firebaseapp.com",
+  databaseURL: "https://drivekit-c88ef-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "drivekit-c88ef",
+  storageBucket: "drivekit-c88ef.firebasestorage.app",
+  messagingSenderId: "1073887619343",
+  appId: "1:1073887619343:web:d89a872968bc4ee871f67a"
+});
+      await signInAnonymously(getAuth(app));
+      const snap = await getCountFromServer(collection(getFirestore(app), 'rest_stops'));
+      const n = snap.data().count;
+      if (Number.isFinite(n) && n > 0) el.textContent = String(n);
+    } catch (e) { /* giu so du phong 36 */ }
+  })();
+</script>
 </body>
 </html>
