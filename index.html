@@ -1,544 +1,209 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mapillary Signs – Full Fix</title>
-  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
-  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <style>
-    body { margin: 0; font-family: system-ui, sans-serif; }
-    #map { position: absolute; inset: 0; }
-    #legend {
-      position: absolute; left: 12px; bottom: 12px;
-      background: rgba(255,255,255,.92); padding: 8px 10px;
-      border-radius: 8px; font-size: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,.15); z-index: 2; line-height: 1.5;
-    }
-    #legend b { display: block; margin-bottom: 4px; }
-    #legend span.dot {
-      display: inline-block; width: 10px; height: 10px;
-      border-radius: 50%; margin-right: 6px; vertical-align: middle;
-    }
-    #debugPanel {
-      position: absolute; top: 12px; right: 60px; width: 380px; max-height: 60vh;
-      background: rgba(20, 20, 20, 0.92); color: #e0e0e0;
-      font: 12px/1.45 ui-monospace, monospace;
-      border-radius: 10px; display: flex; flex-direction: column;
-      z-index: 10; box-shadow: 0 4px 20px rgba(0,0,0,.4); overflow: hidden;
-    }
-    #debugPanel.collapsed #debugBody { display: none; }
-    #debugHeader {
-      padding: 8px 10px; display: flex; align-items: center; gap: 6px;
-      border-bottom: 1px solid #333; cursor: pointer; user-select: none;
-      background: #2a2a2a;
-    }
-    #debugHeader b { color: #fff; font-size: 12px; }
-    #debugHeader .badge {
-      background: #d62828; color: #fff; border-radius: 10px;
-      padding: 1px 7px; font-size: 10px; margin-left: auto;
-    }
-    #debugHeader .badge.zero { background: #2a7d2a; }
-    #debugHeader .state {
-      color: #888; font-size: 10px; padding: 1px 6px;
-      border: 1px solid #444; border-radius: 10px;
-    }
-    #debugHeader .state.ready { color: #7dff7d; border-color: #2a7d2a; }
-    #debugControls {
-      display: flex; gap: 4px; padding: 6px 8px;
-      border-bottom: 1px solid #333; flex-wrap: wrap;
-    }
-    #debugControls button {
-      background: #3a3a3a; color: #fff; border: 1px solid #555;
-      padding: 4px 8px; border-radius: 4px; font-size: 11px;
-      cursor: pointer; font-family: inherit;
-    }
-    #debugControls button:hover { background: #4a4a4a; }
-    #debugControls button.primary { background: #1a73e8; border-color: #1a73e8; }
-    #debugControls button.warn { background: #d6a500; border-color: #d6a500; color: #000; }
-    #debugControls button.ok { background: #2a7d2a; border-color: #2a7d2a; }
-    #debugControls button.danger { background: #b00020; border-color: #b00020; }
-    #debugBody { overflow-y: auto; padding: 6px 0; flex: 1; min-height: 120px; max-height: 50vh; }
-    .logLine {
-      padding: 2px 10px; border-left: 3px solid transparent;
-      white-space: pre-wrap; word-break: break-all;
-      font-size: 11px; line-height: 1.4;
-    }
-    .logLine.info { border-color: #1a73e8; color: #d0d0d0; }
-    .logLine.ok   { border-color: #2a7d2a; color: #7dff7d; }
-    .logLine.warn { border-color: #d6a500; color: #ffd76e; }
-    .logLine.err  { border-color: #d62828; color: #ff8c8c; }
-    .logLine .time { color: #777; margin-right: 4px; }
-    .logLine .tag  { color: #888; }
-    .mapillary-popup { max-width: 340px; font-size: 13px; }
-    .mapillary-popup img { width: 100%; border-radius: 6px; margin-top: 6px; }
-    .mapillary-popup .meta { color: #555; font-size: 11px; margin-top: 4px; }
-    .mapillary-popup .loading { color: #888; font-style: italic; }
-    .mapillary-popup .error { color: #c00; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DriveKit — Bản đồ và dẫn đường cho tài xế Việt</title>
+<meta name="description" content="DriveKit là ứng dụng bản đồ và dẫn đường miễn phí trên trình duyệt: biển báo giao thông, trạm dừng nghỉ, cảnh báo tốc độ và địa điểm cộng đồng. Không cần cài đặt, chạy tốt trên điện thoại yếu.">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1f2937; background: #fff; line-height: 1.65; }
+  a { color: #2563eb; }
+  header.top { background: #0f172a; color: #fff; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: 0; z-index: 10; }
+  header.top .logo { color: #fff; text-decoration: none; font-weight: 800; font-size: 22px; }
+  header.top nav { display: flex; gap: 16px; align-items: center; }
+  header.top nav a { color: #e2e8f0; text-decoration: none; font-size: 15px; }
+  header.top nav a:hover { color: #fff; }
+  .btn { display: inline-block; background: #2563eb; color: #fff; text-decoration: none; font-weight: 600; padding: 12px 24px; border-radius: 10px; font-size: 16px; }
+  .btn:hover { background: #1d4ed8; }
+  .btn.ghost { background: transparent; color: #2563eb; border: 2px solid #2563eb; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+  .hero { display: flex; flex-wrap: wrap; gap: 32px; align-items: center; padding: 48px 0 40px; }
+  .hero .text { flex: 1 1 340px; }
+  .hero h1 { font-size: 38px; line-height: 1.2; margin: 0 0 12px; }
+  .hero p.lead { font-size: 18px; color: #4b5563; margin: 0 0 24px; }
+  .hero .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .phone { flex: 0 1 280px; margin: 0 auto; }
+  .phone svg { width: 100%; height: auto; display: block; }
+  .stats { display: flex; flex-wrap: wrap; gap: 12px; padding: 8px 0 40px; }
+  .stat { flex: 1 1 140px; background: #f1f5f9; border-radius: 12px; padding: 16px; text-align: center; }
+  .stat b { display: block; font-size: 26px; color: #0f172a; }
+  .stat span { font-size: 14px; color: #4b5563; }
+  section.block { padding: 32px 0; }
+  section.block h2 { font-size: 26px; margin: 0 0 8px; }
+  section.block p.sub { color: #4b5563; margin: 0 0 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .card { border: 1px solid #e5e7eb; border-radius: 14px; padding: 20px; }
+  .card .icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+  .card h3 { margin: 0 0 6px; font-size: 18px; }
+  .card p { margin: 0; font-size: 15px; color: #4b5563; }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; counter-reset: step; }
+  .step { background: #f8fafc; border-radius: 14px; padding: 20px; }
+  .step b.num { display: inline-block; background: #0f172a; color: #fff; width: 30px; height: 30px; line-height: 30px; text-align: center; border-radius: 50%; margin-bottom: 8px; }
+  .step h3 { margin: 0 0 6px; font-size: 18px; }
+  .step p { margin: 0; font-size: 15px; color: #4b5563; }
+  .community { background: #0f172a; color: #fff; border-radius: 16px; padding: 28px 24px; }
+  .community h2 { color: #fff; }
+  .community p { color: #cbd5e1; }
+  .community .btn { margin-top: 8px; }
+  details { border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 18px; margin-bottom: 10px; }
+  details summary { font-weight: 600; cursor: pointer; font-size: 16px; }
+  details p { margin: 8px 0 0; color: #4b5563; font-size: 15px; }
+  footer { border-top: 1px solid #e5e7eb; padding: 24px 20px 40px; font-size: 14px; color: #6b7280; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+  footer a { color: #374151; text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+  @media (max-width: 640px) {
+    header.top nav a.hide-m { display: none; }
+    .hero h1 { font-size: 30px; }
+    .hero { padding-top: 32px; }
+  }
+</style>
 </head>
 <body>
+<header class="top">
+  <a class="logo" href="/">DriveKit</a>
+  <nav>
+    <a class="hide-m" href="#features">Tính năng</a>
+    <a class="hide-m" href="#how">Cách dùng</a>
+    <a class="hide-m" href="#faq">Hỏi đáp</a>
+    <a class="btn" href="/map/" style="padding: 8px 16px;">Mở bản đồ</a>
+  </nav>
+</header>
 
-<div id="map"></div>
-<div id="legend">
-  <b>Chú thích</b>
-  <div><span class="dot" style="background:#d62828"></span>Regulatory</div>
-  <div><span class="dot" style="background:#fcbf49"></span>Warning</div>
-  <div><span class="dot" style="background:#003049"></span>Info / Complementary</div>
-</div>
-
-<div id="debugPanel">
-  <div id="debugHeader">
-    <b>🐞 Debug</b>
-    <span class="state" id="mapState">waiting</span>
-    <span class="badge zero" id="errBadge">0 lỗi</span>
+<main class="wrap">
+  <div class="hero">
+    <div class="text">
+      <h1>Bản đồ và dẫn đường cho tài xế Việt</h1>
+      <p class="lead">Biển báo giao thông, trạm dừng nghỉ, cảnh báo tốc độ và địa điểm cộng đồng — tất cả trong một trang web. Không cần cài đặt, chạy mượt cả trên điện thoại yếu.</p>
+      <div class="cta">
+        <a class="btn" href="/map/">Mở bản đồ ngay</a>
+        <a class="btn ghost" href="#features">Xem tính năng</a>
+      </div>
+    </div>
+    <div class="phone" aria-hidden="true">
+      <svg viewBox="0 0 280 560" role="img" aria-label="Minh họa bản đồ DriveKit trên điện thoại">
+        <rect x="6" y="6" width="268" height="548" rx="36" fill="#0f172a"/>
+        <rect x="18" y="18" width="244" height="524" rx="26" fill="#eef2e8"/>
+        <path d="M18 180 H262 M18 330 H262 M90 18 V542 M190 18 V542" stroke="#ffffff" stroke-width="14"/>
+        <path d="M18 260 C80 240, 120 300, 262 210" stroke="#ffffff" stroke-width="10" fill="none"/>
+        <path d="M40 500 C90 420, 130 380, 150 300 S 220 160, 240 80" stroke="#3b82f6" stroke-width="8" fill="none" stroke-linecap="round"/>
+        <circle cx="150" cy="300" r="10" fill="#3b82f6" stroke="#fff" stroke-width="4"/>
+        <g transform="translate(196,60)">
+          <circle r="20" fill="#fff" stroke="#dc2626" stroke-width="4"/>
+          <path d="M-8 8 L8 -8 M-8 -8 L8 8" stroke="#dc2626" stroke-width="4" stroke-linecap="round"/>
+        </g>
+        <g transform="translate(60,120)">
+          <circle r="20" fill="#2563eb"/>
+          <path d="M0 10 L0 -8 M-7 -1 L0 -10 L7 -1" stroke="#fff" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+        <g transform="translate(215,420)">
+          <circle r="20" fill="#fff" stroke="#dc2626" stroke-width="4"/>
+          <path d="M0 -9 A9 9 0 1 0 0.01 -9" fill="none"/>
+          <rect x="-9" y="-3" width="18" height="6" fill="#dc2626"/>
+        </g>
+        <rect x="100" y="530" width="80" height="6" rx="3" fill="#0f172a" opacity="0.55"/>
+      </svg>
+    </div>
   </div>
-  <div id="debugControls">
-    <button class="primary" id="btnTest">▶ Test API</button>
-    <button class="warn" id="btnProps">🔬 Check tile props</button>
-    <button id="btnReloadIcons">↻ Reload icons</button>
-    <button class="warn" id="btnForceDefault">⚠ Force default</button>
-    <button class="ok" id="btnRestore">✓ Restore icons</button>
-    <button class="danger" id="btnClear">🗑 Clear</button>
-    <button id="btnCopy">📋 Copy log</button>
+
+  <div class="stats">
+    <div class="stat"><b>1.500+</b><span>loại biển báo (dữ liệu Mapillary)</span></div>
+    <div class="stat"><b>270</b><span>biển báo Việt Nam có tên và hình đầy đủ</span></div>
+    <div class="stat"><b>36</b><span>trạm dừng nghỉ do cộng đồng đóng góp</span></div>
+    <div class="stat"><b>15</b><span>loại địa điểm cộng đồng</span></div>
   </div>
-  <div id="debugBody"></div>
-</div>
 
-<script>
-/* ================================================================
-   1. CONFIG
-   ================================================================ */
-const MAPILLARY_TOKEN = 'MLY|29249168751358312|a5696ee10fc78ffba69a9a34515c63a8';
-const MAPTILER_STYLE_URL =
-  'https://api.maptiler.com/maps/streets-v4/style.json?key=aEzMCP0ANRz52vd1RvrW';
-const SIGN_ICON_BASE =
-  'https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/mapillary_signs';
+  <section class="block" id="features">
+    <h2>Tính năng chính</h2>
+    <p class="sub">Làm cho việc lái xe đường dài và đi lại trong thành phố dễ hơn.</p>
+    <div class="grid">
+      <div class="card">
+        <div class="icon" style="background:#dbeafe;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-5.5-7-11a7 7 0 1 1 14 0c0 5.5-7 11-7 11z" stroke="#2563eb" stroke-width="2"/><circle cx="12" cy="10" r="2.5" fill="#2563eb"/></svg></div>
+        <h3>Chỉ đường</h3>
+        <p>Tìm lộ trình ô tô, xe máy và đi bộ, theo dõi vị trí theo thời gian thực khi đang di chuyển.</p>
+      </div>
+      <div class="card">
+        <div class="icon" style="background:#fee2e2;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#dc2626" stroke-width="2.5"/><path d="M8 12h8" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round"/></svg></div>
+        <h3>Biển báo giao thông</h3>
+        <p>Hơn 1.500 loại biển báo từ dữ liệu Mapillary, hiển thị theo mức zoom và lọc theo từng nhóm biển.</p>
+      </div>
+      <div class="card">
+        <div class="icon" style="background:#dcfce7;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 20V9l8-5 8 5v11" stroke="#16a34a" stroke-width="2" stroke-linejoin="round"/><path d="M9 20v-6h6v6" stroke="#16a34a" stroke-width="2" stroke-linejoin="round"/></svg></div>
+        <h3>Trạm dừng nghỉ</h3>
+        <p>Trạm dừng nghỉ dọc đường do cộng đồng đóng góp, xem được vị trí, tiện ích và khoảng cách.</p>
+      </div>
+      <div class="card">
+        <div class="icon" style="background:#ffedd5;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 3l9 16H3l9-16z" stroke="#ea580c" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4" stroke="#ea580c" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="1" fill="#ea580c"/></svg></div>
+        <h3>Cảnh báo giao thông</h3>
+        <p>Cảnh báo giới hạn tốc độ, camera phạt nguội và các điểm cảnh báo do cộng đồng báo lên.</p>
+      </div>
+      <div class="card">
+        <div class="icon" style="background:#ede9fe;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#7c3aed" stroke-width="2"/><path d="M16 16l5 5" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <h3>Tìm quanh đây</h3>
+        <p>Tìm cây xăng, quán ăn, ATM, nhà thuốc, bãi đỗ xe và nhiều địa điểm khác gần vị trí của bạn.</p>
+      </div>
+      <div class="card">
+        <div class="icon" style="background:#fef9c3;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="8" r="3.5" stroke="#ca8a04" stroke-width="2"/><circle cx="16.5" cy="9.5" r="2.5" stroke="#ca8a04" stroke-width="2"/><path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5M14 19c.3-2.3 1.8-3.7 3.7-3.7 1.7 0 3.1 1.1 3.4 3.7" stroke="#ca8a04" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <h3>Cộng đồng đóng góp</h3>
+        <p>Ai cũng có thể thêm địa điểm, trạm dừng nghỉ và báo cáo cảnh báo để bản đồ ngày càng đầy đủ.</p>
+      </div>
+    </div>
+  </section>
 
-/* ================================================================
-   2. LOGGER
-   ================================================================ */
-const logBody = document.getElementById('debugBody');
-const errBadge = document.getElementById('errBadge');
-const mapStateEl = document.getElementById('mapState');
-let errCount = 0;
-const allLogs = [];
+  <section class="block" id="how">
+    <h2>Cách dùng trong 3 bước</h2>
+    <p class="sub">Không cần cài đặt, mở trình duyệt là dùng được.</p>
+    <div class="steps">
+      <div class="step"><b class="num">1</b><h3>Mở trang web</h3><p>Mở DriveKit trên trình duyệt điện thoại hoặc máy tính, không cần tải ứng dụng.</p></div>
+      <div class="step"><b class="num">2</b><h3>Đăng nhập</h3><p>Đăng nhập để dùng đầy đủ bản đồ, dẫn đường và đóng góp cho cộng đồng.</p></div>
+      <div class="step"><b class="num">3</b><h3>Chọn điểm đến</h3><p>Tìm địa chỉ, chạm để xem thông tin, rồi bắt đầu hành trình của bạn.</p></div>
+    </div>
+  </section>
 
-function log(level, tag, ...msg) {
-  const t = new Date().toLocaleTimeString('vi-VN', { hour12: false });
-  const text = msg.map(m => typeof m === 'object' ? JSON.stringify(m) : String(m)).join(' ');
-  const line = document.createElement('div');
-  line.className = 'logLine ' + level;
-  line.innerHTML = `<span class="time">${t}</span><span class="tag">[${tag}]</span> ${escapeHtml(text)}`;
-  logBody.appendChild(line);
-  logBody.scrollTop = logBody.scrollHeight;
-  allLogs.push(`[${t}] [${level.toUpperCase()}] [${tag}] ${text}`);
-  if (level === 'err') {
-    errCount++;
-    errBadge.textContent = `${errCount} lỗi`;
-    errBadge.classList.remove('zero');
-  }
-  while (logBody.children.length > 500) logBody.removeChild(logBody.firstChild);
-  const fn = level === 'err' ? console.error : level === 'warn' ? console.warn : console.log;
-  fn(`[${tag}]`, ...msg);
-}
-function escapeHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-function setMapState(s) {
-  mapStateEl.textContent = s;
-  mapStateEl.classList.toggle('ready', s === 'ready');
-}
-log('info', 'boot', 'Debug panel ready');
+  <section class="block">
+    <div class="community">
+      <h2>Bản đồ do cộng đồng xây dựng</h2>
+      <p>DriveKit tốt lên nhờ chính những người dùng nó. Thêm một trạm dừng nghỉ bạn vừa ghé, báo một biển báo mới, hay gắn cảnh báo cho đoạn đường hay xảy ra phạt nguội — mỗi đóng góp đều giúp tài xế khác đi an toàn hơn.</p>
+      <a class="btn" href="/map/">Đóng góp ngay</a>
+    </div>
+  </section>
 
-/* ================================================================
-   3. MAP
-   ================================================================ */
-log('info', 'map', 'Khởi tạo MapLibre…');
-const map = new maplibregl.Map({
-  container: 'map',
-  style: MAPTILER_STYLE_URL,
-  center: [105.85, 21.03],
-  zoom: 16
-});
-map.addControl(new maplibregl.NavigationControl(), 'top-right');
-map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+  <section class="block" id="faq">
+    <h2>Câu hỏi thường gặp</h2>
+    <details>
+      <summary>Dùng DriveKit có miễn phí không?</summary>
+      <p>Có, hoàn toàn miễn phí. Không có phí ẩn và không có quảng cáo.</p>
+    </details>
+    <details>
+      <summary>Có cần đăng nhập không?</summary>
+      <p>Có. Bạn cần đăng nhập để dùng bản đồ, dẫn đường và đóng góp nội dung cho cộng đồng.</p>
+    </details>
+    <details>
+      <summary>Điện thoại nào dùng được?</summary>
+      <p>Mọi điện thoại có trình duyệt hiện đại đều dùng được, kể cả điện thoại cấu hình thấp, vì DriveKit chạy ngay trên web mà không cần cài đặt.</p>
+    </details>
+    <details>
+      <summary>Dữ liệu biển báo và lộ trình có chính xác không?</summary>
+      <p>Dữ liệu đến từ OpenStreetMap, Mapillary, TomTom và cộng đồng người dùng nên có thể thiếu hoặc chưa cập nhật. Bạn luôn phải tuân thủ biển báo và luật giao thông thực tế ngoài đường.</p>
+    </details>
+    <details>
+      <summary>DriveKit có thu thập dữ liệu của tôi không?</summary>
+      <p>Có, ở mức cần thiết để vận hành: tài khoản đăng nhập, vị trí GPS và nội dung bạn gửi lên. Chi tiết xem trong <a href="/policy/">Chính sách riêng tư</a>.</p>
+    </details>
+  </section>
+</main>
 
-map.on('error', (e) => {
-  const msg = e?.error?.message || String(e?.error || e);
-  log('err', 'map', msg);
-});
-map.on('style.load', () => {
-  setMapState('style');
-  log('ok', 'map', 'style.load event');
-});
-
-/* ================================================================
-   4. ICON MANAGER — rasterize SVG → RGBA (tránh bug createImageBitmap)
-   ================================================================ */
-const DEFAULT_SIGN_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
-  '<circle cx="16" cy="16" r="14" fill="#e63946" stroke="#ffffff" stroke-width="2.5"/></svg>';
-
-const CATEGORY_COLORS = {
-  regulatory: '#d62828', warning: '#fcbf49',
-  information: '#003049', complementary: '#003049'
-};
-const loadedIcons = new Set();
-const loadingIcons = new Map();
-
-function svgToDataUri(svg) {
-  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-}
-function makeFallbackSvg(v) {
-  const cat = (v || '').split('--')[0] || 'regulatory';
-  const color = CATEGORY_COLORS[cat] || '#e63946';
-  return '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
-    `<circle cx="16" cy="16" r="14" fill="${color}" stroke="#fff" stroke-width="2.5"/>` +
-    '<circle cx="16" cy="16" r="8" fill="#fff" fill-opacity="0.25"/></svg>';
-}
-
-/**
- * Load SVG → HTMLImageElement (dùng native decoder, hỗ trợ SVG đầy đủ)
- */
-function loadSvgAsImage(url) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.decoding = 'async';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`load fail: ${url}`));
-    img.src = url;
-  });
-}
-
-/**
- * Rasterize SVG → raw RGBA pixel data. Truyền thẳng vào map.addImage
- * để bỏ qua createImageBitmap (bug blank texture với SVG).
- */
-async function rasterizeSvg(url, size = 48) {
-  const img = await loadSvgAsImage(url);
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0, size, size);
-  const data = ctx.getImageData(0, 0, size, size);
-  return {
-    width: size,
-    height: size,
-    data: new Uint8Array(data.data.buffer)
-  };
-}
-
-async function loadIconForSign(objectValue) {
-  if (!objectValue) return;
-  if (loadedIcons.has(objectValue)) return;
-  if (loadingIcons.has(objectValue)) return loadingIcons.get(objectValue);
-
-  const promise = (async () => {
-    const url = `${SIGN_ICON_BASE}/${objectValue}.svg`;
-    try {
-      const raster = await rasterizeSvg(url, 48);
-      if (!map.hasImage(objectValue)) {
-        map.addImage(objectValue, raster, { sdf: false });
-      }
-      loadedIcons.add(objectValue);
-      log('ok', 'icon', `✓ ${objectValue} (48×48 raster)`);
-    } catch (err) {
-      log('warn', 'icon', `✗ ${objectValue} (${err.message}) → fallback`);
-      try {
-        const fbUrl = svgToDataUri(makeFallbackSvg(objectValue));
-        const raster = await rasterizeSvg(fbUrl, 48);
-        if (!map.hasImage(objectValue)) {
-          map.addImage(objectValue, raster, { sdf: false });
-        }
-        loadedIcons.add(objectValue);
-      } catch (e2) {
-        log('err', 'icon', `fallback fail ${objectValue}: ${e2.message}`);
-      }
-    } finally {
-      loadingIcons.delete(objectValue);
-    }
-  })();
-
-  loadingIcons.set(objectValue, promise);
-  return promise;
-}
-
-/* ================================================================
-   5. LOAD HANDLER
-   ================================================================ */
-map.on('load', async () => {
-  window._mapReady = true;
-  setMapState('ready');
-  log('ok', 'map', 'load event fired');
-
-  // default-sign
-  try {
-    const raster = await rasterizeSvg(svgToDataUri(DEFAULT_SIGN_SVG), 48);
-    if (!map.hasImage('default-sign')) {
-      map.addImage('default-sign', raster, { sdf: false });
-    }
-    log('ok', 'icon', 'default-sign OK (48×48 raster)');
-  } catch (e) {
-    log('err', 'icon', 'default-sign fail: ' + e.message);
-    return;
-  }
-
-  // source
-  if (!map.getSource('traffic-signs')) {
-    map.addSource('traffic-signs', {
-      type: 'vector',
-      tiles: [
-        `https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`
-      ],
-      minzoom: 0, maxzoom: 14
-    });
-    log('ok', 'src', 'traffic-signs source added');
-  }
-
-  map.on('styleimagemissing', (e) => {
-    const id = e.id;
-    if (!id || id === 'default-sign') return;
-    if (map.hasImage(id)) return;
-    if (id.includes('--')) loadIconForSign(id);
-  });
-
-  let layerState = 'pending'; // pending | preloading | added
-
-  map.on('sourcedata', async (e) => {
-    if (e.sourceId !== 'traffic-signs' || !e.isSourceLoaded) return;
-
-    if (layerState === 'preloading') return;
-
-    if (layerState === 'pending') {
-      layerState = 'preloading';
-
-      const feats = map.querySourceFeatures('traffic-signs', { sourceLayer: 'traffic_sign' });
-      const objectValues = new Set();
-      feats.forEach(f => {
-        const v = f.properties.object_value || f.properties.value;
-        if (v) objectValues.add(v);
-      });
-      log('info', 'layer', `Preloading ${objectValues.size} icons trước addLayer…`);
-
-      await Promise.all([...objectValues].map(v => loadIconForSign(v)));
-
-      // Log property thật của feature đầu tiên (verify)
-      if (feats[0]) {
-        const p = feats[0].properties;
-        log('info', 'layer',
-          `Feature[0] props: object_value=${JSON.stringify(p.object_value)} value=${JSON.stringify(p.value)}`);
-      }
-
-      log('ok', 'layer', 'Preload xong → addLayer');
-
-      map.addLayer({
-        id: 'traffic-signs-layer',
-        type: 'symbol',
-        source: 'traffic-signs',
-        'source-layer': 'traffic_sign',
-        layout: {
-          // *** FIX: có đủ object_value + value + default-sign ***
-          'icon-image': [
-            'coalesce',
-            ['get', 'object_value'],
-            ['get', 'value'],
-            'default-sign'
-          ],
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.6, 15, 1.0, 18, 1.5],
-          'icon-allow-overlap': true,
-          'icon-anchor': 'center',
-          'icon-padding': 0
-        }
-      });
-      log('ok', 'layer', 'traffic-signs-layer added');
-
-      map.on('click', 'traffic-signs-layer', async (ev) => {
-        const f = ev.features[0];
-        const id = f.properties.id;
-        const signType = f.properties.object_value || f.properties.value || 'unknown';
-        log('info', 'click', `sign id=${id} type=${signType}`);
-
-        const popup = new maplibregl.Popup({ maxWidth: '360px' })
-          .setLngLat(ev.lngLat)
-          .setHTML(`<div class="mapillary-popup"><div class="loading">Đang tải ảnh…</div></div>`)
-          .addTo(map);
-
-        try {
-          const ids = await fetchMapFeatureImages(id);
-          if (!ids.length) {
-            log('warn', 'api', `no images for ${id}`);
-            popup.setHTML(`<div class="mapillary-popup error">Không có ảnh.</div>`);
-            return;
-          }
-          const img = await fetchImageThumbnail(ids[0]);
-          log('ok', 'api', 'ảnh OK');
-          popup.setHTML(`
-            <div class="mapillary-popup">
-              <strong>${signType}</strong><br>
-              <img src="${img.thumb_1024_url}" alt="Mapillary" />
-              <div class="meta">
-                📍 ${id}<br>
-                🕒 ${img.captured_at ? new Date(img.captured_at).toLocaleString('vi-VN') : '—'}<br>
-                🧭 ${img.compass_angle ?? '—'}°
-              </div>
-            </div>
-          `);
-        } catch (err) {
-          log('err', 'api', err.message || err);
-          popup.setHTML(`<div class="mapillary-popup error">Lỗi: ${err.message}</div>`);
-        }
-      });
-
-      map.on('mouseenter', 'traffic-signs-layer', () => map.getCanvas().style.cursor = 'pointer');
-      map.on('mouseleave', 'traffic-signs-layer', () => map.getCanvas().style.cursor = '');
-
-      layerState = 'added';
-      log('ok', 'setup', 'Sẵn sàng – pan sang Hà Nội phố cổ / TP.HCM Q1');
-      return;
-    }
-
-    // layerState === 'added' — load thêm icon khi pan sang vùng mới
-    const feats = map.querySourceFeatures('traffic-signs', { sourceLayer: 'traffic_sign' });
-    const uniq = new Set();
-    feats.forEach(f => uniq.add(f.properties.id || f.id));
-    log('info', 'signs', `${uniq.size} signs (z=${map.getZoom().toFixed(1)})`);
-
-    const seen = new Set();
-    feats.forEach(f => {
-      const v = f.properties.object_value || f.properties.value;
-      if (v && !seen.has(v)) { seen.add(v); loadIconForSign(v); }
-    });
-  });
-});
-
-/* ================================================================
-   6. BUTTONS
-   ================================================================ */
-document.getElementById('debugHeader').onclick = () =>
-  document.getElementById('debugPanel').classList.toggle('collapsed');
-
-document.getElementById('btnClear').onclick = () => {
-  logBody.innerHTML = '';
-  allLogs.length = 0;
-  errCount = 0;
-  errBadge.textContent = '0 lỗi';
-  errBadge.classList.add('zero');
-};
-
-document.getElementById('btnCopy').onclick = async () => {
-  try {
-    await navigator.clipboard.writeText(allLogs.join('\n'));
-    log('ok', 'debug', 'Đã copy log');
-  } catch { log('err', 'debug', 'Copy fail'); }
-};
-
-document.getElementById('btnReloadIcons').onclick = async () => {
-  log('info', 'debug', 'Reload icons…');
-  for (const id of Array.from(loadedIcons)) {
-    if (map.hasImage(id)) map.removeImage(id);
-  }
-  loadedIcons.clear();
-  if (map.getSource('traffic-signs')) {
-    const feats = map.querySourceFeatures('traffic-signs', { sourceLayer: 'traffic_sign' });
-    const seen = new Set();
-    for (const f of feats) {
-      const v = f.properties.object_value || f.properties.value;
-      if (v && !seen.has(v)) { seen.add(v); await loadIconForSign(v); }
-    }
-    log('ok', 'debug', `Reloaded ${seen.size} icons`);
-  }
-};
-
-/* Force default-sign để test layer có render không */
-document.getElementById('btnForceDefault').onclick = () => {
-  if (!map.getLayer('traffic-signs-layer')) {
-    log('err', 'debug', 'Layer chưa tồn tại');
-    return;
-  }
-  map.setLayoutProperty('traffic-signs-layer', 'icon-image', 'default-sign');
-  log('warn', 'debug', '→ icon-image = "default-sign"');
-};
-
-document.getElementById('btnRestore').onclick = () => {
-  if (!map.getLayer('traffic-signs-layer')) {
-    log('err', 'debug', 'Layer chưa tồn tại');
-    return;
-  }
-  map.setLayoutProperty('traffic-signs-layer', 'icon-image',
-    ['coalesce', ['get', 'object_value'], ['get', 'value'], 'default-sign']);
-  log('ok', 'debug', '→ icon-image đã restore');
-};
-
-/* Check tile props — verify property thật trong vector tile */
-document.getElementById('btnProps').onclick = () => {
-  const feats = map.querySourceFeatures('traffic-signs', { sourceLayer: 'traffic_sign' });
-  if (!feats.length) {
-    log('warn', 'props', 'Không có feature trong view');
-    return;
-  }
-  const f = feats[0];
-  log('info', 'props', `Feature props: ${Object.keys(f.properties).join(', ')}`);
-  log('info', 'props', `object_value = ${JSON.stringify(f.properties.object_value)}`);
-  log('info', 'props', `value        = ${JSON.stringify(f.properties.value)}`);
-  log('info', 'props', `id           = ${JSON.stringify(f.properties.id)}`);
-
-  const ov = f.properties.object_value;
-  const val = f.properties.value;
-  log('info', 'props', `hasImage(object_value) = ${ov ? map.hasImage(ov) : '(null)'}`);
-  log('info', 'props', `hasImage(value)        = ${val ? map.hasImage(val) : '(null)'}`);
-  log('info', 'props', `hasImage(default-sign) = ${map.hasImage('default-sign')}`);
-
-  // Đếm tỷ lệ sign có object_value vs value
-  let withOv = 0, withVal = 0, withBoth = 0, withNeither = 0;
-  feats.forEach(x => {
-    const o = x.properties.object_value;
-    const v = x.properties.value;
-    if (o && v) withBoth++;
-    else if (o) withOv++;
-    else if (v) withVal++;
-    else withNeither++;
-  });
-  log('info', 'props',
-    `Tổng ${feats.length}: có object_value=${withOv}, có value=${withVal}, cả hai=${withBoth}, không có=${withNeither}`);
-};
-
-document.getElementById('btnTest').onclick = async () => {
-  log('info', 'test', '=== TEST ===');
-  const styleOk = map.isStyleLoaded();
-  const sourceOk = !!map.getSource('traffic-signs');
-  const layerOk = !!map.getLayer('traffic-signs-layer');
-  log('info', 'test', `style=${styleOk} source=${sourceOk} layer=${layerOk}`);
-  if (sourceOk) {
-    const feats = map.querySourceFeatures('traffic-signs', { sourceLayer: 'traffic_sign' });
-    log('info', 'test', `querySourceFeatures: ${feats.length} features`);
-    if (feats[0]) {
-      const v = feats[0].properties.object_value || feats[0].properties.value;
-      log('info', 'test', `sign[0].key = ${v}`);
-      log('info', 'test', `hasImage("${v}") = ${v ? map.hasImage(v) : false}`);
-    }
-  }
-  log('info', 'test', '=== HẾT ===');
-};
-
-/* ================================================================
-   7. GRAPH API
-   ================================================================ */
-async function fetchMapFeatureImages(id) {
-  const url = `https://graph.mapillary.com/${id}?access_token=${MAPILLARY_TOKEN}&fields=images`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Map feature API ${r.status}`);
-  return (await r.json()).images || [];
-}
-async function fetchImageThumbnail(id) {
-  const url = `https://graph.mapillary.com/${id}?access_token=${MAPILLARY_TOKEN}&fields=thumb_1024_url,captured_at,compass_angle`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Image API ${r.status}`);
-  return await r.json();
-}
-</script>
-
+<footer>
+  <div class="wrap">
+    <span>DriveKit — dự án cá nhân, không phải doanh nghiệp.</span>
+    <span>
+      <a href="https://github.com/worldoftankblizt1234-wq/drivekit">GitHub</a> &nbsp;·&nbsp;
+      <a href="mailto:worldoftrankblizt1234@gmail.com">Liên hệ qua email</a> &nbsp;·&nbsp;
+      <a href="/term/">Điều khoản</a> &nbsp;·&nbsp;
+      <a href="/policy/">Riêng tư</a>
+    </span>
+  </div>
+</footer>
 </body>
 </html>
