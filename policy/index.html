@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chính sách riêng tư — DriveKit</title>
+<style>
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1f2937; background: #fff; line-height: 1.65; }
+  header { background: #0f172a; color: #fff; padding: 16px 20px; }
+  header a { color: #fff; text-decoration: none; font-weight: 700; font-size: 20px; }
+  header a.back { float: right; font-size: 14px; font-weight: 400; margin-top: 4px; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 20px 48px; }
+  h1 { font-size: 28px; margin: 8px 0 4px; }
+  h2 { font-size: 19px; margin: 28px 0 6px; }
+  p, li { font-size: 16px; }
+  ul { padding-left: 22px; }
+  .meta { color: #6b7280; font-size: 14px; }
+  footer { border-top: 1px solid #e5e7eb; padding: 16px 20px; font-size: 14px; color: #6b7280; }
+  footer a { color: #2563eb; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/map/">DriveKit</a>
+  <a class="back" href="/map/">Mở bản đồ</a>
+</header>
+<main>
+  <h1>Chính sách riêng tư</h1>
+  <p class="meta">Cập nhật lần cuối: 25/11/2026. DriveKit là dự án cá nhân, không phải doanh nghiệp.</p>
+
+  <h2>1. Ai vận hành</h2>
+  <p>DriveKit do một cá nhân vận hành. Mọi thắc mắc về dữ liệu của bạn, vui lòng liên hệ qua kho mã nguồn công khai: <a href="https://github.com/worldoftankblizt1234-wq/drivekit">github.com/worldoftankblizt1234-wq/drivekit</a>.</p>
+
+  <h2>2. Dữ liệu chúng tôi thu thập</h2>
+  <ul>
+    <li><b>Tài khoản:</b> địa chỉ email, tên hiển thị và mã người dùng khi bạn đăng nhập (qua Firebase Authentication). Không đăng nhập thì không dùng được bản đồ.</li>
+    <li><b>Vị trí:</b> vị trí GPS của bạn khi dùng dẫn đường, tìm quanh đây, và vị trí gắn với nội dung bạn gửi lên.</li>
+    <li><b>Nội dung bạn gửi:</b> trạm dừng nghỉ, địa điểm cộng đồng, báo cáo và cảnh báo — kèm tọa độ, thời gian gửi, mã người dùng và tên tác giả — được lưu trong cơ sở dữ liệu Firestore để hiển thị cho người dùng khác.</li>
+    <li><b>Truy vấn qua máy chủ trung gian:</b> các yêu cầu tìm kiếm, lộ trình và tra cứu địa chỉ đi qua máy chủ của DriveKit và được lưu cache tạm thời: kết quả tìm kiếm 7 ngày, lộ trình 24 giờ, tra cứu địa chỉ 30 ngày.</li>
+    <li><b>Dịch vụ bên thứ ba:</b> khi bạn dùng ứng dụng, các dịch vụ bản đồ và dữ liệu (MapTiler, TrackAsia, TomTom, Mapillary, Firebase) nhận request gồm địa chỉ IP, vùng bản đồ bạn đang xem và từ khóa tìm kiếm, theo chính sách riêng tư của từng dịch vụ.</li>
+  </ul>
+
+  <h2>3. Mục đích sử dụng dữ liệu</h2>
+  <p>Dữ liệu chỉ dùng để vận hành ứng dụng: dẫn đường, tìm kiếm, hiển thị địa điểm và cảnh báo cộng đồng, và giữ an toàn cho dịch vụ. Chúng tôi không dùng dữ liệu của bạn để quảng cáo.</p>
+
+  <h2>4. Dữ liệu chúng tôi không thu thập</h2>
+  <p>DriveKit không có quảng cáo và không gắn công cụ theo dõi hành vi (analytics). Các cài đặt giao diện như cỡ biển báo hay trạng thái thanh công cụ chỉ lưu trong bộ nhớ của trình duyệt trên máy bạn (localStorage) và không được gửi đi đâu.</p>
+
+  <h2>5. Lưu trữ và bảo mật</h2>
+  <p>Dữ liệu được lưu trên hạ tầng của Firebase/Google với các biện pháp bảo mật hợp lý. Chúng tôi không bán dữ liệu của bạn và không chia sẻ dữ liệu cho bên thứ ba nào ngoài các dịch vụ cần thiết để chạy ứng dụng nêu ở mục 2.</p>
+
+  <h2>6. Quyền của bạn</h2>
+  <p>Bạn có thể yêu cầu xem hoặc xóa nội dung do bạn đăng, hoặc yêu cầu hỗ trợ xóa tài khoản và dữ liệu liên quan, bằng cách liên hệ qua kho mã nguồn ở mục 1. Nội dung cộng đồng đã hiển thị công khai có thể còn tồn tại trong bản sao lưu trong một thời gian ngắn sau khi xóa.</p>
+
+  <h2>7. Thay đổi chính sách</h2>
+  <p>Chính sách này có thể được cập nhật trên trang này. Thay đổi quan trọng sẽ được ghi rõ trong phần ngày cập nhật ở đầu trang.</p>
+</main>
+<footer>DriveKit — dự án cá nhân. <a href="/term/">Điều khoản sử dụng</a></footer>
+</body>
+</html>
