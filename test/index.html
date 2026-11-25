@@ -29,6 +29,7 @@
   <h1>Đếm biển báo Mapillary ở Việt Nam</h1>
   <div class="big" id="total">—</div>
   <div class="sub" id="status">Đang tải bản đồ, chuẩn bị đếm...</div>
+  <div class="sub" id="savedLine" hidden></div>
   <div class="row">
     <span>Ô đã xong: <b id="cells">0 / 0</b></span>
     <span>Request: <b id="reqs">0</b></span>
@@ -288,7 +289,14 @@ $('restartBtn').addEventListener('click', () => {
   if(running){ restartWanted = true; stopFlag = true; $('status').textContent = 'Đang dừng để đếm lại...'; }
   else run();
 });
-document.addEventListener('DOMContentLoaded', () => { initMap(); run(); });
+function loadSavedTotal(){
+  fetch('count-result.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => {
+    if(!j || typeof j.total !== 'number') return;
+    const el = $('savedLine'); el.hidden = false;
+    el.textContent = 'Tổng đã đếm xong (bản lưu): ' + j.total.toLocaleString('vi-VN') + ' biển — đếm ngày ' + String(j.countedAt || '').slice(0, 10) + '.';
+  }).catch(() => {});
+}
+document.addEventListener('DOMContentLoaded', () => { initMap(); run(); loadSavedTotal(); });
 </script>
 </body>
 </html>
