@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DriveKit — Bản đồ và dẫn đường cho tài xế Việt</title>
 <meta name="description" content="DriveKit là ứng dụng bản đồ và dẫn đường miễn phí trên trình duyệt: biển báo giao thông, trạm dừng nghỉ, cảnh báo tốc độ và địa điểm cộng đồng. Không cần cài đặt, chạy tốt trên điện thoại yếu.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="DriveKit — Bản đồ và dẫn đường cho tài xế Việt">
+<meta property="og:description" content="Biển báo giao thông, trạm dừng nghỉ, cảnh báo tốc độ, dự báo thời tiết dọc tuyến đường — tất cả trong một trang web, không cần cài đặt.">
+<meta property="og:url" content="https://drive-kit.pages.dev/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="DriveKit — Bản đồ và dẫn đường cho tài xế Việt">
+<meta name="twitter:description" content="Biển báo giao thông, trạm dừng nghỉ, cảnh báo tốc độ, dự báo thời tiết dọc tuyến đường — tất cả trong một trang web, không cần cài đặt.">
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1f2937; background: #fff; line-height: 1.65; }
@@ -61,6 +68,10 @@
   footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
   footer a { color: #374151; text-decoration: none; }
   footer a:hover { text-decoration: underline; }
+  .videos { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .videos figure { margin: 0; }
+  .videos video { width: 100%; height: auto; display: block; border-radius: 24px; border: 8px solid #0f172a; box-shadow: 0 16px 40px rgba(15,23,42,.25); background: #0f172a; }
+  .videos figcaption { font-size: 14px; color: #6b7280; text-align: center; margin-top: 10px; }
   @media (max-width: 640px) {
     header.top nav a.hide-m { display: none; }
     .hero h1 { font-size: 30px; }
@@ -73,6 +84,7 @@
   <a class="logo" href="/">DriveKit</a>
   <nav>
     <a class="hide-m" href="#features">Tính năng</a>
+    <a class="hide-m" href="#weather">Thời tiết</a>
     <a class="hide-m" href="#how">Cách dùng</a>
     <a class="hide-m" href="#faq">Hỏi đáp</a>
     <a class="btn" href="/map/" style="padding: 8px 16px;">Mở bản đồ</a>
@@ -137,6 +149,11 @@
         <h3>Cộng đồng đóng góp</h3>
         <p>Ai cũng có thể thêm địa điểm, trạm dừng nghỉ và báo cáo cảnh báo để bản đồ ngày càng đầy đủ.</p>
       </div>
+      <div class="card">
+        <div class="icon" style="background:#e0f2fe;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M17.5 18a4.5 4.5 0 0 0 .9-8.9 6 6 0 0 0-11.6-1.4A4 4 0 0 0 7 16.5" stroke="#0284c7" stroke-width="2" stroke-linecap="round"/><path d="M8 19l-1 2M12 19l-1 2M16 19l-1 2" stroke="#0284c7" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <h3>Dự báo thời tiết</h3>
+        <p>Xem mưa 3 giờ tới, dự báo 24 giờ và 5 ngày tới, cả thời tiết dọc tuyến đường tới điểm đến của bạn.</p>
+      </div>
     </div>
   </section>
 
@@ -178,6 +195,32 @@
     </div>
   </section>
 
+  <section class="block" id="weather">
+    <h2>Dự báo thời tiết trước khi đi</h2>
+    <p class="sub">Biết trời mưa hay nắng trước khi lăn bánh — thời tiết hiện ngay trên lộ trình của bạn.</p>
+    <div class="videos">
+      <figure>
+        <video autoplay muted loop playsinline preload="metadata" poster="assets/videos/weather-route-preview.jpg">
+          <source src="assets/videos/weather-route-preview.mp4" type="video/mp4">
+        </video>
+        <figcaption>Chọn tuyến là thấy ngay thời tiết lúc đến nơi: nhiệt độ và mưa nhẹ hay mưa to.</figcaption>
+      </figure>
+      <figure>
+        <video autoplay muted loop playsinline preload="metadata" poster="assets/videos/weather-on-route.jpg">
+          <source src="assets/videos/weather-on-route.mp4" type="video/mp4">
+        </video>
+        <figcaption>Đang dẫn đường vẫn xem được thời tiết hiện tại và ở điểm đến, kể cả khả năng mưa 3 giờ tới.</figcaption>
+      </figure>
+      <figure>
+        <video autoplay muted loop playsinline preload="metadata" poster="assets/videos/weather-detail.jpg">
+          <source src="assets/videos/weather-detail.mp4" type="video/mp4">
+        </video>
+        <figcaption>Bảng chi tiết: độ ẩm, gió, áp suất, tầm nhìn, mưa 24 giờ tới và 5 ngày tới.</figcaption>
+      </figure>
+    </div>
+    <p style="margin-top:20px;"><a class="btn" href="/map/">Mở bản đồ xem thời tiết</a></p>
+  </section>
+
   <section class="block" id="how">
     <h2>Cách dùng trong 3 bước</h2>
     <p class="sub">Không cần cài đặt, mở trình duyệt là dùng được.</p>
@@ -205,6 +248,10 @@
     <details>
       <summary>Có cần đăng nhập không?</summary>
       <p>Có. Bạn cần đăng nhập để dùng bản đồ, dẫn đường và đóng góp nội dung cho cộng đồng.</p>
+    </details>
+    <details>
+      <summary>Có xem dự báo thời tiết được không?</summary>
+      <p>Có. Mở chip thời tiết trong app để xem mưa 3 giờ tới, dự báo 24 giờ và 5 ngày tới, cả thời tiết dọc tuyến đường tới điểm đến của bạn.</p>
     </details>
     <details>
       <summary>Điện thoại nào dùng được?</summary>
