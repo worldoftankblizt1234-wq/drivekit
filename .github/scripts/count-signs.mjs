@@ -4,6 +4,7 @@
 // Failed tiles are NEVER dropped: all of them persist in progress.failed
 // and are re-queued first next run (past MAX_TILES they ride deferred).
 // Failure reasons are recorded in progress.failReasons/failSamples.
+// A 200 whose body is not a vector tile is retried (3 attempts), then recorded as 'invalid tile body'.
 // RESET_COUNT=1 recounts from scratch, ignoring saved progress.
 // Env: MAPILLARY_TOKEN (required, from a repository secret — never log it),
 //      MAX_TILES_PER_RUN (default 45000, keeps each run under the 50k/day tile quota),
@@ -103,7 +104,19 @@ async function fetchTile(x, y) {
         err.status = r.status;
         throw err;
       }
-      return Buffer.from(await r.arrayBuffer());
+      const buf = Buffer.from(await r.arrayBuffer());
+      // A 200 can still carry a non-tile body (error page/JSON). Validate by
+      // parsing: a body that is not a vector tile is retried like any other
+      // transient failure, never tallied at once as a decode error.
+      try {
+        new VectorTile(new PbfReader(buf));
+      } catch {
+        if (attempt < 2) { await sleep(2000 * (attempt + 1)); continue; }
+        const err = new Error('invalid tile body (not a vector tile)');
+        err.invalidBody = true;
+        throw err;
+      }
+      return buf;
     } catch (e) {
       if (e instanceof FatalError || e instanceof RateLimited) throw e;
       if (attempt < 2) { await sleep(2000 * (attempt + 1)); continue; }
@@ -203,7 +216,7 @@ async function main() {
         if (e instanceof FatalError) { fatal = e; break; }
         if (e instanceof RateLimited) { stopFlag = true; console.log('RATE LIMITED — stopping run, progress will be saved.'); break; }
         failed.push(`${x}/${y}`);
-        const reason = e.status ? `HTTP ${e.status}` : (e.name === 'AbortError' ? 'timeout' : `error: ${String(e.message || e).slice(0, 60)}`);
+        const reason = e.status ? `HTTP ${e.status}` : (e.invalidBody ? 'invalid tile body' : (e.name === 'AbortError' ? 'timeout' : `error: ${String(e.message || e).slice(0, 60)}`));
         failReasons[reason] = (failReasons[reason] || 0) + 1;
         if (failSamples.length < 10) failSamples.push(`${x}/${y}: ${reason}`);
       }
