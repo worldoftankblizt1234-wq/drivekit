@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Thời tiết — DriveKit</title>
+<meta name="theme-color" content="#0f172a" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap&subset=vietnamese" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+<script>try{ if(localStorage.getItem('theme')==='light') document.documentElement.classList.add('light'); }catch(e){}</script>
+<style>
+  :root{ --bg:#0f172a; --card:#1e293b; --card2:#273449; --text:#f1f5f9; --muted:#94a3b8; --border:#334155; --accent:#38bdf8; --bad:#f87171; }
+  html.light{ --bg:#f8fafc; --card:#ffffff; --card2:#f1f5f9; --text:#0f172a; --muted:#64748b; --border:#e2e8f0; --accent:#0284c7; --bad:#dc2626; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:"Be Vietnam Pro",system-ui,sans-serif; }
+  .wrap{ max-width:560px; margin:0 auto; padding:calc(14px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom)); }
+  .state{ padding:48px 8px; text-align:center; color:var(--muted); font-size:14px; line-height:1.6; }
+  .state b{ display:block; color:var(--text); font-size:16px; margin-bottom:6px; }
+  .head{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .head h1{ font-size:17px; margin:0; font-weight:800; }
+  .head .sub{ color:var(--muted); font-size:12px; margin-top:3px; }
+  .refresh{ border:1px solid var(--border); background:var(--card); color:var(--text); border-radius:999px; padding:8px 12px; font:inherit; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
+  .hero{ display:flex; align-items:center; gap:16px; margin:18px 0 6px; }
+  .hero .ic{ font-size:44px; color:var(--accent); width:58px; text-align:center; }
+  .hero .temp{ font-size:52px; font-weight:900; line-height:1; }
+  .hero .desc{ font-size:15px; font-weight:700; text-transform:capitalize; }
+  .hero .feels{ color:var(--muted); font-size:13px; margin-top:4px; }
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:16px; }
+  .cell{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:11px 12px; font-size:12px; color:var(--muted); }
+  .cell b{ display:block; color:var(--text); font-size:15px; margin-top:3px; font-weight:700; }
+  .cell i{ margin-right:6px; color:var(--accent); }
+  .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:12px 14px; margin-top:12px; }
+  .card h2{ font-size:13px; margin:0 0 10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  .rain-line{ font-size:14px; font-weight:600; }
+  .rain-line.bad{ color:var(--bad); }
+  .hours{ display:flex; gap:14px; overflow-x:auto; padding-bottom:4px; }
+  .hour{ text-align:center; font-size:12px; color:var(--muted); white-space:nowrap; min-width:44px; }
+  .hour i{ display:block; font-size:18px; color:var(--accent); margin:5px 0; }
+  .hour b{ display:block; color:var(--text); font-size:13px; }
+  .day{ display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--border); font-size:13px; }
+  .day:first-of-type{ border-top:none; }
+  .day .nm{ width:86px; font-weight:700; flex:none; }
+  .day i{ width:26px; text-align:center; color:var(--accent); flex:none; }
+  .day .ds{ flex:1; color:var(--muted); text-transform:capitalize; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .day .pop{ width:44px; text-align:right; color:var(--muted); flex:none; }
+  .day .mm{ width:104px; text-align:right; font-weight:700; flex:none; }
+  .day .mm span{ color:var(--muted); font-weight:500; }
+  .bar{ height:5px; border-radius:99px; background:var(--card2); margin:2px 0 0; position:relative; overflow:hidden; }
+  .bar i{ position:absolute; top:0; bottom:0; background:var(--accent); border-radius:99px; display:block; }
+  .foot{ color:var(--muted); font-size:11px; text-align:center; margin-top:16px; }
+  .retry{ margin-top:14px; border:1px solid var(--border); background:var(--card); color:var(--text); border-radius:999px; padding:9px 18px; font:inherit; font-size:14px; font-weight:700; cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="wxState" class="state"><b>Đang xác nhận người dùng...</b>Vui lòng đợi trong giây lát.</div>
+  <div id="wxMain" style="display:none">
+    <div class="head">
+      <div>
+        <h1 id="wxName">Vị trí của bạn</h1>
+        <div class="sub" id="wxUpdated"></div>
+      </div>
+      <button type="button" class="refresh" id="wxRefresh"><i class="fas fa-rotate"></i> Làm mới</button>
+    </div>
+    <div class="hero">
+      <div class="ic" id="wxIcon"></div>
+      <div>
+        <div class="temp" id="wxTemp">--°</div>
+        <div class="desc" id="wxDesc">—</div>
+        <div class="feels" id="wxFeels"></div>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="cell"><i class="fas fa-droplet"></i>Độ ẩm<b id="wxHum">--</b></div>
+      <div class="cell"><i class="fas fa-wind"></i>Gió<b id="wxWind">--</b></div>
+      <div class="cell"><i class="fas fa-gauge-high"></i>Áp suất<b id="wxPres">--</b></div>
+      <div class="cell"><i class="fas fa-eye"></i>Tầm nhìn<b id="wxVis">--</b></div>
+      <div class="cell"><i class="fas fa-cloud"></i>Mây che phủ<b id="wxCloud">--</b></div>
+      <div class="cell"><i class="fas fa-sun"></i>Mọc / lặn<b id="wxSun">--</b></div>
+    </div>
+    <div class="card">
+      <h2>Mưa</h2>
+      <div class="rain-line" id="wxRain">—</div>
+    </div>
+    <div class="card">
+      <h2>24 giờ tới</h2>
+      <div class="hours" id="wxHours"></div>
+    </div>
+    <div class="card">
+      <h2>5 ngày tới</h2>
+      <div id="wxDays"></div>
+    </div>
+    <div class="foot">Dữ liệu: OpenWeatherMap qua máy chủ DriveKit · Dự báo theo mốc 3 giờ</div>
+  </div>
+</div>
+<script>
+/* Pure helpers — no imports, no network. Tested by harness. */
+window.WxPage = (function(){
+  function condFa(id, icon){
+    var night = (icon || '').slice(-1) === 'n';
+    if (id >= 200 && id < 300) return 'fa-bolt';
+    if (id >= 300 && id < 400) return 'fa-cloud-rain';
+    if (id >= 500 && id < 600) {
+      if (id === 511) return 'fa-icicles';
+      if (id >= 502) return 'fa-cloud-showers-heavy';
+      return 'fa-cloud-rain';
+    }
+    if (id >= 600 && id < 700) return 'fa-snowflake';
+    if (id >= 700 && id < 800) return 'fa-smog';
+    if (id === 800) return night ? 'fa-moon' : 'fa-sun';
+    if (id > 800) return night ? 'fa-cloud-moon' : 'fa-cloud-sun';
+    return 'fa-cloud-sun';
+  }
+  function windDir(deg){
+    var dirs = ['Bắc', 'Đông-Bắc', 'Đông', 'Đông-Nam', 'Nam', 'Tây-Nam', 'Tây', 'Tây-Bắc'];
+    var d = (typeof deg === 'number' && isFinite(deg)) ? deg : 0;
+    return dirs[Math.round(((d % 360) + 360) % 360 / 45) % 8];
+  }
+  function shiftedDate(dt, tz){ return new Date((dt + (tz || 0)) * 1000); }
+  function fmtHM(dt, tz){
+    var d = shiftedDate(dt, tz);
+    return ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2);
+  }
+  function dayKey(dt, tz){ return shiftedDate(dt, tz).toISOString().slice(0, 10); }
+  function groupDays(list, tz){
+    var days = [], byKey = {};
+    (list || []).forEach(function(en){
+      var k = dayKey(en.dt, tz);
+      var day = byKey[k];
+      if (!day) {
+        day = { key: k, dt: en.dt, tmin: Infinity, tmax: -Infinity, pop: 0, id: 800, icon: '01d', desc: '', count: 0 };
+        byKey[k] = day; days.push(day);
+      }
+      var mn = en.main && en.main.temp_min, mx = en.main && en.main.temp_max;
+      if (typeof mn === 'number' && mn < day.tmin) day.tmin = mn;
+      if (typeof mx === 'number' && mx > day.tmax) day.tmax = mx;
+      var w = en.weather && en.weather[0];
+      if (w) {
+        if ((en.pop || 0) > day.pop) { day.pop = en.pop || 0; }
+        var mid = (en.dt + (tz || 0)) % 86400;
+        if (mid >= 36000 && mid <= 54000) { day.id = w.id; day.icon = w.icon; day.desc = w.description || ''; }
+        if (!day.desc) { day.id = w.id; day.icon = w.icon; day.desc = w.description || ''; }
+      }
+      day.count++;
+    });
+    days.forEach(function(day){
+      if (!isFinite(day.tmin)) day.tmin = null;
+      if (!isFinite(day.tmax)) day.tmax = null;
+    });
+    return days.slice(0, 5);
+  }
+  return { condFa: condFa, windDir: windDir, fmtHM: fmtHM, dayKey: dayKey, groupDays: groupDays };
+})();
+</script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
+  authDomain: "drivekit-c88ef.firebaseapp.com",
+  databaseURL: "https://drivekit-c88ef-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "drivekit-c88ef",
+  storageBucket: "drivekit-c88ef.firebasestorage.app",
+  messagingSenderId: "1073887619343",
+  appId: "1:1073887619343:web:d89a872968bc4ee871f67a"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const WORKER = 'https://map-birthday.anhminhadof123.workers.dev';
+
+const params = new URLSearchParams(location.search);
+const lat = parseFloat(params.get('lat'));
+const lon = parseFloat(params.get('lon'));
+const placeName = (params.get('name') || '').trim();
+
+const stateEl = document.getElementById('wxState');
+const mainEl = document.getElementById('wxMain');
+const H = window.WxPage;
+
+function showState(title, sub, retry){
+  mainEl.style.display = 'none';
+  stateEl.style.display = 'block';
+  stateEl.innerHTML = '';
+  var b = document.createElement('b'); b.textContent = title; stateEl.appendChild(b);
+  var s = document.createElement('span'); s.textContent = sub || ''; stateEl.appendChild(s);
+  if (retry) {
+    var br = document.createElement('br'); stateEl.appendChild(br);
+    var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'retry'; btn.textContent = 'Thử lại';
+    btn.addEventListener('click', loadWeather); stateEl.appendChild(btn);
+  }
+}
+function setText(id, text){ var el = document.getElementById(id); if (el) el.textContent = text; }
+function fetchJson(url, ms){
+  return new Promise(function(resolve, reject){
+    var done = false;
+    var timer = setTimeout(function(){ if (!done) { done = true; reject(new Error('timeout')); } }, ms || 15000);
+    fetch(url).then(function(r){
+      if (done) return;
+      if (!r.ok) throw new Error('http ' + r.status);
+      return r.json();
+    }).then(function(j){ if (!done) { done = true; clearTimeout(timer); resolve(j); } })
+    .catch(function(e){ if (!done) { done = true; clearTimeout(timer); reject(e); } });
+  });
+}
+function render(cur, fc){
+  var tz = (fc && fc.city && typeof fc.city.timezone === 'number') ? fc.city.timezone : (cur.timezone || 0);
+  var w = cur.weather && cur.weather[0];
+  setText('wxName', placeName || 'Vị trí của bạn');
+  var upd = new Date();
+  setText('wxUpdated', 'Cập nhật lúc ' + ('0' + upd.getHours()).slice(-2) + ':' + ('0' + upd.getMinutes()).slice(-2) + ' · ' + lat.toFixed(4) + ', ' + lon.toFixed(4));
+  document.getElementById('wxIcon').innerHTML = '<i class="fas ' + H.condFa(w ? w.id : 800, w ? w.icon : '01d') + '"></i>';
+  setText('wxTemp', Math.round(cur.main.temp) + '°');
+  setText('wxDesc', w ? w.description : '');
+  setText('wxFeels', 'Cảm giác như ' + Math.round(cur.main.feels_like) + '°');
+  setText('wxHum', cur.main.humidity + '%');
+  var windTxt = (cur.wind ? cur.wind.speed : 0) + ' m/s · ' + H.windDir(cur.wind ? cur.wind.deg : 0);
+  if (cur.wind && cur.wind.gust) windTxt += ' · giật ' + cur.wind.gust + ' m/s';
+  setText('wxWind', windTxt);
+  setText('wxPres', cur.main.pressure + ' hPa');
+  setText('wxVis', (typeof cur.visibility === 'number' ? (cur.visibility / 1000).toFixed(1) + ' km' : '--'));
+  setText('wxCloud', (cur.clouds ? cur.clouds.all : 0) + '%');
+  if (cur.sys) setText('wxSun', H.fmtHM(cur.sys.sunrise, tz) + ' / ' + H.fmtHM(cur.sys.sunset, tz));
+  var rainEl = document.getElementById('wxRain');
+  var first = fc && fc.list && fc.list[0];
+  var pop0 = first ? Math.round((first.pop || 0) * 100) : null;
+  var vol = first && first.rain && first.rain['3h'];
+  var rainTxt = (pop0 === null) ? 'Chưa có dự báo mưa.' : ('Khả năng mưa 3 giờ tới: ' + pop0 + '%' + (vol ? ' · lượng mưa ' + vol + ' mm' : ''));
+  rainEl.textContent = rainTxt;
+  rainEl.classList.toggle('bad', !!(pop0 !== null && pop0 >= 70));
+  var hoursEl = document.getElementById('wxHours');
+  hoursEl.innerHTML = '';
+  (fc && fc.list ? fc.list.slice(0, 8) : []).forEach(function(en){
+    var enW = en.weather && en.weather[0];
+    var div = document.createElement('div'); div.className = 'hour';
+    var t = document.createElement('span'); t.textContent = H.fmtHM(en.dt, tz); div.appendChild(t);
+    var ic = document.createElement('i'); ic.className = 'fas ' + H.condFa(enW ? enW.id : 800, enW ? enW.icon : '01d'); div.appendChild(ic);
+    var tp = document.createElement('b'); tp.textContent = Math.round(en.main.temp) + '°'; div.appendChild(tp);
+    var pp = document.createElement('span'); pp.textContent = 'Mưa ' + Math.round((en.pop || 0) * 100) + '%'; div.appendChild(pp);
+    hoursEl.appendChild(div);
+  });
+  var days = H.groupDays(fc ? fc.list : [], tz);
+  var allMin = Infinity, allMax = -Infinity;
+  days.forEach(function(d){ if (d.tmin !== null && d.tmin < allMin) allMin = d.tmin; if (d.tmax !== null && d.tmax > allMax) allMax = d.tmax; });
+  var daysEl = document.getElementById('wxDays');
+  daysEl.innerHTML = '';
+  var todayKey = H.dayKey(Math.floor(Date.now() / 1000), tz);
+  days.forEach(function(d, idx){
+    var row = document.createElement('div'); row.className = 'day';
+    var nm = document.createElement('span'); nm.className = 'nm';
+    var dObj = new Date((d.dt + tz) * 1000);
+    nm.textContent = (d.key === todayKey) ? 'Hôm nay' : new Intl.DateTimeFormat('vi-VN', { weekday: 'long', timeZone: 'UTC' }).format(dObj);
+    row.appendChild(nm);
+    var ic = document.createElement('i'); ic.className = 'fas ' + H.condFa(d.id, d.icon); row.appendChild(ic);
+    var ds = document.createElement('span'); ds.className = 'ds'; ds.textContent = d.desc || ''; row.appendChild(ds);
+    var pp = document.createElement('span'); pp.className = 'pop'; pp.textContent = Math.round((d.pop || 0) * 100) + '%'; row.appendChild(pp);
+    var mm = document.createElement('span'); mm.className = 'mm';
+    mm.innerHTML = '';
+    var lo = document.createElement('span'); lo.textContent = (d.tmin === null ? '--' : Math.round(d.tmin) + '°') + ' / '; mm.appendChild(lo);
+    mm.appendChild(document.createTextNode(d.tmax === null ? '--' : Math.round(d.tmax) + '°'));
+    row.appendChild(mm);
+    if (isFinite(allMin) && isFinite(allMax) && allMax > allMin && d.tmin !== null && d.tmax !== null) {
+      var bar = document.createElement('div'); bar.className = 'bar';
+      var fill = document.createElement('i');
+      fill.style.left = ((d.tmin - allMin) / (allMax - allMin) * 100) + '%';
+      fill.style.width = (Math.max(8, (d.tmax - d.tmin) / (allMax - allMin) * 100)) + '%';
+      bar.appendChild(fill);
+      var wrap = document.createElement('div'); wrap.style.cssText = 'flex-basis:100%;height:5px;';
+      wrap.appendChild(bar);
+      row.style.flexWrap = 'wrap';
+      row.appendChild(wrap);
+    }
+    daysEl.appendChild(row);
+  });
+  stateEl.style.display = 'none';
+  mainEl.style.display = 'block';
+}
+async function loadWeather(){
+  if (!isFinite(lat) || !isFinite(lon)) {
+    showState('Chưa có vị trí', 'Mở trang này từ chip thời tiết trong app DriveKit để xem thời tiết tại vị trí của bạn.');
+    return;
+  }
+  showState('Đang tải thời tiết...', '');
+  try {
+    var cur = await fetchJson(WORKER + '/api/weather/current?lat=' + lat + '&lon=' + lon);
+    var fc = await fetchJson(WORKER + '/api/weather/forecast?lat=' + lat + '&lon=' + lon);
+    render(cur, fc);
+  } catch (e) {
+    showState('Không tải được thời tiết.', 'Kiểm tra mạng rồi thử lại.', true);
+  }
+}
+document.getElementById('wxRefresh').addEventListener('click', loadWeather);
+onAuthStateChanged(auth, function(user){
+  if (!user) {
+    showState('Ko xác nhận được người dùng', 'Mở trang này từ chip thời tiết trong app DriveKit khi đã đăng nhập.');
+    return;
+  }
+  loadWeather();
+});
+</script>
+</body>
+</html>
