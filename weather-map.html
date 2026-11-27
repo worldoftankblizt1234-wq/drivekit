@@ -166,6 +166,7 @@ const deta = parseFloat(params.get('deta'));
 const nlat = parseFloat(params.get('nlat'));
 const nlon = parseFloat(params.get('nlon'));
 const neta = parseFloat(params.get('neta'));
+const shortNext = params.get('short') === '1';
 
 const stateEl = document.getElementById('wxState');
 const mainEl = document.getElementById('wxMain');
@@ -241,6 +242,26 @@ function renderForecast(prefix, fc, etaMin, nowSec){
   var etaEl = document.getElementById(prefix === 'wmDest' ? 'wmDestEta' : 'wmNextEta');
   if (etaEl) etaEl.textContent = '· dự kiến ' + hhmm;
 }
+function renderCurrentInto(prefix, curObj, slot, tz, etaMin, nowSec){
+  var w = curObj.weather && curObj.weather[0];
+  setIcon(prefix + 'Icon', w ? w.id : 800, w ? w.icon : '01d');
+  setText(prefix + 'Temp', Math.round(curObj.main.temp) + '°');
+  setText(prefix + 'Desc', w ? w.description : '');
+  setText(prefix + 'Feels', 'Cảm giác như ' + Math.round(curObj.main.feels_like) + '°');
+  setText(prefix + 'Hum', curObj.main.humidity + '%');
+  var windTxt = (curObj.wind ? curObj.wind.speed : 0) + ' m/s · ' + H.windDir(curObj.wind ? curObj.wind.deg : 0);
+  setText(prefix + 'Wind', windTxt);
+  setText(prefix + 'Pop', slot ? Math.round((slot.pop || 0) * 100) + '%' : '--');
+  var etaEl = document.getElementById(prefix === 'wmDest' ? 'wmDestEta' : 'wmNextEta');
+  if (isFinite(etaMin)) {
+    var hhmm = H.fmtHM(nowSec + etaMin * 60, tz);
+    setText(prefix + 'Time', hhmm);
+    if (etaEl) etaEl.textContent = '· dự kiến ' + hhmm;
+  } else {
+    setText(prefix + 'Time', '--');
+    if (etaEl) etaEl.textContent = '';
+  }
+}
 async function loadWeather(){
   if (!isFinite(lat) || !isFinite(lon)) {
     showState('Chưa có vị trí', 'Mở trang này từ thời tiết trong app DriveKit để xem thời tiết trên tuyến đường.');
@@ -262,9 +283,20 @@ async function loadWeather(){
   setText('wmUpdated', 'Cập nhật lúc ' + ('0' + upd.getHours()).slice(-2) + ':' + ('0' + upd.getMinutes()).slice(-2));
   if (cur) renderCurrent(cur, fcCur);
   else renderEmpty('wmCur');
-  if (fcD) renderForecast('wmDest', fcD, deta, nowSec);
+  var curD = null, slotD = null;
+  if (fcD && hasDest) {
+    var etaSecD = nowSec + (isFinite(deta) ? deta * 60 : 0);
+    slotD = H.pickSlot(fcD.list, etaSecD);
+    var nowSlotD = H.pickSlot(fcD.list, nowSec);
+    if (slotD && nowSlotD && slotD.dt === nowSlotD.dt) {
+      curD = await fetchJson(WORKER + '/api/weather/current?lat=' + dlat + '&lon=' + dlon).catch(function(){ return null; });
+    }
+  }
+  if (fcD && curD) renderCurrentInto('wmDest', curD, slotD, (fcD.city && fcD.city.timezone) || 0, deta, nowSec);
+  else if (fcD) renderForecast('wmDest', fcD, deta, nowSec);
   else renderEmpty('wmDest');
   if (fcN) renderForecast('wmNext', fcN, neta, nowSec);
+  else if (shortNext && cur) renderCurrentInto('wmNext', cur, null, (fcCur && fcCur.city && fcCur.city.timezone) || 0, neta, nowSec);
   else renderEmpty('wmNext');
   stateEl.style.display = 'none';
   mainEl.style.display = 'block';
