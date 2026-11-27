@@ -1,5 +1,10 @@
 // Counts Mapillary traffic-sign features inside Vietnam from z14 vector tiles.
 // Resume-aware: reads/writes test/count-progress.json, writes test/count-result.json when done.
+// A tile that answers 404/204 has no data and counts as 0 signs (success).
+// Failed tiles are NEVER dropped: all of them persist in progress.failed
+// and are re-queued first next run (past MAX_TILES they ride deferred).
+// Failure reasons are recorded in progress.failReasons/failSamples.
+// RESET_COUNT=1 recounts from scratch, ignoring saved progress.
 // Env: MAPILLARY_TOKEN (required, from a repository secret — never log it),
 //      MAX_TILES_PER_RUN (default 45000, keeps each run under the 50k/day tile quota),
 //      CONCURRENCY (default 20),
@@ -89,9 +94,14 @@ async function fetchTile(x, y) {
         }
         throw new RateLimited('HTTP 429 persists after retry — daily tile quota likely reached.');
       }
+      // A tile with no data answers 404/204: empty, not an error. Return
+      // at once — retrying cannot create data.
+      if (r.status === 404 || r.status === 204) return null;
       if (r.status !== 200) {
         if (attempt < 2) { await sleep(2000 * (attempt + 1)); continue; }
-        throw new Error('HTTP ' + r.status);
+        const err = new Error('HTTP ' + r.status);
+        err.status = r.status;
+        throw err;
       }
       return Buffer.from(await r.arrayBuffer());
     } catch (e) {
@@ -139,8 +149,11 @@ async function main() {
   const allTiles = buildTileList();
   console.log(`Tile list: ${allTiles.length} land-intersecting z14 tiles.`);
 
+  const RESET = !DRY && (process.env.RESET_COUNT === '1' || process.env.RESET_COUNT === 'true');
   let queue;
   let progress = null;
+  let deferredFailed = [];
+  let numFailedQueued = 0;
   if (DRY) {
     const [w, s, e, n] = DRY_PARTS;
     queue = allTiles.filter(([x, y]) => {
@@ -152,19 +165,28 @@ async function main() {
     if (existsSync(PROGRESS_PATH)) {
       try { progress = JSON.parse(readFileSync(PROGRESS_PATH, 'utf8')); } catch { progress = null; }
     }
-    if (!progress || !Array.isArray(progress.failed) || typeof progress.nextIndex !== 'number') {
-      progress = { nextIndex: 0, total: 0, runs: 0, failed: [], failedDropped: 0 };
+    if (RESET || !progress || !Array.isArray(progress.failed) || typeof progress.nextIndex !== 'number') {
+      if (RESET) console.log('RESET_COUNT is set — recounting from scratch, saved progress ignored.');
+      progress = { nextIndex: 0, total: 0, runs: 0, failed: [] };
     }
     const failedTiles = progress.failed
       .map((k) => k.split('/').map(Number))
       .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
-    const budget = Math.max(0, MAX_TILES - failedTiles.length);
+    // Failed tiles go first, but one run must never exceed MAX_TILES:
+    // failures past the cap ride in deferredFailed and are carried into
+    // the next run untouched. Nothing is ever dropped.
+    const queuedFailed = failedTiles.slice(0, MAX_TILES);
+    deferredFailed = failedTiles.slice(MAX_TILES);
+    numFailedQueued = queuedFailed.length;
+    const budget = Math.max(0, MAX_TILES - queuedFailed.length);
     const fresh = allTiles.slice(progress.nextIndex, progress.nextIndex + budget);
-    queue = [...failedTiles, ...fresh];
-    console.log(`Resume: nextIndex=${progress.nextIndex}, counted-so-far=${progress.total}, failed-queued=${failedTiles.length}, this-run-tiles=${queue.length}.`);
+    queue = [...queuedFailed, ...fresh];
+    console.log(`Resume: nextIndex=${progress.nextIndex}, counted-so-far=${progress.total}, failed-queued=${queuedFailed.length}, failed-deferred=${deferredFailed.length}, this-run-tiles=${queue.length}.`);
   }
 
   let done = 0, signs = 0, failed = [];
+  const failReasons = {};
+  const failSamples = [];
   let stopFlag = false, fatal = null;
   let qi = 0;
   const t0 = Date.now();
@@ -181,6 +203,9 @@ async function main() {
         if (e instanceof FatalError) { fatal = e; break; }
         if (e instanceof RateLimited) { stopFlag = true; console.log('RATE LIMITED — stopping run, progress will be saved.'); break; }
         failed.push(`${x}/${y}`);
+        const reason = e.status ? `HTTP ${e.status}` : (e.name === 'AbortError' ? 'timeout' : `error: ${String(e.message || e).slice(0, 60)}`);
+        failReasons[reason] = (failReasons[reason] || 0) + 1;
+        if (failSamples.length < 10) failSamples.push(`${x}/${y}: ${reason}`);
       }
       done++;
       if (done % 1000 === 0) {
@@ -196,7 +221,7 @@ async function main() {
     console.error('FATAL: ' + fatal.message);
     process.exit(1);
   }
-  console.log(`Run finished: ${done}/${queue.length} tiles attempted, signs-in-run=${signs}, failed=${failed.length}, rateLimited=${stopFlag}, ${Math.round((Date.now() - startedAt) / 1000)}s total.`);
+  console.log(`Run finished: ${done}/${queue.length} tiles attempted, signs-in-run=${signs}, failed=${failed.length}, failReasons=${JSON.stringify(failReasons)}, rateLimited=${stopFlag}, ${Math.round((Date.now() - startedAt) / 1000)}s total.`);
 
   if (DRY) {
     console.log(`DRY RUN TOTAL for bbox: ${signs} signs in ${done} tiles.`);
@@ -207,27 +232,28 @@ async function main() {
   // beyond the failed prefix are fresh tiles, and nextIndex must advance only
   // past fresh tiles actually attempted — never past unattempted ones.
   // Failed tiles never attempted this run stay in the failed list.
-  const numFailedQueued = (progress.failed || []).length;
   const freshAttempted = Math.max(0, done - numFailedQueued);
   const nextIndex = Math.min(allTiles.length, progress.nextIndex + freshAttempted);
   const unattemptedFailed = queue.slice(done, numFailedQueued).map(([x, y]) => `${x}/${y}`);
-  const allFailed = [...unattemptedFailed, ...failed];
-  const failedKept = allFailed.slice(0, 2000);
+  const allFailed = [...unattemptedFailed, ...failed, ...deferredFailed.map(([x, y]) => `${x}/${y}`)];
+  const mergedReasons = { ...(progress.failReasons || {}) };
+  for (const [k, v] of Object.entries(failReasons)) mergedReasons[k] = (mergedReasons[k] || 0) + v;
   const newProgress = {
     nextIndex,
     total: progress.total + signs,
     runs: progress.runs + 1,
-    failed: failedKept,
-    failedDropped: (progress.failedDropped || 0) + Math.max(0, allFailed.length - failedKept.length),
+    failed: allFailed,
+    failReasons: mergedReasons,
+    failSamples,
     updatedAt: new Date().toISOString(),
     tilesTotal: allTiles.length,
     rateLimited: stopFlag,
   };
   mkdirSync(join(ROOT, 'test'), { recursive: true });
   writeFileSync(PROGRESS_PATH, JSON.stringify(newProgress, null, 2) + '\n');
-  console.log(`Progress saved: nextIndex=${nextIndex}/${allTiles.length}, total=${newProgress.total}, failed=${failedKept.length}.`);
+  console.log(`Progress saved: nextIndex=${nextIndex}/${allTiles.length}, total=${newProgress.total}, failed=${allFailed.length}.`);
 
-  if (nextIndex >= allTiles.length && failedKept.length === 0) {
+  if (nextIndex >= allTiles.length && allFailed.length === 0) {
     const result = {
       total: newProgress.total,
       tilesTotal: allTiles.length,
