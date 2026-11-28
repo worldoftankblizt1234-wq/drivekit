@@ -55,23 +55,25 @@
   .hero { padding: 40px 0 8px; text-align: center; }
   .hero h1 { font-size: 34px; line-height: 1.2; margin: 0 0 10px; color: #0f172a; }
   .hero p.lead { font-size: 18px; color: #4b5563; margin: 0 0 8px; }
-  section.block { padding: 28px 0; }
+  section.block { padding: 28px 0; scroll-margin-top: 72px; }
   section.block h2 { font-size: 26px; margin: 0 0 8px; color: #0f172a; }
   section.block p.sub { color: #4b5563; margin: 0 0 20px; }
   .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
   .plan { border: 1px solid #e5e7eb; border-radius: 16px; padding: 22px 20px; display: flex; flex-direction: column; }
-  .plan.hot { border: 2px solid #2563eb; box-shadow: 0 8px 28px rgba(37,99,235,.15); position: relative; }
   .plan.top { border: 2px solid #0f172a; }
   .badge { display: inline-block; font-size: 13px; font-weight: 700; color: #fff; background: #2563eb; border-radius: 999px; padding: 3px 12px; margin-bottom: 10px; }
   .badge.dark { background: #0f172a; }
   .plan h3 { margin: 0; font-size: 20px; color: #0f172a; }
-  .price { font-size: 30px; font-weight: 800; color: #0f172a; margin: 8px 0 0; }
+  .price { font-size: 30px; font-weight: 800; color: #0f172a; margin: 8px 0 0; white-space: nowrap; }
   .price span { font-size: 15px; font-weight: 400; color: #6b7280; }
   .cycle { font-size: 14px; color: #6b7280; margin: 0 0 12px; }
-  .plan ul { margin: 0 0 18px; padding-left: 20px; color: #4b5563; font-size: 15px; flex: 1; }
-  .plan li { margin-bottom: 6px; }
+  .plan ul { list-style: none; margin: 0 0 18px; padding: 14px 0 0; border-top: 1px solid #e5e7eb; flex: 1; }
+  .plan li { margin-bottom: 8px; font-size: 15px; color: #374151; padding-left: 24px; position: relative; }
+  .plan li::before { content: "✓"; position: absolute; left: 0; color: #16a34a; font-weight: 700; }
   .tablewrap { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 14px; }
-  table.compare { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 640px; }
+  .free-note { display: inline-block; background: #dcfce7; color: #166534; font-weight: 600; font-size: 14px; border-radius: 999px; padding: 4px 14px; margin: 4px 0 8px; }
+  .scrollhint { display: none; font-size: 14px; color: #6b7280; margin: 0 0 8px; }
+  table.compare { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 560px; }
   table.compare th, table.compare td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #e5e7eb; }
   table.compare tr:last-child th, table.compare tr:last-child td { border-bottom: none; }
   table.compare thead th { background: #0f172a; color: #fff; }
@@ -95,6 +97,9 @@
   @media (max-width: 640px) {
     header.top nav a.hide-m { display: none; }
     .hero h1 { font-size: 28px; }
+    .plans { grid-template-columns: 1fr; }
+    .price { font-size: 28px; }
+    .scrollhint { display: block; }
   }
 </style>
 </head>
@@ -115,7 +120,8 @@
 <main class="wrap">
   <div class="hero">
     <h1>Bảng giá DriveKit</h1>
-    <p class="lead">Dùng miễn phí đủ tính năng cơ bản. Nâng cấp khi cần thời tiết nhiều hơn, lưu hành trình dài hơn, dẫn đường xe tải và chia sẻ vị trí theo nhóm.</p>
+    <p class="lead">Dùng miễn phí đủ tính năng cơ bản. Nâng cấp khi cần thời tiết nhiều hơn, lưu hành trình dài hơn, dẫn đường xe tải và chia sẻ vị trí với nhiều người.</p>
+    <span class="free-note">Bản đồ và dẫn đường cơ bản mãi miễn phí</span>
   </div>
 
   <section class="block">
@@ -125,11 +131,11 @@
         <p class="price">0đ</p>
         <p class="cycle">Miễn phí</p>
         <ul>
-          <li>Lưu hành trình 1 MB</li>
-          <li>Thời tiết 30 lượt/tháng</li>
-          <li>Dự báo hiện tại, theo giờ, nhiều ngày, điểm đến</li>
-          <li>Truck routing 20 lượt/tháng</li>
-          <li>Live Room: 5 người/phòng, 1 phòng, 30 phút/phiên</li>
+          <li>Lưu hành trình 1&nbsp;MB</li>
+          <li>Thời tiết 30&nbsp;lượt/tháng</li>
+          <li>Đủ 4 loại dự báo</li>
+          <li>Truck routing 20&nbsp;lượt/tháng</li>
+          <li>Live Room: 5&nbsp;người/phòng</li>
         </ul>
         <a class="btn green block" href="../map/">Bắt đầu miễn phí</a>
       </div>
@@ -139,43 +145,41 @@
         <p class="price">39.000đ <span>/ 30 ngày</span></p>
         <p class="cycle">Cho tài xế chạy thường xuyên</p>
         <ul>
-          <li>Lưu hành trình 5 MB</li>
-          <li>Thời tiết 100 lượt/tháng</li>
-          <li>Mưa dọc hành trình + cảnh báo thời tiết cơ bản</li>
-          <li>Truck routing 100 lượt/tháng</li>
-          <li>Live Room: 10 người/phòng, 2 phòng, 60 phút/phiên</li>
+          <li>Lưu hành trình 5&nbsp;MB</li>
+          <li>Thời tiết 100&nbsp;lượt/tháng</li>
+          <li>Mưa + cảnh báo: Cơ bản</li>
+          <li>Truck routing 100&nbsp;lượt/tháng</li>
+          <li>Live Room: 10&nbsp;người/phòng</li>
         </ul>
         <button class="btn block" type="button" data-pay-soon>Chọn PLUS</button>
       </div>
 
-      <div class="plan hot">
-        <span class="badge">Phổ biến nhất</span>
+      <div class="plan">
         <h3>PREMIUM</h3>
         <p class="price">79.000đ <span>/ 30 ngày</span></p>
         <p class="cycle">Đầy đủ nhất cho tài xế cá nhân</p>
         <ul>
-          <li>Lưu hành trình 20 MB</li>
-          <li>Thời tiết 250 lượt/tháng</li>
-          <li>Mưa dọc hành trình + cảnh báo thời tiết nâng cao</li>
-          <li>Lịch sử thời tiết giới hạn, ưu tiên xử lý</li>
-          <li>Truck routing 300 lượt/tháng</li>
-          <li>Live Room: 15 người/phòng, 3 phòng, 120 phút/phiên</li>
+          <li>Lưu hành trình 20&nbsp;MB</li>
+          <li>Thời tiết 250&nbsp;lượt/tháng</li>
+          <li>Mưa + cảnh báo: Nâng cao</li>
+          <li>Lịch sử thời tiết · Ưu tiên xử lý</li>
+          <li>Truck routing 300&nbsp;lượt/tháng</li>
+          <li>Live Room: 15&nbsp;người/phòng</li>
         </ul>
         <button class="btn block" type="button" data-pay-soon>Chọn PREMIUM</button>
       </div>
 
       <div class="plan top">
-        <span class="badge dark">Cho nhóm / đội xe</span>
         <h3>CONNECT</h3>
         <p class="price">129.000đ <span>/ 30 ngày</span></p>
-        <p class="cycle">Mọi quyền lợi PREMIUM + Live Room tối đa</p>
+        <p class="cycle">Kết nối với nhiều người nhất</p>
         <ul>
-          <li>Lưu hành trình 20 MB</li>
-          <li>Thời tiết 250 lượt/tháng</li>
-          <li>Mưa dọc hành trình + cảnh báo thời tiết nâng cao</li>
-          <li>Lịch sử thời tiết giới hạn, ưu tiên xử lý</li>
-          <li>Truck routing 300 lượt/tháng</li>
-          <li>Live Room: 20 người/phòng, 5 phòng, 240 phút/phiên</li>
+          <li>Lưu hành trình 20&nbsp;MB</li>
+          <li>Thời tiết 250&nbsp;lượt/tháng</li>
+          <li>Mưa + cảnh báo: Nâng cao</li>
+          <li>Lịch sử thời tiết · Ưu tiên xử lý</li>
+          <li>Truck routing 300&nbsp;lượt/tháng</li>
+          <li>Live Room: 20&nbsp;người/phòng, 5 phòng</li>
         </ul>
         <button class="btn block" type="button" data-pay-soon>Chọn CONNECT</button>
       </div>
@@ -186,6 +190,7 @@
   <section class="block">
     <h2>So sánh chi tiết</h2>
     <p class="sub">Càng lên gói cao càng được nhiều hơn ở mọi hàng, không có gói nào bị thiệt quyền lợi.</p>
+    <p class="scrollhint">Kéo sang phải để xem đủ 4 gói →</p>
     <div class="tablewrap">
       <table class="compare">
         <thead>

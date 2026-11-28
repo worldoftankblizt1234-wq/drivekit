@@ -45,7 +45,7 @@
   .stat { flex: 1 1 140px; background: #f1f5f9; border-radius: 12px; padding: 16px; text-align: center; }
   .stat b { display: block; font-size: 26px; color: #0f172a; }
   .stat span { font-size: 14px; color: #4b5563; }
-  section.block { padding: 32px 0; }
+  section.block { padding: 32px 0; scroll-margin-top: 72px; }
   section.block h2 { font-size: 26px; margin: 0 0 8px; }
   section.block p.sub { color: #4b5563; margin: 0 0 20px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
@@ -80,10 +80,31 @@
   .videos figure { margin: 0; }
   .videos video { width: 100%; height: auto; display: block; border-radius: 24px; border: 8px solid #0f172a; box-shadow: 0 16px 40px rgba(15,23,42,.25); background: #0f172a; }
   .videos figcaption { font-size: 14px; color: #6b7280; text-align: center; margin-top: 10px; }
+  .btn.green { background: #16a34a; }
+  .btn.green:hover { background: #15803d; }
+  .btn.block { display: block; text-align: center; width: 100%; }
+  .pricing-head { text-align: center; }
+  .pricing-head p.sub { color: #4b5563; margin: 0 0 12px; }
+  .free-note { display: inline-block; background: #dcfce7; color: #166534; font-weight: 600; font-size: 14px; border-radius: 999px; padding: 4px 14px; margin-bottom: 20px; }
+  .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .plan { border: 1px solid #e5e7eb; border-radius: 16px; padding: 22px 20px; display: flex; flex-direction: column; background: #fff; }
+  .plan h3 { margin: 0; font-size: 18px; color: #0f172a; }
+  .plan .tag { font-size: 14px; color: #6b7280; margin: 2px 0 0; }
+  .price { font-size: 32px; font-weight: 800; color: #0f172a; margin: 12px 0 2px; white-space: nowrap; }
+  .price span { font-size: 15px; font-weight: 400; color: #6b7280; }
+  .cycle { font-size: 14px; color: #6b7280; margin: 0 0 14px; }
+  .plan ul { list-style: none; margin: 0 0 18px; padding: 14px 0 0; border-top: 1px solid #e5e7eb; flex: 1; }
+  .plan li { margin-bottom: 8px; font-size: 15px; color: #374151; padding-left: 24px; position: relative; }
+  .plan li::before { content: "✓"; position: absolute; left: 0; color: #16a34a; font-weight: 700; }
+  .plan .btn { margin-top: auto; }
+  .badge { display: inline-block; font-size: 13px; font-weight: 700; color: #fff; background: #0f172a; border-radius: 999px; padding: 3px 12px; margin-bottom: 10px; }
+  .compare-link { text-align: center; margin-top: 18px; }
   @media (max-width: 640px) {
     header.top nav a.hide-m { display: none; }
     .hero h1 { font-size: 30px; }
     .hero { padding-top: 32px; }
+    .plans { grid-template-columns: 1fr; }
+    .price { font-size: 28px; }
   }
 </style>
     <link rel="canonical" href="https://drive-kit.pages.dev/">
@@ -218,7 +239,7 @@
     <a class="hide-m" href="#weather">Thời tiết</a>
     <a class="hide-m" href="#how">Cách dùng</a>
     <a class="hide-m" href="#faq">Hỏi đáp</a>
-    <a class="hide-m" href="pricing/">Bảng giá</a>
+    <a class="hide-m" href="#pricing">Bảng giá</a>
     <a class="hide-m" href="download/">Tải app</a>
     <a class="btn" href="map/" style="padding: 8px 16px;">Mở bản đồ</a>
   </nav>
@@ -370,6 +391,78 @@
       <p>DriveKit tốt lên nhờ chính những người dùng nó. Thêm một trạm dừng nghỉ bạn vừa ghé, báo một biển báo mới, hay gắn cảnh báo cho đoạn đường hay xảy ra phạt nguội — mỗi đóng góp đều giúp tài xế khác đi an toàn hơn, và bản đồ cứ thế đầy lên từng ngày nhờ cả cộng đồng.</p>
       <a class="btn" href="map/">Đóng góp ngay</a>
     </div>
+  </section>
+
+  <section class="block" id="pricing">
+    <div class="pricing-head">
+      <h2>Bảng giá</h2>
+      <p class="sub">Dùng miễn phí đủ tính năng cơ bản. Nâng cấp khi cần thêm hạn mức.</p>
+      <span class="free-note">Bản đồ và dẫn đường cơ bản mãi miễn phí</span>
+    </div>
+    <div class="plans">
+      <div class="plan">
+        <h3>FREE</h3>
+        <p class="tag">Đủ dùng hằng ngày</p>
+        <p class="price">0đ</p>
+        <p class="cycle">Miễn phí</p>
+        <ul>
+          <li>Lưu hành trình 1&nbsp;MB</li>
+          <li>Thời tiết 30&nbsp;lượt/tháng</li>
+          <li>Đủ 4 loại dự báo</li>
+          <li>Truck routing 20&nbsp;lượt/tháng</li>
+          <li>Live Room: 5&nbsp;người/phòng</li>
+        </ul>
+        <a class="btn green block" href="map/">Bắt đầu miễn phí</a>
+      </div>
+
+      <div class="plan">
+        <h3>PLUS</h3>
+        <p class="tag">Chạy thường xuyên</p>
+        <p class="price">39.000đ <span>/ 30 ngày</span></p>
+        <p class="cycle">Chu kỳ 30 ngày</p>
+        <ul>
+          <li>Lưu hành trình 5&nbsp;MB</li>
+          <li>Thời tiết 100&nbsp;lượt/tháng</li>
+          <li>Mưa + cảnh báo: Cơ bản</li>
+          <li>Truck routing 100&nbsp;lượt/tháng</li>
+          <li>Live Room: 10&nbsp;người/phòng</li>
+        </ul>
+        <a class="btn block" href="pricing/">Chọn PLUS</a>
+      </div>
+
+      <div class="plan">
+        <h3>PREMIUM</h3>
+        <p class="tag">Đầy đủ cho cá nhân</p>
+        <p class="price">79.000đ <span>/ 30 ngày</span></p>
+        <p class="cycle">Chu kỳ 30 ngày</p>
+        <ul>
+          <li>Lưu hành trình 20&nbsp;MB</li>
+          <li>Thời tiết 250&nbsp;lượt/tháng</li>
+          <li>Mưa + cảnh báo: Nâng cao</li>
+          <li>Lịch sử thời tiết · Ưu tiên xử lý</li>
+          <li>Truck routing 300&nbsp;lượt/tháng</li>
+          <li>Live Room: 15&nbsp;người/phòng</li>
+        </ul>
+        <a class="btn block" href="pricing/">Chọn PREMIUM</a>
+      </div>
+
+      <div class="plan">
+        <h3>CONNECT</h3>
+        <p class="tag">Kết nối với nhiều người nhất</p>
+        <p class="price">129.000đ <span>/ 30 ngày</span></p>
+        <p class="cycle">Chu kỳ 30 ngày</p>
+        <ul>
+          <li>Lưu hành trình 20&nbsp;MB</li>
+          <li>Thời tiết 250&nbsp;lượt/tháng</li>
+          <li>Mưa + cảnh báo: Nâng cao</li>
+          <li>Lịch sử thời tiết · Ưu tiên xử lý</li>
+          <li>Truck routing 300&nbsp;lượt/tháng</li>
+          <li>Live Room: 20&nbsp;người/phòng, 5 phòng</li>
+        </ul>
+        <a class="btn block" href="pricing/">Chọn CONNECT</a>
+      </div>
+    </div>
+    <p class="compare-link"><a href="pricing/">So sánh chi tiết đầy đủ →</a></p>
   </section>
 
   <section class="block" id="faq">
