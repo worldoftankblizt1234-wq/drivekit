@@ -1699,7 +1699,54 @@ function updateCompassNeedle() {
   btn.classList.toggle('off-north', Math.abs(bearing) > 1);
 }
 window.resetNorth = function() { if (map) map.easeTo({ bearing: 0, pitch: 0, duration: 600 }); };
-window.toggleTraffic = function(isChecked) { /* traffic disabled */ };
+// ========== TOMTOM REALTIME TRAFFIC LAYER ==========
+// Lop giao thong truc tiep tu TomTom Traffic Flow qua Worker (/api/traffic/{z}/{x}/{y}.png).
+// Key TomTom giu o Worker, client chi goi Worker. Tile tu refresh moi 5 phut khi dang bat.
+const TRAFFIC_SOURCE_ID = 'tomtom-traffic-source';
+const TRAFFIC_LAYER_ID = 'tomtom-traffic-layer';
+let _trafficOn = false;
+let _trafficTimer = null;
+function addTrafficLayer(){
+  if(!map || map.getLayer(TRAFFIC_LAYER_ID)) return;
+  if(!map.getSource(TRAFFIC_SOURCE_ID)){
+    map.addSource(TRAFFIC_SOURCE_ID, {
+      type: 'raster',
+      tiles: [WORKER_URL + '/api/traffic/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      maxzoom: 22
+    });
+  }
+  // Chen duoi lop nhan (symbol) dau tien de chu tren ban do khong bi che
+  let beforeId = null;
+  try{
+    const layers = (map.getStyle() && map.getStyle().layers) || [];
+    for(const l of layers){ if(l.type === 'symbol'){ beforeId = l.id; break; } }
+  }catch(e){}
+  try{
+    const layerDef = { id: TRAFFIC_LAYER_ID, type: 'raster', source: TRAFFIC_SOURCE_ID, paint: { 'raster-opacity': 0.85 } };
+    if(beforeId) map.addLayer(layerDef, beforeId);
+    else map.addLayer(layerDef);
+  }catch(e){ console.warn('[Traffic] khong them duoc layer:', e); }
+}
+function removeTrafficLayer(){
+  if(!map) return;
+  try{ if(map.getLayer(TRAFFIC_LAYER_ID)) map.removeLayer(TRAFFIC_LAYER_ID); }catch(e){}
+  try{ if(map.getSource(TRAFFIC_SOURCE_ID)) map.removeSource(TRAFFIC_SOURCE_ID); }catch(e){}
+}
+function startTrafficRefresh(){
+  stopTrafficRefresh();
+  _trafficTimer = setInterval(() => {
+    if(!_trafficOn || !map || !map.getSource(TRAFFIC_SOURCE_ID)) return;
+    try{ map.getSource(TRAFFIC_SOURCE_ID).setTiles([WORKER_URL + '/api/traffic/{z}/{x}/{y}.png?v=' + Date.now()]); }catch(e){}
+  }, 5 * 60 * 1000);
+}
+function stopTrafficRefresh(){ if(_trafficTimer){ clearInterval(_trafficTimer); _trafficTimer = null; } }
+window.toggleTraffic = function(isChecked){
+  _trafficOn = !!isChecked;
+  if(!map) return;
+  if(_trafficOn){ addTrafficLayer(); startTrafficRefresh(); }
+  else { removeTrafficLayer(); stopTrafficRefresh(); }
+};
 
 function initMap() {
   if (map) return;
@@ -1730,6 +1777,7 @@ function initMap() {
     renderReportsOnMap();
     renderAvoidZonesOnMap();
     initMapillarySignsLayer();
+    if (_trafficOn) addTrafficLayer();
     setTimeout(loadStaticWarnings, 1000);
   });
   map.on('contextmenu', (e) => {
@@ -2859,6 +2907,7 @@ function changeLayer(type, btn) {
       renderRestStopMarkers();
       renderSavedPlacesOnMap();
       renderReportsOnMap();
+      if (_trafficOn) addTrafficLayer();
     }, 100);
   });
 }
