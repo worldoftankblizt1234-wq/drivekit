@@ -61,6 +61,7 @@
   .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
   .plan { border: 1px solid #e5e7eb; border-radius: 16px; padding: 22px 20px; display: flex; flex-direction: column; }
   .plan.top { border: 2px solid #0f172a; }
+  .plan.selected { border: 2px solid #2563eb; box-shadow: 0 8px 28px rgba(37,99,235,.15); }
   .badge { display: inline-block; font-size: 13px; font-weight: 700; color: #fff; background: #2563eb; border-radius: 999px; padding: 3px 12px; margin-bottom: 10px; }
   .badge.dark { background: #0f172a; }
   .plan h3 { margin: 0; font-size: 20px; color: #0f172a; }
@@ -114,7 +115,7 @@
     <a class="hide-m" href="../#how">Cách dùng</a>
     <a class="hide-m" href="../#faq">Hỏi đáp</a>
     <a class="hide-m" href="../download/">Tải app</a>
-    <a class="active" href="./">Bảng giá</a>
+    <a href="../#pricing">Bảng giá</a>
     <a class="btn" href="../map/" style="padding: 8px 16px;">Mở bản đồ</a>
   </nav>
 </header>
@@ -128,7 +129,7 @@
 
   <section class="block">
     <div class="plans">
-      <div class="plan">
+      <div class="plan" id="plan-free">
         <h3>FREE</h3>
         <p class="price">0đ</p>
         <p class="cycle">Miễn phí</p>
@@ -142,7 +143,7 @@
         <a class="btn green block" href="../map/">Bắt đầu miễn phí</a>
       </div>
 
-      <div class="plan">
+      <div class="plan" id="plan-plus">
         <h3>PLUS</h3>
         <p class="price">39.000đ <span>/ 30 ngày</span></p>
         <p class="cycle">Cho tài xế chạy thường xuyên</p>
@@ -156,7 +157,7 @@
         <button class="btn block" type="button" data-pay-soon>Chọn PLUS</button>
       </div>
 
-      <div class="plan">
+      <div class="plan" id="plan-premium">
         <h3>PREMIUM</h3>
         <p class="price">79.000đ <span>/ 30 ngày</span></p>
         <p class="cycle">Đầy đủ nhất cho tài xế cá nhân</p>
@@ -171,7 +172,7 @@
         <button class="btn block" type="button" data-pay-soon>Chọn PREMIUM</button>
       </div>
 
-      <div class="plan top">
+      <div class="plan top" id="plan-connect">
         <h3>CONNECT</h3>
         <p class="price">129.000đ <span>/ 30 ngày</span></p>
         <p class="cycle">Kết nối với nhiều người nhất</p>
@@ -255,6 +256,7 @@
   <div class="wrap">
     <span>DriveKit — dự án cá nhân, không phải doanh nghiệp.</span>
     <span>
+      <a href="../">Trang chủ</a> &nbsp;·&nbsp;
       <a href="https://github.com/worldoftankblizt1234-wq/drivekit">GitHub</a> &nbsp;·&nbsp;
       <a href="mailto:worldoftrankblizt1234@gmail.com">Liên hệ qua email</a> &nbsp;·&nbsp;
       <a href="../term/">Điều khoản</a> &nbsp;·&nbsp;
@@ -273,6 +275,15 @@
       note.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   }
+})();
+(function () {
+  var plan = null;
+  try { plan = new URLSearchParams(window.location.search).get('plan'); } catch (e) { return; }
+  if (!plan) return;
+  var el = document.getElementById('plan-' + plan);
+  if (!el) return;
+  el.classList.add('selected');
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 })();
 </script>
 </body>
