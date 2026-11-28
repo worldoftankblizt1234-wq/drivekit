@@ -507,6 +507,14 @@ body.google-nav #homeBottomSheet, body.navigating #homeBottomSheet{ display:none
 #homeBottomSheet .hb-grid{ display:grid !important; grid-template-columns:repeat(5, 1fr) !important; gap:2px !important; overflow:hidden !important; max-height:120px; opacity:1; visibility:visible; transition:max-height .28s ease, opacity .2s ease, visibility 0s linear 0s; }
 #homeBottomSheet .hb-grid > *{ min-height:0 !important; }
 #homeBottomSheet.hb-collapsed .hb-grid{ max-height:0; opacity:0; visibility:hidden; pointer-events:none; transition:max-height .28s ease, opacity .2s ease, visibility 0s linear .28s; }
+/* [SHEET-PEEK-FIX 2026-11-28] Peek phai hien du 5 icon: rule hb-collapsed an luoi (max-height:0,
+   pointer-events:none) thang ca rule peek cu (chi set opacity/visibility, quen max-height),
+   nen thu gon thanh dong han. Rule nay them class hb-state-peek nen specificity cao hon
+   hb-collapsed, thang ma khong can !important cho max-height — de luc keo JS set inline
+   maxHeight van thang duoc (inline > stylesheet). */
+html body #homeBottomSheet.hb-state-peek.hb-collapsed .hb-grid{ max-height:64px; opacity:1; visibility:visible; pointer-events:auto; }
+html body #homeBottomSheet.hb-state-peek.hb-collapsed .hb-action{ visibility:visible; opacity:1; pointer-events:auto; }
+html body #homeBottomSheet.hb-state-peek.hb-collapsed .hb-icon{ visibility:visible; opacity:1; }
 #homeBottomSheet .hb-action{
   display:flex !important; flex-direction:column !important; align-items:center !important; gap:5px !important;
   padding:6px 0 4px !important; border-radius:16px !important; background:transparent !important;

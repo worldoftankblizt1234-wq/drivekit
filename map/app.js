@@ -6869,6 +6869,14 @@ try{
       }
       html body #homeBottomSheet .hb-grid > *{ min-height:0 !important; }
       html body #homeBottomSheet.hb-collapsed .hb-grid{ max-height:0; opacity:0; visibility:hidden; pointer-events:none; transition:max-height .28s ease, opacity .2s ease, visibility 0s linear .28s !important; }
+      /* [SHEET-PEEK-FIX 2026-11-28] Peek phai hien du 5 icon: rule hb-collapsed an luoi (max-height:0,
+         pointer-events:none) thang ca rule peek cu (chi set opacity/visibility, quen max-height),
+         nen thu gon thanh dong han. Them class hb-state-peek nen specificity cao hon hb-collapsed,
+         thang ma khong can !important cho max-height — de luc keo JS set inline maxHeight van thang
+         duoc (inline > stylesheet). */
+      html body #homeBottomSheet.hb-state-peek.hb-collapsed .hb-grid{ max-height:64px; opacity:1; visibility:visible; pointer-events:auto; }
+      html body #homeBottomSheet.hb-state-peek.hb-collapsed .hb-action{ visibility:visible; opacity:1; pointer-events:auto; }
+      html body #homeBottomSheet.hb-state-peek.hb-collapsed .hb-icon{ visibility:visible; opacity:1; }
       html body #homeBottomSheet .hb-handle{ touch-action:none !important; }
       html body #homeBottomSheet .hb-action{ padding:6px 0 4px !important; gap:5px !important; border-radius:16px !important; transition:background .15s ease, transform .12s ease !important; }
       html body #homeBottomSheet .hb-action:active{ transform:scale(.94) !important; }
@@ -7012,7 +7020,7 @@ try{
       if (toggleBtn) toggleBtn.addEventListener('click', (e)=>{ e.stopPropagation(); tapToggle(); });
     }catch(e){}
 
-    const collapseToPeek = ()=>{ sheet.classList.add('hb-collapsed'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = '˅'; };
+    const collapseToPeek = ()=>{ sheet.classList.add('hb-collapsed'); sheet.classList.remove('hb-state-half', 'hb-state-full'); sheet.classList.add('hb-state-peek'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = '˅'; };
     sheet.querySelector('#hbDir').addEventListener('click', ()=>{ collapseToPeek(); try{ if (typeof window.openDirections === 'function') window.openDirections(); }catch(e){} });
     sheet.querySelector('#hbNearby').addEventListener('click', ()=>{ collapseToPeek(); try{ if (typeof window.openNearbySearchPanel === 'function') window.openNearbySearchPanel(); }catch(e){} });
     sheet.querySelector('#hbAddPlace').addEventListener('click', ()=>{ collapseToPeek(); try{ if (typeof window.openQuickPin === 'function') window.openQuickPin(); }catch(e){} });
