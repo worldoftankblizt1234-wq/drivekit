@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tải DriveKit — Bản đồ và dẫn đường cho tài xế Việt</title>
+<meta name="description" content="Tải DriveKit về điện thoại: cài app trên Android, thêm vào màn hình chính trên iPhone, hoặc dùng ngay trên trình duyệt. Miễn phí, không cần cài đặt.">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../assets/icons/icon-192.png">
+<link rel="apple-touch-icon" href="../assets/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#0f172a">
+<link rel="canonical" href="https://drive-kit.pages.dev/download/">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1f2937; background: #f8fafc; line-height: 1.65; }
+  a { color: #2563eb; }
+  header.top { background: #0f172a; color: #fff; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: 0; z-index: 10; }
+  header.top .logo { color: #fff; text-decoration: none; font-weight: 800; font-size: 22px; }
+  header.top nav a { color: #e2e8f0; text-decoration: none; font-size: 15px; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
+  .hero { text-align: center; margin-bottom: 32px; }
+  .hero img { width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 8px 24px rgba(15,23,42,.25); }
+  .hero h1 { font-size: 30px; margin: 16px 0 8px; color: #0f172a; }
+  .hero p { color: #475569; margin: 0; }
+  .pill { display: inline-block; background: #dcfce7; color: #166534; font-weight: 700; font-size: 14px; padding: 4px 14px; border-radius: 999px; margin-top: 12px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; }
+  .card h2 { font-size: 20px; margin: 0 0 4px; color: #0f172a; }
+  .card .tag { color: #64748b; font-size: 14px; margin: 0 0 16px; }
+  .card ol { margin: 0 0 16px; padding-left: 20px; }
+  .card ol li { margin-bottom: 8px; }
+  .btn { display: inline-block; background: #2563eb; color: #fff; text-decoration: none; font-weight: 600; padding: 12px 24px; border-radius: 10px; font-size: 16px; border: none; cursor: pointer; }
+  .btn:hover { background: #1d4ed8; }
+  .btn.green { background: #16a34a; }
+  .btn.green:hover { background: #15803d; }
+  .note { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; border-radius: 12px; padding: 14px 18px; font-size: 15px; margin-top: 24px; }
+  .hint { color: #64748b; font-size: 14px; margin-top: 10px; }
+  footer { text-align: center; color: #64748b; font-size: 14px; margin-top: 40px; }
+  footer a { color: #2563eb; }
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="logo" href="../">DriveKit</a>
+  <nav><a href="../">Trang chủ</a></nav>
+</header>
+<div class="wrap">
+  <div class="hero">
+    <img src="../assets/icons/icon-192.png" alt="Icon DriveKit">
+    <h1>Tải DriveKit</h1>
+    <p>Bản đồ và dẫn đường cho tài xế Việt — biển báo, trạm dừng nghỉ, cảnh báo tốc độ, thời tiết dọc tuyến đường.</p>
+    <span class="pill">Miễn phí • Không cần tài khoản</span>
+  </div>
+
+  <div class="cards">
+    <section class="card" id="android">
+      <h2>📱 Android</h2>
+      <p class="tag">Cài thành app, mở như app thật</p>
+      <button class="btn" id="btnInstall" style="display:none">Cài DriveKit</button>
+      <p class="hint" id="installHint">Mở trang này bằng Chrome trên Android để hiện nút cài.</p>
+      <ol>
+        <li>Mở trang này bằng <strong>Chrome</strong> trên điện thoại Android.</li>
+        <li>Bấm nút <strong>Cài DriveKit</strong> ở trên, hoặc bấm dấu ⋮ rồi chọn <strong>Cài đặt ứng dụng</strong>.</li>
+        <li>Icon DriveKit sẽ hiện trên màn hình chính, mở là vào thẳng bản đồ.</li>
+      </ol>
+      <p class="hint">Đang mở trong Facebook/Zalo? Bấm ⋮ rồi chọn “Mở bằng trình duyệt” trước đã.</p>
+    </section>
+
+    <section class="card" id="ios">
+      <h2>🍎 iPhone / iPad</h2>
+      <p class="tag">Thêm vào màn hình chính qua Safari</p>
+      <ol>
+        <li>Mở trang này bằng <strong>Safari</strong> trên iPhone/iPad.</li>
+        <li>Bấm nút <strong>Chia sẻ</strong> (hình vuông có mũi tên đi lên) ở dưới màn hình.</li>
+        <li>Chọn <strong>Thêm vào Màn hình chính</strong>, rồi bấm <strong>Thêm</strong>.</li>
+      </ol>
+      <p class="hint">iPhone không có nút cài tự động như Android, làm theo 3 bước trên là xong. Icon DriveKit sẽ nằm trên màn hình chính như app thật.</p>
+    </section>
+
+    <section class="card" id="web">
+      <h2>🌐 Dùng trên web</h2>
+      <p class="tag">Không cần cài gì hết</p>
+      <p>Mở trình duyệt trên điện thoại hay máy tính đều dùng được ngay, không cần tải app.</p>
+      <a class="btn green" href="../map/">Mở DriveKit trên web</a>
+      <p class="hint">Cần đăng nhập bằng Google hoặc email để dùng bản đồ, xem biển báo và thời tiết.</p>
+    </section>
+  </div>
+
+  <div class="note">💡 Mẹo: cài app xong thì mở nhanh hơn, không cần gõ link mỗi lần. Bản web và bản app là một — dữ liệu, tài khoản dùng chung.</div>
+
+  <footer><a href="../">← Về trang chủ DriveKit</a></footer>
+</div>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('../map/sw.js').catch(function (err) { console.warn('SW error:', err); });
+  }
+  var deferredPrompt = null;
+  var btn = document.getElementById('btnInstall');
+  var hint = document.getElementById('installHint');
+  if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+    hint.textContent = 'DriveKit đã được cài trên máy này rồi, mở icon trên màn hình chính là dùng.';
+  }
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    btn.style.display = 'inline-block';
+    hint.textContent = 'Trình duyệt đã sẵn sàng, bấm nút trên để cài.';
+  });
+  btn.addEventListener('click', function () {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(function (r) {
+      if (r.outcome === 'accepted') { btn.textContent = 'Đã cài xong ✓'; hint.textContent = 'Mở icon DriveKit trên màn hình chính để dùng.'; }
+      deferredPrompt = null;
+    });
+  });
+  window.addEventListener('appinstalled', function () {
+    btn.textContent = 'Đã cài xong ✓';
+    hint.textContent = 'Mở icon DriveKit trên màn hình chính để dùng.';
+  });
+</script>
+</body>
+</html>
