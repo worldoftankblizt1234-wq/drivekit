@@ -56,8 +56,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getDatabase, ref, set, get, onValue, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getFirestore, collection, doc, addDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-/* [V10] POI codes: single source of truth in ./poi-categories.js (it also sets the window globals). */
-import { POI_CATEGORY_CODES, getPoiCategoryIds } from "./poi-categories.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAYxZYEnoxtzpUMaYfQXYWF3lojUX51R48",
@@ -108,6 +106,19 @@ const MAPILLARY_VTP_URL = (z, x, y) => `${WORKER_URL}/api/mapillary-tiles/${z}/$
 const MAPILLARY_SIGN_BASE = 'https://cdn.jsdelivr.net/gh/worldoftankblizt1234-wq/drivekit@main/map/mapillary_signs';
 const TRAFFIC_SIGN_SOURCE_ID = 'mapillary-traffic-signs';
 const TRAFFIC_SIGN_LAYER_ID  = 'mapillary-traffic-signs-layer';
+const SIGN_FRAME_SOURCE_ID = 'mapillary-sign-frames';
+const SIGN_FRAME_LAYER_ID = 'mapillary-sign-frames-layer';
+const SIGN_FRAME_PLACEHOLDER_ID = 'dk-frame-placeholder';
+let _signFramesOK = false;
+let _signFramesTimer = null;
+let _signFramesMoveBound = false;
+let _signFramesWrapped = false;
+const _signFrameImgCache = new Map();
+const _signFrameImgPending = new Map();
+const _signFrameIconCache = new Map();
+const SIGN_FRAME_GROUP_PX = 42;
+const SIGN_FRAME_MAX = 10;
+const SIGN_FRAME_PER_ROW = 5;
 
 // Cache ảnh biển báo + fallback
 const _loadingSignIcons = new Map();
@@ -115,12 +126,12 @@ let _fallbackSignImageData = null;
 let _signPreloadTimer = null;
 
 // Cài đặt hiển thị biển (persist)
-function safeParse(key, fallback) { try { return JSON.parse(localStorage.getItem(key) || 'null') || fallback; } catch (e) { return fallback; } }
-const signDisplaySettings = safeParse('drivekit_sign_display', {
+const signDisplaySettings = JSON.parse(localStorage.getItem('drivekit_sign_display') || 'null') || {
   show: true,
   speedOnly: false,
   size: 'medium'
-});
+};
+signDisplaySettings.cats = Object.assign({ cam: true, canh_bao: true, hieu_lenh: false, chi_dan: false, other: false }, signDisplaySettings.cats || {});
 
 function getSignIconSize() {
   if (signDisplaySettings.size === 'small') return 0.7;
@@ -218,12 +229,8 @@ async function ensureSignIcon(code) {
   return promise;
 }
 
-let _drivekitSignPreloadLast = 0;
 function preloadVisibleSignIcons() {
   if (!map || !map.getSource(TRAFFIC_SIGN_SOURCE_ID)) return;
-  /* [V2-Nhom3] Chi preload khi zoom >= 14 (minzoom cua source), throttle ~500ms, toi da 40 icon/lan. */
-  try { if (map.getZoom && map.getZoom() < 14) return; } catch(e) {}
-  const _pn = Date.now(); if (_pn - _drivekitSignPreloadLast < 500) return; _drivekitSignPreloadLast = _pn;
   let features = [];
   try { features = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' }); } catch(e) { return; }
   const codes = new Set();
@@ -232,7 +239,7 @@ function preloadVisibleSignIcons() {
     const v = p.object_value || p.value;
     if (v && typeof v === 'string') codes.add(v);
   });
-  Array.from(codes).slice(0, 40).forEach(ensureSignIcon);
+  codes.forEach(ensureSignIcon);
 }
 
 // [FIX] Add layer NGAY sau addSource — không đợi sourcedata (sourcedata metadata về trước khi tile về,
@@ -243,10 +250,421 @@ function preloadVisibleSignIcons() {
 // nên không bao giờ addLayer lại -> source có, layer = null, toggle im lặng return.
 let _signSourcedataHandler = null;
 
+
+const SIGN_CAT_PREFIX = { cam: 'regulatory--', canh_bao: 'warning--', hieu_lenh: 'mandatory--', chi_dan: 'information--' };
+function getSignLayerFilter() {
+  try {
+    const cats = (signDisplaySettings && signDisplaySettings.cats) || {};
+    const codeExpr = ['coalesce', ['get', 'object_value'], ['get', 'value'], ''];
+    const clauses = [];
+    Object.keys(SIGN_CAT_PREFIX).forEach(function(k){ if (cats[k]) clauses.push(['in', SIGN_CAT_PREFIX[k], codeExpr]); });
+    if (cats.other) clauses.push(['all', ['!', ['in', 'regulatory--', codeExpr]], ['!', ['in', 'warning--', codeExpr]], ['!', ['in', 'mandatory--', codeExpr]], ['!', ['in', 'information--', codeExpr]]]);
+    if (!clauses.length) return ['==', codeExpr, '§no-sign§'];
+    return clauses.length === 1 ? clauses[0] : ['any'].concat(clauses);
+  } catch (e) { return null; }
+}
+function applySignLayerFilter() {
+  try { if (map && map.getLayer(TRAFFIC_SIGN_LAYER_ID)) map.setFilter(TRAFFIC_SIGN_LAYER_ID, getSignLayerFilter()); } catch (e) {}
+}
+window.setSignCat = function(cat, on) {
+  try {
+    if (!signDisplaySettings.cats) signDisplaySettings.cats = {};
+    signDisplaySettings.cats[cat] = !!on;
+    localStorage.setItem('drivekit_sign_display', JSON.stringify(signDisplaySettings));
+    applySignLayerFilter();
+  } catch (e) {}
+};
+
+
+function signFrameCodeOfProps(p) {
+  p = p || {};
+  const v = p.object_value || p.value;
+  return (typeof v === 'string') ? v : '';
+}
+function signFramePassesFilter(code) {
+  try {
+    const cats = (signDisplaySettings && signDisplaySettings.cats) || {};
+    let ok = false;
+    if (cats.cam && code.indexOf('regulatory--') !== -1) ok = true;
+    if (cats.canh_bao && code.indexOf('warning--') !== -1) ok = true;
+    if (cats.hieu_lenh && code.indexOf('mandatory--') !== -1) ok = true;
+    if (cats.chi_dan && code.indexOf('information--') !== -1) ok = true;
+    if (cats.other && code.indexOf('regulatory--') === -1 && code.indexOf('warning--') === -1 && code.indexOf('mandatory--') === -1 && code.indexOf('information--') === -1) ok = true;
+    if (!ok) return false;
+    if (signDisplaySettings.speedOnly && code.indexOf('speed') === -1) return false;
+    return true;
+  } catch (e) { return true; }
+}
+function signFrameSizeMul() {
+  try { return getSignIconSize(); } catch (e) { return 1; }
+}
+function signFrameKey(codes, sizeMul) {
+  const s = codes.slice().sort().join('|') + '|x' + sizeMul;
+  let h1 = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h1 ^= s.charCodeAt(i); h1 = Math.imul(h1, 0x01000193); }
+  return (h1 >>> 0).toString(36);
+}
+function signFrameRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function signFrameLoadIcon(code) {
+  try {
+    if (_signFrameIconCache.has(code)) return _signFrameIconCache.get(code);
+    const p = loadSvgAsImage(MAPILLARY_SIGN_BASE + '/' + code + '.svg').then(
+      function(img) { return img; },
+      function() { return null; }
+    );
+    _signFrameIconCache.set(code, p);
+    return p;
+  } catch (e) { return Promise.resolve(null); }
+}
+function signFrameDrawFallback(ctx, x, y, s) {
+  ctx.save();
+  ctx.fillStyle = '#e63946';
+  ctx.beginPath(); ctx.arc(x + s / 2, y + s / 2, s / 2 - 1, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold ' + Math.round(s * 0.55) + 'px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('?', x + s / 2, y + s / 2 + 1);
+  ctx.restore();
+}
+function signFrameEnsureImages() {
+  try {
+    if (!map) return;
+    _signFrameImgCache.forEach(function(rec) {
+      try { if (!map.hasImage(rec.id)) map.addImage(rec.id, rec.img, { pixelRatio: rec.pixelRatio }); } catch (e) {}
+    });
+  } catch (e) {}
+}
+function signFrameMakePlaceholder() {
+  try {
+    if (!map || map.hasImage(SIGN_FRAME_PLACEHOLDER_ID)) return;
+    const s = 30, pr = 2;
+    const c = document.createElement('canvas'); c.width = s * pr; c.height = s * pr;
+    const ctx = c.getContext('2d'); ctx.scale(pr, pr);
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+    signFrameRoundRect(ctx, 1, 1, s - 2, s - 2, 8); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#6b7280'; ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('...', s / 2, s / 2);
+    const img = { width: c.width, height: c.height, data: ctx.getImageData(0, 0, c.width, c.height).data };
+    map.addImage(SIGN_FRAME_PLACEHOLDER_ID, img, { pixelRatio: pr });
+  } catch (e) {}
+}
+function signFrameGenerate(key, codes, sizeMul) {
+  try {
+    if (_signFrameImgCache.has(key) || _signFrameImgPending.has(key)) return;
+    _signFrameImgPending.set(key, true);
+    Promise.all(codes.map(signFrameLoadIcon)).then(function(imgs) {
+      try {
+        const mini = Math.round(26 * sizeMul);
+        const gap = 4, pad = 5, radius = 10, pr = 2;
+        const cols = Math.min(codes.length, SIGN_FRAME_PER_ROW);
+        const rows = Math.ceil(codes.length / cols);
+        const w = pad * 2 + cols * mini + (cols - 1) * gap;
+        const h = pad * 2 + rows * mini + (rows - 1) * gap;
+        const c = document.createElement('canvas'); c.width = w * pr; c.height = h * pr;
+        const ctx = c.getContext('2d'); ctx.scale(pr, pr);
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.28)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+        ctx.fillStyle = 'rgba(255,255,255,0.97)';
+        signFrameRoundRect(ctx, 1, 1, w - 2, h - 2, radius); ctx.fill();
+        ctx.restore();
+        ctx.strokeStyle = 'rgba(0,0,0,0.16)'; ctx.lineWidth = 1;
+        signFrameRoundRect(ctx, 1, 1, w - 2, h - 2, radius); ctx.stroke();
+        ctx.save();
+        signFrameRoundRect(ctx, 1, 1, w - 2, h - 2, radius); ctx.clip();
+        for (let i = 0; i < codes.length; i++) {
+          const col = i % cols, row = Math.floor(i / cols);
+          const x = pad + col * (mini + gap), y = pad + row * (mini + gap);
+          const img = imgs[i];
+          if (img) { try { ctx.drawImage(img, x, y, mini, mini); } catch (e2) { signFrameDrawFallback(ctx, x, y, mini); } }
+          else signFrameDrawFallback(ctx, x, y, mini);
+        }
+        ctx.restore();
+        const id = 'dk-frame-' + key;
+        const rec = { id: id, img: { width: c.width, height: c.height, data: ctx.getImageData(0, 0, c.width, c.height).data }, pixelRatio: pr };
+        _signFrameImgCache.set(key, rec);
+        if (_signFrameImgCache.size > 80) { const fk = _signFrameImgCache.keys().next().value; _signFrameImgCache.delete(fk); }
+        try { if (map && !map.hasImage(id)) map.addImage(id, rec.img, { pixelRatio: pr }); } catch (e2) {}
+        _signFrameImgPending.delete(key);
+        refreshSignFramesSoon(60);
+      } catch (e2) { _signFrameImgPending.delete(key); }
+    });
+  } catch (e) {}
+}
+function collectSignFrameGroups() {
+  const out = [];
+  try {
+    if (!map || !map.getSource(TRAFFIC_SIGN_SOURCE_ID) || typeof map.project !== 'function') return out;
+    const feats = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' });
+    const canvas = map.getCanvas();
+    const w = (canvas && canvas.clientWidth) || 800, h = (canvas && canvas.clientHeight) || 600;
+    const margin = 120, sizeMul = signFrameSizeMul();
+    const items = [];
+    for (let i = 0; i < feats.length && items.length < 2000; i++) {
+      const f = feats[i];
+      if (!f || !f.geometry || f.geometry.type !== 'Point') continue;
+      const c = f.geometry.coordinates;
+      if (!c || typeof c[0] !== 'number' || typeof c[1] !== 'number') continue;
+      const code = signFrameCodeOfProps(f.properties);
+      if (!code || !signFramePassesFilter(code)) continue;
+      let pt;
+      try { pt = map.project([c[0], c[1]]); } catch (e) { continue; }
+      if (!pt || pt.x < -margin || pt.x > w + margin || pt.y < -margin || pt.y > h + margin) continue;
+      items.push({ code: code, lng: c[0], lat: c[1], x: pt.x, y: pt.y });
+    }
+    if (items.length === 0) {
+      try {
+        const rf = (typeof map.queryRenderedFeatures === 'function') ? (map.queryRenderedFeatures({ layers: [TRAFFIC_SIGN_LAYER_ID] }) || []) : [];
+        for (let i = 0; i < rf.length && items.length < 2000; i++) {
+          const f = rf[i];
+          if (!f || !f.geometry || f.geometry.type !== 'Point') continue;
+          const c = f.geometry.coordinates;
+          if (!c || typeof c[0] !== 'number' || typeof c[1] !== 'number') continue;
+          const code = signFrameCodeOfProps(f.properties);
+          if (!code || !signFramePassesFilter(code)) continue;
+          let pt;
+          try { pt = map.project([c[0], c[1]]); } catch (e) { continue; }
+          if (!pt || pt.x < -margin || pt.x > w + margin || pt.y < -margin || pt.y > h + margin) continue;
+          items.push({ code: code, lng: c[0], lat: c[1], x: pt.x, y: pt.y });
+        }
+      } catch (e) {}
+    }
+    const groups = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      let placed = false;
+      for (let g = 0; g < groups.length; g++) {
+        const gr = groups[g];
+        if (gr.members.length >= SIGN_FRAME_MAX) continue;
+        const dx = gr.x - it.x, dy = gr.y - it.y;
+        if (dx * dx + dy * dy <= SIGN_FRAME_GROUP_PX * SIGN_FRAME_GROUP_PX) {
+          gr.members.push(it);
+          const n = gr.members.length;
+          gr.x = (gr.x * (n - 1) + it.x) / n;
+          gr.y = (gr.y * (n - 1) + it.y) / n;
+          placed = true; break;
+        }
+      }
+      if (!placed) groups.push({ x: it.x, y: it.y, members: [it] });
+    }
+    for (let g = 0; g < groups.length; g++) {
+      if (groups[g].members.length < 2) continue;
+      const codes = groups[g].members.map(function(m) { return m.code; });
+      let lngLat;
+      try { lngLat = map.unproject([groups[g].x, groups[g].y]); } catch (e) { continue; }
+      out.push({ key: signFrameKey(codes, sizeMul), codes: codes, lng: lngLat.lng, lat: lngLat.lat, sizeMul: sizeMul });
+    }
+  } catch (e) {}
+  return out;
+}
+function syncFrameLayerVisibility() {
+  try {
+    if (!map || !map.getLayer(SIGN_FRAME_LAYER_ID)) return;
+    const showOn = !!(signDisplaySettings && signDisplaySettings.show);
+    let vectorVisible = true;
+    try {
+      if (map.getLayer(TRAFFIC_SIGN_LAYER_ID)) vectorVisible = map.getLayoutProperty(TRAFFIC_SIGN_LAYER_ID, 'visibility') !== 'none';
+    } catch (e) {}
+    map.setLayoutProperty(SIGN_FRAME_LAYER_ID, 'visibility', (showOn && vectorVisible) ? 'visible' : 'none');
+  } catch (e) {}
+}
+function refreshSignFrames() {
+  try {
+    if (!map || !_signFramesOK) return;
+    const src = map.getSource(SIGN_FRAME_SOURCE_ID);
+    if (!src || typeof src.setData !== 'function') return;
+    const groups = collectSignFrameGroups();
+    const features = [];
+    for (let i = 0; i < groups.length; i++) {
+      const g = groups[i];
+      const rec = _signFrameImgCache.get(g.key);
+      const frameId = rec ? rec.id : SIGN_FRAME_PLACEHOLDER_ID;
+      if (!rec) signFrameGenerate(g.key, g.codes, g.sizeMul);
+      features.push({ type: 'Feature', properties: { frameId: frameId, codes: g.codes.join(','), count: g.codes.length }, geometry: { type: 'Point', coordinates: [g.lng, g.lat] } });
+    }
+    src.setData({ type: 'FeatureCollection', features: features });
+    syncFrameLayerVisibility();
+  } catch (e) {}
+}
+function refreshSignFramesSoon(ms) {
+  try {
+    if (_signFramesTimer) clearTimeout(_signFramesTimer);
+    _signFramesTimer = setTimeout(refreshSignFrames, typeof ms === 'number' ? ms : 150);
+  } catch (e) {}
+}
+var SIGN_VI_NAMES = {
+  'information--filling-station': ['', 'Trạm xăng'],
+  'information--gas-station': ['I.431', 'Trạm xăng'],
+  'information--hospital': ['I.434a', 'Bệnh viện'],
+  'information--parking': ['I.408', 'Nơi đỗ xe'],
+  'information--rest-area': ['I.432', 'Trạm nghỉ'],
+  'mandatory--go-straight': ['R.301a', 'Đi thẳng'],
+  'mandatory--keep-left': ['', 'Đi về phía bên trái'],
+  'mandatory--keep-right': ['', 'Đi về phía bên phải'],
+  'mandatory--roundabout': ['R.303', 'Vòng xuyến'],
+  'mandatory--turn-left': ['R.301c', 'Rẽ trái'],
+  'mandatory--turn-right': ['R.301b', 'Rẽ phải'],
+  'regulatory--maximum-speed-limit-100': ['P.127-100', 'Tốc độ tối đa 100'],
+  'regulatory--maximum-speed-limit-30': ['P.127-30', 'Tốc độ tối đa 30'],
+  'regulatory--maximum-speed-limit-40': ['P.127-40', 'Tốc độ tối đa 40'],
+  'regulatory--maximum-speed-limit-50': ['P.127-50', 'Tốc độ tối đa 50'],
+  'regulatory--maximum-speed-limit-60': ['P.127-60', 'Tốc độ tối đa 60'],
+  'regulatory--maximum-speed-limit-70': ['P.127-70', 'Tốc độ tối đa 70'],
+  'regulatory--maximum-speed-limit-80': ['P.127-80', 'Tốc độ tối đa 80'],
+  'regulatory--maximum-speed-limit-90': ['P.127-90', 'Tốc độ tối đa 90'],
+  'regulatory--no-bicycles': ['', 'Cấm xe đạp'],
+  'regulatory--no-entry': ['P.101', 'Đường cấm'],
+  'regulatory--no-heavy-goods-vehicles': ['P.106', 'Cấm xe tải'],
+  'regulatory--no-horn': ['', 'Cấm bấm còi'],
+  'regulatory--no-left-turn': ['P.103a', 'Cấm rẽ trái'],
+  'regulatory--no-motor-vehicles': ['P.102', 'Cấm ô tô'],
+  'regulatory--no-motorcycles': ['P.111a', 'Cấm xe máy'],
+  'regulatory--no-overtaking': ['P.125', 'Cấm vượt'],
+  'regulatory--no-parking': ['P.130', 'Cấm dừng đỗ'],
+  'regulatory--no-pedestrians': ['P.112', 'Cấm người đi bộ'],
+  'regulatory--no-right-turn': ['P.103b', 'Cấm rẽ phải'],
+  'regulatory--no-stopping': ['P.131', 'Cấm đỗ'],
+  'regulatory--no-trucks': ['P.106', 'Cấm xe tải'],
+  'regulatory--no-u-turn': ['P.123c', 'Cấm quay đầu'],
+  'regulatory--stop': ['P.124a', 'Dừng lại'],
+  'warning--children': ['W.225', 'Trẻ em'],
+  'warning--crossroads': ['W.205a', 'Giao nhau cùng cấp'],
+  'warning--curve-left': ['W.201a', 'Ngoặt trái nguy hiểm'],
+  'warning--curve-right': ['W.201b', 'Ngoặt phải nguy hiểm'],
+  'warning--narrow-road': ['W.203a', 'Đường hẹp'],
+  'warning--pedestrian-crossing': ['', 'Người đi bộ qua đường'],
+  'warning--pedestrians': ['W.226', 'Người đi bộ'],
+  'warning--road-work': ['W.227', 'Công trường'],
+  'warning--roundabout': ['W.206', 'Vòng xuyến'],
+  'warning--slippery-road': ['W.224', 'Đường trơn'],
+  'warning--speed-bump': ['W.222a', 'Gờ giảm tốc'],
+  'warning--traffic-signals': ['W.209', 'Đèn tín hiệu'],
+  'warning--turn-left': ['', 'Cảnh báo rẽ trái'],
+  'warning--turn-right': ['', 'Cảnh báo rẽ phải'],
+  'warning--two-way-traffic': ['W.204', 'Đường 2 chiều'],
+};
+
+function signViName(code){
+  try{
+    var c = String(code || '');
+    var base = c.replace(/--g[0-9]+$/, '');
+    var hit = SIGN_VI_NAMES[base] || SIGN_VI_NAMES[c];
+    if (hit) return { ma: hit[0], ten: hit[1] };
+    var sp = base.match(/maximum-speed-limit-(\d+)/);
+    if (sp) return { ma: 'P.127-' + sp[1], ten: 'Tốc độ tối đa ' + sp[1] };
+    if (base.indexOf('regulatory--') === 0) return { ma: '', ten: 'Biển cấm' };
+    if (base.indexOf('warning--') === 0) return { ma: '', ten: 'Biển cảnh báo' };
+    if (base.indexOf('mandatory--') === 0) return { ma: '', ten: 'Biển hiệu lệnh' };
+    if (base.indexOf('information--') === 0) return { ma: '', ten: 'Biển chỉ dẫn' };
+    if (base.indexOf('complementary--') === 0) return { ma: '', ten: 'Biển phụ' };
+    return { ma: '', ten: 'Biển báo' };
+  }catch(e){ return { ma: '', ten: 'Biển báo' }; }
+}
+try{ if(!document.getElementById('dkSignPopupCss')){ var _dkCss=document.createElement('style'); _dkCss.id='dkSignPopupCss'; _dkCss.textContent='.dk-sign-popup .maplibregl-popup-content{background:#ffffff !important;color:#0f172a !important;border-radius:14px !important;padding:12px 14px !important;box-shadow:0 12px 32px rgba(15,23,42,.28) !important}.dk-sign-popup .maplibregl-popup-tip{border-top-color:#ffffff !important;border-bottom-color:#ffffff !important}.dk-sign-popup .maplibregl-popup-close-button{color:#64748b !important}.dk-sign-title{font-weight:800;color:#0f172a;margin-bottom:6px}.dk-sign-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #e2e8f0}.dk-sign-row:first-of-type{border-top:0}.dk-sign-row img{width:36px;height:36px;flex:none}.dk-sign-row b{color:#0f172a;font-size:14px}.dk-sign-row small{color:#64748b;font-size:12px}.dk-sign-single{text-align:center}.dk-sign-single b{display:block;color:#0f172a;font-size:15px;margin-bottom:6px}.dk-sign-single img{width:56px;height:56px}.dk-sign-single small{color:#64748b}'; document.head.appendChild(_dkCss); } }catch(e){}
+function showSignFramePopup(f, lngLat) {
+  try {
+    if (!f || !f.properties) return;
+    const codes = String(f.properties.codes || '').split(',').filter(Boolean);
+    if (!codes.length) return;
+    let items = '';
+    codes.forEach(function(code) {
+      const nm = signViName(code);
+      items += '<div class="dk-sign-row"><img src="' + MAPILLARY_SIGN_BASE + '/' + code + '.svg" onerror="this.style.display=\'none\'"><span><b>' + nm.ten + '</b>' + (nm.ma ? '<br><small>' + nm.ma + '</small>' : '') + '</span></div>';
+    });
+    new maplibregl.Popup({ offset: 12, className: 'dk-sign-popup' }).setLngLat(lngLat)
+      .setHTML('<div class="dk-sign-title">' + codes.length + ' biển báo tại đây</div>' + items)
+      .addTo(map);
+  } catch (e) {}
+}
+function signFramesWrapSettings() {
+  try {
+    if (_signFramesWrapped) return;
+    _signFramesWrapped = true;
+    const wrap = function(name, after) {
+      try {
+        const orig = window[name];
+        if (typeof orig !== 'function') return;
+        window[name] = function() {
+          let r;
+          try { r = orig.apply(null, arguments); } catch (e) {}
+          try { after(); } catch (e2) {}
+          return r;
+        };
+      } catch (e) {}
+    };
+    wrap('setSignCat', function() { refreshSignFramesSoon(150); });
+    wrap('setSignShowMapillary', function() { syncFrameLayerVisibility(); refreshSignFramesSoon(150); });
+    wrap('setSignSpeedOnly', function() { refreshSignFramesSoon(150); });
+    wrap('setSignSize', function() { refreshSignFramesSoon(150); });
+    wrap('toggleMapillarySigns', function() { syncFrameLayerVisibility(); });
+  } catch (e) {}
+}
+function initSignFrames() {
+  try {
+    if (!map || !map.isStyleLoaded()) return false;
+    signFramesWrapSettings();
+    signFrameMakePlaceholder();
+    signFrameEnsureImages();
+    if (!map.getSource(SIGN_FRAME_SOURCE_ID)) {
+      map.addSource(SIGN_FRAME_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    }
+    if (!map.getLayer(SIGN_FRAME_LAYER_ID)) {
+      map.addLayer({
+        id: SIGN_FRAME_LAYER_ID, type: 'symbol', source: SIGN_FRAME_SOURCE_ID,
+        minzoom: 16,
+        layout: {
+          'icon-image': ['get', 'frameId'],
+          'icon-allow-overlap': false,
+          'icon-ignore-placement': false,
+          'icon-padding': 4,
+          'icon-anchor': 'center'
+        },
+        paint: { 'icon-opacity': 1 }
+      });
+    }
+    map.off('click', SIGN_FRAME_LAYER_ID);
+    map.on('click', SIGN_FRAME_LAYER_ID, function(ev) {
+      try{ if (document.body && document.body.classList.contains('rp-preview-open')) return; }catch(e){}
+      // [STREETVIEW-360 2026-11-26]
+      try{ if (typeof dk360HandleTap === 'function' && dk360HandleTap(ev.lngLat)) return; }catch(_){}
+      try{ if (touchMarker && touchMarker.getPopup && touchMarker.getPopup() && touchMarker.getPopup().isOpen() && typeof closePopupSmoothly === 'function') closePopupSmoothly(touchMarker); }catch(e){}
+      try { if (ev.features && ev.features[0]) showSignFramePopup(ev.features[0], ev.lngLat); } catch (e) {}
+    });
+    map.off('mouseenter', SIGN_FRAME_LAYER_ID);
+    map.off('mouseleave', SIGN_FRAME_LAYER_ID);
+    map.on('mouseenter', SIGN_FRAME_LAYER_ID, function() { try { map.getCanvas().style.cursor = 'pointer'; } catch (e) {} });
+    map.on('mouseleave', SIGN_FRAME_LAYER_ID, function() { try { map.getCanvas().style.cursor = ''; } catch (e) {} });
+    if (!_signFramesMoveBound) {
+      _signFramesMoveBound = true;
+      map.on('moveend', function() { refreshSignFramesSoon(150); });
+      map.on('zoomend', function() { refreshSignFramesSoon(150); });
+    }
+    _signFramesOK = true;
+    syncFrameLayerVisibility();
+    refreshSignFramesSoon(50);
+    setTimeout(function() { try { refreshSignFrames(); } catch (e) {} }, 600);
+    setTimeout(function() { try { refreshSignFrames(); } catch (e) {} }, 1600);
+    try { if (typeof map.once === 'function') map.once('idle', function() { refreshSignFramesSoon(200); }); } catch (e2) {}
+    return true;
+  } catch (e) {
+    _signFramesOK = false;
+    return false;
+  }
+}
+
 function addMapillarySignsLayer() {
   if (!map || !map.isStyleLoaded()) return false;
   if (!map.hasImage('sign-fallback')) { try { map.addImage('sign-fallback', getFallbackSignImageData()); } catch(e){} }
-  if (map.getLayer(TRAFFIC_SIGN_LAYER_ID)) return true;
+  if (map.getLayer(TRAFFIC_SIGN_LAYER_ID)) { try { initSignFrames(); } catch (e) {} return true; }
   if (!map.getSource(TRAFFIC_SIGN_SOURCE_ID)) return false;
 
   let iconExpr = ['coalesce', ['get', 'object_value'], ['get', 'value'], 'sign-fallback'];
@@ -261,11 +679,14 @@ function addMapillarySignsLayer() {
   map.addLayer({
     id: TRAFFIC_SIGN_LAYER_ID, type: 'symbol', source: TRAFFIC_SIGN_SOURCE_ID,
     'source-layer': 'traffic_sign',
+    minzoom: 16,
+    filter: getSignLayerFilter(),
     layout: {
       'icon-image': iconExpr,
       'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.4 * sizeMul, 18, 0.9 * sizeMul],
-      'icon-allow-overlap': true,
-      'icon-ignore-placement': true,
+      'icon-allow-overlap': false,
+      'icon-ignore-placement': false,
+      'icon-padding': 12,
       'icon-anchor': 'center'
     },
     paint: { 'icon-opacity': 0.95 }
@@ -277,16 +698,21 @@ function addMapillarySignsLayer() {
   map.off('mouseenter', TRAFFIC_SIGN_LAYER_ID);
   map.off('mouseleave', TRAFFIC_SIGN_LAYER_ID);
   map.on('click', TRAFFIC_SIGN_LAYER_ID, (ev) => {
+    try{ if (document.body && document.body.classList.contains('rp-preview-open')) return; }catch(e){}
+    // [STREETVIEW-360 2026-11-26]
+    try{ if (typeof dk360HandleTap === 'function' && dk360HandleTap(ev.lngLat)) return; }catch(_){}
+    try{ if (touchMarker && touchMarker.getPopup && touchMarker.getPopup() && touchMarker.getPopup().isOpen() && typeof closePopupSmoothly === 'function') closePopupSmoothly(touchMarker); }catch(e){}
     const f = ev.features[0];
     const code = (f.properties && (f.properties.object_value || f.properties.value)) || 'Không rõ';
-    const pretty = code.replace(/--/g, ' · ').replace(/-/g, ' ');
+    const nm = signViName(code);
     const imgUrl = `${MAPILLARY_SIGN_BASE}/${code}.svg`;
-    new maplibregl.Popup({ offset: 12 }).setLngLat(ev.lngLat)
-      .setHTML(`<b>Biển báo</b><br><img src="${imgUrl}" style="width:48px;height:48px;display:block;margin:6px 0" onerror="this.style.display='none'"><small>${pretty}</small>`)
+    new maplibregl.Popup({ offset: 12, className: 'dk-sign-popup' }).setLngLat(ev.lngLat)
+      .setHTML(`<div class="dk-sign-single"><b>${nm.ten}</b><img src="${imgUrl}" onerror="this.style.display='none'">${nm.ma ? `<small>${nm.ma}</small>` : ''}</div>`)
       .addTo(map);
   });
   map.on('mouseenter', TRAFFIC_SIGN_LAYER_ID, () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', TRAFFIC_SIGN_LAYER_ID, () => { map.getCanvas().style.cursor = ''; });
+  try { initSignFrames(); } catch (e) {}
   return true;
 }
 
@@ -319,10 +745,15 @@ function initMapillarySignsLayer() {
     if (e.sourceId !== TRAFFIC_SIGN_SOURCE_ID) return;
     addMapillarySignsLayer();
     if (!e.isSourceLoaded) return;
-    /* [V4] Dùng preloadVisibleSignIcons đã giới hạn (zoom >= 14, throttle
-       500ms, tối đa 40 icon/lần) thay cho vòng lặp không giới hạn qua mọi
-       feature mỗi lần sourcedata về. */
-    preloadVisibleSignIcons();
+    try {
+      const feats = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' });
+      feats.forEach(f => {
+        const p = f.properties || {};
+        const v = p.object_value || p.value;
+        if (v && typeof v === 'string') ensureSignIcon(v);
+      });
+    } catch(err) {}
+    refreshSignFramesSoon(150);
   };
   map.on('sourcedata', _signSourcedataHandler);
   // Add layer NGAY, không đợi sourcedata — icon thiếu sẽ được nạp qua styleimagemissing.
@@ -339,6 +770,34 @@ window.toggleMapillarySigns = function() {
 };
 
 /* ========== SIGN DISPLAY SETTINGS ========== */
+
+function ensureSignCatControls() {
+  try {
+    if (document.getElementById('signCatControls')) return;
+    const body = document.querySelector('#signDisplaySettingsModal .report-body');
+    if (!body) return;
+    const cats = (signDisplaySettings && signDisplaySettings.cats) || {};
+    const rows = [
+      ['cam', 'Bi\u1ec3n c\u1ea5m'],
+      ['canh_bao', 'Bi\u1ec3n c\u1ea3nh b\u00e1o'],
+      ['hieu_lenh', 'Bi\u1ec3n hi\u1ec7u l\u1ec7nh'],
+      ['chi_dan', 'Bi\u1ec3n ch\u1ec9 d\u1eabn'],
+      ['other', 'Bi\u1ec3n kh\u00e1c']
+    ];
+    const wrap = document.createElement('div');
+    wrap.className = 'voice-setting-row';
+    wrap.id = 'signCatControls';
+    let html = '<span class="voice-setting-title"><i class="fas fa-filter" style="color:#3b82f6;"></i> Lo\u1ea1i bi\u1ec3n hi\u1ec7n</span>';
+    rows.forEach(function(r){
+      html += '<label style="display:flex;align-items:center;gap:10px;padding:6px 2px;font-size:.85rem;color:var(--text);cursor:pointer;"><input type="checkbox" ' + (cats[r[0]] ? 'checked' : '') + ' onchange="setSignCat(\'' + r[0] + '\', this.checked)" style="width:18px;height:18px;accent-color:#3b82f6;"> ' + r[1] + '</label>';
+    });
+    wrap.innerHTML = html;
+    const closeBtn = body.querySelector('[onclick^="closeSignDisplaySettings"]');
+    if (closeBtn && closeBtn.parentNode === body) body.insertBefore(wrap, closeBtn);
+    else body.appendChild(wrap);
+  } catch (e) {}
+}
+
 window.openSignDisplaySettings = function() {
   document.getElementById('settingsModal').classList.remove('open');
   document.getElementById('signDisplaySettingsModal').classList.add('open');
@@ -348,6 +807,7 @@ window.openSignDisplaySettings = function() {
     const b = document.getElementById('signSize-' + s);
     if (b) b.classList.toggle('active', signDisplaySettings.size === s);
   });
+  ensureSignCatControls();
 };
 window.closeSignDisplaySettings = function() {
   document.getElementById('signDisplaySettingsModal').classList.remove('open');
@@ -395,7 +855,7 @@ async function apiSearch(query, lat = null, lng = null, radius = null) {
   try {
     let url = `${WORKER_URL}/api/search?q=${encodeURIComponent(query)}`;
     if (lat && lng) { url += `&lat=${lat}&lng=${lng}`; if (radius) url += `&radius=${radius}`; }
-    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const r = await fetch(url);
     if (!r.ok) return { results: [], counts: null };
     const j = await r.json();
     return { results: j.results || [], counts: j.counts || null };
@@ -414,7 +874,7 @@ async function apiRoute(origin, dest, mode, bypassCache = false, specs = null) {
   // Valhalla 502/503 = server dang ngu / dang khoi dong lai (Codespaces / HF Spaces) -> thu lai 2 lan, moi lan cach 2s
   for(let attempt = 0; attempt < 3; attempt++){
     try{
-      r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      r = await fetch(url);
       if(r.ok) break;
       if(r.status === 502 || r.status === 503 || r.status === 504){
         lastErr = 'Máy chủ dẫn đường đang khởi động lại (HTTP ' + r.status + ')';
@@ -438,7 +898,7 @@ async function apiRoute(origin, dest, mode, bypassCache = false, specs = null) {
 
 async function apiReverseGeocode(lat, lng) {
   try {
-    const r = await fetch(`${WORKER_URL}/api/geocode?lat=${lat}&lng=${lng}`, { signal: AbortSignal.timeout(8000) });
+    const r = await fetch(`${WORKER_URL}/api/geocode?lat=${lat}&lng=${lng}`);
     if (!r.ok) return '';
     const j = await r.json();
     return j.name || '';
@@ -447,7 +907,7 @@ async function apiReverseGeocode(lat, lng) {
 
 async function checkWorkerHealth() {
   try {
-    const r = await fetch(`${WORKER_URL}/`, { method: 'GET', signal: AbortSignal.timeout(8000) });
+    const r = await fetch(`${WORKER_URL}/`, { method: 'GET' });
     if (!r.ok) return null;
     return await r.json();
   } catch { return null; }
@@ -456,7 +916,7 @@ async function checkWorkerHealth() {
 /* ========== D1 STATIC WARNINGS ========== */
 async function getStaticWarnings(bounds) {
   try {
-    const r = await fetch(`${WORKER_URL}/warnings?minLat=${bounds.south}&maxLat=${bounds.north}&minLng=${bounds.west}&maxLng=${bounds.east}`, { signal: AbortSignal.timeout(8000) });
+    const r = await fetch(`${WORKER_URL}/warnings?minLat=${bounds.south}&maxLat=${bounds.north}&minLng=${bounds.west}&maxLng=${bounds.east}`);
     if (!r.ok) return [];
     const j = await r.json();
     return j.warnings || [];
@@ -465,7 +925,7 @@ async function getStaticWarnings(bounds) {
 async function saveStaticWarning(type, lat, lng, speed, uid) {
   try {
     const r = await fetch(`${WORKER_URL}/warnings`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(8000),
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, lat, lng, speed, uid })
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -501,19 +961,23 @@ let lastUserPos = null;
 let lastHeading = 0;
 let searchContext = 'view';
 let initialCenter = [21.0285, 105.8542];
-// Mo ban do o vi tri biet lan truoc (luu trong may) thay vi mac dinh Ha Noi,
-// de khoi phai bay mot doan dai ve GPS that.
+// [SYNC 2026-11-28] Mo ban do o vi tri biet lan truoc (luu trong may) thay vi mac dinh Ha Noi.
 try { const _lp = JSON.parse(localStorage.getItem('drivekit_last_pos') || 'null'); if (_lp && isFinite(_lp.lat) && isFinite(_lp.lng)) initialCenter = [_lp.lat, _lp.lng]; } catch (e) {}
 let initialZoom = 16;
 let lastSnapIndex = 0;
 let smoothedSpeed = 0;
+/* [MOI 2026-11-25] CAI DAT TU DONG DOI TUYEN: 'ask' = hien popup hoi, 'auto' = doi tuyen ngay khong hoi */
+const ROUTE_SETTINGS_KEY = 'drivekit_route_settings';
+let routeSettings = { autoReroute: 'ask' };
+try { const _rs = JSON.parse(localStorage.getItem(ROUTE_SETTINGS_KEY) || 'null'); if (_rs && (_rs.autoReroute === 'ask' || _rs.autoReroute === 'auto')) routeSettings.autoReroute = _rs.autoReroute; } catch (e) {}
+function getAutoRerouteMode() { return routeSettings.autoReroute === 'auto' ? 'auto' : 'ask'; }
 let offRouteCount = 0;
 /* ============================================================
    [MOI 2026-11-22] POPUP HOI DOI TUYEN KHI LECH HUONG
    - Cu: checkOffRoute lech >35m x 2 lan -> autoReroute NGAY, khong hoi user.
-   - Moi: lech >35m x 2 lan -> hien popup "Ban dang di lech huong... Co muon doi huong khong? [Khong] [Co]"
-     + Bam Co -> autoReroute(tu vi tri hien tai)
-     + Bam Khong -> giu tuyen cu, khong hoi lai trong 45s (hoac cho den khi user quay lai dung tuyen thi reset)
+   - Moi (2026-11-25): lech >35m x 2 lan -> tuy cai dat 'Tu dong doi tuyen' (mac dinh: Hoi):
+     + Hoi: hien popup "Ban co the dang di sai tuyen duong [Khong can] [OK]" - Bam OK -> autoReroute(tu vi tri hien tai); Bam Khong can -> giu tuyen cu, khong hoi lai trong 45s (hoac cho den khi user quay lai dung tuyen thi reset)
+     + Tu dong doi: autoReroute ngay, khong hien popup.
    - Reroute BAT BUOC do vung cam moi (recomputeAvoidZones) van goi autoReroute() truc tiep, KHONG qua popup.
    ============================================================ */
 let offRoutePopupEl = null;
@@ -527,9 +991,9 @@ const OFF_ROUTE_ASK_DIST_M = 35; // Giong nguong cu: lech >35m moi tinh la lech
 let isRerouting = false;
 let isSearchDebugMode = localStorage.getItem('drivekit_search_debug') === '1';
 
-let voiceSettings = safeParse('drivekit_voice_settings', {
+let voiceSettings = JSON.parse(localStorage.getItem('drivekit_voice_settings') || 'null') || {
   volume: 100, nav: 'always', warning: 'always', poi: 'vibrate', avoid: 'always'
-});
+};
 let warnedReports = new Set();
 let warnedAvoidZones = new Set();
 let warnedPois = new Set();
@@ -569,13 +1033,6 @@ let _rtdbReports = {};
 let communityPoiMarkers = [];
 let restStopMarkers = [];
 let reportMarkers = [];
-let _restStopFingerprint = '';
-let _communityPoiFingerprint = '';
-/* [V4] Diff marker theo id: id -> {marker, sig}. communityPoiMarkers/restStopMarkers
-   vẫn là mảng đồng bộ từ Map để code cũ đọc .length không đổi. */
-let _communityPoiMarkerMap = new Map();
-let _restStopMarkerMap = new Map();
-let _reportFingerprint = '';
 let savedPlacesMarkers = [];
 let avoidZoneMarkers = [];
 let searchResultMarkers = [];
@@ -601,6 +1058,32 @@ const LIVE_ANIM_DURATION = 6000;
 const LIVE_HEARTBEAT_TIMEOUT = 120000;
 let isViewingLiveTrack = false;
 let touchMarker = null;
+// [FIX 2026-11-24] Khai bao state dieu huong: module la strict mode, doc/gan bien chua khai bao nem ReferenceError -> tap chet ngay dong dau handler.
+let isNavigating = false;
+let navFollowMode = 'free';
+let _isUserDraggingMap = false;
+var updateNavCamera = null; // [PATCH7] khai bao: module strict, gan bien chua khai bao se throw -> camera follow chet
+var _lastCamAt = 0; // [PATCH7] throttle camera, cung ly do
+var _dkLastAcc = null; // [PATCH9] accuracy GPS moi nhat, dung tinh cua snap
+function dkSnapGate(){ try{ var a=_dkLastAcc; if(!a||!isFinite(a)||a<=0) return 40; return Math.max(40, Math.min(150, a)); }catch(e){ return 40; } } // [PATCH9]
+function dkArrowRot(h){ try{ var mb=(typeof map!=='undefined'&&map&&map.getBearing)?(map.getBearing()||0):0; var r=((h||0)-mb)%360; if(r>180) r-=360; if(r<-180) r+=360; return r; }catch(e){ return h||0; } } // [PATCH9] goc man hinh = bearing duong - bearing map, giong rotateGoogleUserArrow
+let whiteArrowMarker = null;
+let whiteArrowAheadMarker = null;
+let updateWhiteTurnArrow = null;
+let _lastWhiteArrowAt = 0;
+let _lastWhiteStepIdx = -1;
+
+// [FIX 2026-11-25] Ham bearing con thieu: code mui ten trang goi bearingBetween() nhung chua tung co dinh nghia -> goc luon 0. Cung cong thuc nhu getRouteBearingAhead.
+function bearingBetween(lat1, lng1, lat2, lng2){
+  try{
+    const la1 = lat1 * Math.PI/180, la2 = lat2 * Math.PI/180;
+    const dLng = (lng2 - lng1) * Math.PI/180;
+    const y = Math.sin(dLng) * Math.cos(la2);
+    const x = Math.cos(la1)*Math.sin(la2) - Math.sin(la1)*Math.cos(la2)*Math.cos(dLng);
+    const br = Math.atan2(y, x) * 180/Math.PI;
+    return (br + 360) % 360;
+  }catch(e){ return 0; }
+}
 
 let userVehicleSpecs = { type: 'car', seats: 5, axles: 2 };
 let currentCarSeats = 5;
@@ -627,11 +1110,10 @@ const POI_TAG_CONFIG = {
   ev_charging: { icon: 'fa-charging-station', label: 'Trạm sạc EV', color: '#84cc16' },
   market: { icon: 'fa-store', label: 'Chợ / Cửa hàng', color: '#f97316' },
   wc: { icon: 'fa-restroom', label: 'Nhà vệ sinh', color: '#14b8a6' },
-  car_wash: { icon: 'fa-soap', label: 'Rửa xe', color: '#a855f7' }
+  car_wash: { icon: 'fa-soap', label: 'Rửa xe', color: '#a855f7' },
+  electronics: { icon: 'fa-mobile-screen-button', label: 'Điện thoại & Điện tử', color: '#0891b2' },
+  eatery: { icon: 'fa-bowl-food', label: 'Quán ăn', color: '#ea580c' }
 };
-
-/* [V10] POI codes imported from ./poi-categories.js; inline copy removed. No function renamed, call sites unchanged. */
-
 const ZOOM_CONFIG = { communityPoi: 15, restStop: 13, savedPlace: 14, report: 14, savedPlaceAlwaysShow: ['home', 'company'] };
 
 /* ========== DEBUG TOOL ========== */
@@ -677,6 +1159,33 @@ function updateVoiceSettingsUI() {
   });
 }
 
+/* ========== ROUTE SETTINGS: TU DONG DOI TUYEN ========== */
+window.setAutoRerouteMode = function(mode) {
+  if (mode !== 'ask' && mode !== 'auto') return;
+  routeSettings.autoReroute = mode;
+  try { localStorage.setItem(ROUTE_SETTINGS_KEY, JSON.stringify(routeSettings)); } catch (e) {}
+  updateRouteSettingsUI();
+  try { if (typeof showCustomToast === 'function') showCustomToast(mode === 'auto' ? 'Đã bật tự động đổi tuyến' : 'Sẽ hỏi trước khi đổi tuyến', 'success'); } catch (e) {}
+};
+function updateRouteSettingsUI() {
+  const container = document.getElementById('seg-autoReroute');
+  if (!container) return;
+  const btns = container.querySelectorAll('.seg-btn');
+  btns.forEach(btn => btn.classList.remove('active'));
+  const mode = getAutoRerouteMode();
+  if (mode === 'ask' && btns[0]) btns[0].classList.add('active');
+  if (mode === 'auto' && btns[1]) btns[1].classList.add('active');
+}
+window.openRouteSettings = function() {
+  document.getElementById('settingsModal').classList.remove('open');
+  document.getElementById('routeSettingsModal').classList.add('open');
+  updateRouteSettingsUI();
+};
+window.closeRouteSettings = function() {
+  document.getElementById('routeSettingsModal').classList.remove('open');
+  document.getElementById('settingsModal').classList.add('open');
+};
+
 /* ========== SETTINGS MODAL ========== */
 window.openSettings = function() {
   document.getElementById('profileModal').classList.remove('open');
@@ -708,7 +1217,7 @@ window.closeMenu = function() {
 
 /* ========== DIRECTIONS SHEET ========== */
 window.openDirections = function() {
-  document.getElementById('dirSheet')?.classList.add('open');
+  document.getElementById('dirSheet').classList.add('open');
   updateUIState();
   if (startPoint) {
     document.getElementById('dirInputStart').value = startPoint.name;
@@ -724,7 +1233,7 @@ window.openDirections = function() {
   }
 };
 window.closeDirections = function() {
-  document.getElementById('dirSheet')?.classList.remove('open');
+  document.getElementById('dirSheet').classList.remove('open');
   updateUIState();
 };
 
@@ -956,8 +1465,8 @@ function startNavigationHUD() {
     return;
   }
   try {
-    document.getElementById('dirSheet')?.classList.remove('open');
-    document.getElementById('suggestionsBox')?.classList.remove('show');
+    document.getElementById('dirSheet').classList.remove('open');
+    document.getElementById('suggestionsBox').classList.remove('show');
     document.body.classList.add('navigating');
     document.getElementById('hud').classList.remove('hidden');
     updateUIState();
@@ -984,14 +1493,14 @@ function startNavigationHUD() {
 
 /* ========== NEARBY SEARCH ========== */
 window.openNearbySearchPanel = function() {
-  document.getElementById('nearbySearchPanel')?.classList.add('open');
+  document.getElementById('nearbySearchPanel').classList.add('open');
   if (lastUserPos && !currentNearbyCenter) {
     currentNearbyCenter = { lat: lastUserPos.lat, lon: lastUserPos.lng };
     updateNearbyCenterMarker(currentNearbyCenter.lat, currentNearbyCenter.lon);
   }
 };
 window.closeNearbySearchPanel = function() {
-  document.getElementById('nearbySearchPanel')?.classList.remove('open');
+  document.getElementById('nearbySearchPanel').classList.remove('open');
   toggleNearbyPickMode(false);
 };
 window.setNearbyCenterToGPS = function(event) {
@@ -1016,7 +1525,7 @@ window.toggleNearbyPickMode = function(forceState) {
     btn.style.background = 'var(--success)'; btn.style.color = 'white'; btn.style.borderColor = 'var(--success)';
     btn.innerHTML = '<i class="fas fa-crosshairs"></i> Đang chọn...';
     showCustomToast('Bấm lên bản đồ để chọn tâm', 'info');
-    document.getElementById('nearbySearchPanel')?.classList.remove('open');
+    document.getElementById('nearbySearchPanel').classList.remove('open');
   } else {
     btn.style.background = 'transparent'; btn.style.color = 'var(--text)'; btn.style.borderColor = 'var(--border)';
     btn.innerHTML = '<i class="fas fa-map-marker-alt"></i> Chọn điểm khác';
@@ -1033,13 +1542,6 @@ window.fetchNearbyPlaces = async function(event) {
   if (!currentNearbyCenter) return alert('Vui lòng chọn vị trí tâm trước!');
   const radius = document.getElementById('nearbyRadius').value;
   const category = document.getElementById('nearbyCategory').value;
-  // v3: GIỮ NGUYÊN giá trị category= gửi tới NEARBY_API_URL (backend hiện tại
-  // có thể không hiểu mã mới) — KHÔNG đổi URL request. nearbyCategoryIds chỉ
-  // tra cứu sẵn để backend dùng sau này: gửi kèm ví dụ tomtomId/here khi
-  // backend hỗ trợ, hoặc map kết quả có trường category về key DriveKit.
-  // Kết quả nearby hiện tại chỉ có name/lat/lon/distance_km, không có
-  // trường category nên KHÔNG map kết quả ở đây.
-  const nearbyCategoryIds = getPoiCategoryIds(category);
   const btnSearch = event && event.target ? event.target.closest('button') : null;
   const oldText = btnSearch ? btnSearch.innerHTML : '';
   if (btnSearch) { btnSearch.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tìm...'; btnSearch.disabled = true; }
@@ -1047,7 +1549,7 @@ window.fetchNearbyPlaces = async function(event) {
   nearbyResultMarkers = [];
   try {
     const url = `${NEARBY_API_URL}?lat=${currentNearbyCenter.lat}&lon=${currentNearbyCenter.lon}&radius=${radius}&category=${category}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const res = await fetch(url);
     if (!res.ok) throw new Error('Lỗi kết nối máy chủ');
     const data = await res.json();
     const results = Array.isArray(data) ? data : (data.data || []);
@@ -1156,6 +1658,7 @@ function translateFallback(text) {
   }catch(e){}
   // Fallback toi thieu neu dictionary.js chua load (de app khong vo)
   if(!text) return '';
+  if(String(text).trim().toLowerCase()==='leave') return 'Xuất phát';
   var s = String(text);
   s = s.replace(/Your destination is on the right/gi, 'Điểm đến của bạn ở bên phải');
   s = s.replace(/Your destination is on the left/gi, 'Điểm đến của bạn ở bên trái');
@@ -1172,6 +1675,14 @@ let loadInterval = null;
 let isUserAuthChecked = false;
 let isAppReadyToShow = false;
 let forceFinishTimer = null;
+let loadGpsSettled = false;
+let loadPrefetchDone = false;
+let loadHoldUntil = 0;
+let loadHoldTimer = null;
+let loadShown = 0;
+let loadTickTimer = null;
+let loadFinishing = false;
+let loadPrefetchStarted = false;
 let _appUIInitialized = false;
 
 function applyScreenState() {
@@ -1187,68 +1698,67 @@ function applyScreenState() {
     appUI.classList.add('hidden'); authScr.classList.remove('hidden');
   }
 }
+function loadStartTicker(){
+  if (loadTickTimer) return;
+  loadTickTimer = setInterval(function(){
+    try{
+      if (isAppReadyToShow){ clearInterval(loadTickTimer); loadTickTimer = null; return; }
+      var target = Math.floor(loadProgress);
+      if (loadShown < target){
+        loadShown++;
+        var pctEl = document.getElementById('loadingPercent');
+        if (pctEl) pctEl.textContent = loadShown + '%';
+      }
+      if (loadFinishing && loadShown >= 100){
+        clearInterval(loadTickTimer); loadTickTimer = null;
+        isAppReadyToShow = true;
+        var pctEl2 = document.getElementById('loadingPercent');
+        var tEl = document.getElementById('loadingText');
+        if (pctEl2) pctEl2.textContent = '100%';
+        if (tEl) tEl.textContent = 'Hoàn tất!';
+        setTimeout(applyScreenState, 300);
+      }
+    }catch(e){}
+  }, 30);
+}
 function updateLoadingProgress(targetPercent, text) {
   if (isAppReadyToShow) return;
   if (targetPercent > loadProgress) loadProgress = targetPercent;
-  const pctEl = document.getElementById('loadingPercent');
-  if (pctEl) pctEl.textContent = `${Math.floor(loadProgress)}%`;
+  loadStartTicker();
   if (text) { const tEl = document.getElementById('loadingText'); if (tEl) tEl.textContent = text; }
 }
 function checkLoadingComplete() {
-  if (isUserAuthChecked && loadProgress >= 90 && !isAppReadyToShow) {
+  if (isUserAuthChecked && loadGpsSettled && loadPrefetchDone && loadProgress >= 90 && !isAppReadyToShow) {
+    if (Date.now() < loadHoldUntil) {
+      if (!loadHoldTimer) { loadHoldTimer = setTimeout(function(){ loadHoldTimer = null; checkLoadingComplete(); }, loadHoldUntil - Date.now()); }
+      return;
+    }
     if (loadInterval) { clearInterval(loadInterval); loadInterval = null; }
     if (forceFinishTimer) { clearTimeout(forceFinishTimer); forceFinishTimer = null; }
-    let finalProgress = loadProgress;
-    const finalPhase = setInterval(() => {
-      finalProgress += 5;
-      if (finalProgress >= 100) {
-        finalProgress = 100; clearInterval(finalPhase); isAppReadyToShow = true;
-        const pctEl = document.getElementById('loadingPercent');
-        const tEl = document.getElementById('loadingText');
-        if (pctEl) pctEl.textContent = `100%`;
-        if (tEl) tEl.textContent = "Hoàn tất!";
-        setTimeout(applyScreenState, 300);
-      } else { const pctEl = document.getElementById('loadingPercent'); if (pctEl) pctEl.textContent = `${finalProgress}%`; }
-    }, 40);
+    loadProgress = 100;
+    loadFinishing = true;
+    loadStartTicker();
   }
 }
 function startFakeLoading() {
   forceFinishTimer = setTimeout(() => {
     if (!isAppReadyToShow) {
-      isAppReadyToShow = true;
       if (loadInterval) { clearInterval(loadInterval); loadInterval = null; }
-      const pctEl = document.getElementById('loadingPercent');
-      const tEl = document.getElementById('loadingText');
-      if (pctEl) pctEl.textContent = `100%`;
-      if (tEl) tEl.textContent = "Đang mở ứng dụng...";
-      setTimeout(applyScreenState, 300);
+      loadProgress = 100; loadFinishing = true; loadStartTicker();
     }
   }, 8000);
-  loadInterval = setInterval(() => {
-    if (loadProgress < 95 && !isAppReadyToShow) {
-      let step = 0; let text = "Đang khởi tạo...";
-      if (loadProgress < 20) { step = 2; text = "Đang kiểm tra kết nối..."; }
-      else if (loadProgress < 50) { step = 0.5; text = "Đang chờ tín hiệu GPS..."; }
-      else if (loadProgress < 80) { step = 0.2; text = "Đang tải bản đồ..."; }
-      else { step = 0.1; text = "Sắp xong rồi..."; }
-      updateLoadingProgress(loadProgress + step, text);
-    }
-  }, 100);
+  // Progress now follows real milestones (auth, GPS, 360 prefetch);
+  // nothing invents percentages any more. The 8s timer above
+  // stays only as a safety net.
 }
 startFakeLoading();
 updateLoadingProgress(5, "Đang kiểm tra kết nối...");
 
-/* [V4] Chỉ đăng ký onAuthStateChanged khi auth khởi tạo được; nếu Firebase
-   init lỗi thì đánh dấu đã kiểm tra auth và để bộ đếm loading 8 giây tự
-   hoàn tất, bản đồ vẫn mở được ở chế độ không có dữ liệu cloud. */
-if (!auth) {
-  isUserAuthChecked = true;
-  try { const tEl = document.getElementById('loadingText'); if (tEl) tEl.textContent = 'Không kết nối được dịch vụ dữ liệu, vẫn dùng được bản đồ.'; } catch (e) {}
-} else {
 onAuthStateChanged(auth, (user) => {
   const wasLoggedIn = !!currentUser;
   currentUser = user || null;
   isUserAuthChecked = true;
+  updateLoadingProgress(30, "Đã kiểm tra đăng nhập...");
   if (!user) cleanupDataSubscriptions();
   if (user) {
     const pn = document.getElementById('profileName');
@@ -1264,39 +1774,25 @@ onAuthStateChanged(auth, (user) => {
       endPoint = { lat: parseFloat(params.get('toLat')), lng: parseFloat(params.get('toLng')), name: params.get('toName') || 'Điểm đến' };
       initialCenter = [startPoint.lat, startPoint.lng];
     }
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          if (!startPoint) {
-            initialCenter = [pos.coords.latitude, pos.coords.longitude];
-            lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-            lastHeading = pos.coords.heading || 0;
-          }
-          updateLoadingProgress(95, "Đã lấy được GPS...");
-          checkLoadingComplete();
-        },
-        () => { updateLoadingProgress(95, "Không lấy được GPS, dùng mặc định"); checkLoadingComplete(); },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    } else { updateLoadingProgress(95, "Thiết bị không hỗ trợ GPS"); checkLoadingComplete(); }
+    // [GPS-C 2026-11-27] GPS khong con chan man hinh tai: mo app ngay, vi tri
+    // lay chay ngam trong dkAutoGpsOnLoad() (goi tu initAppUI). Khong bao loi
+    // GPS o day nua; prefetch 360 doi co vi tri moi chay, khong doi o cua tai.
+    updateLoadingProgress(90, "Đang mở bản đồ...");
+    loadGpsSettled = true;
+    loadHoldUntil = 0;
+    loadPrefetchDone = true;
+    checkLoadingComplete();
   } else {
     if (isAppReadyToShow && wasLoggedIn) { applyScreenState(); return; }
-    updateLoadingProgress(95, "Chưa đăng nhập...");
+    updateLoadingProgress(90, "Chưa đăng nhập..."); loadGpsSettled = true; loadHoldUntil = 0; loadPrefetchDone = true;
     checkLoadingComplete();
   }
 });
-
-/* [V4] Đóng nhánh else của guard onAuthStateChanged. */
-}
 
 /* ========== APP INIT ========== */
 function initAppUI() {
   initTheme();
   initMap();
-  // LOC GPS: theo doi lien tuc ngay tu khi mo ban do (nhu Google Maps), khong chi
-  // khi bat dau dan duong. Truoc day chi lay GPS 1 lan luc mo (timeout 3s) nen
-  // fix dau thuong la vi tri tho qua WiFi, mui ten dung yen o diem sai.
-  try { if (typeof startWatching === 'function') startWatching(); } catch (e) { console.warn('[GPS watch] khong khoi dong duoc:', e); }
   initDataSubscriptions();
   setupSearchInputs();
   updateVoiceSettingsUI();
@@ -1318,7 +1814,7 @@ function initAppUI() {
       document.getElementById('dirInputStart').value = 'Vị trí của tôi (GPS)';
       document.getElementById('btnClearStart').classList.remove('hidden');
     }
-  } else refreshGPS();
+  } else dkAutoGpsOnLoad();
   const params = new URLSearchParams(window.location.search);
   if (params.get('fromLat')) {
     const toLat = parseFloat(params.get('toLat'));
@@ -1356,7 +1852,7 @@ window.toggleTheme = function() {
   else { document.body.classList.remove('light-mode'); localStorage.setItem('theme', 'dark'); }
   updateThemeColor();
 };
-setInterval(() => { if (document.hidden) return; const c = document.getElementById('profileTime'); if (c) c.textContent = new Date().toLocaleTimeString('vi-VN'); }, 1000);
+setInterval(() => { const c = document.getElementById('profileTime'); if (c) c.textContent = new Date().toLocaleTimeString('vi-VN'); }, 1000);
 
 /* ========== SEARCH INPUT WIRING ========== */
 function setupSearchInputs() {
@@ -1409,31 +1905,31 @@ if (authToggleBtn) {
     isRegisterMode = !isRegisterMode;
     if (authError) authError.style.display = 'none';
     if (isRegisterMode) {
-      if (authTitle) authTitle.textContent = 'Tạo tài khoản 📝';
-      if (authSubtitle) authSubtitle.textContent = 'Đăng ký để bắt đầu hành trình';
-      if (btnSubmitAuth) btnSubmitAuth.textContent = 'Đăng ký tài khoản';
-      if (authToggleText) authToggleText.textContent = 'Đã có tài khoản?';
+      authTitle.textContent = 'Tạo tài khoản 📝';
+      authSubtitle.textContent = 'Đăng ký để bắt đầu hành trình';
+      btnSubmitAuth.textContent = 'Đăng ký tài khoản';
+      authToggleText.textContent = 'Đã có tài khoản?';
       authToggleBtn.textContent = 'Đăng nhập';
     } else {
-      if (authTitle) authTitle.textContent = 'DriveKit 🚌';
-      if (authSubtitle) authSubtitle.textContent = 'Mọi hành trình, một giải pháp';
-      if (btnSubmitAuth) btnSubmitAuth.textContent = 'Đăng nhập';
-      if (authToggleText) authToggleText.textContent = 'Chưa có tài khoản?';
+      authTitle.textContent = 'DriveKit 🚌';
+      authSubtitle.textContent = 'Mọi hành trình, một giải pháp';
+      btnSubmitAuth.textContent = 'Đăng nhập';
+      authToggleText.textContent = 'Chưa có tài khoản?';
       authToggleBtn.textContent = 'Đăng ký ngay';
     }
   });
 }
 if (btnSubmitAuth) {
   btnSubmitAuth.addEventListener('click', async () => {
-    const email = document.getElementById('authEmail')?.value || '';
-    const pass = document.getElementById('authPassword')?.value || '';
-    if (!email || !pass) { if (authError) { authError.textContent = 'Vui lòng nhập đầy đủ Email và Mật khẩu.'; authError.style.display = 'block'; } return; }
+    const email = document.getElementById('authEmail').value;
+    const pass = document.getElementById('authPassword').value;
+    if (!email || !pass) { authError.textContent = 'Vui lòng nhập đầy đủ Email và Mật khẩu.'; authError.style.display = 'block'; return; }
     btnSubmitAuth.disabled = true; btnSubmitAuth.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-    if (authError) authError.style.display = 'none';
+    authError.style.display = 'none';
     try {
       if (isRegisterMode) await createUserWithEmailAndPassword(auth, email, pass);
       else await signInWithEmailAndPassword(auth, email, pass);
-    } catch (err) { if (authError) { authError.textContent = getAuthErrorMessage(err.code); authError.style.display = 'block'; } }
+    } catch (err) { authError.textContent = getAuthErrorMessage(err.code); authError.style.display = 'block'; }
     finally { btnSubmitAuth.disabled = false; btnSubmitAuth.textContent = isRegisterMode ? 'Đăng ký tài khoản' : 'Đăng nhập'; }
   });
 }
@@ -1441,7 +1937,7 @@ const btnGoogleAuth = document.getElementById('btnGoogleAuth');
 if (btnGoogleAuth) {
   btnGoogleAuth.addEventListener('click', async () => {
     try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-    catch (e) { if (authError) { authError.textContent = getAuthErrorMessage(e.code); authError.style.display = 'block'; } }
+    catch (e) { authError.textContent = getAuthErrorMessage(e.code); authError.style.display = 'block'; }
   });
 }
 window.logout = function() {
@@ -1461,7 +1957,7 @@ function initDataSubscriptions() {
   if (!currentUser) return;
   cleanupDataSubscriptions();
   _unsub.fsRest = onSnapshot(collection(fsdb, 'rest_stops'), snap => {
-    _fsRestStops = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data(), tag: d.data().tag || 'rest_stop' }));
+    _fsRestStops = snap.docs.map(d => ({ id: d.id, _id: d.id, source: 'firestore', ...d.data() }));
     recomputeRestStops();
   }, err => console.warn('FS rest_stops:', err));
   _unsub.fsPoi = onSnapshot(collection(fsdb, 'community_pois'), snap => {
@@ -1586,9 +2082,9 @@ function recomputeAvoidZones() {
 /* ========== UI STATE ========== */
 function updateUIState() {
   const isNav = document.body.classList.contains('navigating');
-  const isDirOpen = document.getElementById('dirSheet')?.classList.contains('open');
-  const isSearchBoxShow = document.getElementById('suggestionsBox')?.classList.contains('show');
-  const isNearbyOpen = document.getElementById('nearbySearchPanel')?.classList.contains('open') || document.getElementById('nearbyResultsOverlay').style.display === 'block';
+  const isDirOpen = document.getElementById('dirSheet').classList.contains('open');
+  const isSearchBoxShow = document.getElementById('suggestionsBox').classList.contains('show');
+  const isNearbyOpen = document.getElementById('nearbySearchPanel').classList.contains('open') || document.getElementById('nearbyResultsOverlay').style.display === 'block';
   const searchBar = document.getElementById('searchBar');
   const mainMenuBtn = document.getElementById('mainMenuBtn');
   if (isNav) { searchBar.classList.add('hidden'); mainMenuBtn.classList.add('hidden'); }
@@ -1699,6 +2195,7 @@ function updateCompassNeedle() {
   btn.classList.toggle('off-north', Math.abs(bearing) > 1);
 }
 window.resetNorth = function() { if (map) map.easeTo({ bearing: 0, pitch: 0, duration: 600 }); };
+/* [SYNC 2026-11-28] Traffic that lay tu app.js roi (TomTom qua Worker). */
 // ========== TOMTOM REALTIME TRAFFIC LAYER ==========
 // Lop giao thong truc tiep tu TomTom Traffic Flow qua Worker (/api/traffic/{z}/{x}/{y}.png).
 // Key TomTom giu o Worker, client chi goi Worker. Tile tu refresh moi 5 phut khi dang bat.
@@ -1750,17 +2247,11 @@ window.toggleTraffic = function(isChecked){
 
 function initMap() {
   if (map) return;
-  if (typeof maplibregl === 'undefined') {
-    console.error('[DriveKit] MapLibre chua tai duoc');
-    const _lt = document.getElementById('loadingText');
-    if (_lt) _lt.textContent = 'Khong tai duoc ban do, kiem tra mang roi tai lai trang.';
-    return;
-  }
   map = new maplibregl.Map({
     container: 'map', style: TRACKASIA_STYLE,
     center: [initialCenter[1], initialCenter[0]], zoom: initialZoom,
     pitch: 0, bearing: 0, attributionControl: true,
-    touchZoomRotate: true, dragRotate: true, clickTolerance: 12
+    touchZoomRotate: true, dragRotate: true
   });
 
   // [DEBUG] expose ra window để Console truy cập
@@ -1777,19 +2268,39 @@ function initMap() {
     renderReportsOnMap();
     renderAvoidZonesOnMap();
     initMapillarySignsLayer();
-    if (_trafficOn) addTrafficLayer();
+    if (typeof _trafficOn !== 'undefined' && _trafficOn) addTrafficLayer();
     setTimeout(loadStaticWarnings, 1000);
   });
   map.on('contextmenu', (e) => {
-    if (document.getElementById('dirSheet')?.classList.contains('open')) return;
-    if (document.getElementById('suggestionsBox')?.classList.contains('show')) closeSearch();
+    // CHE DO CHON DUONG: chi duoc keo/zoom, khong long-press
+    try{ if (document.body && document.body.classList.contains('rp-preview-open')) return; }catch(e){}
+    // V11 FIX POPUP: long-press (chuot phai / giu tren mobile) VAN hien popup.
+    // Truoc day: dirSheet dang mo -> return, khong hien popup -> tuong loi.
+    // Gio: dong sheet dang mo roi VAN hien popup o cho long-press.
+    if (document.getElementById('dirSheet').classList.contains('open')) { try{ closeDirections(); }catch(_){ } }
+    if (document.getElementById('suggestionsBox').classList.contains('show')) closeSearch();
+    if (document.getElementById('poiDetailSheet') && document.getElementById('poiDetailSheet').classList.contains('open')) { try{ closePoiDetail(); }catch(_){ } }
+    if (touchMarker) { try{ touchMarker.remove(); }catch(_){ } touchMarker = null; }
     showLocationPopup(e.lngLat);
   });
-  let _tapHandledAt = 0;
-  const handleMapTap = (e) => {
-    const _tapNow = Date.now();
-    if (_tapNow - _tapHandledAt < 1000) return;
-    _tapHandledAt = _tapNow;
+  map.on('click', (e) => {
+    // CHE DO CHON DUONG (2026-11-25): dang xem truoc tuyen -> chi duoc keo/zoom map,
+    // khong popup. Bam tuyen van chon duoc (handler layer rp-route chay rieng, chay truoc).
+    try{ if (document.body && document.body.classList.contains('rp-preview-open')) return; }catch(e){}
+    // [STREETVIEW-360 2026-11-26] Che do 360: cham map -> nhay anh gan nhat, khong mo popup.
+    try{ if (typeof dk360HandleTap === 'function' && dk360HandleTap(e.lngLat)) return; }catch(_){}
+    // [FIX 2026-11-25] Bam trung khung gom / bien bao: handler cua layer da mo popup bien -> khong mo popup vi tri nua.
+    try{
+      if (typeof map !== 'undefined' && map && typeof map.queryRenderedFeatures === 'function' && e && e.point){
+        var _dkHitLayers = [];
+        try{ if (map.getLayer(SIGN_FRAME_LAYER_ID)) _dkHitLayers.push(SIGN_FRAME_LAYER_ID); }catch(_){}
+        try{ if (map.getLayer(TRAFFIC_SIGN_LAYER_ID)) _dkHitLayers.push(TRAFFIC_SIGN_LAYER_ID); }catch(_){}
+        if (_dkHitLayers.length){
+          var _dkHit = map.queryRenderedFeatures(e.point, { layers: _dkHitLayers });
+          if (_dkHit && _dkHit.length) return;
+        }
+      }
+    }catch(_){}
     const _inNav = !!(document.body && document.body.classList.contains('google-nav')) || !!isNavigating;
     // Mo lai click khi dang dan duong: bam map van geocoding, chi an nut "Toi cho nay" trong popup
     // Dung follow de popup khong bi camera keo di
@@ -1799,47 +2310,33 @@ function initMap() {
       currentNearbyCenter = { lat, lon };
       updateNearbyCenterMarker(lat, lon);
       toggleNearbyPickMode(false);
-      document.getElementById('nearbySearchPanel')?.classList.add('open');
+      document.getElementById('nearbySearchPanel').classList.add('open');
       fetchNearbyPlaces();
       return;
     }
-    if (document.getElementById('poiDetailSheet')?.classList.contains('open')) { closePoiDetail(); return; }
-    if (touchMarker) {
-      let _tmOpen = false;
-      try { const _tmPop = touchMarker.getPopup(); _tmOpen = !!(_tmPop && _tmPop.isOpen()); } catch (e) {}
-      let _tmEl = null;
-      try { _tmEl = touchMarker.getElement(); } catch (e) {}
-      if (!_tmEl || !_tmEl.isConnected || !_tmOpen) { try { touchMarker.remove(); } catch (e) {} touchMarker = null; }
-      else { closePopupSmoothly(touchMarker); touchMarker = null; return; }
+    // V11 FIX POPUP: cham map LUON hien popup.
+    // Truoc day 2 loi:
+    //  1) dirSheet / suggestionsBox dang mo -> closeDirections() roi return, KHONG hien popup. Nen khi vua mo Chi duong xong ma cham map thi chi thay sheet dong, tuong popup hong.
+    //  2) touchMarker da co -> closePopupSmoothly() roi return, KHONG hien popup moi. Nen cham lan 2 o cho khac chi thay popup cu tat, phai cham lan 3 moi hien popup moi.
+    // Gio: dong sheet / xoa marker cu roi VAN hien popup moi o cho cham.
+    if (document.getElementById('poiDetailSheet').classList.contains('open')) { try{ closePoiDetail(); }catch(_){ } }
+    try{ if(typeof window.wxCloseCardOnMapTap==='function' && window.wxCloseCardOnMapTap()) return; }catch(e){} try{ if(typeof window.wxCloseSheetOnMapTap==='function' && window.wxCloseSheetOnMapTap()) return; }catch(e){}
+    // [FIX 2026-11-24] Bam lan 2 khi popup dang mo -> chi dong popup, khong mo popup moi o cho cham.
+    try { if (touchMarker && touchMarker.getPopup && touchMarker.getPopup() && touchMarker.getPopup().isOpen()) { if (typeof closePopupSmoothly === 'function') closePopupSmoothly(touchMarker); else { try { touchMarker.remove(); } catch (_) {} } touchMarker = null; return; } } catch (_) {}
+    if (touchMarker) { try{ touchMarker.remove(); }catch(_){ } touchMarker = null; }
+    if ((document.getElementById('dirSheet').classList.contains('open') || document.getElementById('suggestionsBox').classList.contains('show'))) {
+      try{ closeDirections(); }catch(_){ }
+      if (document.getElementById('suggestionsBox').classList.contains('show')) closeSearch();
     }
-    if ((document.getElementById('dirSheet')?.classList.contains('open') || document.getElementById('suggestionsBox')?.classList.contains('show'))) {
-      closeDirections();
-      if (document.getElementById('suggestionsBox')?.classList.contains('show')) closeSearch();
-      return;
-    }
+    // Neu sheet tham so xe (V10) dang mo, dong no luon de popup khong bi che
+    try{ if (document.getElementById('vehicleParamsSheet') && document.getElementById('vehicleParamsSheet').classList.contains('open') && typeof closeVehicleParamsSheet === 'function') closeVehicleParamsSheet(); }catch(_){ }
     showLocationPopup(e.lngLat);
-  };
-  map.on('click', handleMapTap);
-  let _tapStart = null;
-  try {
-    const _cv = map.getCanvas();
-    _cv.addEventListener('touchstart', (ev) => { if (ev.touches && ev.touches.length === 1) { const t = ev.touches[0]; _tapStart = { x: t.clientX, y: t.clientY, at: Date.now() }; } else { _tapStart = null; } }, { passive: true });
-    _cv.addEventListener('touchend', (ev) => {
-      if (!_tapStart) return;
-      const t = ev.changedTouches && ev.changedTouches[0]; const st = _tapStart; _tapStart = null;
-      if (!t) return;
-      const dx = t.clientX - st.x, dy = t.clientY - st.y;
-      if (Date.now() - st.at > 500 || Math.hypot(dx, dy) > 16) return;
-      try { const _r = _cv.getBoundingClientRect(); const pt = map.unproject([t.clientX - _r.left, t.clientY - _r.top]); handleMapTap({ lngLat: pt }); } catch (e) {}
-    }, { passive: true });
-  } catch (e) {}
+  });
   map.on('moveend', () => {
     if (map.getZoom() < 13) { staticWarningMarkers.forEach(m => m.remove()); staticWarningMarkers = []; return; }
     if (staticWarningsTimer) clearTimeout(staticWarningsTimer);
     staticWarningsTimer = setTimeout(loadStaticWarnings, 600);
   });
-  /* [V2-Nhom3] Keo ban do xong 200ms moi ve lai marker (debounce), tranh ve lien tuc khi keo. */
-  map.on('moveend', function(){ _drivekitScheduleMarkerRerender(); });
   let zoomRenderTimer = null;
   map.on('zoomend', () => {
     if (zoomRenderTimer) clearTimeout(zoomRenderTimer);
@@ -1896,21 +2393,11 @@ function showLocationPopup(lngLat) {
   setTimeout(() => ripple.remove(), 600);
   if (navigator.vibrate) navigator.vibrate(30);
   const loadingHtml = `<div style="text-align:center; padding:8px; color:var(--text); min-width: 140px;"><i class="fas fa-spinner fa-spin" style="color:var(--primary); font-size:1.2rem; margin-bottom:6px;"></i><br><span style="font-size:0.85rem; font-weight:600;">Đang lấy địa chỉ...</span></div>`;
-  /* [V5] Nếu tạo marker/popup chính lỗi thì vẫn phải hiện popup dự phòng với
-     tọa độ, không được im lặng: cú bấm đã tới đây thì người dùng phải thấy gì đó. */
-  let popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeOnClick: false, closeButton: false }).setLngLat([lngLat.lng, lngLat.lat]).setHTML(loadingHtml);
-  let markerRef = null;
-  try {
-    const el = createTouchMarkerElement();
-    touchMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lngLat.lng, lngLat.lat]).setPopup(popup).addTo(map);
-    touchMarker.togglePopup();
-    try { if (popup && !popup.isOpen()) popup.addTo(map); } catch (e) {}
-    markerRef = touchMarker;
-  } catch (e) {
-    console.error('[DriveKit] showLocationPopup marker failed, fallback popup:', e);
-    touchMarker = null;
-    try { popup.addTo(map); } catch (_) {}
-  }
+  const popup = new maplibregl.Popup({ offset: 10, maxWidth: '300px', closeOnClick: false, closeButton: false }).setLngLat([lngLat.lng, lngLat.lat]).setHTML(loadingHtml);
+  const el = createTouchMarkerElement();
+  touchMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lngLat.lng, lngLat.lat]).setPopup(popup).addTo(map);
+  touchMarker.togglePopup();
+  const markerRef = touchMarker;
   (async () => {
     let name = '';
     try { const raw = await apiReverseGeocode(lngLat.lat, lngLat.lng); if (raw) name = raw.split(',').slice(0, 3).join(', '); } catch (e) {}
@@ -1994,95 +2481,46 @@ window.deleteSavedPlace = async function(source, id) {
   if (!confirm('Bạn có chắc muốn xoá ghim này?')) return;
   try { await deleteDoc(doc(fsdb, `users/${currentUser.uid}/savedPlaces/${id}`)); } catch(e) { alert('Lỗi xoá: ' + e.message); }
 };
-/* [V2-Nhom3] Helper khung nhin: chi ve marker trong khung nhin + dem 20% moi ben. */
-function _drivekitBoundsKey() { try { if (!map || !map.getBounds) return ''; const b = map.getBounds(); return [b.getSouth().toFixed(3), b.getWest().toFixed(3), b.getNorth().toFixed(3), b.getEast().toFixed(3)].join(','); } catch(e) { return ''; } }
-function _drivekitInView(lat, lng) { try { if (!map || !map.getBounds || typeof lat !== 'number' || typeof lng !== 'number') return true; const b = map.getBounds(); const h = b.getNorth() - b.getSouth(); const w = b.getEast() - b.getWest(); return lat >= b.getSouth() - h * 0.2 && lat <= b.getNorth() + h * 0.2 && lng >= b.getWest() - w * 0.2 && lng <= b.getEast() + w * 0.2; } catch(e) { return true; } }
-let _drivekitMoveRenderTimer = null;
-function _drivekitScheduleMarkerRerender() { try { if (_drivekitMoveRenderTimer) clearTimeout(_drivekitMoveRenderTimer); _drivekitMoveRenderTimer = setTimeout(function(){ try { renderRestStopMarkers(); renderCommunityPoisOnMap(); renderReportsOnMap(); } catch(e) {} }, 200); } catch(e) {} }
 function renderRestStopMarkers() {
+  restStopMarkers.forEach(m => m.remove());
+  restStopMarkers = [];
   const z = map ? map.getZoom() : 17;
-  if (z < ZOOM_CONFIG.restStop) { if (restStopMarkers.length) { restStopMarkers.forEach(m => m.remove()); restStopMarkers = []; _restStopMarkerMap.clear(); _restStopFingerprint = ''; } return; }
-  const _bk = _drivekitBoundsKey();
-  const _fp = allRestStops.map(poi => `${poi._id || poi.id || ''}|${poi.lng}|${poi.lat}|${poi.tag}`).join(';') + `|filter=${restStopFilterActive}|bounds=${_bk}`;
-  if (_fp === _restStopFingerprint) return; _restStopFingerprint = _fp;
-  /* [V4] Diff theo id: chỉ xóa marker mất khỏi desired hoặc đổi sig, chỉ tạo
-     marker mới; marker không đổi giữ nguyên đối tượng (không tạo lại DOM). */
-  const _desiredRest = new Map();
+  if (z < ZOOM_CONFIG.restStop) return;
   allRestStops.forEach(poi => {
     if (restStopFilterActive && poi.tag !== 'rest_stop' && poi.tag !== 'gas_station') return;
-    let _la = Number(poi.lat ?? poi.latitude ?? (poi.location && poi.location.latitude));
-    let _ln = Number(poi.lng ?? poi.lon ?? poi.longitude ?? (poi.location && poi.location.longitude));
-    if (_la > 90 && _ln < 90) { const _sw = _la; _la = _ln; _ln = _sw; }
-    if (!isFinite(_la) || !isFinite(_ln)) return;
-    const _poi = { ...poi, lat: _la, lng: _ln };
-    if (!_drivekitInView(_la, _ln)) return;
-    _desiredRest.set(_poi._id || _poi.id || `${_ln}|${_la}|${_poi.tag}`, { poi: _poi, sig: `${_ln}|${_la}|${_poi.tag}` });
-  });
-  _restStopMarkerMap.forEach((entry, _key) => {
-    const want = _desiredRest.get(_key);
-    if (!want || want.sig !== entry.sig) { try { entry.marker.remove(); } catch (e) {} _restStopMarkerMap.delete(_key); }
-  });
-  _desiredRest.forEach((want, _key) => {
-    if (_restStopMarkerMap.has(_key)) return;
-    const poi = want.poi;
     const el = document.createElement('div');
     el.style.width = '40px'; el.style.height = '40px';
     el.innerHTML = `<div class="community-poi-pin rest-stop-pin"><i class="fas fa-bed"></i><div class="verified-badge"><i class="fas fa-check"></i></div></div>`;
     const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([poi.lng, poi.lat]).addTo(map);
     el.addEventListener('click', (ev) => { ev.stopPropagation(); openPoiDetail(poi.source, poi._id); });
-    _restStopMarkerMap.set(_key, { marker, sig: want.sig });
+    restStopMarkers.push(marker);
   });
-  restStopMarkers = [..._restStopMarkerMap.values()].map(e => e.marker);
 }
 function renderCommunityPoisOnMap() {
+  communityPoiMarkers.forEach(m => m.remove());
+  communityPoiMarkers = [];
   const currentZoom = map ? map.getZoom() : 17;
-  if (currentZoom < ZOOM_CONFIG.communityPoi) { if (communityPoiMarkers.length) { communityPoiMarkers.forEach(m => m.remove()); communityPoiMarkers = []; _communityPoiMarkerMap.clear(); _communityPoiFingerprint = ''; } return; }
-  const _bk = _drivekitBoundsKey();
-  const _fp = allCommunityPois.map(poi => `${poi._id || poi.id || ''}|${poi.lng}|${poi.lat}|${poi.tag}`).join(';') + `|bounds=${_bk}`;
-  if (_fp === _communityPoiFingerprint) return; _communityPoiFingerprint = _fp;
-  /* [V4] Diff theo id: chỉ xóa marker mất khỏi desired hoặc đổi sig, chỉ tạo
-     marker mới; marker không đổi giữ nguyên đối tượng (không tạo lại DOM). */
-  const _desiredPoi = new Map();
+  if (currentZoom < ZOOM_CONFIG.communityPoi) return;
   allCommunityPois.forEach(poi => {
-    let _la2 = Number(poi.lat ?? poi.latitude ?? (poi.location && poi.location.latitude));
-    let _ln2 = Number(poi.lng ?? poi.lon ?? poi.longitude ?? (poi.location && poi.location.longitude));
-    if (_la2 > 90 && _ln2 < 90) { const _sw2 = _la2; _la2 = _ln2; _ln2 = _sw2; }
-    if (!isFinite(_la2) || !isFinite(_ln2)) return;
-    const _poi2 = { ...poi, lat: _la2, lng: _ln2 };
-    if (!_drivekitInView(_la2, _ln2)) return;
-    _desiredPoi.set(_poi2._id || _poi2.id || `${_ln2}|${_la2}|${_poi2.tag}`, { poi: _poi2, sig: `${_ln2}|${_la2}|${_poi2.tag}` });
-  });
-  _communityPoiMarkerMap.forEach((entry, _key) => {
-    const want = _desiredPoi.get(_key);
-    if (!want || want.sig !== entry.sig) { try { entry.marker.remove(); } catch (e) {} _communityPoiMarkerMap.delete(_key); }
-  });
-  _desiredPoi.forEach((want, _key) => {
-    if (_communityPoiMarkerMap.has(_key)) return;
-    const poi = want.poi;
     const conf = POI_TAG_CONFIG[poi.tag] || POI_TAG_CONFIG.supermarket;
     const el = document.createElement('div');
     el.style.width = '32px'; el.style.height = '32px';
     el.innerHTML = `<div class="community-poi-pin"><i class="fas ${conf.icon}"></i><div class="verified-badge"><i class="fas fa-check"></i></div></div>`;
     const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([poi.lng, poi.lat]).addTo(map);
     el.addEventListener('click', (ev) => { ev.stopPropagation(); openPoiDetail(poi.source, poi._id); });
-    _communityPoiMarkerMap.set(_key, { marker, sig: want.sig });
+    communityPoiMarkers.push(marker);
   });
-  communityPoiMarkers = [..._communityPoiMarkerMap.values()].map(e => e.marker);
 }
 function renderReportsOnMap() {
-  const now = Date.now();
-  const currentZoom = map ? map.getZoom() : 17;
-  if (currentZoom < ZOOM_CONFIG.report) { if (reportMarkers.length) { reportMarkers.forEach(m => m.remove()); reportMarkers = []; _reportFingerprint = ''; } return; }
-  const _bk = _drivekitBoundsKey();
-  const _fp = Object.keys(allReports).filter(key => now <= allReports[key].expiresAt && !['speed_limit', 'speed_camera', 'penalty_camera'].includes(allReports[key].type)).map(key => `${key}|${allReports[key].type}|${allReports[key].lng}|${allReports[key].lat}|${allReports[key].expiresAt}`).join(';') + `|bounds=${_bk}`;
-  if (_fp === _reportFingerprint) return; _reportFingerprint = _fp;
   reportMarkers.forEach(m => m.remove());
   reportMarkers = [];
+  const now = Date.now();
+  const currentZoom = map ? map.getZoom() : 17;
+  if (currentZoom < ZOOM_CONFIG.report) return;
   for (const key in allReports) {
     const rep = allReports[key];
     if (now > rep.expiresAt) continue;
     if (rep.type === 'speed_limit' || rep.type === 'speed_camera' || rep.type === 'penalty_camera') continue;
-    if (!_drivekitInView(rep.lat, rep.lng)) continue;
     const icons = {
       police: '<div style="background:#3b82f6;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-shield-alt"></i></div>',
       toll: '<div style="background:#f59e0b;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 4px 8px rgba(0,0,0,0.3);"><i class="fas fa-money-bill"></i></div>',
@@ -2210,40 +2648,8 @@ async function submitSignReport(type) {
 }
 window.submitReport = async function(type) {
   if (!lastUserPos) return alert('Chưa lấy được vị trí GPS, không thể báo cáo!');
-  /* [V2-Nhom2] GPS kem (accuracy > 100m): canh bao va dung, khong ghi bao cao sai vi tri. */
-  if (lastUserPos.accuracy && lastUserPos.accuracy > 100) {
-    if (typeof showCustomToast === 'function') showCustomToast('GPS chưa chính xác (sai số trên 100m), vui lòng đợi GPS ổn định rồi gửi lại.', 'warning');
-    else alert('GPS chưa chính xác (sai số trên 100m), vui lòng đợi GPS ổn định rồi gửi lại.');
-    return;
-  }
-  const now = Date.now();
-  /* [V2-Nhom2] Cooldown client: cung 1 loai bao cao toi thieu 30s moi gui tiep. */
-  try {
-    const _cd = JSON.parse(localStorage.getItem('drivekit_report_cooldown') || '{}');
-    const _last = _cd[type] || 0;
-    if (now - _last < 30000) {
-      const _wait = Math.ceil((30000 - (now - _last)) / 1000);
-      if (typeof showCustomToast === 'function') showCustomToast('Vui lòng đợi ' + _wait + ' giây nữa mới gửi lại báo cáo này.', 'warning');
-      else alert('Vui lòng đợi ' + _wait + ' giây nữa mới gửi lại báo cáo này.');
-      return;
-    }
-  } catch(e) {}
-  /* [V2-Nhom2] Chong trung: da co bao cao cung loai, chua het han, trong ~150m thi dung. */
-  try {
-    if (typeof calcDist === 'function' && allReports) {
-      for (const _k in allReports) {
-        const _r = allReports[_k];
-        if (!_r || _r.type !== type || now > _r.expiresAt) continue;
-        if (typeof _r.lat !== 'number' || typeof _r.lng !== 'number') continue;
-        if (calcDist(lastUserPos.lat, lastUserPos.lng, _r.lat, _r.lng) < 150) {
-          if (typeof showCustomToast === 'function') showCustomToast('Đã có báo cáo tương tự gần đây.', 'warning');
-          else alert('Đã có báo cáo tương tự gần đây.');
-          return;
-        }
-      }
-    }
-  } catch(e) {}
   closeReportMenu();
+  const now = Date.now();
   let ttl = 3600000;
   if (type === 'pothole') ttl = 86400000;
   else if (type === 'flood') ttl = 10800000;
@@ -2251,7 +2657,6 @@ window.submitReport = async function(type) {
   else if (type === 'bridge_collapse' || type === 'road_collapse') ttl = 604800000;
   try {
     await set(ref(db, `reports/${now}_${currentUser.uid}`), { lat: lastUserPos.lat, lng: lastUserPos.lng, type, timestamp: now, expiresAt: now + ttl, uid: currentUser.uid });
-    try { const _cd2 = JSON.parse(localStorage.getItem('drivekit_report_cooldown') || '{}'); _cd2[type] = now; localStorage.setItem('drivekit_report_cooldown', JSON.stringify(_cd2)); } catch(e) {}
     showCustomToast('Đã gửi báo cáo!', 'success');
   } catch (e) { alert('Lỗi: ' + e.message); }
 };
@@ -2263,7 +2668,7 @@ window.submitReport = async function(type) {
 /* ========== SEARCH UI ========== */
 window.activateSearch = function(ctx) {
   searchContext = ctx;
-  document.getElementById('suggestionsBox')?.classList.add('show');
+  document.getElementById('suggestionsBox').classList.add('show');
   updateUIState();
   let input;
   if (ctx === 'start') input = document.getElementById('dirInputStart');
@@ -2276,11 +2681,11 @@ window.activateSearch = function(ctx) {
   }
 };
 window.closeSearch = function() {
-  document.getElementById('suggestionsBox')?.classList.remove('show');
+  document.getElementById('suggestionsBox').classList.remove('show');
   // [FIX] Dong search xong phai tra lai nut - neu dirSheet khong mo thi hien lai FAB
   try{
     setTimeout(()=>{
-      const dirOpen = document.getElementById('dirSheet') && document.getElementById('dirSheet')?.classList.contains('open');
+      const dirOpen = document.getElementById('dirSheet') && document.getElementById('dirSheet').classList.contains('open');
       if(!dirOpen){
         const ids2 = ['mainLocateBtn','mainDirBtn','btnLayerMenu','btnQuickPin','btnReport','btnRestStopFilter','btnNearbySearch'];
         ids2.forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='flex'; });
@@ -2486,27 +2891,74 @@ window.refreshGPS = function() {
     document.getElementById('dirInputStart').value = 'Vị trí của tôi (GPS)';
     document.getElementById('btnClearStart').classList.remove('hidden');
     lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-    saveLastPos(lastUserPos.lat, lastUserPos.lng);
+    try{ _dkLastAcc=pos.coords.accuracy||null; }catch(e){}
     if (map) {
-      // Bay xa (>20km, vd tu vi tri mac dinh ve GPS that) thi NHAY thang thay vi
-      // flyTo: flyTo duong dai vua cham vua giat do phai tai tile doc duong.
-      const cur = map.getCenter();
-      const dKm = calcDist(cur.lat, cur.lng, pos.coords.latitude, pos.coords.longitude) / 1000;
-      if (dKm > 20) map.jumpTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 16 });
-      else map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 16, duration: 800 });
+      map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 16 });
       updateUserMarkerOnMap(lastUserPos, lastHeading);
     }
-  }, (err) => { console.warn(err); }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+  }, (err) => { console.warn(err); });
 };
 
+/* [GPS-C 2026-11-27] Vi tri chay ngam sau khi app mo (thay cho GPS chan man hinh tai).
+   Chi goi 1 lan tu initAppUI khi chua co lastUserPos. That bai thi im, khong toast.
+   Bay ve cho user CHI khi user chua cham ban do / chua mo chi duong / chua dan duong. */
+let dkMapTouchedByUser = false;
+let dkAutoGpsStarted = false;
+function dkAutoGpsArmTouchGuard(){
+  try{
+    const el = document.getElementById('map');
+    if (!el || el._dkTouchGuardArmed) return;
+    el._dkTouchGuardArmed = true;
+    const mark = function(){ dkMapTouchedByUser = true; };
+    el.addEventListener('pointerdown', mark, { capture: true, passive: true });
+    el.addEventListener('wheel', mark, { capture: true, passive: true });
+  }catch(e){}
+}
+function dkAutoGpsShouldRecenter(hadStartPoint){
+  try{
+    if (dkMapTouchedByUser) return false;
+    if (hadStartPoint) return false;
+    if (typeof isNavigating !== 'undefined' && isNavigating) return false;
+    if (document.body && (document.body.classList.contains('google-nav') || document.body.classList.contains('navigating'))) return false;
+    const ds = document.getElementById('dirSheet');
+    if (ds && ds.classList.contains('open')) return false;
+    const sb = document.getElementById('suggestionsBox');
+    if (sb && sb.classList.contains('show')) return false;
+    return true;
+  }catch(e){ return false; }
+}
+function dkAutoGpsOnLoad(){
+  try{
+    if (dkAutoGpsStarted) return; dkAutoGpsStarted = true;
+    dkAutoGpsArmTouchGuard();
+    // Ghi lai TRUOC khi xin vi tri: callback chay sau se tu set startPoint,
+    // khong duoc dung startPoint luc do de quyet dinh co bay ve hay khong.
+    let hadStartPoint = false;
+    try{ hadStartPoint = !!(typeof startPoint !== 'undefined' && startPoint); }catch(e){}
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(function(pos){
+      try{
+        lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+        try{ _dkLastAcc=pos.coords.accuracy||null; }catch(e){}
+        lastHeading = pos.coords.heading || 0;
+        if (!startPoint) {
+          startPoint = { lat: pos.coords.latitude, lng: pos.coords.longitude, name: 'Vị trí của tôi' };
+          const di = document.getElementById('dirInputStart');
+          if (di) di.value = 'Vị trí của tôi (GPS)';
+          const bc = document.getElementById('btnClearStart');
+          if (bc) bc.classList.remove('hidden');
+        }
+        if (!loadPrefetchStarted) { loadPrefetchStarted = true; try{ dk360Prefetch360(pos.coords.longitude, pos.coords.latitude); }catch(_){ loadPrefetchDone = true; } }
+        if (typeof map !== 'undefined' && map) {
+          updateUserMarkerOnMap(lastUserPos, lastHeading);
+          if (dkAutoGpsShouldRecenter(hadStartPoint)) { try{ map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 16 }); }catch(e){} }
+        }
+      }catch(e){}
+    }, function(){ /* that bai thi im: app van mo, chip thoi tiet tu lay vi tri rieng */ }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  }catch(e){}
+}
 window.centerToLocation = function() {
-  if (lastUserPos) {
-    // Xa qua thi nhay thang, gan thi bay nhanh 800ms (ly do nhu refreshGPS).
-    const cur = map.getCenter();
-    const dKm = calcDist(cur.lat, cur.lng, lastUserPos.lat, lastUserPos.lng) / 1000;
-    if (dKm > 20) map.jumpTo({ center: [lastUserPos.lng, lastUserPos.lat], zoom: 18 });
-    else map.flyTo({ center: [lastUserPos.lng, lastUserPos.lat], zoom: 18, duration: 800 });
-  }
+  if (lastUserPos) map.flyTo({ center: [lastUserPos.lng, lastUserPos.lat], zoom: 18 });
   else refreshGPS();
 };
 
@@ -2531,6 +2983,22 @@ function getClosestPointOnSegment(p, a, b) {
   return { lat: a.lat + atob.y * t, lng: a.lng + atob.x * t };
 }
 
+function dkSnapPointOnRoute(lat, lng, gateM){
+  try{
+    if(!currentRouteCoords||currentRouteCoords.length<2) return null;
+    var startScan=Math.max(0, lastSnapIndex-5);
+    var endScan=Math.min(currentRouteCoords.length-1, lastSnapIndex+50);
+    var minDist=Infinity, bestPoint=null;
+    for(var i=startScan;i<endScan;i++){
+      var pt=getClosestPointOnSegment({lat:lat, lng:lng}, {lat:currentRouteCoords[i][0], lng:currentRouteCoords[i][1]}, {lat:currentRouteCoords[i+1][0], lng:currentRouteCoords[i+1][1]});
+      var d=calcDist(lat, lng, pt.lat, pt.lng);
+      if(d<minDist){ minDist=d; bestPoint=pt; }
+    }
+    if(bestPoint&&minDist<((typeof gateM==='number'&&isFinite(gateM))?gateM:40)) return bestPoint;
+    return null;
+  }catch(e){ return null; }
+}
+
 function calcDist(lat1, lng1, lat2, lng2) {
   const R = 6371e3;
   const p1 = lat1 * Math.PI/180, p2 = lat2 * Math.PI/180;
@@ -2544,12 +3012,12 @@ function updateUserMarkerOnMap(pos, heading) {
   if (!userMarker) {
     const el = document.createElement('div');
     el.style.cssText = 'width:32px;height:32px;display:flex;align-items:center;justify-content:center;';
-    el.innerHTML = `<svg class="user-marker-inner" style="transform: rotate(${heading || 0}deg); width: 24px; height: 24px;" viewBox="0 0 24 24"><path d="M12 2L22 20L12 16L2 20L12 2Z" fill="#10b981" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg>`;
+    el.innerHTML = `<svg class="user-marker-inner" style="transform: rotate(${dkArrowRot(heading)}deg); width: 24px; height: 24px;" viewBox="0 0 24 24"><path d="M12 2L22 20L12 16L2 20L12 2Z" fill="#10b981" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg>`;
     userMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(lngLat).addTo(map);
   } else {
     userMarker.setLngLat(lngLat);
     const inner = userMarker.getElement().querySelector('.user-marker-inner');
-    if (inner) inner.style.transform = `rotate(${heading || 0}deg)`;
+    if (inner) inner.style.transform = `rotate(${dkArrowRot(heading)}deg)`;
   }
   gpsCircleGeoJSON = createCircleGeoJSON(pos.lng, pos.lat, pos.accuracy || 10);
   if (map.getSource('gps-circle-source')) map.getSource('gps-circle-source').setData(gpsCircleGeoJSON);
@@ -2571,7 +3039,7 @@ function animateMarkerTo(targetPos) {
       const d = calcDist(targetPos.lat, targetPos.lng, pt.lat, pt.lng);
       if (d < minDist) { minDist = d; bestPoint = pt; bestSegmentIndex = i; if (i > lastSnapIndex) lastSnapIndex = i; }
     }
-    if (bestPoint && minDist < 40) {
+    if (bestPoint && minDist < dkSnapGate()) {
       const p1 = currentRouteCoords[bestSegmentIndex];
       const p2 = currentRouteCoords[bestSegmentIndex + 1];
       const angle = Math.atan2(p2[0] - p1[0], p2[1] - p1[1]);
@@ -2591,7 +3059,7 @@ function animateMarkerTo(targetPos) {
   if(calcDist(startLat, startLng, snappedLat, snappedLng) < 10){
     userMarker.setLngLat([snappedLng, snappedLat]);
     const inner0 = userMarker.getElement().querySelector('.user-marker-inner');
-    if(inner0) inner0.style.transform = `rotate(${targetHeading || 0}deg)`;
+    if(inner0) inner0.style.transform = `rotate(${dkArrowRot(targetHeading)}deg)`;
   } else {
     const startTime = performance.now(), duration = 350;
     const _step = (time) => {
@@ -2601,7 +3069,7 @@ function animateMarkerTo(targetPos) {
       const currentLng = startLng + (snappedLng - startLng) * ease;
       userMarker.setLngLat([currentLng, currentLat]);
       const inner = userMarker.getElement().querySelector('.user-marker-inner');
-      if (inner) inner.style.transform = `rotate(${targetHeading || 0}deg)`;
+      if (inner) inner.style.transform = `rotate(${dkArrowRot(targetHeading)}deg)`;
       if (progress < 1) _markerAnimId = requestAnimationFrame(_step);
     };
     _markerAnimId = requestAnimationFrame(_step);
@@ -2610,7 +3078,6 @@ function animateMarkerTo(targetPos) {
   if (map.getSource('gps-circle-source')) map.getSource('gps-circle-source').setData(gpsCircleGeoJSON);
 }
 
-// === BO LOC KALMAN GPS ===
 // Loc Kalman 2D (vi tri + van toc) cho GPS: tin fix tot hon fix xau (theo accuracy),
 // du doan vi tri giua cac lan do bang van toc -> mui ten dung yen, khong nhay lung tung.
 // Lam viec trong he met dia phuong (goc = fix dau tien). Thay cho tron co dinh 0.65/0.35.
@@ -2709,9 +3176,7 @@ function startWatching() {
     if(acc > 80 && _gpsLastAcceptedPos && calcDist(_gpsLastAcceptedPos.lat, _gpsLastAcceptedPos.lng, pos.coords.latitude, pos.coords.longitude) < 200){
       return;
     }
-    // LOC NHAY GPS: chi loc nhay khi moc truoc do la fix TOT (accuracy <= 80m).
-    // Neu moc truoc do la fix THO (WiFi, accuracy lon) thi nhay lon la fix that
-    // den, phai nhan chu khong duoc bo - truoc day no bi bo nen mui ten ket o diem sai.
+    // LOC NHAY GPS: nhay >250m trong <3s = toc do >300km/h -> bo, khong de no keo map + reroute loan
     if(_gpsLastAcceptedPos && _gpsLastAcceptedPos.accuracy <= 80 && _gpsLastAcceptedAt){
       const jump = calcDist(_gpsLastAcceptedPos.lat, _gpsLastAcceptedPos.lng, pos.coords.latitude, pos.coords.longitude);
       const dt = (now - _gpsLastAcceptedAt) / 1000;
@@ -2730,7 +3195,7 @@ function startWatching() {
     lastPosForSpeed = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     lastTimeForSpeed = now;
     const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, speed: speed || 0, accuracy: pos.coords.accuracy || 10, heading: pos.coords.heading };
-    // BO LOC KALMAN: thay tron co dinh 0.65/0.35 - tin fix tot hon fix xau (theo accuracy)
+    // [SYNC 2026-11-28] BO LOC KALMAN: thay tron co dinh 0.65/0.35 - tin fix tot hon fix xau (theo accuracy)
     // va du doan vi tri bang van toc -> cham dung yen, khong nhay.
     const kf = kalmanFilterPos(newPos.lat, newPos.lng, newPos.accuracy, now);
     if(kf){ newPos.lat = kf.lat; newPos.lng = kf.lng; }
@@ -2745,6 +3210,7 @@ function startWatching() {
       if (Math.abs(dy) + Math.abs(dx) > 0.00001) newPos.heading = 90 - (Math.atan2(dy, dx) * 180 / Math.PI);
     }
     lastUserPos = newPos;
+    try{ _dkLastAcc=newPos.accuracy||null; }catch(e){}
     animateMarkerTo(lastUserPos);
     // CAMERA: chi 1 noi duy nhat - updateNavCamera, va chi khi dang follow + khong dang keo map + khong update qua nhanh
     // Bo dong easeTo vo dieu kien cu (no la nguyen nhan map khong keo duoc: cu 1s la giat ve giua)
@@ -2760,9 +3226,20 @@ function startWatching() {
     checkOffRoute(lastUserPos.lat, lastUserPos.lng);
     checkArrival(lastUserPos.lat, lastUserPos.lng);
     updateNextManeuverHUD(lastUserPos.lat, lastUserPos.lng);
+    // [FIX 2026-11-25] Mui ten trang: cap nhat theo GPS (throttle 700ms, hoac ngay khi doi buoc re)
+    try{
+      if(isNavigating && typeof updateWhiteTurnArrow === 'function'){
+        const _nowWA = Date.now();
+        if(_nowWA - _lastWhiteArrowAt > 700 || voiceStepIndex !== _lastWhiteStepIdx){
+          _lastWhiteArrowAt = _nowWA; _lastWhiteStepIdx = voiceStepIndex;
+          updateWhiteTurnArrow();
+        }
+      }
+    }catch(e){}
     checkPoiProximity(lastUserPos.lat, lastUserPos.lng);
     checkAvoidZoneProximity(lastUserPos.lat, lastUserPos.lng);
     updateRemainingHUD();
+    try{ if(typeof window.wxOnGpsFix==='function') window.wxOnGpsFix(lastUserPos.lat, lastUserPos.lng); }catch(e){}
   }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
 }
 
@@ -2907,7 +3384,7 @@ function changeLayer(type, btn) {
       renderRestStopMarkers();
       renderSavedPlacesOnMap();
       renderReportsOnMap();
-      if (_trafficOn) addTrafficLayer();
+      if (typeof _trafficOn !== 'undefined' && _trafficOn) addTrafficLayer();
     }, 100);
   });
 }
@@ -2917,7 +3394,7 @@ window.goToLongPressLocation = function(lat, lng, name) {
   document.getElementById('topSearchInput').value = name;
   document.getElementById('btnClearEnd').classList.remove('hidden');
   document.getElementById('searchClearBtn').classList.remove('hidden');
-  if (touchMarker) { try { touchMarker.remove(); } catch (e) {} touchMarker = null; } /* [V5] null để cú bấm sau không bị nuốt */
+  if (touchMarker) touchMarker.remove();
   openDirections();
   if (!startPoint) refreshGPS();
 };
@@ -2932,8 +3409,8 @@ window.openPoiSheet = function(lat, lng, addressHint) {
   document.getElementById('poiSaveBtn').disabled = true;
   document.querySelectorAll('.poi-tag-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('poiSheet').classList.add('open');
-  if (touchMarker) { try { touchMarker.remove(); } catch (e) {} touchMarker = null; } /* [V5] null để cú bấm sau không bị nuốt */
-  setTimeout(() => document.getElementById('poiNameInput').focus(), 350);
+  if (touchMarker) touchMarker.remove();
+  /* Khong tu focus o ten POI khi mo sheet (ban phim tu mo gay kho chiu) — nguoi dung cham vao o moi go. */
 };
 window.closePoiSheet = function() { document.getElementById('poiSheet').classList.remove('open'); tempPoiLatLng = null; tempPoiTag = null; };
 window.selectPoiTag = function(tag, btn) {
@@ -2959,12 +3436,12 @@ window.submitCommunityPoi = async function() {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...';
   try {
     const collectionName = tempPoiTag === 'rest_stop' ? 'rest_stops' : 'community_pois';
-      await addDoc(collection(fsdb, collectionName), {
-        lat: tempPoiLatLng.lat, lng: tempPoiLatLng.lng, name, tag: tempPoiTag,
-        uid: currentUser.uid,
-        authorName: currentUser.displayName || currentUser.email.split('@')[0],
-        timestamp: Date.now(), upvotes: 0, categoryIds: getPoiCategoryIds(tempPoiTag) // v3: mã chuẩn (null nếu chưa xác minh) — không chặn lưu
-      });
+    await addDoc(collection(fsdb, collectionName), {
+      lat: tempPoiLatLng.lat, lng: tempPoiLatLng.lng, name, tag: tempPoiTag,
+      uid: currentUser.uid,
+      authorName: currentUser.displayName || currentUser.email.split('@')[0],
+      timestamp: Date.now(), upvotes: 0
+    });
     closePoiSheet();
     showCustomToast('Đã thêm địa điểm!', 'success');
   } catch (e) {
@@ -3002,10 +3479,10 @@ window.openPoiDetail = function(source, id) {
       <button class="poi-detail-btn primary" onclick="goToPoiFromDetail()"><i class="fas fa-location-arrow"></i> Tới chỗ này</button>
       <button class="poi-detail-btn share" onclick="sharePoiFromDetail()"><i class="fas fa-share-alt"></i> Chia sẻ</button>
     </div>`;
-  document.getElementById('poiDetailSheet')?.classList.add('open');
-  if (touchMarker) { try { touchMarker.remove(); } catch (e) {} touchMarker = null; } /* [V5] null để cú bấm sau không bị nuốt */
+  document.getElementById('poiDetailSheet').classList.add('open');
+  if (touchMarker) touchMarker.remove();
 };
-window.closePoiDetail = function() { document.getElementById('poiDetailSheet')?.classList.remove('open'); currentDetailPoi = null; };
+window.closePoiDetail = function() { document.getElementById('poiDetailSheet').classList.remove('open'); currentDetailPoi = null; };
 window.goToPoiFromDetail = function() {
   if (!currentDetailPoi) return;
   const { lat, lng, name } = currentDetailPoi;
@@ -3646,13 +4123,13 @@ function ensureOffRoutePopup() {
   const el = document.createElement('div');
   el.id = 'offRoutePopup';
   el.innerHTML = `
-    <div class="orp-card" role="dialog" aria-modal="true" aria-label="Đi lệch hướng">
+    <div class="orp-card" role="dialog" aria-modal="true" aria-label="Đi sai tuyến đường">
       <div class="orp-icon">⚠️</div>
-      <p class="orp-title">Bạn đang đi lệch hướng chỉ đường</p>
-      <p class="orp-sub">Bạn đã lệch <b id="offRoutePopupDist">~0 m</b> khỏi tuyến đường.<br>Bạn có muốn chúng tôi đổi hướng không?</p>
+      <p class="orp-title">Bạn có thể đang đi sai tuyến đường</p>
+      <p class="orp-sub">Bạn đã lệch <b id="offRoutePopupDist">~0 m</b> khỏi tuyến đường.</p>
       <div class="orp-row">
-        <button type="button" class="orp-btn orp-no" id="offRouteBtnNo">Không</button>
-        <button type="button" class="orp-btn orp-yes" id="offRouteBtnYes">Có, đổi hướng</button>
+        <button type="button" class="orp-btn orp-no" id="offRouteBtnNo">Không cần</button>
+        <button type="button" class="orp-btn orp-yes" id="offRouteBtnYes">OK</button>
       </div>
     </div>`;
   // Chan click ra ngoai lam tat popup vo tinh (user phai chon Co/Khong) - nhung van cho bam nut
@@ -3680,7 +4157,7 @@ function showOffRoutePopup(userLat, userLng, distM) {
     offRoutePopupAt = Date.now();
     el.classList.add('show');
     try { if (navigator.vibrate) navigator.vibrate(120); } catch(e) {}
-    try { if (typeof speak === 'function') speak('Bạn đang đi lệch hướng. Bạn có muốn đổi hướng không?', 'nav'); } catch(e) {}
+    try { if (typeof speak === 'function') speak('Bạn có thể đang đi sai tuyến đường.', 'nav'); } catch(e) {}
   }
 }
 function hideOffRoutePopup() {
@@ -3752,7 +4229,13 @@ function checkOffRoute(userLat, userLng) {
     offRouteCount++;
     if (offRouteCount >= 2) {
       offRouteCount = 0;
-      showOffRoutePopup(userLat, userLng, minDist);
+      // [MOI 2026-11-25] Cai dat 'Tu dong doi' -> doi tuyen ngay, khong hoi; 'Hoi' -> popup OK/Khong can
+      if (getAutoRerouteMode() === 'auto') {
+        offRoutePendingPos = { lat: userLat, lng: userLng };
+        confirmOffRouteReroute();
+      } else {
+        showOffRoutePopup(userLat, userLng, minDist);
+      }
     }
   } else offRouteCount = 0;
 }
@@ -3832,11 +4315,8 @@ async function autoReroute(userLat, userLng, bypassCache = false) {
 window.openAlternativeRoutes = function() {
   const stored = localStorage.getItem('alternativeRoutes');
   if (!stored) return alert('Không có tuyến đường phụ nào được lưu!');
-  /* [V4] JSON.parse có guard: dữ liệu localStorage hỏng thì báo và dừng,
-     không để lỗi console làm chết handler mở modal. */
-  let routes;
-  try { routes = JSON.parse(stored); } catch (e) { return alert('Dữ liệu tuyến đường phụ đã hỏng, không mở được!'); }
-  if (!Array.isArray(routes) || routes.length === 0) return alert('Không có tuyến đường phụ nào!');
+  const routes = JSON.parse(stored);
+  if (routes.length === 0) return alert('Không có tuyến đường phụ nào!');
   alternativeRoutesData = [currentRouteData, ...routes];
   let html = '';
   alternativeRoutesData.forEach((r, index) => {
@@ -4060,7 +4540,7 @@ try{
         lat: tempPoiLatLng.lat, lng: tempPoiLatLng.lng, name, tag: tempPoiTag,
         uid: currentUser.uid,
         authorName: currentUser.displayName || currentUser.email.split('@')[0],
-        timestamp: Date.now(), upvotes: 0, categoryIds: getPoiCategoryIds(tempPoiTag) // v3: mã chuẩn (null nếu chưa xác minh) — không chặn lưu
+        timestamp: Date.now(), upvotes: 0
       });
       // SUCCESS: reset TRUOC khi dong, de lan sau mo khong con spinner
       btn.disabled = false;
@@ -4231,7 +4711,6 @@ try{
   }
   setInterval(()=>{
     try{
-      if (document.hidden) return;
       const hud = document.getElementById('hud');
       if(!hud || hud.classList.contains('hidden')) return;
       if(!currentRouteCoords || currentRouteCoords.length === 0) return;
@@ -4292,7 +4771,7 @@ try{
       const b = routeBearingAt(lastSnapIndex || 0);
       if(b === null) return;
       const inner = userMarker.getElement().querySelector('.user-marker-inner');
-      if(inner) inner.style.transform = 'rotate(' + b + 'deg)';
+      if(inner) inner.style.transform = 'rotate(' + dkArrowRot(b) + 'deg)';
     }catch(e){}
   }
   try{
@@ -4312,7 +4791,7 @@ try{
           const d = calcDist(targetPos.lat, targetPos.lng, pt.lat, pt.lng);
           if(d < minDist){ minDist = d; bestPoint = pt; bestSegmentIndex = i; if(i > lastSnapIndex) lastSnapIndex = i; }
         }
-        if(bestPoint && minDist < 40){
+        if(bestPoint && minDist < dkSnapGate()){
           const p1 = currentRouteCoords[bestSegmentIndex];
           const p2 = currentRouteCoords[bestSegmentIndex + 1];
           const dLat = p2[0] - p1[0];
@@ -4346,7 +4825,7 @@ try{
         const currentLng = startLng + (snappedLng - startLng) * ease;
         userMarker.setLngLat([currentLng, currentLat]);
         const inner = userMarker.getElement().querySelector('.user-marker-inner');
-        if(inner) inner.style.transform = 'rotate(' + (targetHeading || 0) + 'deg)';
+        if(inner) inner.style.transform = 'rotate(' + dkArrowRot(targetHeading) + 'deg)';
         if(progress < 1) requestAnimationFrame(step);
       }
       requestAnimationFrame(step);
@@ -4376,7 +4855,7 @@ try{
       return r;
     };
   }catch(e){ /* patch warn removed */; }
-  try{ if(window._bearingInt) clearInterval(window._bearingInt); }catch(e){} window._bearingInt = setInterval(()=>{ try{ if (document.hidden) return; const hud = document.getElementById('hud'); if(hud && !hud.classList.contains('hidden')) applyRouteBearingToArrow(); }catch(e){} }, 1000); /* [FIX TREO] bearing: 300->1000ms, 1 interval duy nhat */
+  try{ if(window._bearingInt) clearInterval(window._bearingInt); }catch(e){} window._bearingInt = setInterval(()=>{ try{ const hud = document.getElementById('hud'); if(hud && !hud.classList.contains('hidden')) applyRouteBearingToArrow(); }catch(e){} }, 1000); /* [FIX TREO] bearing: 300->1000ms, 1 interval duy nhat */
 })();
 
 
@@ -4793,15 +5272,12 @@ try{
     if(!document.getElementById('gNavRightControls')){
       const rc = document.createElement('div');
       rc.id = 'gNavRightControls';
-      rc.innerHTML = '<button class="gNavRoundBtn" id="gNavCompassBtn" title="La bàn"><span class="compass-arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 2 L15.5 12 L12 22 L8.5 12 Z" fill="#ea4335"/><path d="M12 22 L15.5 12 L8.5 12 Z" fill="#9aa0a6"/></svg></span></button><button class="gNavRoundBtn" id="gNavSearchBtn" title="Tìm kiếm"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button><button class="gNavRoundBtn" id="gNavVoiceBtn" title="Âm thanh"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 L6 9 H3 v6 h3 l5 4 Z" fill="#3c4043" stroke="none"/><path d="M15.5 8.5 a5 5 0 0 1 0 7"/><path d="M18.5 5.5 a9 9 0 0 1 0 13"/></svg></button><button class="gNavRoundBtn" id="gNavRoutesBtn" title="Tuyến khác"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linecap="round"><path d="M6 4 v4 a4 4 0 0 0 4 4 h1 a4 4 0 0 1 4 4 v4"/><path d="M18 4 v2 a4 4 0 0 1-4 4"/><circle cx="6" cy="4" r="1.8" fill="#1a73e8" stroke="none"/><circle cx="18" cy="4" r="1.8" fill="#1a73e8" stroke="none"/><circle cx="15" cy="20" r="1.8" fill="#1a73e8" stroke="none"/></svg></button><button class="gNavRoundBtn" id="gNavPoiWarnBtn" title="POI cảnh báo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L22 20 H2 Z" fill="#fef3c7"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r="1" fill="#ea580c" stroke="none"/></svg></button><button class="gNavRoundBtn" id="gNavPoiPublicBtn" title="POI công cộng"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 a6 6 0 0 1 6 6 c0 5 -6 10 -6 10 S6 13 6 8 a6 6 0 0 1 6-6 Z" fill="#d1fae5"/><circle cx="12" cy="8" r="2.2"/></svg></button>';
+      rc.innerHTML = '<button class="gNavRoundBtn" id="gNavCompassBtn" title="La bàn"><span class="compass-arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 2 L15.5 12 L12 22 L8.5 12 Z" fill="#ea4335"/><path d="M12 22 L15.5 12 L8.5 12 Z" fill="#9aa0a6"/></svg></span></button><button class="gNavRoundBtn" id="gNavVoiceBtn" title="Âm thanh"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 L6 9 H3 v6 h3 l5 4 Z" fill="#3c4043" stroke="none"/><path d="M15.5 8.5 a5 5 0 0 1 0 7"/><path d="M18.5 5.5 a9 9 0 0 1 0 13"/></svg></button><button class="gNavRoundBtn" id="gNavPoiWarnBtn" title="POI cảnh báo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L22 20 H2 Z" fill="#fef3c7"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r="1" fill="#ea580c" stroke="none"/></svg></button><button class="gNavRoundBtn" id="gNavPoiPublicBtn" title="POI công cộng"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 a6 6 0 0 1 6 6 c0 5 -6 10 -6 10 S6 13 6 8 a6 6 0 0 1 6-6 Z" fill="#d1fae5"/><circle cx="12" cy="8" r="2.2"/></svg></button>';
       document.body.appendChild(rc);
       document.getElementById('gNavCompassBtn').onclick = ()=>{
         try{ if(typeof window.recenterToRouteView === 'function') window.recenterToRouteView(); else { navFollowMode = 'first-person'; if(lastUserPos) updateNavCamera(lastUserPos, lastUserPos.heading || 0); hideRecenterBtn(); } }catch(e){}
       };
-      document.getElementById('gNavSearchBtn').onclick = ()=>{
-        // [BAT BUOC] Dang dan duong: khoa search - khong mo o tim kiem
-        try{ if(typeof showCustomToast === 'function') showCustomToast('Đang dẫn đường - tìm kiếm tạm khóa', 'info'); }catch(e){}
-      };
+      
       document.getElementById('gNavVoiceBtn').onclick = (e)=>{
         try{
           const btn = e.currentTarget;
@@ -4811,9 +5287,6 @@ try{
             : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 L6 9 H3 v6 h3 l5 4 Z" fill="#9aa0a6" stroke="none"/><line x1="16" y1="9" x2="22" y2="15"/><line x1="22" y1="9" x2="16" y2="15"/></svg>';
           btn.style.opacity = voiceEnabled ? '1' : '0.6';
         }catch(err){}
-      };
-      document.getElementById('gNavRoutesBtn').onclick = ()=>{
-        try{ if(typeof window.openAlternativeRoutes === 'function') window.openAlternativeRoutes(); }catch(e){}
       };
       // POI canh bao: mo modal Bao cao (canh bao toc do, cam, chan duong...)
       try{ const wb = document.getElementById('gNavPoiWarnBtn'); if(wb) wb.onclick = ()=>{ try{ if(typeof window.openReportMenu === 'function') window.openReportMenu(); else if(typeof showCustomToast === 'function') showCustomToast('Mở báo cáo cảnh báo', 'info'); }catch(e){} }; }catch(e){}
@@ -4959,6 +5432,7 @@ try{
     const instr = (maneuver.instruction || '').toLowerCase();
     if(type.includes('arrive') || instr.includes('đến') || instr.includes('arrive')) return 'đến nơi';
     if(mod.includes('uturn') || type.includes('uturn') || instr.includes('quay đầu') || instr.includes('u-turn')) return 'quay đầu';
+    if(type.includes('depart') || type.includes('leave') || instr.includes('leave')) return 'xuất phát';
     return 'đi thẳng';
   }
   function gFormatDist(m){
@@ -5095,7 +5569,8 @@ try{
         const useBearing = (rb !== null && rb !== undefined) ? rb : (lastUserPos.heading || 0);
         const isMobile = window.innerWidth <= 640;
         const off = isMobile ? [0, window.innerHeight * 0.16] : [0, 110];
-        map.easeTo({ center:[lastUserPos.lng, lastUserPos.lat], bearing: useBearing, pitch:0, zoom: Math.max(map.getZoom(), 17.5), offset: [0, 0], duration:500, essential:true });
+        var _sp2=null; try{ _sp2=dkSnapPointOnRoute(lastUserPos.lat, lastUserPos.lng, dkSnapGate()); }catch(e){}
+        map.easeTo({ center:[_sp2?_sp2.lng:lastUserPos.lng, _sp2?_sp2.lat:lastUserPos.lat], bearing: useBearing, pitch:0, zoom: Math.max(map.getZoom(), 17.5), offset: [0, 0], duration:500, essential:true });
         const comp2 = document.querySelector('#gNavCompassBtn .compass-arrow');
         if(comp2) comp2.style.transform = 'rotate(' + (-useBearing) + 'deg)';
       }
@@ -5137,28 +5612,45 @@ try{
     }
   }catch(e){}
 
-  // ---- 6. Cham user kieu Google: cham xanh duong, khong phai mui ten xanh la ----
+  // [FIX 2026-11-25] Xoay mui ten xanh de dau mui luon huong theo duong xanh TREN MAN HINH (goc = bearing duong - bearing map)
+  function rotateGoogleUserArrow(pos, heading){
+    try{
+      if(!userMarker || !map) return;
+      const _el = userMarker.getElement();
+      const inner = _el && _el.querySelector('.user-marker-inner');
+      if(!inner) return;
+      let br = null;
+      try{ if(typeof getRouteBearingAhead === 'function' && pos) br = getRouteBearingAhead(pos); }catch(e){}
+      const h = (br !== null && br !== undefined) ? br : (heading || (pos && pos.heading) || 0);
+      let rot = dkArrowRot(h); // [PATCH9] mot cong thuc duy nhat
+      inner.style.transform = 'rotate(' + rot + 'deg)';
+    }catch(e){}
+  }
+  // ---- 6. User kieu Google: MUI TEN XANH (spec 2026-11-25), khong phai cham ----
   try{
     const _origUserMarkerGoogle = updateUserMarkerOnMap;
     updateUserMarkerOnMap = function(pos, heading){
       const isGoogle = document.body.classList.contains('google-nav');
       if(!isGoogle) return _origUserMarkerGoogle(pos, heading);
-      // Google mode: cham xanh duong
-      const lngLat = [pos.lng, pos.lat];
+      // Google mode: cham xanh duong (snap len duong xanh khi trong 40m)
+      let _spG=null; try{ _spG=dkSnapPointOnRoute(pos.lat, pos.lng, dkSnapGate()); }catch(e){}
+      const lngLat = _spG?[_spG.lng, _spG.lat]:[pos.lng, pos.lat];
       if(!userMarker){
         const el = document.createElement('div');
-        el.className = 'g-user-dot-wrap';
-        el.innerHTML = '<div class="g-user-dot"></div>';
+        el.style.cssText = 'width:32px;height:32px;display:flex;align-items:center;justify-content:center;';
+        el.innerHTML = '<svg class="user-marker-inner" style="transform: rotate(0deg); width: 24px; height: 24px;" viewBox="0 0 24 24"><path d="M12 2L22 20L12 16L2 20L12 2Z" fill="#10b981" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg>';
         userMarker = new maplibregl.Marker({ element: el, anchor:'center' }).setLngLat(lngLat).addTo(map);
       } else {
         userMarker.setLngLat(lngLat);
         // Doi inner thanh cham xanh neu dang la mui ten cu
         const wrap = userMarker.getElement();
-        if(wrap && !wrap.querySelector('.g-user-dot')){
-          wrap.className = 'g-user-dot-wrap';
-          wrap.innerHTML = '<div class="g-user-dot"></div>';
+        if(wrap && !wrap.querySelector('.user-marker-inner')){
+          wrap.className = '';
+          wrap.style.cssText = 'width:32px;height:32px;display:flex;align-items:center;justify-content:center;';
+          wrap.innerHTML = '<svg class="user-marker-inner" style="transform: rotate(0deg); width: 24px; height: 24px;" viewBox="0 0 24 24"><path d="M12 2L22 20L12 16L2 20L12 2Z" fill="#10b981" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg>';
         }
       }
+      try{ rotateGoogleUserArrow(pos, heading); }catch(e){}
       // Vong tron accuracy: nho, xanh duong, cap 30m khi dan duong (khong de vong xanh to nhu anh 1)
       try{
         const acc = Math.min(pos.accuracy || 10, 30);
@@ -5182,7 +5674,7 @@ try{
     const _origAnimateGoogle = animateMarkerTo;
     animateMarkerTo = function(targetPos){
       if(!document.body.classList.contains('google-nav')) return _origAnimateGoogle(targetPos);
-      // Google: snap dung tren duong xanh, khong offset, khong xoay
+      // Google: snap dung tren duong xanh + xoay mui ten theo duong
       if(!userMarker){ updateUserMarkerOnMap(targetPos, targetPos.heading); return; }
       let snappedLat = targetPos.lat, snappedLng = targetPos.lng;
       if(currentRouteCoords && currentRouteCoords.length > 1 && lastSnapIndex < currentRouteCoords.length - 1){
@@ -5194,9 +5686,10 @@ try{
           const d = calcDist(targetPos.lat, targetPos.lng, pt.lat, pt.lng);
           if(d < minDist){ minDist = d; bestPoint = pt; if(i > lastSnapIndex) lastSnapIndex = i; }
         }
-        if(bestPoint && minDist < 40){ snappedLat = bestPoint.lat; snappedLng = bestPoint.lng; }
+        if(bestPoint && minDist < dkSnapGate()){ snappedLat = bestPoint.lat; snappedLng = bestPoint.lng; }
       }
       userMarker.setLngLat([snappedLng, snappedLat]);
+      try{ rotateGoogleUserArrow(targetPos, targetPos.heading); }catch(e){}
       try{
         const acc = Math.min(targetPos.accuracy || 10, 30);
         gpsCircleGeoJSON = createCircleGeoJSON(snappedLng, snappedLat, acc);
@@ -5244,6 +5737,8 @@ try{
     showGoogleNavUI();
     // [FIX] Recenter luon hien khi dang dan duong de user luon bam duoc ve GPS + doc duong, khong bi ket o goc tu do
     try{ const _rb = document.getElementById('gNavRecenterBtn'); if(_rb) _rb.classList.add('show'); }catch(e){}
+    try{ _isUserDraggingMap=false; window._userFreed=false; }catch(e){}
+    try{ if(typeof window.wxUpdateNavBar==='function') window.wxUpdateNavBar(true); }catch(e){}
     if(lastUserPos) updateNavCamera(lastUserPos, lastUserPos.heading || 0);
     else if(currentRouteCoords && currentRouteCoords.length){ try{ map.easeTo({ center:[currentRouteCoords[0][1], currentRouteCoords[0][0]], pitch:0, zoom:17.5, offset:[0,110], duration:700 }); }catch(e){} }
     try{ updateGoogleNavBanner(); updateRemainingHUD(); }catch(e){}
@@ -5478,6 +5973,8 @@ try{
      fill #FFFFFF 100%, vien #1A73E8, dat ngay tai cho re (tail o duong vao, head o duong ra)
    ============================================================ */
 (function(){
+  // [FIX 2026-11-25] CSS animation cho mui ten trang khi sap toi cho re (chi animate svg con, khong xung dot rotate cua marker)
+  try{ if(!document.getElementById('waApproachCss')){ var _waCss=document.createElement('style'); _waCss.id='waApproachCss'; _waCss.textContent='#whiteTurnArrow.wa-approach svg{animation:waPulse .9s ease-in-out infinite}@keyframes waPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}'; document.head.appendChild(_waCss); } }catch(e){}
   // ---- 1. Ve mui ten cong theo goc re ----
   function makeBentWhiteArrowEl(turnAngleDeg){
     // turnAngle = outgoing - incoming, -180..180. 0 = thang, +90 = re phai, -90 = re trai
@@ -5609,6 +6106,10 @@ try{
       // SVG ve san: huong vao = len tren (0 do). Xoay theo huong vao that.
       el.style.transform = 'rotate(' + (incomingBearing - mapBearing) + 'deg)';
       el.style.opacity = '1';
+      try{
+        const _dTurn = (typeof lastUserPos !== 'undefined' && lastUserPos) ? calcDist(lastUserPos.lat, lastUserPos.lng, turnLat, turnLng) : Infinity;
+        if(el.classList){ if(_dTurn < 100) el.classList.add('wa-approach'); else el.classList.remove('wa-approach'); }
+      }catch(e){}
     }
     // Mui ten thu 2: chay truoc user ~35m, mui ten thang trang (khong cong) de chi huong di
     if(lastUserPos && currentRouteCoords && currentRouteCoords.length){
@@ -5808,8 +6309,15 @@ try{
     try{ localStorage.removeItem('alternativeRoutes'); }catch(e){}
     try{ document.body.classList.remove('navigating'); document.body.classList.remove('google-nav'); }catch(e){}
     // Ket thuc chuyen -> thoat han che do chi duong: tat Google HUD, tra map ve 2D, xoa mui ten trang / minimap
-    try{ if(typeof deactivateGoogleNav === 'function') deactivateGoogleNav(); }catch(e){}
-    try{ if(typeof hideGoogleNavUI === 'function') hideGoogleNavUI(); }catch(e){}
+    try{ if(typeof isNavigating !== 'undefined') isNavigating = false; }catch(e){}
+    try{ if(typeof navFollowMode !== 'undefined') navFollowMode = 'free'; }catch(e){}
+    // [FIX 2026-11-25] deactivateGoogleNav/hideGoogleNavUI nam trong IIFE 4497-5446, goi truc tiep tu IIFE nay (5756-5932) bi typeof guard bo qua nen UI dan duong khong bao gio an. Dung cau window.stopNavigationMode + an truc tiep het UI dan duong.
+    try{ if(typeof window.stopNavigationMode === 'function') window.stopNavigationMode(); }catch(e){}
+    try{ ['gNavTopBanner','gNavNextBanner','gNavBottomSheet','gNavRightControls','gNavRecenterBtn','gNavLeftStack','gNavBottomExpandBtn'].forEach(function(id){ var el = document.getElementById(id); if(el){ el.classList.remove('show'); el.style.display = 'none'; } }); }catch(e){}
+    try{ if(typeof whiteArrowMarker !== 'undefined' && whiteArrowMarker){ whiteArrowMarker.remove(); whiteArrowMarker = null; } }catch(e){}
+    try{ if(typeof whiteArrowAheadMarker !== 'undefined' && whiteArrowAheadMarker){ whiteArrowAheadMarker.remove(); whiteArrowAheadMarker = null; } }catch(e){}
+    try{ var waEl = document.getElementById('whiteTurnArrow'); if(waEl && waEl.parentElement) waEl.parentElement.remove(); }catch(e){}
+    try{ if(typeof map !== 'undefined' && map) map.easeTo({ pitch: 0, bearing: 0, duration: 500 }); }catch(e){}
     try{ const ls = document.getElementById('gNavLeftStack'); if(ls) ls.classList.remove('show'); }catch(e){}
     try{ const rb = document.getElementById('minimapRestoreBtn'); if(rb) rb.classList.remove('show'); }catch(e){}
     try{ const mm = document.getElementById('navMinimap'); if(mm) mm.style.display = 'none'; }catch(e){}
@@ -5856,7 +6364,6 @@ try{
   try{
     const map = {
       'gNavSearchBtn': '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3c4043" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>',
-      'gNavRoutesBtn': '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linecap="round"><path d="M6 4 v4 a4 4 0 0 0 4 4 h1 a4 4 0 0 1 4 4 v4"/><path d="M18 4 v2 a4 4 0 0 1-4 4"/><circle cx="6" cy="4" r="1.8" fill="#1a73e8" stroke="none"/><circle cx="18" cy="4" r="1.8" fill="#1a73e8" stroke="none"/><circle cx="15" cy="20" r="1.8" fill="#1a73e8" stroke="none"/></svg>',
       'gNavLayerBtn': '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linejoin="round"><path d="M12 3 L21 8 L12 13 L3 8 Z"/><path d="M3 11 L12 16 L21 11"/><path d="M3 15 L12 20 L21 15"/></svg>'
     };
     Object.keys(map).forEach(id=>{
@@ -6151,7 +6658,8 @@ try{
       try{ if(typeof map !== 'undefined' && map) map.stop(); }catch(e){}
       if(typeof lastUserPos !== 'undefined' && lastUserPos && typeof map !== 'undefined' && map){
         const br = getBearing();
-        map.easeTo({ center:[lastUserPos.lng, lastUserPos.lat], bearing: br, pitch:0, zoom: Math.max(map.getZoom(), 17.5), offset:[0,0], duration:500, essential:true });
+        var _spR=null; try{ _spR=dkSnapPointOnRoute(lastUserPos.lat, lastUserPos.lng, dkSnapGate()); }catch(e){}
+        map.easeTo({ center:[_spR?_spR.lng:lastUserPos.lng, _spR?_spR.lat:lastUserPos.lat], bearing: br, pitch:0, zoom: Math.max(map.getZoom(), 17.5), offset:[0,0], duration:500, essential:true });
         try{ const comp=document.querySelector('#gNavCompassBtn .compass-arrow'); if(comp) comp.style.transform='rotate('+(-br)+'deg)'; }catch(e){}
       }
       try{ if(typeof hideRecenterBtn==='function') hideRecenterBtn(); }catch(e){}
@@ -6199,7 +6707,8 @@ try{
           _lastCamAt = nowC;
           const br = getBearing();
           // Bam theo mui ten xanh la: tam = vi tri user hien tai, khong offset
-          map.easeTo({ center:[pos.lng, pos.lat], bearing: br, pitch:0, zoom: Math.max(map.getZoom(), 17.5), offset:[0,0], duration:350, essential:false });
+          var _sp=null; try{ _sp=dkSnapPointOnRoute(pos.lat, pos.lng, dkSnapGate()); }catch(e){}
+          map.easeTo({ center:[_sp?_sp.lng:pos.lng, _sp?_sp.lat:pos.lat], bearing: br, pitch:0, zoom: Math.max(map.getZoom(), 17.5), offset:[0,0], duration:350, essential:false });
           try{ const comp=document.querySelector('#gNavCompassBtn .compass-arrow'); if(comp) comp.style.transform='rotate('+(-br)+'deg)'; }catch(e){}
         }catch(e){}
       };
@@ -6280,7 +6789,6 @@ try{
     if(!window._speedHUDInt){
       window._speedHUDInt = setInterval(()=>{
         try{
-          if (document.hidden) return;
           const el=document.getElementById('gNavSpeedNum'); if(!el) return;
           const _isNav = (typeof isNavigating!=='undefined' && isNavigating) || document.body.classList.contains('google-nav') || document.body.classList.contains('navigating');
           if(!_isNav) return;
@@ -6747,8 +7255,18 @@ try{
   setTimeout(run, 100);
   setTimeout(run, 500);   // sau v4 inject
   setTimeout(run, 1000);
-  // Thay watchdog getComputedStyle 1.5s bang MutationObserver: chi kiem tra khi class cua body doi
-  try{ const _obs5 = new MutationObserver(()=>{ try{ if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return; const btn = document.getElementById('mainLocateBtn') || document.querySelector('.fab-locate'); if (!btn) { ensureLocatedBtn(); injectFixCSS(); } }catch(e){} }); _obs5.observe(document.body, { attributes:true, attributeFilter:['class'] }); }catch(e){}
+  // Watchdog nhe: neu updateUIState / search / menu an nut thi hien lai, khong chay lien tuc
+  setInterval(()=>{
+    try{
+      if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return;
+      const btn = document.getElementById('mainLocateBtn') || document.querySelector('.fab-locate');
+      if (!btn) { ensureLocatedBtn(); injectFixCSS(); return; }
+      const cs = window.getComputedStyle(btn);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0'){
+        ensureLocatedBtn();
+      }
+    }catch(e){}
+  }, 1500);
   // Bam vao search / menu / dong sheet xong thi hien lai ngay
   document.addEventListener('click', (e)=>{
     try{
@@ -6935,8 +7453,17 @@ try{
   setTimeout(run, 100);
   setTimeout(run, 500);
   setTimeout(run, 1000);
-  // Thay watchdog getComputedStyle 1.5s bang MutationObserver: chi kiem tra khi class cua body doi
-  try{ const _obs6 = new MutationObserver(()=>{ try{ if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return; if (!document.getElementById('btnCompass') || !document.getElementById('mainLocateBtn')) run(); }catch(e){} }); _obs6.observe(document.body, { attributes:true, attributeFilter:['class'] }); }catch(e){}
+  setInterval(()=>{
+    try{
+      if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return;
+      const comp = document.getElementById('btnCompass') || document.querySelector('.fab-compass');
+      const loc = document.getElementById('mainLocateBtn') || document.querySelector('.fab-locate');
+      if (!comp || !loc){ run(); return; }
+      const cs1 = window.getComputedStyle(comp);
+      const cs2 = window.getComputedStyle(loc);
+      if (cs1.display === 'none' || cs1.visibility === 'hidden' || cs2.display === 'none' || cs2.visibility === 'hidden'){ run(); }
+    }catch(e){}
+  }, 1500);
   document.addEventListener('click', (e)=>{
     try{
       const t = e.target && e.target.closest ? e.target.closest('#hbToggle, #hbHandle, #mainMenuBtn, .floating-search, #searchClearBtn, #topSearchGoBtn') : null;
@@ -7068,6 +7595,7 @@ try{
     }catch(e){}
   }
 
+  var dkPeekH = 0;
   function updateClusterBottom(){
     try{
       const sheet = document.getElementById('homeBottomSheet');
@@ -7076,7 +7604,9 @@ try{
       if (!sheet || !left) return;
       if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return;
       // Sheet noi: bottom 12 + safe-bottom, chieu cao thuc te + 16 gap = cum dinh sat mep tren sheet
-      const h = sheet.offsetHeight || 140;
+      // Cum nut CHI theo chieu cao luc sheet o nac peek; sheet mo len DE LEN cum nut, khong day cum chay theo (lenh Le 2026-11-26).
+      if (sheet.classList.contains('hb-collapsed')) dkPeekH = sheet.offsetHeight || dkPeekH || 140;
+      const h = dkPeekH || 140;
       const safe = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom') || '0', 10) || 0;
       const bottom = 12 + safe + h + 12; // 12 (sheet bottom) + h + 12 gap
       left.style.bottom = bottom + 'px';
@@ -7109,8 +7639,17 @@ try{
     else setTimeout(()=>{ const s2 = document.getElementById('homeBottomSheet'); if (s2) obs.observe(s2, { attributes:true, attributeFilter:['class'] }); }, 1000);
   }catch(e){}
   window.addEventListener('resize', updateClusterBottom);
-  // Thay watchdog 2s bang MutationObserver debounce: chi kiem tra khi DOM body thay doi
-  try{ let _v7T = null; const _obs7 = new MutationObserver(()=>{ if (_v7T) return; _v7T = setTimeout(()=>{ _v7T = null; try{ if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return; const compass = document.getElementById('btnCompass'); const locate = document.getElementById('mainLocateBtn'); const left = document.getElementById('fabClusterLeft'); if (!left || (compass && compass.parentNode !== left) || (locate && locate.parentNode !== left)) ensureClusters(); else updateClusterBottom(); }catch(e){} }, 100); }); _obs7.observe(document.body, { childList:true, subtree:false }); }catch(e){}
+  // Watchdog: neu nut bi tach khoi cum (do patch cu) thi gom lai
+  setInterval(()=>{
+    try{
+      if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return;
+      const compass = document.getElementById('btnCompass');
+      const locate = document.getElementById('mainLocateBtn');
+      const left = document.getElementById('fabClusterLeft');
+      if (!left || (compass && compass.parentNode !== left) || (locate && locate.parentNode !== left)) ensureClusters();
+      else updateClusterBottom();
+    }catch(e){}
+  }, 2000);
   window.updateFabClusterV7 = updateClusterBottom;
 })();
 
@@ -7195,9 +7734,11 @@ try{
           <button type="button" class="rp-icon-btn" id="rpCloseBtn" title="Đóng">✕</button>
         </div>
       </div>
+      <div class="rp-dest-wx" id="rpDestWx" style="display:none"></div>
       <div class="rp-chips" id="rpChips"></div>
       <div class="rp-actions">
         <button type="button" class="rp-start-btn" id="rpStartBtn">▶&nbsp;Bắt đầu</button>
+        <button type="button" class="rp-action-btn" id="rpExitBtn">✕&nbsp;Thoát</button>
         <button type="button" class="rp-action-btn" id="rpAddStopBtn">📍&nbsp;Thêm điểm dừng</button>
         <button type="button" class="rp-action-btn" id="rpShareBtn2">↗&nbsp;Chia sẻ</button>
       </div>
@@ -7207,6 +7748,7 @@ try{
     sheet.querySelector('#rpStartBtn').addEventListener('click', confirmStartSelected);
     // Đóng
     sheet.querySelector('#rpCloseBtn').addEventListener('click', closePreview);
+    sheet.querySelector('#rpExitBtn').addEventListener('click', closePreview);
     // Chia sẻ
     const doShare = ()=>{
       try{
@@ -7232,6 +7774,10 @@ try{
     const s = ensureSheet();
     s.classList.add('rp-open');
     document.body.classList.add('rp-preview-open');
+    // CHE DO CHON DUONG: an sheet Tinh nang nhanh + dong popup/goi y dang mo
+    try{ const home = document.getElementById('homeBottomSheet'); if (home) home.classList.add('hb-hidden'); }catch(e){}
+    try{ if (typeof closePopupSmoothly === 'function' && touchMarker) closePopupSmoothly(touchMarker); }catch(e){}
+    try{ const sb = document.getElementById('suggestionsBox'); if (sb) sb.classList.remove('show'); }catch(e){}
   }
   function closePreview(){
     try{
@@ -7270,6 +7816,8 @@ try{
             try{ if (map.getLayer(id)) map.removeLayer(id); }catch(e){}
           }
         });
+        // [FIX 2026-11-25] Xoa ca source casing 'rp-route-src-N-casing': neu con sot, addSource trung id se throw lam drawPreviewRoutes dung giua chung -> tuyen dang chon mat net ve.
+        try{ var _dkStS = (map.getStyle) ? map.getStyle() : null; var _dkSrcIds = (_dkStS && _dkStS.sources) ? Object.keys(_dkStS.sources) : []; _dkSrcIds.forEach(function(sid){ if (sid && sid.indexOf('rp-route-src-') === 0){ try{ if (map.getSource(sid)) map.removeSource(sid); }catch(e){} } }); }catch(e){}
       }
     }catch(e){}
     try{
@@ -7364,7 +7912,7 @@ try{
           const best = i === 0 ? ' • Đề xuất' : '';
           return `<button type="button" class="rp-chip${active}" data-rp-index="${i}">
             <span class="rp-chip-num" style="background:${i===previewSelected ? '#4338ca' : color};">${i+1}</span>
-            <span class="rp-chip-info"><span class="rp-chip-time">Tuyến ${i+1} • ${fmtDur(rr.duration)}${best}</span><span class="rp-chip-dist">${fmtDist(rr.distance)}</span></span>
+            <span class="rp-chip-info"><span class="rp-chip-time">Tuyến ${i+1} • ${fmtDur(rr.duration)}${best}</span><span class="rp-chip-dist">${fmtDist(rr.distance)}</span><span class="rp-chip-wx" data-wx="${i}">…</span></span>
           </button>`;
         }).join('');
         chipsEl.querySelectorAll('.rp-chip').forEach(btn=>{
@@ -7374,6 +7922,7 @@ try{
           });
         });
       }
+      try{ if(typeof window.wxRefreshPreview==='function') window.wxRefreshPreview(previewRoutes, previewSelected); }catch(e){}
       openSheet();
     }catch(e){}
   }
@@ -7423,13 +7972,13 @@ try{
         if (typeof showCustomToast === 'function') showCustomToast('Vui lòng chọn đủ Điểm đi và Điểm đến!', 'warning');
         return;
       }
-      previewFetching = true;
       const mode = (typeof currentVehicleMode !== 'undefined' && currentVehicleMode) || 'driving';
       // Hien sheet loading nhe
       const sheet = ensureSheet();
       const subEl = sheet.querySelector('#rpVehicleSub');
       if (subEl) subEl.textContent = 'Đang tìm tuyến...';
       openSheet();
+      previewFetching = true;
       try{
         let routes = await apiRoute(startPoint, endPoint, mode, false, (typeof getCurrentVehicleSpecs === 'function' ? getCurrentVehicleSpecs() : null));
         routes = (routes || []).filter(r=>{
@@ -7633,11 +8182,15 @@ try{
     try{
       const ds = document.getElementById('dirSheet');
       if (ds){
-        const obs = new MutationObserver(()=> hideEarlyStarts());
-        obs.observe(ds, { childList:true, subtree:true, attributes:true, attributeFilter:['style','class'] });
+        // FIX TREO 2026-11-25: observer nay cung hideEarlyStarts tu kich hoat lan nhau,
+        // lam chet event loop (ket 24%, liet nut) - da chung minh bang ban thu map-test.
+        // An nut Bat dau van duoc CSS + interval 1.5s lo, khong can observer nay nua.
+        // const obs = new MutationObserver(()=> hideEarlyStarts());
+        // obs.observe(ds, { childList:true, subtree:true, attributes:true, attributeFilter:['style','class'] });
       }
     }catch(e){}
-    // Da bo setInterval 1.5s: MutationObserver tren #dirSheet phia tren + window.hideEarlyStartV9 van giu chuc nang
+    // Watchdog nhe: nut HTML cu co the duoc tao lai sau khi chuyen trang / render lai
+    try{ setInterval(hideEarlyStarts, 1500); }catch(e){}
     // Expose de test: window.hideEarlyStartV9()
     window.hideEarlyStartV9 = hideEarlyStarts;
     window.showEarlyStartV9 = function(){ // Hoan tac neu can test lai: hien lai nut Bat dau buoc dau
@@ -7668,9 +8221,35 @@ try{
     if (mode === 'driving' || mode === 'driving-traffic' || mode === 'hd') return 'car';
     return mode;
   }
+  function buildVpsOptions(sheet){
+    try{
+      const carBox = sheet.querySelector('#vpsCarOptions');
+      if (carBox && carBox.children.length) return;
+      [3,4,5,6,7,8,9,10,11,12].forEach(n=>{
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'vps-option-btn'; b.textContent = (n===12 ? '12+' : String(n));
+        b.addEventListener('click', ()=>{ try{ if (typeof window.setCarSeats === 'function') window.setCarSeats(n, b); }catch(e){} syncVpsActive(); updateVpsSubtitle(); });
+        carBox.appendChild(b);
+      });
+      const truckBox = sheet.querySelector('#vpsTruckOptions');
+      [1,2,3,4,5,6,7,8,9,10].forEach(n=>{
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'vps-option-btn'; b.textContent = String(n);
+        b.addEventListener('click', ()=>{ try{ if (typeof window.setTruckAxles === 'function') window.setTruckAxles(n, b); }catch(e){} syncVpsActive(); updateVpsSubtitle(); });
+        truckBox.appendChild(b);
+      });
+      const busBox = sheet.querySelector('#vpsBusOptions');
+      [['regular','🚌 Thường'],['sleeper','🛏 Giường nằm']].forEach(([val,label])=>{
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'vps-option-btn vps-option-wide'; b.textContent = label; b.dataset.busType = val;
+        b.addEventListener('click', ()=>{ try{ if (typeof window.setBusType === 'function') window.setBusType(val, b); }catch(e){} syncVpsActive(); updateVpsSubtitle(); });
+        busBox.appendChild(b);
+      });
+    }catch(e){}
+  }
   function ensureSheet(){
     let sheet = document.getElementById('vehicleParamsSheet');
-    if (sheet) return sheet;
+    if (sheet){ buildVpsOptions(sheet); return sheet; }
     // Overlay
     let overlay = document.getElementById('vehicleParamsOverlay');
     if (!overlay){
@@ -7709,30 +8288,7 @@ try{
       <div class="vps-footer"><button type="button" class="vps-done-btn" id="vpsDoneBtn">Xong</button></div>
     `;
     document.body.appendChild(sheet);
-    // Build options
-    try{
-      const carBox = sheet.querySelector('#vpsCarOptions');
-      [3,4,5,6,7,8,9,10,11,12].forEach(n=>{
-        const b = document.createElement('button');
-        b.type = 'button'; b.className = 'vps-option-btn'; b.textContent = (n===12 ? '12+' : String(n));
-        b.addEventListener('click', ()=>{ try{ if (typeof window.setCarSeats === 'function') window.setCarSeats(n, b); }catch(e){} syncVpsActive(); updateVpsSubtitle(); });
-        carBox.appendChild(b);
-      });
-      const truckBox = sheet.querySelector('#vpsTruckOptions');
-      [1,2,3,4,5,6,7,8,9,10].forEach(n=>{
-        const b = document.createElement('button');
-        b.type = 'button'; b.className = 'vps-option-btn'; b.textContent = String(n);
-        b.addEventListener('click', ()=>{ try{ if (typeof window.setTruckAxles === 'function') window.setTruckAxles(n, b); }catch(e){} syncVpsActive(); updateVpsSubtitle(); });
-        truckBox.appendChild(b);
-      });
-      const busBox = sheet.querySelector('#vpsBusOptions');
-      [['regular','🚌 Thường'],['sleeper','🛏 Giường nằm']].forEach(([val,label])=>{
-        const b = document.createElement('button');
-        b.type = 'button'; b.className = 'vps-option-btn vps-option-wide'; b.textContent = label; b.dataset.busType = val;
-        b.addEventListener('click', ()=>{ try{ if (typeof window.setBusType === 'function') window.setBusType(val, b); }catch(e){} syncVpsActive(); updateVpsSubtitle(); });
-        busBox.appendChild(b);
-      });
-    }catch(e){}
+    buildVpsOptions(sheet);
     sheet.querySelector('#vpsBackBtn').addEventListener('click', closeVehicleParams);
     sheet.querySelector('#vpsCloseBtn').addEventListener('click', closeVehicleParams);
     sheet.querySelector('#vpsDoneBtn').addEventListener('click', closeVehicleParams);
@@ -7878,9 +8434,1468 @@ try{
   // An inline ngay khi load + khi dirSheet mo
   try{
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hideInlineParams); else hideInlineParams();
-    try{ const _ds10 = document.getElementById('dirSheet'); if (_ds10) { const _obs10 = new MutationObserver(()=> hideInlineParams()); _obs10.observe(_ds10, { attributes:true, attributeFilter:['class','style'] }); } }catch(e){}
+    setInterval(hideInlineParams, 1500);
   }catch(e){}
   window.openVehicleParamsSheet = openVehicleParams;
   window.closeVehicleParamsSheet = closeVehicleParams;
   window._syncVpsActive = syncVpsActive;
 })();
+
+/* ================= V11 FIX POPUP ================= */
+/* =====================================================
+   V11 FIX CHAM MAP KHONG HIEN POPUP - 2026-11-23
+   - Tap / long-press map luon hien popup (da sua trong map.on click/contextmenu)
+   - Sheet dong phai pointer-events:none, neu khong hop vo hinh cua no van chan tap o day map
+   - Test nhanh tu Console: window._testMapPopup()
+   ===================================================== */
+(function mapPopupV11(){
+  if (window._mapPopupV11Done) return; window._mapPopupV11Done = true;
+  try{
+    if (!document.getElementById('mapPopupV11Css')){
+      const st = document.createElement('style');
+      st.id = 'mapPopupV11Css';
+      st.textContent = `
+        /* V11: Sheet dong thi khong duoc chan tap map */
+        .dir-sheet:not(.open){ pointer-events:none !important; visibility:hidden !important; }
+        .dir-sheet.open{ pointer-events:auto !important; visibility:visible !important; }
+        #routePreviewSheet:not(.rp-open){ pointer-events:none !important; visibility:hidden !important; }
+        #routePreviewSheet.rp-open{ pointer-events:auto !important; visibility:visible !important; }
+        #vehicleParamsSheet:not(.open){ pointer-events:none !important; visibility:hidden !important; }
+        #vehicleParamsSheet.open{ pointer-events:auto !important; visibility:visible !important; }
+        .vps-overlay:not(.open){ pointer-events:none !important; visibility:hidden !important; }
+        .vps-overlay.open{ pointer-events:auto !important; visibility:visible !important; }
+        .poi-sheet:not(.open){ pointer-events:none !important; visibility:hidden !important; }
+        .poi-detail-sheet:not(.open){ pointer-events:none !important; visibility:hidden !important; }
+        /* Popup phai nam tren map, khong bi sheet che khi sheet da dong */
+        .maplibregl-popup{ z-index: 1200 !important; }
+      `;
+      document.head.appendChild(st);
+    }
+  }catch(e){}
+  window._testMapPopup = function(){
+    try{
+      const c = (window.map && window.map.getCenter && window.map.getCenter()) || { lng: 106.7, lat: 10.77 };
+      if (typeof showLocationPopup === 'function') showLocationPopup({ lng: c.lng, lat: c.lat });
+      else if (typeof window.showLocationPopup === 'function') window.showLocationPopup({ lng: c.lng, lat: c.lat });
+      return 'da goi showLocationPopup o giua map';
+    }catch(e){ return 'loi: ' + e.message; }
+  };
+  window._debugMapClick = function(){
+    return {
+      dirSheetOpen: !!(document.getElementById('dirSheet') && document.getElementById('dirSheet').classList.contains('open')),
+      suggestionsShow: !!(document.getElementById('suggestionsBox') && document.getElementById('suggestionsBox').classList.contains('show')),
+      poiDetailOpen: !!(document.getElementById('poiDetailSheet') && document.getElementById('poiDetailSheet').classList.contains('open')),
+      vehicleSheetOpen: !!(document.getElementById('vehicleParamsSheet') && document.getElementById('vehicleParamsSheet').classList.contains('open')),
+      hasTouchMarker: !!(typeof touchMarker !== 'undefined' && touchMarker),
+      mapExists: !!window.map,
+      isNavigating: (typeof isNavigating !== 'undefined' ? isNavigating : 'unknown')
+    };
+  };
+})();
+
+/* ================= V11 SHEET 3 NAC + FAB TRONG SUOT (2026-11-24) =================
+   DriveKit - V11: bottom sheet "Tinh nang nhanh" 3 nac + cum FAB nen trong suot
+   - Chi THEM MOI, khong doi ten / khong xoa ham cu, khong sua buildPremiumSheet.
+   - Trang thai: peek (mac dinh, chi icon) / half (nhan + tieu de) / full (them nhom
+     Da luu / Cong dong / Cai dat). Luu localStorage, nho lan sau mo app.
+   - Cum FAB trai/phai (V7) + nut ghim nhanh: nen trong suot, chi con icon + bong.
+     Rieng nut tim kiem (.floating-search), nut ba gach (.fab-menu), nut Chi duong
+     (.fab-directions) va nut Quanh day (btnNearbySearch) GIU NGUYEN nen dac.
+   - Keo tay cam: day sheet dinh yen, chi doi chieu cao tai cho theo tay,
+     tha ra truot mem (ease-out) ve nac gan nhat theo khoang keo + van toc;
+     cham tay cam: len 1 nac (full -> ve peek).
+   - V11.1 (2026-11-24): keo muot + icon cum FAB nhin ro trong khi nen van trong
+     suot 100% (icon dam + vien sang halo, bo lop mo backdrop-filter).
+   - V11.2 (2026-11-24): icon co mau theo bang mau da duyet (vi tri xanh duong,
+     lop tim, bao cao cam, tram dung xanh la, ghim vang cam; la ban giu kim do),
+     keo muot hon nua: follow theo rAF + cache element, overscroll-behavior none.
+   - V11.3 (2026-11-24): tat han vo cum FAB (selector div#... thang V7, nen +
+     backdrop-filter none cho ca cum va moi nut), cum FAB bam theo chieu cao
+     sheet lien tuc (ResizeObserver), nhan chi hien sau khi sheet cao gan xong
+     (bo animation line-height, them visibility + delay, overflow hidden).
+   - V11.4 (2026-11-24): keo DAY SHEET CAO TAI CHO, day sheet dinh yen o mep
+     duoi (bo dich chuyen transform ca thanh theo tay); tren dien thoai ep
+     sheet fixed day 12px va ep hang icon hien o nac peek; tat nen 2 nut
+     locate/report bang selector 2 ID thang luat cu V7.
+   - V11.5 (2026-11-24): vien tron dam 3px quanh moi nut noi (nen van trong
+     suot 100%), vien cung mau icon tung nut theo bang mau da duyet.
+   - Dang dan duong (body.navigating / .google-nav): ep ve peek, het dan thi tra lai.
+   ============================================================================ */
+(function drivekitSheetV11(){
+  if (window._dkSheetV11Done) return; window._dkSheetV11Done = true;
+
+  var LS_KEY = 'dkHbSheetState';
+  var STATES = ['peek', 'half', 'full'];
+  var state = 'peek';
+  try {
+    var saved = (window.localStorage && window.localStorage.getItem(LS_KEY)) || null;
+    if (saved && STATES.indexOf(saved) !== -1) state = saved;
+  } catch (e) {}
+  var navForced = false;
+  var savedBeforeNav = null;
+
+  function injectV11CSS(){
+    if (document.getElementById('dkSheetV11Style')) return;
+    var st = document.createElement('style');
+    st.id = 'dkSheetV11Style';
+    st.textContent =
+      'html body:not(.navigating):not(.google-nav) div#fabClusterLeft,\n' +
+      'html body:not(.navigating):not(.google-nav) div#fabClusterRight{\n' +
+      '  background:transparent !important; background-color:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; gap:6px !important;\n' +
+      '  backdrop-filter:none !important; -webkit-backdrop-filter:none !important;\n' +
+      '}\n' +
+      'html body #fabClusterLeft .fab-divider, html body #fabClusterRight .fab-divider{ display:none !important; }\n' +
+      'html body:not(.navigating):not(.google-nav) div#fabClusterLeft button,\n' +
+      'html body:not(.navigating):not(.google-nav) div#fabClusterRight button{\n' +
+      '  background:transparent !important; background-color:transparent !important; border:none !important; box-shadow:none !important;\n' +
+      '}\n' +
+      'html body:not(.navigating):not(.google-nav) div#fabClusterLeft #btnCompass,\n' +
+      'html body:not(.navigating):not(.google-nav) div#fabClusterLeft #mainLocateBtn,\n' +
+      'html body:not(.navigating):not(.google-nav) div#fabClusterRight #btnLayerMenu,\n' +
+      'html body:not(.navigating):not(.google-nav) div#fabClusterRight #btnReport,\n' +
+      'html body:not(.navigating):not(.google-nav) div#fabClusterRight #btnRestStopFilter{\n' +
+      '  background:transparent !important; background-color:transparent !important; background-image:none !important; border:none !important; box-shadow:none !important;\n' +
+      '}\n' +
+      'html body:not(.navigating):not(.google-nav) div#fabClusterLeft #btnCompass{ border:3px solid #ef4444 !important; }\n' +
+      'html body:not(.navigating):not(.google-nav) div#fabClusterLeft #mainLocateBtn{ border:3px solid #3b82f6 !important; }\n' +
+      'html body:not(.navigating):not(.google-nav) div#fabClusterRight #btnLayerMenu{ border:3px solid #8b5cf6 !important; }\n' +
+      'html body:not(.navigating):not(.google-nav) div#fabClusterRight #btnReport{ border:3px solid #f97316 !important; }\n' +
+      'html body:not(.navigating):not(.google-nav) div#fabClusterRight #btnRestStopFilter{ border:3px solid #10b981 !important; }\n' +
+      'html body:not(.navigating):not(.google-nav) #btnQuickPin{ border:3px solid #f59e0b !important; }\n' +
+      'html body:not(.navigating):not(.google-nav) #fabClusterLeft button,\n' +
+      'html body:not(.navigating):not(.google-nav) #fabClusterRight button,\n' +
+      'html body:not(.navigating):not(.google-nav) #btnQuickPin{\n' +
+      '  backdrop-filter:none !important; -webkit-backdrop-filter:none !important;\n' +
+      '}\n' +
+      'html body:not(.navigating):not(.google-nav) #fabClusterLeft button i,\n' +
+      'html body:not(.navigating):not(.google-nav) #fabClusterRight button i,\n' +
+      'html body:not(.navigating):not(.google-nav) #btnQuickPin i{\n' +
+      '  font-size:22px !important;\n' +
+      '  filter:drop-shadow(0 0 2px rgba(255,255,255,.95)) drop-shadow(0 1px 2px rgba(0,0,0,.55)) !important;\n' +
+      '}\n' +
+      'html body:not(.navigating):not(.google-nav) #fabClusterLeft #mainLocateBtn i{ color:#3b82f6 !important; }\n' +
+      'html body:not(.navigating):not(.google-nav) #fabClusterRight #btnLayerMenu i{ color:#8b5cf6 !important; }\n' +
+      'html body:not(.navigating):not(.google-nav) #fabClusterRight #btnReport i{ color:#f97316 !important; }\n' +
+      'html body:not(.navigating):not(.google-nav) #fabClusterRight #btnRestStopFilter i{ color:#10b981 !important; }\n' +
+      'html body:not(.navigating):not(.google-nav) #btnQuickPin i{ color:#f59e0b !important; }\n' +
+      'html body:not(.navigating):not(.google-nav) #fabClusterLeft button svg,\n' +
+      'html body:not(.navigating):not(.google-nav) #fabClusterRight button svg,\n' +
+      'html body:not(.navigating):not(.google-nav) #btnQuickPin svg{\n' +
+      '  filter:drop-shadow(0 0 2px rgba(255,255,255,.95)) drop-shadow(0 1px 2px rgba(0,0,0,.55)) !important;\n' +
+      '}\n' +
+      'html body #btnCompass .compass-bg{ background:transparent !important; box-shadow:none !important; border:none !important; }\n' +
+      'html body:not(.navigating):not(.google-nav) #btnQuickPin{\n' +
+      '  background:transparent !important; border:none !important; box-shadow:none !important;\n' +
+      '}\n' +
+      'html body #homeBottomSheet .hb-handle{ touch-action:none !important; cursor:grab !important; }\n' +
+      'html body #homeBottomSheet .hb-handle{ box-sizing:content-box !important; height:5px !important; padding:12px 40px !important; background-clip:content-box !important; }\n' +
+      'html body #homeBottomSheet{ overscroll-behavior:none !important; }\n' +
+      'html body #homeBottomSheet{ z-index:1150 !important; }\n' +
+      'html body #homeBottomSheet .hb-head, html body #homeBottomSheet .hb-grid{ touch-action:none !important; }\n' +
+      '@media (max-width:639px){\n' +
+      'html body #homeBottomSheet{ position:fixed !important; left:12px !important; right:12px !important; bottom:calc(12px + var(--safe-bottom, 0px)) !important; }\n' +
+      'html body #homeBottomSheet.hb-state-peek .hb-grid{ display:grid !important; visibility:visible !important; opacity:1 !important; }\n' +
+      'html body #homeBottomSheet.hb-state-peek .hb-action{ display:flex !important; visibility:visible !important; opacity:1 !important; }\n' +
+      'html body #homeBottomSheet.hb-state-peek .hb-icon{ display:flex !important; visibility:visible !important; opacity:1 !important; width:44px !important; height:44px !important; }\n' +
+      '}\n' +
+      'html body #homeBottomSheet .hb-head{ transition:max-height .3s ease, opacity .25s ease, padding .3s ease !important; overflow:hidden !important; max-height:90px !important; }\n' +
+      'html body #homeBottomSheet .hb-label{ overflow:hidden !important; transition:opacity .18s ease .12s, visibility 0s linear .12s, max-height .25s ease !important; }\n' +
+      'html body #homeBottomSheet .hb-icon{ transition:width .3s ease, height .3s ease, border-radius .3s ease !important; }\n' +
+      'html body #homeBottomSheet.hb-state-peek .hb-head{ max-height:0 !important; opacity:0 !important; padding-top:0 !important; padding-bottom:0 !important; }\n' +
+      'html body #homeBottomSheet.hb-state-peek .hb-label{ opacity:0 !important; max-height:0 !important; overflow:hidden !important; visibility:hidden !important; transition:opacity .12s ease, visibility 0s, max-height .25s ease !important; }\n' +
+      'html body #homeBottomSheet.hb-state-peek .hb-grid{ gap:2px !important; }\n' +
+      'html body #homeBottomSheet.hb-state-peek .hb-action{ padding:2px 1px !important; gap:0 !important; }\n' +
+      'html body #homeBottomSheet.hb-state-peek .hb-icon{ width:44px !important; height:44px !important; border-radius:15px !important; }\n' +
+      'html body #homeBottomSheet.hb-state-peek{ padding:8px 14px calc(10px + env(safe-area-inset-bottom, 0px)) !important; }\n' +
+      'html body #homeBottomSheet .hb-more{\n' +
+      '  max-height:0 !important; opacity:0 !important; visibility:hidden !important; overflow:hidden !important;\n' +
+      '  transition:max-height .3s ease, opacity .25s ease, visibility 0s linear .3s !important;\n' +
+      '}\n' +
+      'html body #homeBottomSheet.hb-state-full{ max-height:82dvh !important; }\n' +
+      'html body #homeBottomSheet.hb-state-full .hb-more{\n' +
+      '  visibility:visible !important; opacity:1 !important; max-height:38vh !important; overflow-y:auto !important;\n' +
+      '  margin-top:10px !important; border-top:1px solid var(--border) !important; padding-top:10px !important;\n' +
+      '  -webkit-overflow-scrolling:touch !important; transition:max-height .3s ease, opacity .25s ease, visibility 0s !important;\n' +
+      '}\n' +
+      'html body #homeBottomSheet .hb-more-group{ margin-bottom:10px !important; }\n' +
+      'html body #homeBottomSheet .hb-more-title{ font-size:11px !important; font-weight:800 !important; letter-spacing:.4px !important; text-transform:uppercase !important; color:var(--text-muted) !important; margin:0 4px 6px !important; }\n' +
+      'html body #homeBottomSheet .hb-more-row{\n' +
+      '  display:flex !important; align-items:center !important; gap:10px !important; width:100% !important;\n' +
+      '  min-height:44px !important; padding:8px 10px !important; border-radius:12px !important;\n' +
+      '  background:transparent !important; border:none !important; color:var(--text) !important;\n' +
+      '  font-size:13.5px !important; font-weight:600 !important; text-align:left !important; cursor:pointer !important;\n' +
+      '}\n' +
+      'html body #homeBottomSheet .hb-more-row:active{ background:var(--bg-2) !important; }\n' +
+      'html body #homeBottomSheet .hb-more-row i{ width:20px !important; text-align:center !important; color:var(--text-muted) !important; }\n' +
+      'html body #homeBottomSheet .hb-more-row .hb-more-chev{ margin-left:auto !important; font-size:12px !important; }\n';
+    document.head.appendChild(st);
+  }
+
+  function sheetEl(){ try { return document.getElementById('homeBottomSheet'); } catch (e) { return null; } }
+
+  function adjustMapPadding(){
+    try {
+      if (document.body.classList.contains('navigating') || document.body.classList.contains('google-nav')) return;
+      if (typeof map === 'undefined' || !map || !map.easeTo) return;
+      var sheet = sheetEl(); if (!sheet) return;
+      var h = sheet.offsetHeight || 0;
+      map.easeTo({ padding: { bottom: h + 8 }, duration: 250 });
+    } catch (e) {}
+  }
+
+  function applyHbState(next, opts){
+    opts = opts || {};
+    if (STATES.indexOf(next) === -1) next = 'peek';
+    state = next;
+    if (!opts.skipPersist) {
+      try { if (window.localStorage) window.localStorage.setItem(LS_KEY, next); } catch (e) {}
+    }
+    var sheet = sheetEl();
+    if (sheet) {
+      sheet.classList.remove('hb-state-peek', 'hb-state-half', 'hb-state-full');
+      sheet.classList.add('hb-state-' + next);
+      /* Giu dong bo voi co che cu: peek == hb-collapsed */
+      try { sheet.classList.toggle('hb-collapsed', next === 'peek'); } catch (e) {}
+      try {
+        var t = sheet.querySelector('#hbToggle');
+        if (t) t.textContent = (next === 'full') ? '˅' : '˄';
+      } catch (e) {}
+      try { if (typeof window.updateFabClusterV7 === 'function') window.updateFabClusterV7(); } catch (e) {}
+    }
+    if (!opts.skipPadding) adjustMapPadding();
+  }
+
+  function stepToward(dir){
+    var i = STATES.indexOf(state);
+    var n = i + dir;
+    if (n < 0) n = 0;
+    if (n > STATES.length - 1) n = STATES.length - 1;
+    applyHbState(STATES[n]);
+  }
+
+  function cycleUp(){
+    if (state === 'peek') applyHbState('half');
+    else if (state === 'half') applyHbState('full');
+    else applyHbState('peek');
+  }
+
+  function buildMore(){
+    var more = document.createElement('div');
+    more.className = 'hb-more';
+    function row(icon, label, fn){
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'hb-more-row';
+      b.innerHTML = '<i class="fas ' + icon + '"></i><span>' + label + '</span><span class="hb-more-chev">›</span>';
+      b.addEventListener('click', function(){ try { fn(); } catch (e) {} });
+      return b;
+    }
+    function group(title, rows){
+      var g = document.createElement('div'); g.className = 'hb-more-group';
+      var t = document.createElement('p'); t.className = 'hb-more-title'; t.textContent = title;
+      g.appendChild(t);
+      rows.forEach(function(r){ g.appendChild(r); });
+      return g;
+    }
+    function clickHb(id){ var el = document.getElementById(id); if (el) el.click(); }
+    function openMenuSafe(){ try { if (typeof window.openMenu === 'function') window.openMenu(); } catch (e) {} }
+    more.appendChild(group('Đã lưu', [
+      row('fa-route', 'Lộ trình đã lưu', openMenuSafe),
+      row('fa-history', 'Lịch sử chuyến đi', openMenuSafe),
+      row('fa-share-nodes', 'Link đã chia sẻ', openMenuSafe)
+    ]));
+    more.appendChild(group('Cộng đồng', [
+      row('fa-map-pin', 'Thêm POI', function(){ clickHb('hbAddPoi'); }),
+      row('fa-exclamation-triangle', 'POI cảnh báo', function(){ clickHb('hbWarnPoi'); })
+    ]));
+    more.appendChild(group('Cài đặt', [
+      row('fa-gear', 'Cài đặt', function(){ try { if (typeof window.openSettings === 'function') window.openSettings(); } catch (e) {} })
+    ]));
+    return more;
+  }
+
+  var lastDragEnd = 0;
+  var lastDragMoved = 0;
+
+  function enhance(sheet){
+    if (!sheet) return;
+    if (sheet._dkV11Enhanced) { applyHbState(state, { skipPersist: true }); return; }
+    sheet._dkV11Enhanced = true;
+    injectV11CSS();
+    try {
+      var old = sheet.querySelector('.hb-more');
+      if (old) old.remove();
+      var grid = sheet.querySelector('.hb-grid');
+      var more = buildMore();
+      if (grid && grid.parentNode && grid.parentNode.insertBefore) grid.parentNode.insertBefore(more, grid.nextSibling);
+      else if (sheet.appendChild) sheet.appendChild(more);
+    } catch (e) {}
+    try {
+      var sub = sheet.querySelector('.hb-subtitle');
+      if (sub) sub.textContent = 'Chạm để mở nhanh  •  Kéo tay cầm để đổi nấc';
+    } catch (e) {}
+    var handle = null, toggleBtn = null;
+    try { handle = sheet.querySelector('#hbHandle'); } catch (e) {}
+    try { toggleBtn = sheet.querySelector('#hbToggle'); } catch (e) {}
+    function bindTap(el){
+      if (!el || el._dkV11Tap) return;
+      el._dkV11Tap = true;
+      el.addEventListener('click', function(){
+        if (Date.now() - lastDragEnd < 350 && Math.abs(lastDragMoved) > 8) return;
+        cycleUp();
+      });
+    }
+    bindTap(handle);
+    bindTap(toggleBtn);
+    if (handle && !handle._dkV11Drag) {
+      handle._dkV11Drag = true;
+      var sy = 0, dragging = false, moved = 0;
+      var prevMoved = 0, prevT = 0, lastVy = 0;
+      var pendingDy = null, rafId = 0, dragSheet = null;
+      var startH = 0, curH = 0;
+      var rafFn = (typeof window !== 'undefined' && window.requestAnimationFrame) ? function(cb){ return window.requestAnimationFrame(cb); } : function(cb){ return setTimeout(cb, 16); };
+      var cancelFn = (typeof window !== 'undefined' && window.cancelAnimationFrame) ? function(id){ window.cancelAnimationFrame(id); } : function(id){ clearTimeout(id); };
+      var posY = function(e){ return (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY; };
+      var maxDragH = function(){
+        try { return Math.round((window.innerHeight || 800) * 0.82); } catch (e) { return 640; }
+      };
+      /* Keo: DAY SHEET CAO LEN TAI CHO, day sheet dinh yen o mep duoi, KHONG
+         dich chuyen ca thanh theo tay. Cum FAB bam theo nho ResizeObserver. */
+      var applyHeight = function(){
+        rafId = 0;
+        if (pendingDy === null) return;
+        var dy = pendingDy; pendingDy = null;
+        var s = dragSheet || sheetEl();
+        if (!s) return;
+        var h = Math.max(56, Math.min(maxDragH(), startH - dy));
+        curH = h;
+        try {
+          s.style.transition = 'none';
+          s.style.overflow = 'hidden';
+          s.style.height = h + 'px';
+        } catch (e) {}
+      };
+      /* Tha tay: chon nac dich roi truot chieu cao ve dung nac do, roi doa inline style */
+      var settle = function(s){
+        var bez = 'height .38s cubic-bezier(.32,.72,.24,1)';
+        var targetH = curH;
+        try {
+          s.style.height = '';
+          targetH = s.offsetHeight || curH;
+          s.style.height = curH + 'px';
+          void s.offsetHeight;
+          s.style.transition = bez;
+          s.style.overflow = 'hidden';
+          s.style.height = targetH + 'px';
+        } catch (e) {}
+        setTimeout(function(){
+          try { s.style.transition = ''; s.style.height = ''; s.style.overflow = ''; } catch (e) {}
+        }, 420);
+      };
+      var onMove = function(e){
+        if (!dragging) return;
+        var now = Date.now();
+        var m = posY(e) - sy;
+        if (now > prevT) lastVy = (m - prevMoved) / Math.max(1, now - prevT);
+        prevMoved = m; prevT = now;
+        moved = m;
+        pendingDy = m;
+        if (!rafId) rafId = rafFn(applyHeight);
+      };
+      var endDrag = function(){
+        if (!dragging) return;
+        dragging = false;
+        if (rafId) { try { cancelFn(rafId); } catch (e) {} rafId = 0; pendingDy = null; }
+        lastDragEnd = Date.now(); lastDragMoved = moved;
+        if (moved < -48 || lastVy < -0.5) stepToward(1);
+        else if (moved > 48 || lastVy > 0.5) stepToward(-1);
+        var s = dragSheet || sheetEl();
+        if (s) settle(s);
+        dragSheet = null;
+      };
+      var startDrag = function(y){
+        if (rafId) { try { cancelFn(rafId); } catch (e) {} rafId = 0; pendingDy = null; }
+        sy = y; moved = 0; prevMoved = 0; prevT = Date.now(); lastVy = 0; dragging = true;
+        dragSheet = sheetEl();
+        try { startH = (dragSheet && dragSheet.offsetHeight) || 80; } catch (e) { startH = 80; }
+        curH = startH;
+      };
+      handle.addEventListener('touchstart', function(e){ startDrag(posY(e)); }, { passive: true });
+      handle.addEventListener('touchmove', onMove, { passive: true });
+      handle.addEventListener('touchend', endDrag);
+      handle.addEventListener('touchcancel', endDrag);
+      /* [SHEET-DRAG 2026-11-26] Keo duoc tu ca than sheet, khong chi tay cam 4px: bo qua nut/link/vung cuon .hb-more va chinh tay cam (da co listener rieng) de tap van dung. */
+      var dkDragFromSheet = function(e){
+        try{
+          var t = e.target;
+          if (t && t.closest && t.closest('button, a, input, select, textarea, .hb-more, #hbHandle')) return;
+        }catch(_){}
+        startDrag(posY(e));
+      };
+      var dkDragMouse = function(e){
+        try{
+          var t = e.target;
+          if (t && t.closest && t.closest('button, a, input, select, textarea, .hb-more, #hbHandle')) return;
+        }catch(_){}
+        startDrag(e.clientY);
+      };
+      try{ sheet.addEventListener('touchstart', dkDragFromSheet, { passive: true }); }catch(_){}
+      try{ sheet.addEventListener('touchmove', onMove, { passive: true }); }catch(_){}
+      try{ sheet.addEventListener('touchend', endDrag); }catch(_){}
+      try{ sheet.addEventListener('touchcancel', endDrag); }catch(_){}
+      try{ sheet.addEventListener('mousedown', dkDragMouse); }catch(_){}
+      handle.addEventListener('mousedown', function(e){ startDrag(e.clientY); });
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', endDrag);
+    }
+    try {
+      sheet.addEventListener('click', function(e){
+        try {
+          if (Date.now() - lastDragEnd < 350 && Math.abs(lastDragMoved) > 8) return;
+          var t = (e.target && e.target.closest) ? e.target.closest('.hb-action, .hb-more-row') : null;
+          if (t) setTimeout(function(){ applyHbState('peek'); }, 0);
+        } catch (err) {}
+      });
+    } catch (e) {}
+    attachClusterTracker(sheet);
+    applyHbState(state, { skipPersist: true });
+  }
+
+  /* Cum nut dung yen (lenh Le 2026-11-26); tracker cu da tat, xem attachClusterTracker. */
+  /* Cum nut KHONG bam theo sheet nua (lenh Le 2026-11-26): sheet mo len de len cum nut, cum nut dung yen o vi tri nac peek. */
+  function attachClusterTracker(sheet){
+    return;
+  }
+
+  function wrapBuilders(){
+    ['buildHomeBottomSheet', 'buildHomeBottomSheetPremium'].forEach(function(k){
+      try {
+        var orig = window[k];
+        if (typeof orig === 'function' && !orig._dkV11Wrapped) {
+          var w = function(){ var r = orig.apply(this, arguments); try { var s = sheetEl(); if (s) enhance(s); } catch (e) {} return r; };
+          w._dkV11Wrapped = true;
+          window[k] = w;
+        }
+      } catch (e) {}
+    });
+  }
+
+  /* Dang dan duong: ep ve peek, het dan thi tra lai nac cu */
+  try {
+    var bodyObs = new MutationObserver(function(){
+      try {
+        var nav = document.body.classList.contains('navigating') || document.body.classList.contains('google-nav');
+        if (nav && !navForced) { navForced = true; savedBeforeNav = state; applyHbState('peek', { skipPersist: true }); }
+        else if (!nav && navForced) { navForced = false; applyHbState(savedBeforeNav || state, { skipPersist: true }); }
+      } catch (e) {}
+    });
+    bodyObs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  } catch (e) {}
+
+  /* Sheet bi build lai (tao element moi): enhance lai element moi */
+  try {
+    var sheetObs = new MutationObserver(function(){
+      try { var s = sheetEl(); if (s && !s._dkV11Enhanced) enhance(s); } catch (e) {}
+    });
+    sheetObs.observe(document.body, { childList: true, subtree: false });
+  } catch (e) {}
+
+  injectV11CSS();
+  wrapBuilders();
+  var s0 = sheetEl();
+  if (s0) enhance(s0);
+  document.addEventListener('DOMContentLoaded', function(){ var s = sheetEl(); if (s) enhance(s); });
+  setTimeout(function(){ var s = sheetEl(); if (s) enhance(s); }, 700);
+})();
+/* [RP-MODE 2026-11-25] Che do chon duong: an search/nut/marker khi xem truoc tuyen */
+(function(){ try{ if (document.getElementById('rpModeCss')) return; var st = document.createElement('style'); st.id = 'rpModeCss'; st.textContent = 'body.rp-preview-open .floating-search,body.rp-preview-open #searchBar,body.rp-preview-open .search-bar,body.rp-preview-open #suggestionsBox,body.rp-preview-open #mainMenuBtn,body.rp-preview-open #fabClusterLeft,body.rp-preview-open #fabClusterRight,body.rp-preview-open #btnCompass,body.rp-preview-open #mainLocateBtn,body.rp-preview-open #btnLayerMenu,body.rp-preview-open #btnQuickPin,body.rp-preview-open #btnReport,body.rp-preview-open #btnRestStopFilter,body.rp-preview-open #mainDirBtn,body.rp-preview-open #btnNearbySearch{display:none !important}body.rp-preview-open .maplibregl-marker{pointer-events:none !important}body.rp-preview-open .maplibregl-marker .rp-map-marker{pointer-events:auto !important}body.rp-preview-open .maplibregl-popup{pointer-events:none !important}'; document.head.appendChild(st); }catch(e){} })();
+
+/* [STREETVIEW-360 2026-11-26] Xem pho 360 do bang Mapillary: nut o bottom sheet -> lop duong co anh -> cham map mo khung 360, tam giac cam theo vi tri + huong xem. Chi them moi, khong sua/xoa code cu. */
+var dk360Mode = false;
+var dk360Viewer = null;
+var dk360LibPromise = null;
+var dk360FrameEl = null;
+var dk360TriMarker = null;
+var dk360TriBearing = 0;
+var dk360LastReq = 0;
+var dk360LastTapKey = '';
+var dk360LastTapAt = 0;
+var dk360Prefetched = null;
+var dk360LastMapMoveAt = 0;
+var dk360StyleHooked = false;
+var dk360RotateHooked = false;
+var dk360HiddenEls = [];
+var dk360SyncSeq = 0;
+var dk360JumpTimer = null;
+var dk360LastJumpLng = null;
+var dk360LastJumpLat = null;
+var dk360FollowTarget = null;
+var dk360FollowRaf = null;
+var dk360FollowRafIsTimeout = false;
+var dk360FollowRunning = false;
+var DK360_WORKER='https://map-birthday.anhminhadof123.workers.dev';
+var DK360_GRAPH=DK360_WORKER+'/api/mapillary-graph/images';
+var DK360_GRAPH_ENDPOINT=DK360_WORKER+'/api/mapillary-graph/';
+var DK360_SRC = 'dk360-coverage-src';
+var DK360_LAYER = 'dk360-coverage-lines';
+
+function dk360Toast(msg){ try{ if (typeof showCustomToast === 'function') showCustomToast(msg, 'warning'); else if (typeof console !== 'undefined' && console.warn) console.warn('[dk360]', msg); }catch(_){} }
+
+function dk360InjectCss(){
+  try{
+    if (document.getElementById('dk360Css')) return;
+    var st = document.createElement('style');
+    st.id = 'dk360Css';
+    st.textContent = [
+      '#dk360Frame{position:fixed;left:0;right:0;top:0;height:55%;z-index:60;background:#000;display:flex;flex-direction:column;box-shadow:0 4px 18px rgba(0,0,0,.35);}',
+      '#dk360Bar{height:40px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 14px;background:var(--card-2,#0f172a);color:var(--text,#fff);font-weight:700;font-size:13px;}',
+      '#dk360Bar small{opacity:.7;font-weight:500;margin-left:6px;}',
+      '#dk360CloseBtn{width:32px;height:32px;border-radius:50%;border:0;background:var(--bg-2,rgba(255,255,255,.16));color:var(--text,#fff);font-size:16px;line-height:1;cursor:pointer;}',
+      '#dk360ViewerBox{flex:1 1 auto;position:relative;min-height:0;}',
+      '.dk360-tri{width:30px;height:30px;pointer-events:none;}',
+      '.dk360-tri-inner{width:30px;height:30px;display:block;transform-origin:center;}',
+      '#dk360Row{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;margin:8px 0 2px;border-radius:14px;border:1px solid var(--border,#cbd5e1);background:var(--card-2,#f1f5f9);color:var(--text,#0f172a);font-weight:700;font-size:13px;cursor:pointer;text-align:left;}',
+      '#dk360Row .dk360-ic{flex:0 0 auto;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#06b6d4,#3b82f6);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(59,130,246,.35);}',
+      '#dk360Row .dk360-tx{flex:1 1 auto;line-height:1.3;}',
+      '#dk360Row .dk360-tx small{display:block;font-weight:500;font-size:11px;opacity:.72;}',
+      '#dk360Row .dk360-state{flex:0 0 auto;font-size:11px;font-weight:800;padding:4px 8px;border-radius:999px;background:var(--bg-2,#e2e8f0);color:var(--text-muted,#475569);}',
+      '#dk360Row.dk360-on{border-color:#06b6d4;background:rgba(6,182,212,.12);}',
+      '#dk360Row.dk360-on .dk360-state{background:#06b6d4;color:#fff;}',
+      'html body #homeBottomSheet.hb-collapsed #dk360Row{display:none !important;}',
+      'html body.dk360-mode-on #topBarSplit,html body.dk360-mode-on .floating-search,html body.dk360-mode-on #searchBar,html body.dk360-mode-on .search-bar,html body.dk360-mode-on #suggestionsBox,html body.dk360-mode-on #mainMenuBtn,html body.dk360-mode-on #menuBtn,html body.dk360-mode-on #fabClusterLeft,html body.dk360-mode-on #fabClusterRight,html body.dk360-mode-on #btnCompass,html body.dk360-mode-on #mainLocateBtn,html body.dk360-mode-on #btnLayerMenu,html body.dk360-mode-on #btnQuickPin,html body.dk360-mode-on #btnReport,html body.dk360-mode-on #btnRestStopFilter,html body.dk360-mode-on #mainDirBtn,html body.dk360-mode-on #btnNearbySearch{display:none !important}',
+      'body.dk360-mode-on #homeBottomSheet{z-index:40 !important;}'
+    ].join('\n');
+    document.head.appendChild(st);
+  }catch(_){}
+}
+
+function dk360EnsureButton(){
+  try{
+    var sheet = document.getElementById('homeBottomSheet');
+    if (!sheet) return;
+    if (document.getElementById('dk360Row')) { dk360SetRowState(); return; }
+    var grid = sheet.querySelector('.hb-grid');
+    if (!grid) return;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'dk360Row';
+    btn.setAttribute('aria-pressed', 'false');
+    btn.innerHTML = '<span class="dk360-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a9 9 0 0 1 18 0"/><path d="M3 10h18"/><circle cx="12" cy="10" r="2" fill="#fff" stroke="none"/><path d="M6 17l2.5-2.5L11 17l2-2 2.5 2.5"/></svg></span><span class="dk360-tx">Xem phố 360°<small>Chạm vào đường để xem ảnh gần nhất</small></span><span class="dk360-state">Tắt</span>';
+    btn.addEventListener('click', function(){ try{ dk360Toggle(); }catch(_){} });
+    grid.insertAdjacentElement('afterend', btn);
+    dk360SetRowState();
+  }catch(_){}
+}
+
+function dk360SetRowState(){
+  try{
+    var b = document.getElementById('dk360Row');
+    if (!b) return;
+    b.classList.toggle('dk360-on', !!dk360Mode);
+    b.setAttribute('aria-pressed', dk360Mode ? 'true' : 'false');
+    var s = b.querySelector('.dk360-state');
+    if (s) s.textContent = dk360Mode ? 'Đang bật' : 'Tắt';
+  }catch(_){}
+}
+
+function dk360HideChrome(on){
+  try{
+    if (on){
+      var sels = ['#homeBottomSheet', '#topBarSplit', '.floating-search', '#searchBar', '.search-bar', '#suggestionsBox', '#mainMenuBtn', '#menuBtn', '#fabClusterLeft', '#fabClusterRight', '#btnCompass', '#mainLocateBtn', '#btnLayerMenu', '#btnQuickPin', '#btnReport', '#btnRestStopFilter', '#mainDirBtn', '#btnNearbySearch'];
+      for (var i = 0; i < sels.length; i++){
+        var els = null;
+        try{ els = document.querySelectorAll(sels[i]); }catch(_){ els = null; }
+        if (!els) continue;
+        for (var j = 0; j < els.length; j++){
+          (function(el){
+            for (var k = 0; k < dk360HiddenEls.length; k++){ if (dk360HiddenEls[k].el === el) return; }
+            var prev = '', prevPr = '';
+            try{ prev = el.style.getPropertyValue('display') || ''; prevPr = el.style.getPropertyPriority('display') || ''; }catch(_){}
+            dk360HiddenEls.push({ el: el, display: prev, priority: prevPr });
+            try{ el.style.setProperty('display', 'none', 'important'); }catch(_){}
+          })(els[j]);
+        }
+      }
+    } else {
+      for (var n = 0; n < dk360HiddenEls.length; n++){
+        var rec = dk360HiddenEls[n];
+        try{
+          if (rec.display) rec.el.style.setProperty('display', rec.display, rec.priority || '');
+          else rec.el.style.removeProperty('display');
+        }catch(_){}
+      }
+      dk360HiddenEls = [];
+    }
+  }catch(_){}
+}
+
+function dk360InjectSearchTextCss(){
+  try{
+    if (document.getElementById('dk360SearchTextCss')) return;
+    var st = document.createElement('style');
+    st.id = 'dk360SearchTextCss';
+    st.textContent = [
+      'html body #topBarSplit .floating-search input,html body #topBarSplit #searchBar input,html body .floating-search input,html body .floating-search .search-input{color:var(--text) !important;}',
+      'html body #topBarSplit .floating-search input::placeholder,html body .floating-search input::placeholder{color:var(--text-muted) !important;}'
+    ].join('\n');
+    document.head.appendChild(st);
+  }catch(_){}
+}
+
+function dk360Toggle(){
+  dk360EnsureButton();
+  dk360SetMode(!dk360Mode);
+}
+
+function dk360SetMode(on){
+  dk360Mode = !!on;
+  dk360SetRowState();
+  try{ document.body.classList.toggle('dk360-mode-on', dk360Mode); }catch(_){}
+  try{ dk360HideChrome(dk360Mode); }catch(_){}
+  try{
+    if (dk360Mode){
+      dk360CloseOpenPopup();
+      try{ if (typeof map !== 'undefined' && map && typeof map.jumpTo === 'function') map.jumpTo({ bearing: 0, pitch: 0 }); }catch(_){}
+    } else {
+      dk360CloseViewer();
+      dk360RemoveCoverage();
+    }
+  }catch(_){}
+}
+
+function dk360AddCoverage(){
+  try{
+    if (typeof map === 'undefined' || !map) return;
+    if (!dk360StyleHooked){
+      dk360StyleHooked = true;
+      try{ map.on('style.load', function(){ try{ if (dk360Mode) dk360AddCoverage(); }catch(_){} }); }catch(_){}
+    }
+    var ready = true;
+    try{ ready = (typeof map.loaded === 'function') ? map.loaded() : true; }catch(_){ ready = true; }
+    if (!ready){
+      try{ map.once('load', function(){ try{ if (dk360Mode) dk360AddCoverage(); }catch(_){} }); }catch(_){}
+      return;
+    }
+    if (typeof map.getSource === 'function' && !map.getSource(DK360_SRC)){
+      map.addSource(DK360_SRC, {
+        type: 'vector',
+        tiles: [DK360_WORKER + '/api/mapillary-coverage/{z}/{x}/{y}'],
+        minzoom: 6,
+        maxzoom: 14
+      });
+    }
+    if (typeof map.getLayer === 'function' && !map.getLayer(DK360_LAYER)){
+      map.addLayer({
+        id: DK360_LAYER,
+        type: 'line',
+        source: DK360_SRC,
+        'source-layer': 'sequence',
+        minzoom: 6,
+        maxzoom: 22,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#05CB63', 'line-width': 2, 'line-opacity': 0.85 }
+      });
+    }
+  }catch(_){}
+}
+
+function dk360RemoveCoverage(){
+  try{
+    if (typeof map === 'undefined' || !map) return;
+    try{ if (map.getLayer(DK360_LAYER)) map.removeLayer(DK360_LAYER); }catch(_){}
+    try{ if (map.getSource(DK360_SRC)) map.removeSource(DK360_SRC); }catch(_){}
+  }catch(_){}
+}
+
+function dk360CloseOpenPopup(){
+  try{
+    if (typeof touchMarker !== 'undefined' && touchMarker && touchMarker.getPopup && touchMarker.getPopup() && touchMarker.getPopup().isOpen() && typeof closePopupSmoothly === 'function') closePopupSmoothly(touchMarker);
+  }catch(_){}
+  try{
+    if (typeof touchMarker !== 'undefined' && touchMarker && touchMarker.getPopup && touchMarker.getPopup() && touchMarker.getPopup().isOpen()){ try{ touchMarker.remove(); }catch(_){} try{ touchMarker = null; }catch(_){} }
+  }catch(_){}
+}
+
+function dk360HandleTap(lngLat){
+  try{
+    if (!dk360Mode) return false;
+    if (!lngLat || typeof lngLat.lat !== 'number' || typeof lngLat.lng !== 'number') return false;
+    var key = lngLat.lat.toFixed(5) + ',' + lngLat.lng.toFixed(5);
+    var now = Date.now();
+    if (key === dk360LastTapKey && (now - dk360LastTapAt) < 300) return true;
+    dk360LastTapKey = key; dk360LastTapAt = now;
+    dk360CloseOpenPopup();
+    dk360JumpTo(lngLat.lng, lngLat.lat);
+    return true;
+  }catch(_){ return false; }
+}
+
+function dk360HaversineM(aLng, aLat, bLng, bLat){
+  var R = 6371000, dLa = (bLat - aLat) * Math.PI / 180, dLo = (bLng - aLng) * Math.PI / 180;
+  var s1 = Math.sin(dLa / 2), s2 = Math.sin(dLo / 2);
+  var a = s1 * s1 + Math.cos(aLat * Math.PI / 180) * Math.cos(bLat * Math.PI / 180) * s2 * s2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function dk360SearchImage(lng, lat, half){
+  var bbox = (lng - half) + ',' + (lat - half) + ',' + (lng + half) + ',' + (lat + half);
+  var url = DK360_GRAPH + '?bbox=' + encodeURIComponent(bbox) + '&fields=id,geometry,compass_angle,is_pano,captured_at&limit=20';
+  var timeoutMs = (typeof dk360SearchTimeoutMs !== 'undefined' && dk360SearchTimeoutMs) ? dk360SearchTimeoutMs : 10000;
+  var ctrl = null, timer = null;
+  try{ if (typeof AbortController !== 'undefined'){ ctrl = new AbortController(); timer = setTimeout(function(){ try{ ctrl.abort(); }catch(_){} }, timeoutMs); } }catch(_){}
+  return fetch(url, ctrl ? { signal: ctrl.signal } : undefined).then(function(r){ if (timer) clearTimeout(timer); if (!r.ok) throw new Error('graph ' + r.status); return r.json(); }).then(function(j){
+    var arr = (j && j.data) || [];
+    var best = null, bestD = Infinity, bestPano = null, bestPanoD = Infinity;
+    for (var i = 0; i < arr.length; i++){
+      var g = arr[i] && arr[i].geometry;
+      var c = g && g.coordinates;
+      if (!c || c.length < 2) continue;
+      var d = dk360HaversineM(lng, lat, c[0], c[1]);
+      if (d < bestD){ bestD = d; best = arr[i]; }
+      if (arr[i].is_pano && d < bestPanoD){ bestPanoD = d; bestPano = arr[i]; }
+    }
+    return bestPano || best;
+  }).catch(function(e){ if (timer) clearTimeout(timer); throw e; });
+}
+
+function dk360JumpTo(lng, lat){
+  var req = ++dk360LastReq;
+  if (dk360Prefetched && dk360Prefetched.ok) {
+    var _pd = dk360HaversineM(lng, lat, dk360Prefetched.lng, dk360Prefetched.lat);
+    if (_pd <= 220) {
+      if (dk360Prefetched.img) { dk360OpenViewer(dk360Prefetched.img); } else { dk360Toast('Chưa có ảnh 360° gần điểm này'); }
+      return;
+    }
+  }
+  var sizes = [0.0005, 0.001, 0.002];
+  var i = 0, shrunk = false;
+  var step = function(){
+    if (req !== dk360LastReq) return;
+    if (i >= sizes.length){ dk360Toast('Chưa có ảnh 360° gần điểm này'); return; }
+    var half = sizes[i++];
+    dk360SearchImage(lng, lat, half).then(function(img){
+      if (req !== dk360LastReq) return;
+      if (img){ dk360OpenViewer(img); return; }
+      step();
+    }).catch(function(){
+      if (req !== dk360LastReq) return;
+      if (!shrunk && half <= 0.0005){ shrunk = true; sizes.splice(i, 0, half / 2); }
+      if (i < sizes.length){ step(); return; }
+      dk360Toast('Không tải được ảnh 360°, kiểm tra mạng rồi thử lại');
+    });
+  };
+  step();
+}
+
+function dk360Prefetch360(lng, lat){
+  var sizes = [0.0005, 0.001, 0.002];
+  var i = 0, shrunk = false, done = false;
+  var finish = function(img, ok){
+    if (done) return; done = true;
+    dk360Prefetched = { lng: lng, lat: lat, img: img || null, ok: !!ok };
+    loadPrefetchDone = true;
+    try{ updateLoadingProgress(90, 'Đã tìm sẵn ảnh 360°...'); }catch(_){}
+    try{ checkLoadingComplete(); }catch(_){}
+  };
+  var step = function(){
+    if (i >= sizes.length){ finish(null, true); return; }
+    var half = sizes[i++];
+    dk360SearchImage(lng, lat, half).then(function(img){
+      if (img) finish(img, true); else step();
+    }).catch(function(){
+      if (!shrunk && half <= 0.0005){ shrunk = true; sizes.splice(i, 0, half / 2); }
+      if (i < sizes.length){ step(); return; }
+      finish(null, false);
+    });
+  };
+  step();
+}
+
+function dk360LoadLib(){
+  try{
+    if (typeof window !== 'undefined' && window.mapillary && window.mapillary.Viewer && window.mapillary.GraphDataProvider) return Promise.resolve();
+    if (dk360LibPromise) return dk360LibPromise;
+    dk360LibPromise = new Promise(function(resolve, reject){
+      try{
+        var css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.css';
+        document.head.appendChild(css);
+        var sc = document.createElement('script');
+        sc.src = 'https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.js';
+        sc.onload = function(){ try{ if (window.mapillary && window.mapillary.Viewer && window.mapillary.GraphDataProvider) resolve(); else reject(new Error('no Viewer/provider')); }catch(e){ reject(e); } };
+        sc.onerror = function(){ reject(new Error('load failed')); };
+        document.head.appendChild(sc);
+      }catch(e){ reject(e); }
+    });
+    dk360LibPromise.catch(function(){ dk360LibPromise = null; });
+    return dk360LibPromise;
+  }catch(e){ return Promise.reject(e); }
+}
+
+function dk360EnsureFrame(){
+  try{
+    var f = document.getElementById('dk360Frame');
+    if (f){ dk360FrameEl = f; return f; }
+    f = document.createElement('div');
+    f.id = 'dk360Frame';
+    f.innerHTML = '<div id="dk360Bar"><span>Phố 360°<small>Mapillary</small></span><button type="button" id="dk360CloseBtn" title="Đóng khung 360°">✕</button></div><div id="dk360ViewerBox"></div>';
+    document.body.appendChild(f);
+    var x = document.getElementById('dk360CloseBtn');
+    if (x) x.addEventListener('click', function(){ try{ dk360SetMode(false); }catch(_){} });
+    dk360FrameEl = f;
+    try{
+      var m = document.getElementById('map');
+      if (m){ m.style.top = '55%'; m.style.height = '45%'; }
+      if (typeof map !== 'undefined' && map && typeof map.resize === 'function') map.resize();
+    }catch(_){}
+    return f;
+  }catch(_){ return null; }
+}
+
+function dk360OpenViewer(img){
+  try{
+    if (!img || !img.id) return;
+    var g = img.geometry && img.geometry.coordinates;
+    if (g && g.length >= 2) dk360ShowTriangle(g[0], g[1]);
+    if (typeof img.compass_angle === 'number'){ dk360TriBearing = img.compass_angle; dk360ApplyTriRotation(); }
+    dk360EnsureFrame();
+    dk360LoadLib().then(function(){
+      try{
+        if (!dk360Viewer){
+          var Viewer = window.mapillary.Viewer;
+          var GDP = window.mapillary.GraphDataProvider;
+          if (!GDP) throw new Error('no GraphDataProvider');
+          dk360Viewer = new Viewer({ container: 'dk360ViewerBox', component: { cover: false }, dataProvider: new GDP({ endpoint: DK360_GRAPH_ENDPOINT }) });
+          try{ dk360Viewer.on('image', function(){ dk360SyncPosition(true); }); }catch(_){}
+          try{ dk360Viewer.on('position', function(){ dk360SyncPosition(false); }); }catch(_){}
+          try{ dk360Viewer.on('bearing', function(){ dk360SyncBearing(); }); }catch(_){}
+          if (!dk360RotateHooked){
+            dk360RotateHooked = true;
+            try{ map.on('rotate', function(){ dk360ApplyTriRotation(); }); }catch(_){}
+          }
+        }
+        dk360Viewer.moveTo(img.id).then(function(){
+          dk360SyncPosition(true);
+          dk360SyncBearing();
+        }).catch(function(){ dk360Toast('Không mở được ảnh này, thử điểm khác'); });
+      }catch(e){ dk360Toast('Không mở được khung 360°'); }
+    }).catch(function(){ dk360Toast('Không tải được thư viện 360°, kiểm tra mạng rồi thử lại'); });
+  }catch(_){}
+}
+
+function dk360CloseViewer(){
+  try{
+    if (dk360Viewer){ try{ dk360Viewer.remove(); }catch(_){} dk360Viewer = null; }
+  }catch(_){}
+  try{
+    var f = document.getElementById('dk360Frame');
+    if (f && f.parentNode) f.parentNode.removeChild(f);
+    dk360FrameEl = null;
+  }catch(_){}
+  dk360FollowCancel(); dk360FollowTarget = null;
+  dk360HideTriangle();
+  try{
+    var m = document.getElementById('map');
+    if (m){ m.style.top = ''; m.style.height = ''; }
+    if (typeof map !== 'undefined' && map && typeof map.resize === 'function') map.resize();
+  }catch(_){}
+}
+
+function dk360ShowTriangle(lng, lat){
+  try{
+    if (typeof map === 'undefined' || !map) return;
+    if (typeof maplibregl === 'undefined' || !maplibregl.Marker) return;
+    if (!dk360TriMarker){
+      var el = document.createElement('div');
+      el.className = 'dk360-tri';
+      el.innerHTML = '<svg class="dk360-tri-inner" viewBox="0 0 24 24"><path d="M12 2L22 20L12 16L2 20L12 2Z" fill="#f97316" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg>';
+      dk360TriMarker = new maplibregl.Marker({ element: el, anchor: 'center' });
+      try{ dk360TriMarker.addTo(map); }catch(_){}
+    }
+    try{ dk360TriMarker.setLngLat([lng, lat]); }catch(_){}
+    dk360ApplyTriRotation();
+  }catch(_){}
+}
+
+function dk360HideTriangle(){
+  try{ if (dk360TriMarker){ try{ dk360TriMarker.remove(); }catch(_){} dk360TriMarker = null; } }catch(_){}
+}
+
+function dk360FollowNext(){
+  try{
+    if (typeof requestAnimationFrame === 'function'){ dk360FollowRafIsTimeout = false; dk360FollowRaf = requestAnimationFrame(dk360FollowStep); }
+    else { dk360FollowRafIsTimeout = true; dk360FollowRaf = setTimeout(dk360FollowStep, 16); }
+  }catch(_){ try{ dk360FollowRafIsTimeout = true; dk360FollowRaf = setTimeout(dk360FollowStep, 16); }catch(_){} }
+}
+function dk360FollowCancel(){
+  try{
+    if (dk360FollowRaf){
+      if (dk360FollowRafIsTimeout) clearTimeout(dk360FollowRaf);
+      else if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(dk360FollowRaf);
+    }
+  }catch(_){}
+  dk360FollowRaf = null; dk360FollowRunning = false;
+}
+function dk360FollowStep(){
+  dk360FollowRaf = null;
+  try{
+    if (!dk360Viewer || !dk360FollowTarget){ dk360FollowRunning = false; return; }
+    if (typeof _isUserDraggingMap !== 'undefined' && _isUserDraggingMap){ dk360FollowRunning = false; return; }
+    if (typeof map === 'undefined' || !map || typeof map.getCenter !== 'function' || typeof map.jumpTo !== 'function'){ dk360FollowRunning = false; return; }
+    var c = map.getCenter();
+    var t = dk360FollowTarget;
+    var dx = (t.lng - c.lng) * 111320 * Math.cos(t.lat * Math.PI / 180);
+    var dy = (t.lat - c.lat) * 110540;
+    if ((dx * dx + dy * dy) < 4){ dk360FollowRunning = false; return; }
+    var k = 0.25;
+    map.jumpTo({ center: [c.lng + (t.lng - c.lng) * k, c.lat + (t.lat - c.lat) * k], bearing: 0, pitch: 0 });
+    dk360FollowNext();
+  }catch(_){ dk360FollowRunning = false; }
+}
+function dk360FollowKick(){
+  if (dk360FollowRunning) return;
+  dk360FollowRunning = true;
+  dk360FollowNext();
+}
+function dk360SyncPosition(settled){
+  try{
+    if (!dk360Viewer || typeof dk360Viewer.getPosition !== 'function') return;
+    var seq = ++dk360SyncSeq;
+    dk360Viewer.getPosition().then(function(pos){
+      try{
+        if (seq !== dk360SyncSeq) return;
+        var lng = null, lat = null;
+        if (pos && typeof pos.lng === 'number'){ lng = pos.lng; lat = pos.lat; }
+        else if (Array.isArray(pos) && pos.length >= 2){ lng = pos[0]; lat = pos[1]; }
+        if (lng === null || lat === null) return;
+        dk360ShowTriangle(lng, lat);
+        dk360FollowTarget = { lng: lng, lat: lat };
+        dk360FollowKick();
+      }catch(_){}
+    }).catch(function(){});
+  }catch(_){}
+}
+
+function dk360SyncBearing(){
+  try{
+    if (!dk360Viewer || typeof dk360Viewer.getBearing !== 'function') return;
+    dk360Viewer.getBearing().then(function(b){
+      try{ if (typeof b === 'number' && isFinite(b)){ dk360TriBearing = b; dk360ApplyTriRotation(); } }catch(_){}
+    }).catch(function(){});
+  }catch(_){}
+}
+
+function dk360ApplyTriRotation(){
+  try{
+    if (!dk360TriMarker) return;
+    var el = null;
+    try{ el = dk360TriMarker.getElement(); }catch(_){}
+    if (!el) return;
+    var inner = el.querySelector ? el.querySelector('.dk360-tri-inner') : null;
+    if (!inner) return;
+    var mb = 0;
+    try{ if (typeof map !== 'undefined' && map && typeof map.getBearing === 'function') mb = map.getBearing() || 0; }catch(_){}
+    inner.style.transform = 'rotate(' + (dk360TriBearing - mb) + 'deg)';
+  }catch(_){}
+}
+
+dk360InjectCss();
+dk360InjectSearchTextCss();
+dk360EnsureButton();
+document.addEventListener('DOMContentLoaded', dk360EnsureButton);
+setTimeout(dk360EnsureButton, 900);
+try{ window.dk360 = { setMode: dk360SetMode, toggle: dk360Toggle, jumpTo: dk360JumpTo, handleTap: dk360HandleTap }; }catch(_){}
+/* [/STREETVIEW-360] */
+
+/* [NOFOCUS-ON-ENTRY 2026-11-26] Khong tu mo ban phim khi vua vao app: neu mot o nhap dang duoc focus ma chua co thao tac nao cua nguoi dung thi blur. Khong anh huong den cham co chu dich. */
+(function(){
+  try{
+    var dkInteracted = false;
+    var dkMark = function(){ dkInteracted = true; };
+    document.addEventListener('pointerdown', dkMark, { once: true });
+    document.addEventListener('keydown', dkMark, { once: true });
+    setTimeout(function(){
+      try{
+        if (dkInteracted) return;
+        var ae = document.activeElement;
+        if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) ae.blur();
+      }catch(_){}
+    }, 1000);
+  }catch(_){}
+})();
+
+/* ========== WEATHER UI (2026-11-27): chip + route preview + driving strip. All data via Worker /api/weather/*. No key in frontend. ========== */
+(function wxWeather(){
+  if (window._wxWeatherDone) return; window._wxWeatherDone = true;
+  var WORKER = (typeof WORKER_URL !== 'undefined' && WORKER_URL) || 'https://map-birthday.anhminhadof123.workers.dev';
+  try{
+    if(!document.getElementById('wxStyle')){
+      var st=document.createElement('style'); st.id='wxStyle';
+      st.textContent =
+      '#wxChip{position:fixed !important;top:calc(68px + var(--safe-top, 0px)) !important;right:16px !important;z-index:1000 !important;align-items:center !important;gap:6px !important;background:transparent !important;border:none !important;border-radius:999px !important;padding:10px 12px !important;min-height:44px !important;font-size:13px !important;font-weight:700 !important;color:var(--text) !important;text-shadow:0 1px 8px rgba(0,0,0,.5),0 0 3px rgba(0,0,0,.4) !important;cursor:pointer !important;}\n' +
+      '#wxChip i{color:var(--primary) !important;text-shadow:0 1px 8px rgba(0,0,0,.5),0 0 3px rgba(0,0,0,.4) !important;}\n' +
+      'body.light-mode #wxChip,body.light-mode #wxChip i{text-shadow:0 1px 8px rgba(255,255,255,.75),0 0 3px rgba(255,255,255,.6) !important;}\n' +
+      '#wxCard{position:fixed !important;top:calc(112px + var(--safe-top, 0px)) !important;right:16px !important;z-index:1001 !important;width:min(300px,calc(100vw - 32px)) !important;background:var(--card) !important;color:var(--text) !important;border:1px solid var(--border) !important;border-radius:16px !important;box-shadow:0 12px 32px rgba(0,0,0,.22) !important;padding:12px 14px !important;}\n' +
+      '#wxCard .wx-card-head{display:flex !important;align-items:center !important;justify-content:space-between !important;font-size:12px !important;font-weight:800 !important;color:var(--text-muted) !important;margin-bottom:6px !important;}\n' +
+      '#wxCard .wx-card-x{border:none !important;background:transparent !important;color:var(--text-muted) !important;font-size:14px !important;cursor:pointer !important;padding:2px 6px !important;}\n' +
+      '#wxCard .wx-card-main{display:flex !important;align-items:center !important;gap:10px !important;font-size:15px !important;font-weight:700 !important;margin-bottom:8px !important;}\n' +
+      '#wxCard .wx-card-main #wxCardTemp{font-size:26px !important;font-weight:900 !important;}\n' +
+      '#wxCard .wx-card-grid{display:grid !important;grid-template-columns:1fr 1fr !important;gap:4px 10px !important;font-size:12px !important;color:var(--text-muted) !important;}\n' +
+      '#wxCard .wx-card-grid b{color:var(--text) !important;}\n' +
+      '#wxCard .wx-card-hours{display:flex !important;gap:10px !important;margin-top:10px !important;padding-top:8px !important;border-top:1px solid var(--border) !important;font-size:11px !important;color:var(--text-muted) !important;overflow-x:auto !important;}\n' +
+      '#wxCard .wx-card-hours span{white-space:nowrap !important;text-align:center !important;}\n' +
+      '#wxCard .wx-card-hours b{display:block !important;color:var(--text) !important;font-size:12px !important;}\n' +
+      '#wxDriveStrip{position:fixed !important;top:calc(76px + var(--safe-top, 0px)) !important;left:12px !important;right:12px !important;z-index:1300 !important;align-items:center !important;gap:8px !important;background:rgba(220,38,38,.95) !important;color:#fff !important;border-radius:12px !important;padding:9px 12px !important;font-size:13px !important;font-weight:700 !important;box-shadow:0 6px 18px rgba(0,0,0,.25) !important;}\n' +
+      'body.google-nav #wxDriveStrip{top:calc(152px + var(--safe-top, 0px)) !important;}\n' +
+      'body.rp-preview-open #wxChip,body.google-nav #wxChip,body.navigating #wxChip,body.dk360-mode-on #wxChip,html.dk360-mode-on #wxChip{display:none !important;}\n' +
+      'body.rp-preview-open #wxCard,body.google-nav #wxCard,body.navigating #wxCard,body.dk360-mode-on #wxCard,html.dk360-mode-on #wxCard{display:none !important;}\n' +
+      '.rp-chip-wx{display:block !important;font-size:11px !important;font-weight:600 !important;color:var(--text-muted) !important;line-height:1.2 !important;}\n' +
+      '.rp-chip-wx.wx-bad{color:#dc2626 !important;font-weight:800 !important;}\n' +
+      '.rp-dest-wx{font-size:12px !important;font-weight:600 !important;color:var(--text-muted) !important;padding:0 2px 8px !important;}\n' +
+      '#wxSheet{position:fixed !important;left:0 !important;right:0 !important;bottom:0 !important;height:min(82dvh,680px) !important;z-index:1400 !important;background:var(--card) !important;border-top:1px solid var(--border) !important;border-radius:20px 20px 0 0 !important;box-shadow:0 -12px 32px rgba(0,0,0,.28) !important;overflow:hidden !important;}\n' +
+      '#wxSheetHandle{height:44px !important;display:flex !important;align-items:center !important;justify-content:center !important;position:relative !important;touch-action:none !important;cursor:grab !important;}\n' +
+      '#wxSheetGrip{width:44px !important;height:5px !important;border-radius:99px !important;background:var(--border) !important;}\n' +
+      '#wxSheetX{position:absolute !important;right:8px !important;top:50% !important;transform:translateY(-50%) !important;border:none !important;background:transparent !important;color:var(--text-muted) !important;font-size:16px !important;padding:8px 12px !important;cursor:pointer !important;}\n' +
+      '#wxFrame{width:100% !important;height:calc(100% - 44px) !important;border:0 !important;display:block !important;background:var(--card) !important;}\n' +
+      'body.rp-preview-open #wxSheet,body.google-nav #wxSheet,body.navigating #wxSheet,body.dk360-mode-on #wxSheet,html.dk360-mode-on #wxSheet{display:none !important;}\n' +
+      'body.google-nav #wxSheet.wx-open,body.navigating #wxSheet.wx-open{display:block !important;}\n' +
+      '.rp-dest-wx.wx-bad{color:#dc2626 !important;font-weight:800 !important;}\n' +
+       '#wxNavBar{position:fixed !important;left:auto !important;right:12px !important;max-width:70vw !important;z-index:1250 !important;background:transparent !important;border:none !important;color:var(--text) !important;text-shadow:0 1px 8px rgba(0,0,0,.5),0 0 3px rgba(0,0,0,.4) !important;font-size:13px !important;font-weight:700 !important;display:none;}\n' +
+       'body.light-mode #wxNavBar{color:#111 !important;text-shadow:0 1px 8px rgba(255,255,255,.75),0 0 3px rgba(255,255,255,.6) !important;}\n' +
+       'body.google-nav #wxNavBar{display:block;}\n' +
+       'body.dk360-mode-on #wxNavBar,html.dk360-mode-on #wxNavBar{display:none !important;}\n' +
+       '#wxNavBar .wxnb-main{display:flex !important;align-items:center !important;gap:8px !important;min-height:44px !important;}\n' +
+       '#wxNavBarToggle{margin-left:auto !important;border:none !important;background:transparent !important;color:inherit !important;font-size:18px !important;font-weight:800 !important;min-width:44px !important;min-height:44px !important;cursor:pointer !important;text-shadow:inherit !important;}\n' +
+       '#wxNavBar .wxnb-rows{padding-bottom:6px !important;}\n' +
+       '#wxNavBar .wxnb-row{display:flex !important;align-items:center !important;gap:8px !important;padding:3px 0 !important;}\n' +
+       '#wxNavBar .wxnb-label{color:var(--text-muted) !important;font-size:11px !important;font-weight:800 !important;text-transform:uppercase !important;letter-spacing:.04em !important;min-width:74px !important;}\n' +
+       '#wxNavBar .wxnb-bad{color:#f87171 !important;}\n' +
+       'body.light-mode #wxNavBar .wxnb-bad{color:#dc2626 !important;}\n';
+      document.head.appendChild(st);
+    }
+  }catch(e){}
+  function wxCond(id, icon){
+    var night = (icon||'').slice(-1)==='n';
+    var fa='fa-cloud-sun', sev=0;
+    if(id>=200&&id<300){ fa='fa-bolt'; sev=2; }
+    else if(id>=300&&id<400){ fa='fa-cloud-rain'; sev=1; }
+    else if(id>=500&&id<600){ if(id===511){ fa='fa-icicles'; sev=2; } else if(id>=502){ fa='fa-cloud-showers-heavy'; sev=2; } else { fa='fa-cloud-rain'; sev=1; } }
+    else if(id>=600&&id<700){ fa='fa-snowflake'; sev=(id===602||id===622)?2:1; }
+    else if(id>=700&&id<800){ fa='fa-smog'; sev=0; }
+    else if(id===800){ fa= night ? 'fa-moon' : 'fa-sun'; sev=0; }
+    else if(id>800){ fa= night ? 'fa-cloud-moon' : 'fa-cloud-sun'; sev=0; }
+    return {fa:fa, sev:sev};
+  }
+  var wxCache = new Map();
+  function wxCacheGet(k, ttl){ var e=wxCache.get(k); if(e && (Date.now()-e.at)<ttl) return e.data; return null; }
+  async function wxGet(kind, lat, lon){
+    var key=kind+'|'+lat.toFixed(2)+'|'+lon.toFixed(2);
+    var hit=wxCacheGet(key, 30*60*1000);
+    if(hit) return hit;
+    try{
+      var ctl=null; try{ ctl=new AbortController(); setTimeout(function(){ try{ ctl.abort(); }catch(e){} }, 10000); }catch(e){}
+      var r=await fetch(WORKER+'/api/weather/'+kind+'?lat='+lat+'&lon='+lon, ctl?{signal:ctl.signal}:undefined);
+      if(!r.ok) return null;
+      var j=await r.json();
+      wxCache.set(key,{at:Date.now(), data:j});
+      return j;
+    }catch(e){ return null; }
+  }
+  function wxPickSlot(list, etaSec){
+    if(!list||!list.length) return null;
+    var best=list[0], bd=Infinity;
+    for(var i=0;i<list.length;i++){ var d=Math.abs((list[i].dt||0)-etaSec); if(d<bd){bd=d;best=list[i];} }
+    return best;
+  }
+  function wxDestDisplaySlot(list, nowSec, etaSec, cur){ try{ var ds=wxPickSlot(list, etaSec), ns=wxPickSlot(list, nowSec); if(ds&&ns&&ds.dt===ns.dt&&cur) return cur; return ds; }catch(e){ return wxPickSlot(list, etaSec); } }
+  function wxTempOf(en){ try{ return Math.round(en.main.temp); }catch(e){ return null; } }
+  function wxDescOf(en){ try{ return (en.weather&&en.weather[0]&&en.weather[0].description)||''; }catch(e){ return ''; } }
+  function wxIdOf(en){ try{ return (en.weather&&en.weather[0]&&en.weather[0].id)||800; }catch(e){ return 800; } }
+  function wxIconOf(en){ try{ return (en.weather&&en.weather[0]&&en.weather[0].icon)||'01d'; }catch(e){ return '01d'; } }
+  function wxFmtHour(unix){ try{ var d=new Date(unix*1000); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }catch(e){ return ''; } }
+  function wxRouteSamples(coords, durationSec, nowSec){
+    var n=coords.length; if(n<2||!(durationSec>0)) return [];
+    var cum=[0];
+    for(var i=1;i<n;i++){ cum.push(cum[i-1]+calcDist(coords[i-1][0],coords[i-1][1],coords[i][0],coords[i][1])); }
+    var total=cum[n-1]; if(!(total>0)) return [];
+    var count=Math.max(3,Math.min(5,Math.ceil(total/150000)));
+    var out=[];
+    for(var k=0;k<count;k++){
+      var frac= k/(count-1);
+      var target=frac*total;
+      var idx=n-1;
+      for(var j=1;j<n;j++){ if(cum[j]>=target){ idx=j; break; } }
+      var c=coords[idx];
+      out.push({lat:c[0], lon:c[1], eta: nowSec + durationSec*frac, frac:frac});
+    }
+    return out;
+  }
+  function wxRemainInfo(coords, startIdx, totalDur){
+    var tot=0, remD=0;
+    for(var i=1;i<coords.length;i++){ var dd=calcDist(coords[i-1][0],coords[i-1][1],coords[i][0],coords[i][1]); tot+=dd; if(i>startIdx) remD+=dd; }
+    var remainSec=tot>0?totalDur*(remD/tot):0; if(!(remainSec>0)) remainSec=0;
+    var winEnd=startIdx+1, winDist=0;
+    while(winEnd<coords.length && winDist<300000){ winDist+=calcDist(coords[winEnd-1][0],coords[winEnd-1][1],coords[winEnd][0],coords[winEnd][1]); winEnd++; }
+    return {remD:remD, remainSec:remainSec, short:remD<30000, winCoords:coords.slice(startIdx, winEnd), winDur:remD>0?remainSec*(winDist/remD):remainSec, winDist:winDist};
+  }
+  var wxPrevGen=0;
+  async function wxRefreshPreview(routes, selected){
+    try{
+      if(!routes||!routes.length) return;
+      var gen=++wxPrevGen;
+      var nowSec=Math.floor(Date.now()/1000);
+      var jobs=routes.map(function(r, i){
+        return (async function(){
+          var samples=wxRouteSamples(r.geometry.coordinates, r.duration, nowSec);
+          var parts=[];
+          for(var s=0;s<samples.length;s++){
+            var fc=await wxGet('forecast', samples[s].lat, samples[s].lon);
+            var slot=fc?wxPickSlot(fc.list, samples[s].eta):null;
+            if(slot) parts.push(slot);
+          }
+          if(gen!==wxPrevGen) return null;
+          if(!parts.length) return {i:i, html:''};
+          var tmin=Infinity,tmax=-Infinity,worst=null,worstSev=-1;
+          parts.forEach(function(en){
+            var t=wxTempOf(en); if(t!==null){ if(t<tmin)tmin=t; if(t>tmax)tmax=t; }
+            var sv=wxCond(wxIdOf(en),wxIconOf(en)).sev; if(sv>worstSev){worstSev=sv;worst=en;}
+          });
+          var fa=wxCond(wxIdOf(worst),wxIconOf(worst)).fa;
+          return {i:i, html:'<i class="fas '+fa+'"></i> '+tmin+'°–'+tmax+'° · '+wxDescOf(worst), bad:worstSev===2};
+        })();
+      });
+      var res=await Promise.all(jobs);
+      if(gen!==wxPrevGen) return;
+      res.forEach(function(rr){
+        if(!rr) return;
+        var el=document.querySelector('.rp-chip-wx[data-wx="'+rr.i+'"]');
+        if(el){ el.innerHTML=rr.html; if(rr.bad) el.classList.add('wx-bad'); else el.classList.remove('wx-bad'); }
+      });
+      var r=routes[selected];
+      if(r){
+        var ds=wxRouteSamples(r.geometry.coordinates, r.duration, nowSec);
+        var last=ds[ds.length-1];
+        var fc=await wxGet('forecast', last.lat, last.lon);
+        if(gen!==wxPrevGen) return;
+        var slot=fc?wxPickSlot(fc.list, last.eta):null;
+        var de=document.getElementById('rpDestWx');
+        if(de&&slot){
+          var fa2=wxCond(wxIdOf(slot),wxIconOf(slot)).fa;
+          de.innerHTML='<i class="fas '+fa2+'"></i> Đến nơi '+wxFmtHour(last.eta)+' · '+wxTempOf(slot)+'° · '+wxDescOf(slot);
+          if(wxCond(wxIdOf(slot),wxIconOf(slot)).sev===2) de.classList.add('wx-bad'); else de.classList.remove('wx-bad');
+          de.style.display='block';
+        } else if(de){ de.style.display='none'; }
+      }
+    }catch(e){}
+  }
+  window.wxRefreshPreview=wxRefreshPreview;
+  var wxChipState={at:0, lat:0, lon:0, cur:null, fc:null, destTemp:null};
+  // FIX 2026-11-27: lastUserPos is null while only browsing (startWatching runs
+  // only during navigation), so the chip would never appear. The weather module
+  // acquires its own one-shot position, only when permission is already granted
+  // (no surprise prompt), and prefers lastUserPos whenever the app has one.
+  var wxOwnPos=null, wxOwnPosPending=false, wxOwnPosLastTry=0;
+  function wxChipPos(){ try{ if(typeof lastUserPos!=='undefined'&&lastUserPos) return lastUserPos; }catch(e){} return wxOwnPos; }
+  function wxEnsureChipPos(){
+    try{
+      if(typeof lastUserPos!=='undefined'&&lastUserPos) return;
+      if(wxOwnPos&&(Date.now()-wxOwnPos.at)<10*60*1000) return;
+      if(wxOwnPosPending) return;
+      var now=Date.now(); if(now-wxOwnPosLastTry<60000) return; wxOwnPosLastTry=now;
+      if(typeof navigator==='undefined'||!navigator.geolocation) return;
+      var go=function(){
+        wxOwnPosPending=true;
+        try{
+          navigator.geolocation.getCurrentPosition(function(pos){
+            wxOwnPosPending=false;
+            wxOwnPos={lat:pos.coords.latitude, lng:pos.coords.longitude, at:Date.now()};
+            wxUpdateChip(true);
+          }, function(){ wxOwnPosPending=false; }, {enableHighAccuracy:false, timeout:8000, maximumAge:60000});
+        }catch(e){ wxOwnPosPending=false; }
+      };
+      if(navigator.permissions&&navigator.permissions.query){
+        navigator.permissions.query({name:'geolocation'}).then(function(st){ if(st&&st.state==='granted') go(); }).catch(function(){});
+      }
+    }catch(e){}
+  }
+  function wxRenderChip(){
+    try{
+      var chip=document.getElementById('wxChip'); if(!chip) return;
+      var cur=wxChipState.cur; if(!cur) { chip.style.display='none'; return; }
+      var w=cur.weather&&cur.weather[0];
+      var fa=wxCond(w?w.id:800, w?w.icon:'01d').fa;
+      var ic=document.getElementById('wxChipIcon'); if(ic) ic.innerHTML='<i class="fas '+fa+'"></i>';
+      var tx=document.getElementById('wxChipText'); if(tx){ var t0=Math.round(cur.main.temp); var t1=wxChipState.destTemp; tx.textContent=(t1===null||t1===undefined)?(t0+'°'):(t0+'° → '+t1+'°'); }
+      chip.style.display='flex';
+    }catch(e){}
+  }
+  async function wxUpdateChip(force){
+    try{
+      var pos=wxChipPos();
+      if(!pos) return;
+      var now=Date.now();
+      var moved=calcDist(wxChipState.lat,wxChipState.lon,pos.lat,pos.lng);
+      if(!force && wxChipState.cur && (now-wxChipState.at)<10*60*1000 && moved<10000) return;
+      var cur=await wxGet('current', pos.lat, pos.lng);
+      if(!cur) return;
+      wxChipState={at:now, lat:pos.lat, lon:pos.lng, cur:cur, fc:wxChipState.fc, destTemp:wxChipState.destTemp};
+      try{ if(typeof endPoint!=='undefined'&&endPoint&&endPoint.lat){ var fcD=await wxGet('forecast', endPoint.lat, endPoint.lng); var etaC=Math.floor(now/1000); try{ var ccC=(typeof currentRouteCoords!=='undefined')?currentRouteCoords:null; var tdC=(typeof currentRouteData!=='undefined')&&currentRouteData&&currentRouteData.duration; if(ccC&&ccC.length>1&&tdC>0){ var ixC=wxNearestIdx(pos.lat,pos.lng); var ttC=0, rdC=0; for(var qC=1;qC<ccC.length;qC++){ var dqC=calcDist(ccC[qC-1][0],ccC[qC-1][1],ccC[qC][0],ccC[qC][1]); ttC+=dqC; if(qC>ixC) rdC+=dqC; } if(ttC>0) etaC+=Math.round(tdC*(rdC/ttC)); } }catch(e){} var slD=fcD?wxDestDisplaySlot(fcD.list, Math.floor(now/1000), etaC, cur):null; wxChipState.destTemp=slD?wxTempOf(slD):null; } else { wxChipState.destTemp=null; } }catch(e){ wxChipState.destTemp=null; }
+      wxRenderChip();
+      if(wxCardOpen) wxRenderCard();
+    }catch(e){}
+  }
+  var wxCardOpen=false;
+  function wxRenderCard(){
+    try{
+      var cur=wxChipState.cur; if(!cur) return;
+      var w=cur.weather&&cur.weather[0];
+      var fa=wxCond(w?w.id:800, w?w.icon:'01d').fa;
+      var ic=document.getElementById('wxCardIcon'); if(ic) ic.innerHTML='<i class="fas '+fa+' fa-2x"></i>';
+      var tp=document.getElementById('wxCardTemp'); if(tp) tp.textContent=Math.round(cur.main.temp)+'°';
+      var dc=document.getElementById('wxCardDesc'); if(dc) dc.textContent=w?w.description:'';
+      var fl=document.getElementById('wxCardFeels'); if(fl) fl.textContent=Math.round(cur.main.feels_like)+'°';
+      var hm=document.getElementById('wxCardHum'); if(hm) hm.textContent=cur.main.humidity+'%';
+      var wn=document.getElementById('wxCardWind'); if(wn) wn.textContent=(cur.wind?cur.wind.speed:0)+' m/s';
+      var hrs=document.getElementById('wxCardHours');
+      if(hrs){
+        var fc=wxChipState.fc;
+        if(fc&&fc.list&&fc.list.length){
+          hrs.innerHTML=fc.list.slice(0,4).map(function(en){
+            var fa2=wxCond(wxIdOf(en),wxIconOf(en)).fa;
+            var pop=Math.round((en.pop||0)*100);
+            return '<span>'+wxFmtHour(en.dt)+'<b><i class="fas '+fa2+'"></i> '+wxTempOf(en)+'°</b>Mưa '+pop+'%</span>';
+          }).join('');
+        } else { hrs.innerHTML=''; }
+      }
+      var pp=document.getElementById('wxCardPop');
+      if(pp){
+        var fc2=wxChipState.fc, pop0=null;
+        if(fc2&&fc2.list&&fc2.list.length) pop0=Math.round(((fc2.list[0].pop)||0)*100);
+        pp.textContent=(pop0===null?'--':pop0)+'%';
+      }
+    }catch(e){}
+  }
+  async function wxOpenCardData(){
+    try{
+      wxRenderCard();
+      var pos=wxChipPos();
+      if(!pos) return;
+      var fc=await wxGet('forecast', pos.lat, pos.lng);
+      wxChipState.fc=fc;
+      wxRenderCard();
+    }catch(e){}
+  }
+  function wxToggleCard(){
+    try{
+      var card=document.getElementById('wxCard'); if(!card) return;
+      if(wxCardOpen){ wxCloseCard(); return; }
+      wxCardOpen=true; card.style.display='block'; wxOpenCardData();
+    }catch(e){}
+  }
+  function wxCloseCard(){
+    try{ wxCardOpen=false; var card=document.getElementById('wxCard'); if(card) card.style.display='none'; }catch(e){}
+  }
+  function wxCloseCardOnMapTap(){ if(wxCardOpen){ wxCloseCard(); return true; } return false; }
+  var wxSheetOpen=false, wxSheetDragBound=false, wxSheetDragY=null;
+  function wxNextKmPoint(){
+    try{
+      var coords=(typeof currentRouteCoords!=='undefined')?currentRouteCoords:null;
+      if(!coords||coords.length<2) return null;
+      var pos=wxChipPos(); if(!pos) return null;
+      var idx=wxNearestIdx(pos.lat,pos.lng); if(idx<0) return null;
+      var tot=0, remD=0;
+      for(var i=1;i<coords.length;i++){ var dd=calcDist(coords[i-1][0],coords[i-1][1],coords[i][0],coords[i][1]); tot+=dd; if(i>idx) remD+=dd; }
+      if(!(remD>=1000)) return null;
+      var totalDur=(typeof currentRouteData!=='undefined'&&currentRouteData&&currentRouteData.duration)||0;
+      var remainSec=tot>0?totalDur*(remD/tot):0;
+      var acc=0;
+      for(var j=idx;j<coords.length-1;j++){
+        var seg=calcDist(coords[j][0],coords[j][1],coords[j+1][0],coords[j+1][1]);
+        if(acc+seg>=1000){
+          var frac=seg>0?(1000-acc)/seg:0;
+          var la=coords[j][0]+(coords[j+1][0]-coords[j][0])*frac;
+          var lo=coords[j][1]+(coords[j+1][1]-coords[j][1])*frac;
+          var etaMin=remainSec>0?remainSec*(1000/remD)/60:2;
+          return {lat:la, lon:lo, etaMin:Math.round(etaMin)};
+        }
+        acc+=seg;
+      }
+      return null;
+    }catch(e){ return null; }
+  }
+  function wxSheetUrl(pos){
+    try{ var _nb=document.body&&(document.body.classList.contains('google-nav')||document.body.classList.contains('navigating')); if(!_nb) return '/weather.html?lat='+pos.lat.toFixed(5)+'&lon='+pos.lng.toFixed(5); }catch(e){}
+    var u='/weather-map.html?lat='+pos.lat.toFixed(5)+'&lon='+pos.lng.toFixed(5);
+    try{
+      if(typeof endPoint!=='undefined'&&endPoint&&endPoint.lat){
+        u+='&dlat='+endPoint.lat.toFixed(5)+'&dlon='+endPoint.lng.toFixed(5);
+        var deta=null;
+        try{
+          var coords2=(typeof currentRouteCoords!=='undefined')?currentRouteCoords:null;
+          var totalDur2=(typeof currentRouteData!=='undefined')&&currentRouteData&&currentRouteData.duration;
+          if(coords2&&coords2.length>1&&totalDur2>0){
+            var idx2=wxNearestIdx(pos.lat,pos.lng);
+            var tot2=0, remD2=0;
+            for(var i2=1;i2<coords2.length;i2++){ var dd2=calcDist(coords2[i2-1][0],coords2[i2-1][1],coords2[i2][0],coords2[i2][1]); tot2+=dd2; if(i2>idx2) remD2+=dd2; }
+            if(tot2>0) deta=Math.round(totalDur2*(remD2/tot2)/60);
+          }
+        }catch(e){}
+        if(deta!==null&&deta>=0) u+='&deta='+deta;
+      }
+      var rdS=null;
+      try{ var ccS=(typeof currentRouteCoords!=='undefined')?currentRouteCoords:null; if(ccS&&ccS.length>1){ var ixS=wxNearestIdx(pos.lat,pos.lng); rdS=0; for(var qS=1;qS<ccS.length;qS++){ if(qS>ixS) rdS+=calcDist(ccS[qS-1][0],ccS[qS-1][1],ccS[qS][0],ccS[qS][1]); } } }catch(e){}
+      if(rdS!==null&&rdS>=1000&&rdS<30000){ u+='&short=1'; }
+      else{ var nk=wxNextKmPoint(); if(nk) u+='&nlat='+nk.lat.toFixed(5)+'&nlon='+nk.lon.toFixed(5)+'&neta='+nk.etaMin; }
+    }catch(e){}
+    return u;
+  }
+
+  function wxSheetSnapBack(){ try{ var sh=document.getElementById('wxSheet'); if(sh) sh.style.transform=''; }catch(e){} }
+  function wxSheetBindDrag(){
+    try{
+      if(wxSheetDragBound) return;
+      var h=document.getElementById('wxSheetHandle'), sh=document.getElementById('wxSheet');
+      if(!h||!sh) return;
+      wxSheetDragBound=true;
+      h.addEventListener('pointerdown', function(ev){ wxSheetDragY=ev.clientY; try{ h.setPointerCapture(ev.pointerId); }catch(e){} });
+      h.addEventListener('pointermove', function(ev){ if(wxSheetDragY===null) return; var dy=ev.clientY-wxSheetDragY; if(dy>0) sh.style.transform='translateY('+dy+'px)'; });
+      var end=function(ev){ if(wxSheetDragY===null) return; var dy=ev.clientY-wxSheetDragY; wxSheetDragY=null; if(dy>80){ wxCloseSheet(); } else { wxSheetSnapBack(); } };
+      h.addEventListener('pointerup', end);
+      h.addEventListener('pointercancel', end);
+    }catch(e){}
+  }
+  function wxOpenSheet(){
+    try{
+      var pos=wxChipPos(); if(!pos) return;
+      var sh=document.getElementById('wxSheet'); if(!sh) return;
+      var fr=document.getElementById('wxFrame');
+      var url=wxSheetUrl(pos);
+      if(fr && fr.getAttribute('src')!==url) fr.setAttribute('src', url);
+      wxSheetBindDrag();
+      sh.style.display='block'; try{ sh.classList.add('wx-open'); }catch(e){} wxSheetSnapBack(); wxSheetOpen=true;
+    }catch(e){}
+  }
+  function wxCloseSheet(){ try{ wxSheetOpen=false; var sh=document.getElementById('wxSheet'); if(sh){ sh.style.display='none'; sh.style.transform=''; try{ sh.classList.remove('wx-open'); }catch(e){} } }catch(e){} }
+  function wxToggleSheet(){ try{ if(wxSheetOpen){ wxCloseSheet(); return; } wxCloseCard(); wxOpenSheet(); }catch(e){} }
+  function wxCloseSheetOnMapTap(){ if(wxSheetOpen){ wxCloseSheet(); return true; } return false; }
+  window.wxToggleCard=wxToggleCard; window.wxCloseCard=wxCloseCard; window.wxCloseCardOnMapTap=wxCloseCardOnMapTap; window.wxToggleSheet=wxToggleSheet; window.wxCloseSheet=wxCloseSheet; window.wxCloseSheetOnMapTap=wxCloseSheetOnMapTap;
+  var wxNav={coordsKey:null, cum:null, total:0, lastIdx:0, lastSeg:-1, lastCheck:0, done:false, fetching:false};
+  function wxHideStrip(){ try{ var el=document.getElementById('wxDriveStrip'); if(el) el.style.display='none'; }catch(e){} }
+  function wxNavReset(){ wxNav.coordsKey=null; wxNav.cum=null; wxNav.total=0; wxNav.lastIdx=0; wxNav.lastSeg=-1; wxNav.done=false; wxNav.fetching=false; wxHideStrip(); }
+  function wxNearestIdx(lat, lng){
+    var coords=currentRouteCoords, n=coords.length;
+    var from=Math.max(0, wxNav.lastIdx-400), to=Math.min(n-1, wxNav.lastIdx+400);
+    var best=-1, bd=Infinity;
+    for(var i=from;i<=to;i++){ var d=calcDist(lat,lng,coords[i][0],coords[i][1]); if(d<bd){bd=d;best=i;} }
+    if((best===from&&from>0)||(best===to&&to<n-1)){
+      for(var j=0;j<n;j++){ var d2=calcDist(lat,lng,coords[j][0],coords[j][1]); if(d2<bd){bd=d2;best=j;} }
+    }
+    return best;
+  }
+  async function wxOnGpsFix(lat, lng){
+    try{
+      wxUpdateChip(false);
+      try{ wxUpdateNavBar(false); }catch(e){}
+      var nav=false;
+      try{ nav=(typeof isNavigating!=='undefined'&&isNavigating)||(document.body&&(document.body.classList.contains('google-nav')||document.body.classList.contains('navigating'))); }catch(e){}
+      if(!nav||typeof currentRouteCoords==='undefined'||!currentRouteCoords||currentRouteCoords.length<2){ if(wxNav.coordsKey) wxNavReset(); return; }
+      var now=Date.now();
+      if(now-wxNav.lastCheck<3000) return;
+      wxNav.lastCheck=now;
+      var key=currentRouteCoords.length+'|'+currentRouteCoords[0][0]+','+currentRouteCoords[0][1]+'|'+currentRouteCoords[currentRouteCoords.length-1][0]+','+currentRouteCoords[currentRouteCoords.length-1][1];
+      if(wxNav.coordsKey!==key){
+        var cum=[0];
+        for(var i=1;i<currentRouteCoords.length;i++){ cum.push(cum[i-1]+calcDist(currentRouteCoords[i-1][0],currentRouteCoords[i-1][1],currentRouteCoords[i][0],currentRouteCoords[i][1])); }
+        wxNav.cum=cum; wxNav.total=cum[cum.length-1]; wxNav.coordsKey=key; wxNav.lastIdx=0; wxNav.lastSeg=-1; wxNav.done=false;
+      }
+      var idx=wxNearestIdx(lat,lng); if(idx<0) return;
+      wxNav.lastIdx=idx;
+      var traveled=wxNav.cum[idx], remain=wxNav.total-traveled;
+      if(remain<30000){ wxHideStrip(); wxNav.done=true; return; }
+      if(wxNav.done||wxNav.fetching) return;
+      var seg=Math.floor(traveled/300000);
+      if(seg===wxNav.lastSeg) return;
+      wxNav.lastSeg=seg;
+      wxNav.fetching=true;
+      try{
+        var avgSpd=30;
+        try{ var td=currentRouteData&&currentRouteData.distance||0, tu=currentRouteData&&currentRouteData.duration||0; if(td>0&&tu>0) avgSpd=(td/1000)/(tu/3600); }catch(e){}
+        try{ var sp=(typeof smoothedSpeed!=='undefined'?smoothedSpeed*3.6:0); if(sp>10) avgSpd=sp; }catch(e){}
+        if(!(avgSpd>5)) avgSpd=30;
+        var nowSec=Math.floor(now/1000);
+        var ahead=[100000,200000,300000], worst=null, worstSev=-1, worstDist=0;
+        for(var a=0;a<ahead.length;a++){
+          var da=Math.min(ahead[a], remain);
+          var target=traveled+da, j=idx;
+          while(j<wxNav.cum.length-1&&wxNav.cum[j]<target) j++;
+          var c=currentRouteCoords[j];
+          var eta=nowSec + (da/1000)/avgSpd*3600;
+          var fc=await wxGet('forecast', c[0], c[1]);
+          var slot=fc?wxPickSlot(fc.list, eta):null;
+          if(!slot) continue;
+          var sv=wxCond(wxIdOf(slot),wxIconOf(slot)).sev;
+          if(sv>worstSev){ worstSev=sv; worst=slot; worstDist=da; }
+        }
+        var el=document.getElementById('wxDriveStrip');
+        if(el){
+          if(worst&&worstSev===2){
+            var tx=document.getElementById('wxDriveStripText');
+            if(tx) tx.textContent='Còn ~'+Math.round(worstDist/1000)+'km nữa: '+wxDescOf(worst)+' · '+wxTempOf(worst)+'°';
+            el.style.display='flex';
+          } else { el.style.display='none'; }
+        }
+      }finally{ wxNav.fetching=false; }
+    }catch(e){}
+  }
+    /* [NAV WEATHER BAR 2026-11-27] Thanh thoi tiet rieng khi dan duong: hien tai + tren duong + diem den, nut ^ thu/mo. Du lieu qua Worker, khong key. */
+  var wxNavBarExpanded=false, wxNavBarLastAt=0, wxNavBarHasData=false;
+  function wxNavBarIsNav(){ try{ return (typeof isNavigating!=='undefined'&&isNavigating)||(document.body&&(document.body.classList.contains('google-nav')||document.body.classList.contains('navigating'))); }catch(e){ return false; } }
+  function wxNavBarPosition(){ try{ var bar=document.getElementById('wxNavBar'); if(!bar) return; var nx=document.getElementById('gNavNextBanner'); if(nx&&nx.classList.contains('show')){ var r2=nx.getBoundingClientRect(); if(r2&&r2.height>0){ bar.style.top=r2.top+'px'; return; } } var bottom=0; var b=document.getElementById('gNavTopBanner'); if(b&&b.classList.contains('show')){ var r=b.getBoundingClientRect(); if(r&&r.bottom>bottom) bottom=r.bottom; } var st=document.getElementById('wxDriveStrip'); if(st&&st.style.display!=='none'){ var r3=st.getBoundingClientRect(); if(r3&&r3.height>0&&r3.bottom>bottom) bottom=r3.bottom; } if(bottom>0){ bar.style.top=(bottom+8)+'px'; } else { bar.style.top='calc(144px + var(--safe-top, 0px))'; } }catch(e){} }
+  function wxNavBarRowHTML(label, slot, etaSec){ if(!slot) return ''; var c=wxCond(wxIdOf(slot),wxIconOf(slot)); var bad=c.sev===2; return '<span class="wxnb-label">'+label+'</span><span class="wxnb-val'+(bad?' wxnb-bad':'')+'"><i class="fas '+c.fa+'"></i> '+wxTempOf(slot)+'\u00b0 \u00b7 '+wxDescOf(slot)+(etaSec?' \u00b7 '+wxFmtHour(etaSec):'')+'</span>'; }
+  function wxNavBarMainHTML(cur, destSlot){ var h=''; if(cur){ var w=cur.weather&&cur.weather[0]; var c=wxCond(w?w.id:800,w?w.icon:'01d'); h+='<i class="fas '+c.fa+'"></i> '+Math.round(cur.main.temp)+'\u00b0'; } if(destSlot){ var c2=wxCond(wxIdOf(destSlot),wxIconOf(destSlot)); h+=' \u2192 <span'+(c2.sev===2?' class="wxnb-bad"':'')+'><i class="fas '+c2.fa+'"></i> '+wxTempOf(destSlot)+'\u00b0</span>'; } return h||'…'; }
+  async function wxUpdateNavBar(force){ try{
+    var bar=document.getElementById('wxNavBar');
+    if(!wxNavBarIsNav()){ if(bar) bar.style.display='none'; wxNavBarHasData=false; return; }
+    var now=Date.now();
+    if(!force&&wxNavBarHasData&&(now-wxNavBarLastAt)<60*1000){ if(bar) wxNavBarPosition(); return; }
+    var pos=null; try{ pos=(typeof lastUserPos!=='undefined'&&lastUserPos)?lastUserPos:wxChipPos(); }catch(e){}
+    if(!pos||!bar) return;
+    bar.style.display=''; wxNavBarPosition();
+    var cur=wxChipState.cur; if(!cur){ cur=await wxGet('current', pos.lat, pos.lng); }
+    var remainSec=0, routeSlot=null;
+    try{
+      var coords=(typeof currentRouteCoords!=='undefined')?currentRouteCoords:null;
+      if(coords&&coords.length>1){
+        var startIdx=(typeof wxNav!=='undefined'&&wxNav.lastIdx)||0;
+        var totalDur=(typeof currentRouteData!=='undefined'&&currentRouteData&&currentRouteData.duration)||0;
+        var ri=wxRemainInfo(coords, startIdx, totalDur);
+        remainSec=ri.remainSec;
+        var nowSec=Math.floor(now/1000);
+        if(ri.short){ routeSlot=cur||null; }
+        else{
+          var samples=wxRouteSamples(ri.winCoords, ri.winDur, nowSec);
+          var worst=null, worstSev=-1;
+          for(var s2=1;s2<samples.length-1;s2++){ var fc2=await wxGet('forecast', samples[s2].lat, samples[s2].lon); var sl2=fc2?wxPickSlot(fc2.list, samples[s2].eta):null; if(!sl2) continue; var sv2=wxCond(wxIdOf(sl2),wxIconOf(sl2)).sev; if(sv2>worstSev){ worstSev=sv2; worst=sl2; } }
+          routeSlot=worst;
+        }
+      }
+    }catch(e){}
+    var destSlot=null, destEta=0;
+    try{ if(typeof endPoint!=='undefined'&&endPoint&&endPoint.lat){ destEta=Math.floor(now/1000)+Math.round(remainSec); var fc3=await wxGet('forecast', endPoint.lat, endPoint.lng); destSlot=fc3?wxDestDisplaySlot(fc3.list, Math.floor(now/1000), destEta, cur):null; } }catch(e){}
+    var mn=document.getElementById('wxNavBarMain'); if(mn) mn.innerHTML=wxNavBarMainHTML(cur, destSlot);
+    var r1=document.getElementById('wxNavBarRowCur'); if(r1){ var h1=wxNavBarRowHTML('Hi\u1ec7n t\u1ea1i', cur, 0); r1.innerHTML=h1; r1.style.display=h1?'flex':'none'; }
+    var r2=document.getElementById('wxNavBarRowRoute'); if(r2){ var h2=wxNavBarRowHTML('Tr\u00ean \u0111\u01b0\u1eddng', routeSlot, 0); r2.innerHTML=h2; r2.style.display=h2?'flex':'none'; }
+    var r3=document.getElementById('wxNavBarRowDest'); if(r3){ var h3=wxNavBarRowHTML('\u0110i\u1ec3m \u0111\u1ebfn', destSlot, destEta); r3.innerHTML=h3; r3.style.display=h3?'flex':'none'; }
+    wxNavBarLastAt=now; wxNavBarHasData=true;
+    bar.style.display='';
+    wxNavBarPosition();
+  }catch(e){} }
+  window.wxToggleNavBar=function(){ try{ wxNavBarExpanded=!wxNavBarExpanded; var bar=document.getElementById('wxNavBar'); if(!bar) return; bar.classList.toggle('expanded', wxNavBarExpanded); var rows=document.getElementById('wxNavBarRows'); if(rows) rows.style.display=wxNavBarExpanded?'block':'none'; var tg=document.getElementById('wxNavBarToggle'); if(tg) tg.textContent=wxNavBarExpanded?'v':'^'; wxNavBarPosition(); }catch(e){} };
+  window.wxUpdateNavBar=wxUpdateNavBar;
+  try{ window.addEventListener('resize', function(){ try{ wxNavBarPosition(); }catch(e){} }); }catch(e){}
+  window.wxOnGpsFix=wxOnGpsFix;
+  try{ setInterval(function(){ try{ wxEnsureChipPos(); wxUpdateChip(false); try{ wxUpdateNavBar(false); }catch(e){} }catch(e){} }, 60000); }catch(e){}
+  try{ wxEnsureChipPos(); }catch(e){}
+  window._wxTest={wxCond:wxCond, wxPickSlot:wxPickSlot, wxRouteSamples:wxRouteSamples};
+})();
+
