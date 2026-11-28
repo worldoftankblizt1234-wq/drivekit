@@ -9168,6 +9168,8 @@ function dk360AddCoverage(){
         type: 'line',
         source: DK360_SRC,
         'source-layer': 'sequence',
+        // BEST-ONLY 2026-11-28: chi ve sequence chat luong cao (quality_score >= 0.5), bo All captures cho nhe va dep hon
+        filter: ['>=', ['get', 'quality_score'], 0.5],
         minzoom: 6,
         maxzoom: 22,
         layout: { 'line-cap': 'round', 'line-join': 'round' },
