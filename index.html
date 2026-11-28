@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DriveKit — Bản đồ và dẫn đường cho tài xế Việt</title>
-<meta name="description" content="DriveKit là ứng dụng bản đồ và dẫn đường miễn phí trên trình duyệt, làm riêng cho tài xế Việt: biển báo giao thông, trạm dừng nghỉ, cảnh báo tốc độ và camera phạt nguội, dự báo thời tiết dọc tuyến đường và địa điểm cộng đồng. Không cần cài đặt, chạy tốt trên điện thoại yếu.">
+<meta name="description" content="DriveKit là bản đồ và dẫn đường miễn phí cho tài xế Việt: biển báo giao thông, trạm dừng nghỉ, cảnh báo tốc độ, camera phạt nguội và dự báo thời tiết.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="DriveKit — Bản đồ và dẫn đường cho tài xế Việt">
 <meta property="og:description" content="Biển báo giao thông, trạm dừng nghỉ, cảnh báo tốc độ, dự báo thời tiết dọc tuyến đường — tất cả trong một trang web, không cần cài đặt.">
@@ -78,6 +78,129 @@
     .hero { padding-top: 32px; }
   }
 </style>
+    <link rel="canonical" href="https://drive-kit.pages.dev/">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "DriveKit",
+      "applicationCategory": "NavigationApplication",
+      "operatingSystem": "Web",
+      "inLanguage": "vi",
+      "url": "https://drive-kit.pages.dev/",
+      "description": "DriveKit là bản đồ và dẫn đường miễn phí cho tài xế Việt: biển báo giao thông, trạm dừng nghỉ, cảnh báo tốc độ, camera phạt nguội và dự báo thời tiết.",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "VND"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Dùng DriveKit có miễn phí không?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Có, gói Free là 0đ và dùng được đầy đủ bản đồ, dẫn đường, biển báo, trạm dừng nghỉ và dự báo thời tiết. DriveKit chỉ thu phí dịch vụ gọi tài xế (gói Connect), còn lại không có phí ẩn và không có quảng cáo chen vào lúc đang lái xe."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "DriveKit khác Google Maps ở điểm nào?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "DriveKit làm riêng cho tài xế Việt: hơn 270 biển báo giao thông Việt Nam hiện theo từng đoạn đường, trạm dừng nghỉ do cộng đồng đóng góp, cảnh báo tốc độ và camera phạt nguội, vùng cấm theo từng loại xe và khung giờ, cùng tính năng chia sẻ vị trí trực tiếp. Tất cả chạy ngay trên trình duyệt, không cần cài đặt ứng dụng."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Có cần đăng nhập không?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Có. Bạn cần đăng nhập để dùng bản đồ, dẫn đường và đóng góp nội dung cho cộng đồng. Đăng nhập cũng giúp DriveKit lưu lại lịch sử lộ trình và các địa điểm bạn đã đóng góp, để lần sau mở lên là dùng tiếp được ngay."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Dẫn đường cho xe máy, xe tải có khác ô tô không?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Có, và khác nhiều. Bạn chọn đúng loại xe của mình trước khi đi, DriveKit sẽ tính lộ trình riêng cho loại xe đó, né những đoạn đường cấm xe tải hoặc cấm theo giờ, đồng thời cảnh báo giới hạn tốc độ phù hợp với xe bạn đang chạy."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Có xem dự báo thời tiết được không?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Có. Mở chip thời tiết trong app để xem khả năng mưa 3 giờ tới, dự báo 24 giờ và 5 ngày tới, kèm độ ẩm, gió, áp suất và tầm nhìn. Khi đang dẫn đường, DriveKit còn cho xem thời tiết ở 3 điểm trên tuyến: vị trí hiện tại, điểm đến và 1 km tiếp theo, để bạn biết trước đoạn nào sắp mưa."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Báo cáo kẹt xe, CSGT, ổ gà trên đường như thế nào?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Đang đi mà gặp kẹt xe, CSGT, tai nạn, ổ gà hay đường ngập, bạn báo ngay trên bản đồ để tài xế khác đi sau tránh được. Mỗi báo cáo đều có thời gian tự hết hạn riêng, và hệ thống có chống spam với chống báo trùng, nên bản đồ không bị loạn vì báo cáo cũ hay báo cáo ảo."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Chia sẻ vị trí trực tiếp cho người nhà xem thì làm sao?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Bạn mở tính năng Live Room, tạo một phòng và gửi mã phòng cho người nhà. Họ nhập mã là xem được vị trí của bạn theo thời gian thực, biết bạn đang ở đâu và còn bao xa thì tới nơi, không cần phải gọi điện hỏi đường liên tục."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Mất mạng thì DriveKit còn dùng được không?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Còn, nhưng hạn chế. DriveKit có lưu lại bản đồ những đoạn đường bạn đã xem trong 36 giờ, nên mất mạng vẫn xem được bản đồ đó. Còn chỉ đường mới, tìm kiếm địa điểm và dự báo thời tiết thì vẫn cần mạng, vì các tính năng đó tính toán trên máy chủ."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Điện thoại nào dùng được?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Mọi điện thoại có trình duyệt hiện đại đều dùng được, kể cả điện thoại cấu hình thấp, vì DriveKit chạy ngay trên web mà không cần cài đặt. Bạn chỉ cần mở trình duyệt, đăng nhập và bắt đầu đi, không tốn bộ nhớ máy để tải ứng dụng."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Tôi đóng góp trạm dừng nghỉ, địa điểm mới bằng cách nào?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Bạn thêm trực tiếp trên bản đồ: trạm dừng nghỉ bạn vừa ghé, quán ăn, cây xăng hay bất kỳ địa điểm nào hữu ích cho tài xế khác. Mỗi đóng góp đều giúp bản đồ đầy đủ hơn, và cộng đồng cùng dùng chung dữ liệu đó."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Dữ liệu biển báo và lộ trình có chính xác không?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Dữ liệu đến từ OpenStreetMap, Mapillary, TomTom và cộng đồng người dùng nên có thể thiếu hoặc chưa cập nhật ở một số đoạn đường. Bạn luôn phải tuân thủ biển báo và luật giao thông thực tế ngoài đường, đừng chỉ nghe theo app."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "DriveKit có thu thập dữ liệu của tôi không?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Có, ở mức cần thiết để vận hành: tài khoản đăng nhập, vị trí GPS và nội dung bạn gửi lên, như địa điểm đóng góp hay báo cáo sự cố. Chi tiết đầy đủ xem trong Chính sách riêng tư."
+          }
+        }
+      ]
+    }
+  ]
+}
+    </script>
 </head>
 <body>
 <header class="top">

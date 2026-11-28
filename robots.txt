@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://drive-kit.pages.dev/sitemap.xml
