@@ -6833,6 +6833,8 @@ try{
         box-shadow:0 -8px 32px rgba(0,0,0,.14), 0 -1px 0 rgba(0,0,0,.04) !important;
         padding:10px 14px calc(16px + env(safe-area-inset-bottom, 0px)) !important;
         will-change:transform !important;
+        overflow:hidden !important;
+        user-select:none !important; -webkit-user-select:none !important;
       }
       html body:not(.light-mode) #homeBottomSheet{
         background:#1f2937 !important;
@@ -6841,7 +6843,9 @@ try{
       }
       html body #homeBottomSheet .hb-handle{
         width:48px !important; height:5px !important; background:#D1D5DB !important; margin:0 auto 10px !important;
+        padding:8px 0 !important; background-clip:content-box !important; touch-action:none !important; cursor:grab !important;
       }
+      html body #homeBottomSheet .hb-head{ touch-action:none !important; }
       html body:not(.light-mode) #homeBottomSheet .hb-handle{ background:#4B5563 !important; }
       /* Header premium: title + subtitle ben trai, nut thu gon ben phai */
       html body #homeBottomSheet .hb-head{ padding:0 4px 10px !important; align-items:flex-start !important; }
@@ -6854,21 +6858,23 @@ try{
         transition:transform .2s ease !important;
       }
       html body #homeBottomSheet.hb-collapsed .hb-toggle{ transform:rotate(180deg) !important; }
-      /* Grid 5 nut - vua 1 hang tren mobile */
+      /* [SHEET-FIX 2026-11-28] Thu gon bang max-height + visibility, BO grid-template-rows 0fr:
+         0fr khong an het nut — mep tren 5 icon van lo ra duoi day sheet khi thu gon (video user 18:38).
+         Sheet co overflow:hidden lam lop chan cuoi cung. max-height KHONG !important de luc keo
+         JS set inline maxHeight duoc (inline khong thang !important). */
       html body #homeBottomSheet .hb-grid{
-        grid-template-columns:repeat(5, 1fr) !important; gap:4px !important;
-        overflow:hidden !important; grid-template-rows:1fr !important; opacity:1 !important;
-        transition:grid-template-rows .28s ease, opacity .2s ease !important;
+        grid-template-columns:repeat(5, 1fr) !important; gap:2px !important;
+        overflow:hidden !important; max-height:120px; opacity:1; visibility:visible;
+        transition:max-height .28s ease, opacity .2s ease, visibility 0s linear 0s !important;
       }
-      /* [PERF/UX 2026-11-28] Thu gon muot: grid 0fr thay vi display:none dot ngot */
       html body #homeBottomSheet .hb-grid > *{ min-height:0 !important; }
-      html body #homeBottomSheet.hb-collapsed .hb-grid{ grid-template-rows:0fr !important; opacity:0 !important; }
+      html body #homeBottomSheet.hb-collapsed .hb-grid{ max-height:0; opacity:0; visibility:hidden; pointer-events:none; transition:max-height .28s ease, opacity .2s ease, visibility 0s linear .28s !important; }
       html body #homeBottomSheet .hb-handle{ touch-action:none !important; }
-      html body #homeBottomSheet .hb-action{ padding:8px 1px 6px !important; gap:7px !important; border-radius:16px !important; transition:background .15s ease, transform .12s ease !important; }
+      html body #homeBottomSheet .hb-action{ padding:6px 0 4px !important; gap:5px !important; border-radius:16px !important; transition:background .15s ease, transform .12s ease !important; }
       html body #homeBottomSheet .hb-action:active{ transform:scale(.94) !important; }
       /* Icon gradient 56px + bong do - nhin xin hon icon tron don sac cu */
       html body #homeBottomSheet .hb-icon{
-        width:56px !important; height:56px !important; border-radius:18px !important;
+        width:44px !important; height:44px !important; border-radius:14px !important;
         box-shadow:0 6px 16px rgba(0,0,0,.16) !important; color:#fff !important;
       }
       html body #homeBottomSheet .hb-icon svg{ width:24px !important; height:24px !important; }
@@ -6877,14 +6883,14 @@ try{
       html body #homeBottomSheet .hb-icon--place{ background:linear-gradient(135deg,#FBBC04,#F29900) !important; box-shadow:0 6px 16px rgba(242,153,0,.32) !important; }
       html body #homeBottomSheet .hb-icon--poi{ background:linear-gradient(135deg,#A142F4,#7C3AED) !important; box-shadow:0 6px 16px rgba(124,58,237,.35) !important; }
       html body #homeBottomSheet .hb-icon--warn{ background:linear-gradient(135deg,#FF6B35,#EA4335) !important; box-shadow:0 6px 16px rgba(234,67,53,.35) !important; }
-      html body #homeBottomSheet .hb-label{ font-size:11px !important; font-weight:700 !important; line-height:1.25 !important; }
+      html body #homeBottomSheet .hb-label{ font-size:10px !important; font-weight:700 !important; line-height:1.2 !important; white-space:nowrap !important; }
       /* FAB con lai day cao them 1 chut vi sheet premium cao hon */
       html body:not(.navigating):not(.google-nav) #mainLocateBtn,
       html body:not(.navigating):not(.google-nav) #btnLayerMenu,
       html body:not(.navigating):not(.google-nav) #btnReport,
       html body:not(.navigating):not(.google-nav) #btnRestStopFilter{ bottom:168px !important; }
       @media (max-width:380px){
-        html body #homeBottomSheet .hb-icon{ width:48px !important; height:48px !important; border-radius:16px !important; }
+        html body #homeBottomSheet .hb-icon{ width:44px !important; height:44px !important; border-radius:14px !important; }
         html body #homeBottomSheet .hb-label{ font-size:10.5px !important; }
         html body #homeBottomSheet{ padding-left:8px !important; padding-right:8px !important; }
       }
@@ -6928,7 +6934,7 @@ try{
         </button>
         <button type="button" class="hb-action" id="hbAddPlace">
           <span class="hb-icon hb-icon--place"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21 s-7 -5.5 -7 -11 a7 7 0 0 1 14 0 c0 5.5 -7 11 -7 11 Z"/><circle cx="12" cy="10" r="2.5"/><path d="M12 7.5 v5 M9.5 10 h5"/></svg></span>
-          <span class="hb-label">Thêm<br>địa điểm</span>
+          <span class="hb-label">Thêm điểm</span>
         </button>
         <button type="button" class="hb-action" id="hbAddPoi">
           <span class="hb-icon hb-icon--poi"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13 L13 20 a2 2 0 0 1 -2.8 0 L3 12.8 V4 h8.8 Z"/><circle cx="8.5" cy="8.5" r="1.6" fill="#fff" stroke="none"/><path d="M12 7.5 v5 M9.5 10 h5"/></svg></span>
@@ -6936,23 +6942,74 @@ try{
         </button>
         <button type="button" class="hb-action" id="hbWarnPoi">
           <span class="hb-icon hb-icon--warn"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L22 20 H2 Z" fill="rgba(255,255,255,.18)"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r="1.2" fill="#fff" stroke="none"/></svg></span>
-          <span class="hb-label">POI<br>cảnh báo</span>
+          <span class="hb-label">Cảnh báo</span>
         </button>
       </div>`;
     document.body.appendChild(sheet);
 
-    const toggle = ()=>{ sheet.classList.toggle('hb-collapsed'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = sheet.classList.contains('hb-collapsed') ? '˅' : '˄'; };
-    sheet.querySelector('#hbHandle').addEventListener('click', toggle);
-    sheet.querySelector('#hbToggle').addEventListener('click', toggle);
+    // [SHEET-FIX 2026-11-28] Keo tay cam / tieu de: luoi 5 nut co dan theo ngon tay
+    // (max-height + opacity), SHEET DUNG YEN tai day — khong translate ca sheet nua.
+    // Ban cu translate toi 120px day ca luoi xuong khoi man hinh, mep icon lo ra o mep
+    // duoi viewport (video user 18:38, frame f003/f009/f010). Tha ra moi snap theo nguong 50px.
+    // Loi cu nua: click tren tay cam chay SAU touchend nen dao nguoc ket qua keo
+    // (keo xuong thu gon xong click mo lai ngay) -> chan click sau khi keo.
     try{
-      let sy = 0, dragging = false;
-      const h = sheet.querySelector('#hbHandle');
-      // [PERF/UX 2026-11-28] Keo theo ngon tay (rAF throttle, dung style.translate de khong de len transform translateX(-50%) o desktop) roi moi snap o touchend.
-      // Ban cu chi doi du 28px roi snap dot ngot -> cam giac "tho, giat".
-      let _hbRaf = 0, _hbDy = 0;
-      h.addEventListener('touchstart', (e)=>{ sy = e.touches[0].clientY; _hbDy = 0; dragging = true; sheet.style.transition = 'none'; }, { passive:true });
-      h.addEventListener('touchmove', (e)=>{ if (!dragging) return; _hbDy = e.touches[0].clientY - sy; if (_hbRaf) return; _hbRaf = requestAnimationFrame(()=>{ _hbRaf = 0; try { sheet.style.translate = '0 ' + Math.max(-70, Math.min(120, _hbDy)) + 'px'; } catch (_e) {} }); }, { passive:true });
-      h.addEventListener('touchend', ()=>{ if (!dragging) return; dragging = false; if (_hbRaf) { cancelAnimationFrame(_hbRaf); _hbRaf = 0; } sheet.style.transition = ''; sheet.style.translate = ''; const dy = _hbDy; const t = sheet.querySelector('#hbToggle'); if (dy > 60) { sheet.classList.add('hb-collapsed'); if (t) t.textContent = '˅'; } else if (dy < -28) { sheet.classList.remove('hb-collapsed'); if (t) t.textContent = '˄'; } });
+      const grid = sheet.querySelector('.hb-grid');
+      const head = sheet.querySelector('.hb-head');
+      const handle = sheet.querySelector('#hbHandle');
+      const toggleBtn = sheet.querySelector('#hbToggle');
+      let sy = 0, dragging = false, _hbDy = 0, _hbRaf = 0, _hbFull = 0, _hbMoved = false, _hbSuppressClick = false;
+      const setToggle = ()=>{ const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = sheet.classList.contains('hb-collapsed') ? '˅' : '˄'; };
+      const applyLive = (frac)=>{
+        if (!grid) return;
+        const f = Math.max(0, Math.min(1, frac));
+        grid.style.maxHeight = Math.round(f * _hbFull) + 'px';
+        grid.style.opacity = String(f);
+        grid.style.visibility = f > 0.02 ? 'visible' : 'hidden';
+      };
+      const startDrag = (y)=>{
+        if (!grid) return;
+        sy = y; _hbDy = 0; _hbMoved = false; dragging = true;
+        _hbFull = grid.scrollHeight || grid.offsetHeight || 120;
+        grid.style.transition = 'none';
+      };
+      const moveDrag = (y)=>{
+        if (!dragging) return;
+        _hbDy = y - sy;
+        if (Math.abs(_hbDy) > 10) _hbMoved = true;
+        if (_hbRaf) return;
+        _hbRaf = requestAnimationFrame(()=>{ _hbRaf = 0;
+          const collapsed = sheet.classList.contains('hb-collapsed');
+          const frac = collapsed ? Math.max(0, Math.min(1, -_hbDy / _hbFull)) : Math.max(0, Math.min(1, 1 - _hbDy / _hbFull));
+          applyLive(frac);
+        });
+      };
+      const clearLive = ()=>{ if (grid) { grid.style.transition = ''; grid.style.maxHeight = ''; grid.style.opacity = ''; grid.style.visibility = ''; } };
+      const endDrag = ()=>{
+        if (!dragging) return;
+        dragging = false;
+        if (_hbRaf) { cancelAnimationFrame(_hbRaf); _hbRaf = 0; }
+        clearLive();
+        const dy = _hbDy;
+        const collapsed = sheet.classList.contains('hb-collapsed');
+        if (!collapsed && dy > 50) { sheet.classList.add('hb-collapsed'); setToggle(); }
+        else if (collapsed && dy < -50) { sheet.classList.remove('hb-collapsed'); setToggle(); }
+        if (_hbMoved) { _hbSuppressClick = true; setTimeout(()=>{ _hbSuppressClick = false; }, 350); }
+      };
+      const cancelDrag = ()=>{ if (!dragging) return; dragging = false; if (_hbRaf) { cancelAnimationFrame(_hbRaf); _hbRaf = 0; } clearLive(); };
+      [handle, head].forEach((el)=>{ if (!el) return;
+        el.addEventListener('touchstart', (e)=>{ startDrag(e.touches[0].clientY); }, { passive:true });
+        el.addEventListener('touchmove', (e)=>{ moveDrag(e.touches[0].clientY); }, { passive:true });
+        el.addEventListener('touchend', endDrag);
+        el.addEventListener('touchcancel', cancelDrag);
+        el.addEventListener('mousedown', (e)=>{ if (e.button !== 0) return; startDrag(e.clientY); });
+      });
+      window.addEventListener('mousemove', (e)=>{ moveDrag(e.clientY); });
+      window.addEventListener('mouseup', endDrag);
+      const tapToggle = ()=>{ if (_hbSuppressClick) return; sheet.classList.toggle('hb-collapsed'); setToggle(); };
+      if (handle) handle.addEventListener('click', tapToggle);
+      if (head) head.addEventListener('click', (e)=>{ if (e.target && e.target.closest && e.target.closest('#hbToggle')) return; tapToggle(); });
+      if (toggleBtn) toggleBtn.addEventListener('click', (e)=>{ e.stopPropagation(); tapToggle(); });
     }catch(e){}
 
     const collapseToPeek = ()=>{ sheet.classList.add('hb-collapsed'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = '˅'; };
