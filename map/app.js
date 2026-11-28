@@ -501,6 +501,9 @@ let lastUserPos = null;
 let lastHeading = 0;
 let searchContext = 'view';
 let initialCenter = [21.0285, 105.8542];
+// Mo ban do o vi tri biet lan truoc (luu trong may) thay vi mac dinh Ha Noi,
+// de khoi phai bay mot doan dai ve GPS that.
+try { const _lp = JSON.parse(localStorage.getItem('drivekit_last_pos') || 'null'); if (_lp && isFinite(_lp.lat) && isFinite(_lp.lng)) initialCenter = [_lp.lat, _lp.lng]; } catch (e) {}
 let initialZoom = 16;
 let lastSnapIndex = 0;
 let smoothedSpeed = 0;
@@ -2435,17 +2438,39 @@ window.refreshGPS = function() {
     document.getElementById('dirInputStart').value = 'Vị trí của tôi (GPS)';
     document.getElementById('btnClearStart').classList.remove('hidden');
     lastUserPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+    saveLastPos(lastUserPos.lat, lastUserPos.lng);
     if (map) {
-      map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 16 });
+      // Bay xa (>20km, vd tu vi tri mac dinh ve GPS that) thi NHAY thang thay vi
+      // flyTo: flyTo duong dai vua cham vua giat do phai tai tile doc duong.
+      const cur = map.getCenter();
+      const dKm = calcDist(cur.lat, cur.lng, pos.coords.latitude, pos.coords.longitude) / 1000;
+      if (dKm > 20) map.jumpTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 16 });
+      else map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 16, duration: 800 });
       updateUserMarkerOnMap(lastUserPos, lastHeading);
     }
   }, (err) => { console.warn(err); }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
 };
 
 window.centerToLocation = function() {
-  if (lastUserPos) map.flyTo({ center: [lastUserPos.lng, lastUserPos.lat], zoom: 18 });
+  if (lastUserPos) {
+    // Xa qua thi nhay thang, gan thi bay nhanh 800ms (ly do nhu refreshGPS).
+    const cur = map.getCenter();
+    const dKm = calcDist(cur.lat, cur.lng, lastUserPos.lat, lastUserPos.lng) / 1000;
+    if (dKm > 20) map.jumpTo({ center: [lastUserPos.lng, lastUserPos.lat], zoom: 18 });
+    else map.flyTo({ center: [lastUserPos.lng, lastUserPos.lat], zoom: 18, duration: 800 });
+  }
   else refreshGPS();
 };
+
+// Luu vi tri biet lan truoc de lan sau mo ban do dung ngay gan do (chi luu khi dich >100m).
+function saveLastPos(lat, lng) {
+  try {
+    const raw = localStorage.getItem('drivekit_last_pos');
+    const prev = raw ? JSON.parse(raw) : null;
+    if (prev && calcDist(prev.lat, prev.lng, lat, lng) < 100) return;
+    localStorage.setItem('drivekit_last_pos', JSON.stringify({ lat, lng }));
+  } catch (e) {}
+}
 
 /* ========== GEO HELPERS ========== */
 function getClosestPointOnSegment(p, a, b) {
@@ -2580,6 +2605,7 @@ function startWatching() {
     }
     _gpsLastAcceptedAt = now;
     _gpsLastAcceptedPos = { lat: newPos.lat, lng: newPos.lng, accuracy: newPos.accuracy };
+    saveLastPos(newPos.lat, newPos.lng);
     smoothedSpeed = (0.2 * newPos.speed) + (0.8 * smoothedSpeed);
     const hs = document.getElementById('hudSpeed');
     if (hs) hs.textContent = Math.round(smoothedSpeed * 3.6) + ' km/h';
