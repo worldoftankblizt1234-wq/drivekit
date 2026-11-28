@@ -1273,7 +1273,7 @@ onAuthStateChanged(auth, (user) => {
           checkLoadingComplete();
         },
         () => { updateLoadingProgress(95, "Không lấy được GPS, dùng mặc định"); checkLoadingComplete(); },
-        { enableHighAccuracy: true, timeout: 3000 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     } else { updateLoadingProgress(95, "Thiết bị không hỗ trợ GPS"); checkLoadingComplete(); }
   } else {
@@ -1290,6 +1290,10 @@ onAuthStateChanged(auth, (user) => {
 function initAppUI() {
   initTheme();
   initMap();
+  // LOC GPS: theo doi lien tuc ngay tu khi mo ban do (nhu Google Maps), khong chi
+  // khi bat dau dan duong. Truoc day chi lay GPS 1 lan luc mo (timeout 3s) nen
+  // fix dau thuong la vi tri tho qua WiFi, mui ten dung yen o diem sai.
+  try { if (typeof startWatching === 'function') startWatching(); } catch (e) { console.warn('[GPS watch] khong khoi dong duoc:', e); }
   initDataSubscriptions();
   setupSearchInputs();
   updateVoiceSettingsUI();
@@ -2435,7 +2439,7 @@ window.refreshGPS = function() {
       map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 16 });
       updateUserMarkerOnMap(lastUserPos, lastHeading);
     }
-  }, (err) => { console.warn(err); });
+  }, (err) => { console.warn(err); }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
 };
 
 window.centerToLocation = function() {
@@ -2543,8 +2547,10 @@ function startWatching() {
     if(acc > 80 && _gpsLastAcceptedPos && calcDist(_gpsLastAcceptedPos.lat, _gpsLastAcceptedPos.lng, pos.coords.latitude, pos.coords.longitude) < 200){
       return;
     }
-    // LOC NHAY GPS: nhay >250m trong <3s = toc do >300km/h -> bo, khong de no keo map + reroute loan
-    if(_gpsLastAcceptedPos && _gpsLastAcceptedAt){
+    // LOC NHAY GPS: chi loc nhay khi moc truoc do la fix TOT (accuracy <= 80m).
+    // Neu moc truoc do la fix THO (WiFi, accuracy lon) thi nhay lon la fix that
+    // den, phai nhan chu khong duoc bo - truoc day no bi bo nen mui ten ket o diem sai.
+    if(_gpsLastAcceptedPos && _gpsLastAcceptedPos.accuracy <= 80 && _gpsLastAcceptedAt){
       const jump = calcDist(_gpsLastAcceptedPos.lat, _gpsLastAcceptedPos.lng, pos.coords.latitude, pos.coords.longitude);
       const dt = (now - _gpsLastAcceptedAt) / 1000;
       if(dt > 0 && dt < 3 && jump > 250 && (jump / dt) > 80){
@@ -2563,7 +2569,9 @@ function startWatching() {
     lastTimeForSpeed = now;
     const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, speed: speed || 0, accuracy: pos.coords.accuracy || 10, heading: pos.coords.heading };
     // Lam muot nhe neu di chuyen nho (<30m) de cham khong nhay: 0.65 moi + 0.35 cu
-    if(_gpsLastAcceptedPos){
+    // Chi lam muot khi moc truoc do la fix TOT; moc tho thi lay fix moi nguyen ven
+    // de thoat khoi diem sai thay vi bi keo nguoc ve cho cu.
+    if(_gpsLastAcceptedPos && _gpsLastAcceptedPos.accuracy <= 80){
       const dSmall = calcDist(_gpsLastAcceptedPos.lat, _gpsLastAcceptedPos.lng, newPos.lat, newPos.lng);
       if(dSmall < 30 && dSmall > 0.5){
         newPos.lat = _gpsLastAcceptedPos.lat * 0.35 + newPos.lat * 0.65;
@@ -2571,7 +2579,7 @@ function startWatching() {
       }
     }
     _gpsLastAcceptedAt = now;
-    _gpsLastAcceptedPos = { lat: newPos.lat, lng: newPos.lng };
+    _gpsLastAcceptedPos = { lat: newPos.lat, lng: newPos.lng, accuracy: newPos.accuracy };
     smoothedSpeed = (0.2 * newPos.speed) + (0.8 * smoothedSpeed);
     const hs = document.getElementById('hudSpeed');
     if (hs) hs.textContent = Math.round(smoothedSpeed * 3.6) + ' km/h';
