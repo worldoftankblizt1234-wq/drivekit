@@ -2562,6 +2562,95 @@ function animateMarkerTo(targetPos) {
   if (map.getSource('gps-circle-source')) map.getSource('gps-circle-source').setData(gpsCircleGeoJSON);
 }
 
+// === BO LOC KALMAN GPS ===
+// Loc Kalman 2D (vi tri + van toc) cho GPS: tin fix tot hon fix xau (theo accuracy),
+// du doan vi tri giua cac lan do bang van toc -> mui ten dung yen, khong nhay lung tung.
+// Lam viec trong he met dia phuong (goc = fix dau tien). Thay cho tron co dinh 0.65/0.35.
+let _kalman = null; // { refLat, refLng, x, y, vx, vy, P:[16 so], lastTs }
+
+function _kalmanReset(lat, lng, acc, ts){
+  const a = Math.max(3, Math.min(acc || 50, 300));
+  _kalman = {
+    refLat: lat, refLng: lng,
+    x: 0, y: 0, vx: 0, vy: 0,
+    P: [a*a,0,0,0, 0,a*a,0,0, 0,0,25,0, 0,0,0,25],
+    lastTs: ts
+  };
+}
+function _kalmanToMeters(lat, lng){
+  const cosLat = Math.cos(_kalman.refLat * Math.PI / 180);
+  return { mx: (lng - _kalman.refLng) * 111320 * cosLat, my: (lat - _kalman.refLat) * 110540 };
+}
+function _kalmanToLatLng(mx, my){
+  const cosLat = Math.cos(_kalman.refLat * Math.PI / 180);
+  return { lat: _kalman.refLat + my / 110540, lng: _kalman.refLng + mx / (111320 * cosLat) };
+}
+function kalmanFilterPos(lat, lng, acc, ts){
+  try{
+    if(!_kalman){ _kalmanReset(lat, lng, acc, ts); return { lat: lat, lng: lng }; }
+    let dt = (ts - _kalman.lastTs) / 1000;
+    if(!(dt >= 0)) dt = 0;
+    const m = _kalmanToMeters(lat, lng);
+    // Nhay xa qua (>300m) so voi uoc luong, hoac nghi qua lau (>10s) -> khoi dong lai o diem moi
+    // (doi cho that / bat dau lai), tranh keo mui ten ve cho cu.
+    if(Math.hypot(m.mx - _kalman.x, m.my - _kalman.y) > 300 || dt > 10){
+      _kalmanReset(lat, lng, acc, ts);
+      return { lat: lat, lng: lng };
+    }
+    // PREDICT: x += v*dt ; P = F P F' + Q (mo hinh van toc khong doi, nhieu gia toc q=3)
+    if(dt > 0){
+      dt = Math.min(dt, 5);
+      _kalman.x += _kalman.vx * dt;
+      _kalman.y += _kalman.vy * dt;
+      const P = _kalman.P;
+      const q = 3;
+      const dt2 = dt*dt, dt3 = dt2*dt, dt4 = dt3*dt;
+      const Q = [q*dt4/4, 0, q*dt3/2, 0,  0, q*dt4/4, 0, q*dt3/2,  q*dt3/2, 0, q*dt2, 0,  0, q*dt3/2, 0, q*dt2];
+      const FP = [
+        P[0]+dt*P[8],  P[1]+dt*P[9],  P[2]+dt*P[10], P[3]+dt*P[11],
+        P[4]+dt*P[12], P[5]+dt*P[13], P[6]+dt*P[14], P[7]+dt*P[15],
+        P[8], P[9], P[10], P[11],
+        P[12], P[13], P[14], P[15]
+      ];
+      const FPF = [
+        FP[0]+dt*FP[2],  FP[1]+dt*FP[3],  FP[2], FP[3],
+        FP[4]+dt*FP[6],  FP[5]+dt*FP[7],  FP[6], FP[7],
+        FP[8]+dt*FP[10], FP[9]+dt*FP[11], FP[10], FP[11],
+        FP[12]+dt*FP[14], FP[13]+dt*FP[15], FP[14], FP[15]
+      ];
+      for(let i = 0; i < 16; i++) _kalman.P[i] = FPF[i] + Q[i];
+    }
+    // UPDATE: do = [mx, my], R = accuracy^2 (gioi han 3..300m) -> fix xau anh huong it
+    const r = Math.max(3, Math.min(acc || 50, 300));
+    const R = r * r;
+    const P = _kalman.P;
+    const S00 = P[0] + R, S01 = P[1], S10 = P[4], S11 = P[5] + R;
+    const det = S00 * S11 - S01 * S10;
+    if(!det || !isFinite(det)){ return _kalmanToLatLng(_kalman.x, _kalman.y); }
+    const inv00 = S11 / det, inv01 = -S01 / det, inv10 = -S10 / det, inv11 = S00 / det;
+    const K00 = P[0]*inv00 + P[1]*inv10, K01 = P[0]*inv01 + P[1]*inv11;
+    const K10 = P[4]*inv00 + P[5]*inv10, K11 = P[4]*inv01 + P[5]*inv11;
+    const K20 = P[8]*inv00 + P[9]*inv10, K21 = P[8]*inv01 + P[9]*inv11;
+    const K30 = P[12]*inv00 + P[13]*inv10, K31 = P[12]*inv01 + P[13]*inv11;
+    const y0 = m.mx - _kalman.x, y1 = m.my - _kalman.y;
+    _kalman.x += K00*y0 + K01*y1;
+    _kalman.y += K10*y0 + K11*y1;
+    _kalman.vx += K20*y0 + K21*y1;
+    _kalman.vy += K30*y0 + K31*y1;
+    _kalman.P = [
+      P[0]-K00*P[0]-K01*P[4], P[1]-K00*P[1]-K01*P[5], P[2]-K00*P[2]-K01*P[6], P[3]-K00*P[3]-K01*P[7],
+      P[4]-K10*P[0]-K11*P[4], P[5]-K10*P[1]-K11*P[5], P[6]-K10*P[2]-K11*P[6], P[7]-K10*P[3]-K11*P[7],
+      P[8]-K20*P[0]-K21*P[4], P[9]-K20*P[1]-K21*P[5], P[10]-K20*P[2]-K21*P[6], P[11]-K20*P[3]-K21*P[7],
+      P[12]-K30*P[0]-K31*P[4], P[13]-K30*P[1]-K31*P[5], P[14]-K30*P[2]-K31*P[6], P[15]-K30*P[3]-K31*P[7]
+    ];
+    _kalman.lastTs = ts;
+    return _kalmanToLatLng(_kalman.x, _kalman.y);
+  }catch(e){
+    return { lat: lat, lng: lng };
+  }
+}
+// === END BO LOC KALMAN GPS ===
+
 function startWatching() {
   if (watchId) navigator.geolocation.clearWatch(watchId);
   let lastPosForSpeed = null, lastTimeForSpeed = null;
@@ -2593,16 +2682,10 @@ function startWatching() {
     lastPosForSpeed = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     lastTimeForSpeed = now;
     const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, speed: speed || 0, accuracy: pos.coords.accuracy || 10, heading: pos.coords.heading };
-    // Lam muot nhe neu di chuyen nho (<30m) de cham khong nhay: 0.65 moi + 0.35 cu
-    // Chi lam muot khi moc truoc do la fix TOT; moc tho thi lay fix moi nguyen ven
-    // de thoat khoi diem sai thay vi bi keo nguoc ve cho cu.
-    if(_gpsLastAcceptedPos && _gpsLastAcceptedPos.accuracy <= 80){
-      const dSmall = calcDist(_gpsLastAcceptedPos.lat, _gpsLastAcceptedPos.lng, newPos.lat, newPos.lng);
-      if(dSmall < 30 && dSmall > 0.5){
-        newPos.lat = _gpsLastAcceptedPos.lat * 0.35 + newPos.lat * 0.65;
-        newPos.lng = _gpsLastAcceptedPos.lng * 0.35 + newPos.lng * 0.65;
-      }
-    }
+    // BO LOC KALMAN: thay tron co dinh 0.65/0.35 - tin fix tot hon fix xau (theo accuracy)
+    // va du doan vi tri bang van toc -> cham dung yen, khong nhay.
+    const kf = kalmanFilterPos(newPos.lat, newPos.lng, newPos.accuracy, now);
+    if(kf){ newPos.lat = kf.lat; newPos.lng = kf.lng; }
     _gpsLastAcceptedAt = now;
     _gpsLastAcceptedPos = { lat: newPos.lat, lng: newPos.lng, accuracy: newPos.accuracy };
     saveLastPos(newPos.lat, newPos.lng);
