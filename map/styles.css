@@ -484,12 +484,12 @@ html body:not(.navigating):not(.google-nav) #btnQuickPin{
   background:var(--card) !important; border:1px solid var(--border) !important; border-bottom:none !important;
   border-radius:20px 20px 0 0 !important; box-shadow:0 -10px 30px rgba(0,0,0,.20) !important;
   padding:12px 16px calc(12px + var(--safe-bottom, 0px)) !important;
-  box-sizing:border-box !important; transition:transform .28s ease !important;
+  box-sizing:border-box !important; transition:transform .28s ease !important; will-change:transform !important;
   font-family:var(--font-main) !important;
 }
 body.google-nav #homeBottomSheet, body.navigating #homeBottomSheet{ display:none !important; }
 #homeBottomSheet.hb-hidden{ transform:translateY(100%) !important; pointer-events:none !important; }
-#homeBottomSheet .hb-handle{ width:36px !important; height:4px !important; border-radius:4px !important; background:var(--border) !important; margin:0 auto 10px !important; cursor:grab !important; }
+#homeBottomSheet .hb-handle{ width:36px !important; height:4px !important; border-radius:4px !important; background:var(--border) !important; margin:0 auto 10px !important; cursor:grab !important; touch-action:none !important; }
 #homeBottomSheet .hb-head{ display:flex !important; align-items:flex-start !important; justify-content:space-between !important; padding:0 4px 10px !important; }
 #homeBottomSheet .hb-title-wrap{ display:flex !important; flex-direction:column !important; gap:2px !important; }
 #homeBottomSheet .hb-title{ font-size:14px !important; font-weight:800 !important; color:var(--text) !important; letter-spacing:.1px !important; }
@@ -501,8 +501,9 @@ body.google-nav #homeBottomSheet, body.navigating #homeBottomSheet{ display:none
   cursor:pointer !important; font-size:16px !important; padding:0 !important; transition:transform .2s ease !important;
 }
 #homeBottomSheet.hb-collapsed .hb-toggle{ transform:rotate(180deg) !important; }
-#homeBottomSheet .hb-grid{ display:grid !important; grid-template-columns:repeat(5, 1fr) !important; gap:4px !important; }
-#homeBottomSheet.hb-collapsed .hb-grid{ display:none !important; }
+#homeBottomSheet .hb-grid{ display:grid !important; grid-template-columns:repeat(5, 1fr) !important; gap:4px !important; overflow:hidden !important; grid-template-rows:1fr !important; transition:grid-template-rows .28s ease, opacity .2s ease !important; }
+#homeBottomSheet .hb-grid > *{ min-height:0 !important; }
+#homeBottomSheet.hb-collapsed .hb-grid{ grid-template-rows:0fr !important; opacity:0 !important; }
 #homeBottomSheet .hb-action{
   display:flex !important; flex-direction:column !important; align-items:center !important; gap:7px !important;
   padding:8px 1px 6px !important; border-radius:16px !important; background:transparent !important;
@@ -663,7 +664,7 @@ html body:not(.navigating):not(.google-nav) #mainLocateBtn.fab-locate{
 html body:not(.navigating):not(.google-nav) #homeBottomSheet{
   left:12px !important; right:12px !important; bottom:calc(12px + var(--safe-bottom, 0px)) !important;
   border-radius:28px !important; border:1px solid var(--border) !important;
-  background:var(--card) !important; backdrop-filter:blur(12px) !important;
+  background:var(--card) !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
   box-shadow:0 12px 32px rgba(0,0,0,.22) !important;
   padding:10px 14px calc(10px + var(--safe-bottom, 0px)) !important;
   max-width:480px !important;
@@ -684,7 +685,7 @@ html body #homeBottomSheet .hb-icon{ width:48px !important; height:48px !importa
 html body #homeBottomSheet .hb-icon svg{ width:22px !important; height:22px !important; }
 html body #homeBottomSheet .hb-label{ font-size:10.5px !important; }
 /* Khi thu gon: sheet chi con header ~56px, cum FAB tu ha xuong theo */
-html body #homeBottomSheet.hb-collapsed .hb-grid{ display:none !important; }
+html body #homeBottomSheet.hb-collapsed .hb-grid{ grid-template-rows:0fr !important; opacity:0 !important; }
 
 /* --- Cum FAB trai: La ban + Vi tri dinh nhau --- */
 html body:not(.navigating):not(.google-nav) #fabClusterLeft,
@@ -694,7 +695,7 @@ html body:not(.navigating):not(.google-nav) #fabClusterRight{
   background:var(--card) !important; border:1px solid var(--border) !important;
   border-radius:28px !important; padding:4px !important;
   box-shadow:0 8px 24px rgba(0,0,0,.18) !important;
-  backdrop-filter:blur(10px) !important;
+  backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
 }
 html body:not(.navigating):not(.google-nav) #fabClusterLeft{ left:16px !important; right:auto !important; }
 html body:not(.navigating):not(.google-nav) #fabClusterRight{ right:16px !important; left:auto !important; }

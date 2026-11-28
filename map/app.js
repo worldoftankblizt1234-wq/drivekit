@@ -230,15 +230,18 @@ async function ensureSignIcon(code) {
 }
 
 function preloadVisibleSignIcons() {
+  // [PERF 2026-11-28] Chi preload icon dang hien trong viewport (toi da 120 code).
+  // Ban cu quet TOAN BO tile qua querySourceFeatures (Ha Noi co hang nghin bien) -> fetch + rasterize lien tuc, gay lag khi keo map.
+  // Icon thieu da duoc nap theo nhu cau qua 'styleimagemissing', nen preload chi la bo sung.
   if (!map || !map.getSource(TRAFFIC_SIGN_SOURCE_ID)) return;
   let features = [];
-  try { features = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' }); } catch(e) { return; }
+  try { features = (map.getLayer(TRAFFIC_SIGN_LAYER_ID) && map.queryRenderedFeatures({ layers: [TRAFFIC_SIGN_LAYER_ID] })) || []; } catch(e) { return; }
   const codes = new Set();
-  features.forEach(f => {
-    const p = f.properties || {};
+  for (let i = 0; i < features.length && codes.size < 120; i++) {
+    const p = features[i].properties || {};
     const v = p.object_value || p.value;
     if (v && typeof v === 'string') codes.add(v);
-  });
+  }
   codes.forEach(ensureSignIcon);
 }
 
@@ -409,7 +412,7 @@ function collectSignFrameGroups() {
     const w = (canvas && canvas.clientWidth) || 800, h = (canvas && canvas.clientHeight) || 600;
     const margin = 120, sizeMul = signFrameSizeMul();
     const items = [];
-    for (let i = 0; i < feats.length && items.length < 2000; i++) {
+    for (let i = 0; i < feats.length && items.length < 500; i++) {
       const f = feats[i];
       if (!f || !f.geometry || f.geometry.type !== 'Point') continue;
       const c = f.geometry.coordinates;
@@ -424,7 +427,7 @@ function collectSignFrameGroups() {
     if (items.length === 0) {
       try {
         const rf = (typeof map.queryRenderedFeatures === 'function') ? (map.queryRenderedFeatures({ layers: [TRAFFIC_SIGN_LAYER_ID] }) || []) : [];
-        for (let i = 0; i < rf.length && items.length < 2000; i++) {
+        for (let i = 0; i < rf.length && items.length < 500; i++) {
           const f = rf[i];
           if (!f || !f.geometry || f.geometry.type !== 'Point') continue;
           const c = f.geometry.coordinates;
@@ -480,6 +483,7 @@ function syncFrameLayerVisibility() {
 function refreshSignFrames() {
   try {
     if (!map || !_signFramesOK) return;
+    if (map.getZoom() < 16) return; // [PERF 2026-11-28] Khung bien chi hien tu zoom 16, khoi quet 500 bien vo ich khi zoom xa
     const src = map.getSource(SIGN_FRAME_SOURCE_ID);
     if (!src || typeof src.setData !== 'function') return;
     const groups = collectSignFrameGroups();
@@ -498,7 +502,7 @@ function refreshSignFrames() {
 function refreshSignFramesSoon(ms) {
   try {
     if (_signFramesTimer) clearTimeout(_signFramesTimer);
-    _signFramesTimer = setTimeout(refreshSignFrames, typeof ms === 'number' ? ms : 150);
+    _signFramesTimer = setTimeout(refreshSignFrames, typeof ms === 'number' ? ms : 300);
   } catch (e) {}
 }
 var SIGN_VI_NAMES = {
@@ -686,7 +690,7 @@ function addMapillarySignsLayer() {
       'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.4 * sizeMul, 18, 0.9 * sizeMul],
       'icon-allow-overlap': false,
       'icon-ignore-placement': false,
-      'icon-padding': 12,
+      'icon-padding': 4, // [PERF 2026-11-28] 12 -> 4: bot chi phi collision-detection khi Ha Noi co hang tram bien
       'icon-anchor': 'center'
     },
     paint: { 'icon-opacity': 0.95 }
@@ -741,19 +745,16 @@ function initMapillarySignsLayer() {
   // sourcedata: GỠ handler cũ rồi bind lại mỗi lần — handler mới mới có closure đúng.
   // Tile về -> đảm bảo layer tồn tại + preload icon cho vùng mới. Không block việc addLayer.
   if (_signSourcedataHandler) map.off('sourcedata', _signSourcedataHandler);
+  let _signPreloadTimer = null;
   _signSourcedataHandler = (e) => {
     if (e.sourceId !== TRAFFIC_SIGN_SOURCE_ID) return;
     addMapillarySignsLayer();
     if (!e.isSourceLoaded) return;
-    try {
-      const feats = map.querySourceFeatures(TRAFFIC_SIGN_SOURCE_ID, { sourceLayer: 'traffic_sign' });
-      feats.forEach(f => {
-        const p = f.properties || {};
-        const v = p.object_value || p.value;
-        if (v && typeof v === 'string') ensureSignIcon(v);
-      });
-    } catch(err) {}
-    refreshSignFramesSoon(150);
+    // [PERF 2026-11-28] Khong quet toan bo tile moi lan tile ve (Ha Noi: hang nghin bien -> fetch+rasterize lien tuc gay lag).
+    // Chi top-up icon trong viewport, debounce 500ms; icon thieu that su se do 'styleimagemissing' nap theo nhu cau.
+    if (_signPreloadTimer) clearTimeout(_signPreloadTimer);
+    _signPreloadTimer = setTimeout(preloadVisibleSignIcons, 500);
+    refreshSignFramesSoon(400);
   };
   map.on('sourcedata', _signSourcedataHandler);
   // Add layer NGAY, không đợi sourcedata — icon thiếu sẽ được nạp qua styleimagemissing.
@@ -3505,17 +3506,20 @@ function setupSwipeDown(sheetId, handleId, closeFn) {
   const handle = document.getElementById(handleId);
   if (!sheet || !handle || sheet._swipeBound) return;
   sheet._swipeBound = true;
-  let startY = 0, currentY = 0, isDragging = false;
-  handle.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; currentY = startY; isDragging = true; sheet.style.transition = 'none'; }, { passive: true });
+  let startY = 0, currentY = 0, isDragging = false, _swRaf = 0, _swDy = 0;
+  handle.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; currentY = startY; isDragging = true; sheet.style.transition = 'none'; sheet.style.willChange = 'transform'; }, { passive: true });
   handle.addEventListener('touchmove', (e) => {
     if (!isDragging) return;
     currentY = e.touches[0].clientY;
-    const deltaY = currentY - startY;
-    if (deltaY > 0) sheet.style.transform = `translateY(${deltaY}px)`;
+    _swDy = currentY - startY;
+    if (_swDy <= 0 || _swRaf) return;
+    _swRaf = requestAnimationFrame(() => { _swRaf = 0; sheet.style.transform = `translateY(${_swDy}px)`; });
   }, { passive: true });
   handle.addEventListener('touchend', () => {
     if (!isDragging) return;
     isDragging = false;
+    if (_swRaf) { cancelAnimationFrame(_swRaf); _swRaf = 0; }
+    sheet.style.willChange = '';
     sheet.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
     const deltaY = currentY - startY;
     if (deltaY > 100) { sheet.style.transform = ''; closeFn(); } else sheet.style.transform = '';
@@ -5316,10 +5320,10 @@ try{
     const bot = document.getElementById('gNavBottomSheet');
     if(!bot || bot._dragBound) return;
     bot._dragBound = true;
-    let startY = 0, curY = 0, dragging = false;
+    let startY = 0, curY = 0, dragging = false, _gnRaf = 0, _gnDy = 0;
     const onStart = (e)=>{ const y = e.touches ? e.touches[0].clientY : e.clientY; startY = y; curY = y; dragging = true; bot.style.transition = 'none'; };
-    const onMove = (e)=>{ if(!dragging) return; const y = e.touches ? e.touches[0].clientY : e.clientY; curY = y; const dy = Math.max(0, y - startY); bot.style.transform = 'translateY(' + dy + 'px)'; };
-    const onEnd = ()=>{ if(!dragging) return; dragging = false; bot.style.transition = ''; bot.style.transform = ''; const dy = curY - startY; if(dy > 60) collapseGoogleBottomSheet(); else expandGoogleBottomSheet(); };
+    const onMove = (e)=>{ if(!dragging) return; const y = e.touches ? e.touches[0].clientY : e.clientY; curY = y; _gnDy = Math.max(0, y - startY); if (_gnRaf) return; _gnRaf = requestAnimationFrame(()=>{ _gnRaf = 0; bot.style.transform = 'translateY(' + _gnDy + 'px)'; }); };
+    const onEnd = ()=>{ if(!dragging) return; dragging = false; if (_gnRaf) { cancelAnimationFrame(_gnRaf); _gnRaf = 0; } bot.style.transition = ''; bot.style.transform = ''; const dy = curY - startY; if(dy > 60) collapseGoogleBottomSheet(); else expandGoogleBottomSheet(); };
     const handle = document.getElementById('gNavBottomHandle');
     const target = handle || bot;
     target.addEventListener('touchstart', onStart, { passive:true });
@@ -6821,16 +6825,17 @@ try{
     st.textContent = `
       /* Sheet: glass + bo lon + bong mem */
       html body #homeBottomSheet{
-        background:rgba(255,255,255,.97) !important;
-        backdrop-filter:blur(20px) saturate(1.2) !important;
-        -webkit-backdrop-filter:blur(20px) saturate(1.2) !important;
+        background:#ffffff !important;
+        backdrop-filter:none !important;
+        -webkit-backdrop-filter:none !important;
         border-radius:28px 28px 0 0 !important;
         border-top:1px solid rgba(255,255,255,.7) !important;
         box-shadow:0 -8px 32px rgba(0,0,0,.14), 0 -1px 0 rgba(0,0,0,.04) !important;
         padding:10px 14px calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+        will-change:transform !important;
       }
       html body:not(.light-mode) #homeBottomSheet{
-        background:rgba(31,41,55,.97) !important;
+        background:#1f2937 !important;
         border-top:1px solid rgba(255,255,255,.08) !important;
         box-shadow:0 -8px 32px rgba(0,0,0,.55) !important;
       }
@@ -6852,7 +6857,13 @@ try{
       /* Grid 5 nut - vua 1 hang tren mobile */
       html body #homeBottomSheet .hb-grid{
         grid-template-columns:repeat(5, 1fr) !important; gap:4px !important;
+        overflow:hidden !important; grid-template-rows:1fr !important; opacity:1 !important;
+        transition:grid-template-rows .28s ease, opacity .2s ease !important;
       }
+      /* [PERF/UX 2026-11-28] Thu gon muot: grid 0fr thay vi display:none dot ngot */
+      html body #homeBottomSheet .hb-grid > *{ min-height:0 !important; }
+      html body #homeBottomSheet.hb-collapsed .hb-grid{ grid-template-rows:0fr !important; opacity:0 !important; }
+      html body #homeBottomSheet .hb-handle{ touch-action:none !important; }
       html body #homeBottomSheet .hb-action{ padding:8px 1px 6px !important; gap:7px !important; border-radius:16px !important; transition:background .15s ease, transform .12s ease !important; }
       html body #homeBottomSheet .hb-action:active{ transform:scale(.94) !important; }
       /* Icon gradient 56px + bong do - nhin xin hon icon tron don sac cu */
@@ -6936,9 +6947,12 @@ try{
     try{
       let sy = 0, dragging = false;
       const h = sheet.querySelector('#hbHandle');
-      h.addEventListener('touchstart', (e)=>{ sy = e.touches[0].clientY; dragging = true; }, { passive:true });
-      h.addEventListener('touchmove', (e)=>{ if (!dragging) return; const dy = e.touches[0].clientY - sy; if (dy > 28) { sheet.classList.add('hb-collapsed'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = '˅'; dragging = false; } if (dy < -28) { sheet.classList.remove('hb-collapsed'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = '˄'; dragging = false; } }, { passive:true });
-      h.addEventListener('touchend', ()=>{ dragging = false; });
+      // [PERF/UX 2026-11-28] Keo theo ngon tay (rAF throttle, dung style.translate de khong de len transform translateX(-50%) o desktop) roi moi snap o touchend.
+      // Ban cu chi doi du 28px roi snap dot ngot -> cam giac "tho, giat".
+      let _hbRaf = 0, _hbDy = 0;
+      h.addEventListener('touchstart', (e)=>{ sy = e.touches[0].clientY; _hbDy = 0; dragging = true; sheet.style.transition = 'none'; }, { passive:true });
+      h.addEventListener('touchmove', (e)=>{ if (!dragging) return; _hbDy = e.touches[0].clientY - sy; if (_hbRaf) return; _hbRaf = requestAnimationFrame(()=>{ _hbRaf = 0; try { sheet.style.translate = '0 ' + Math.max(-70, Math.min(120, _hbDy)) + 'px'; } catch (_e) {} }); }, { passive:true });
+      h.addEventListener('touchend', ()=>{ if (!dragging) return; dragging = false; if (_hbRaf) { cancelAnimationFrame(_hbRaf); _hbRaf = 0; } sheet.style.transition = ''; sheet.style.translate = ''; const dy = _hbDy; const t = sheet.querySelector('#hbToggle'); if (dy > 60) { sheet.classList.add('hb-collapsed'); if (t) t.textContent = '˅'; } else if (dy < -28) { sheet.classList.remove('hb-collapsed'); if (t) t.textContent = '˄'; } });
     }catch(e){}
 
     const collapseToPeek = ()=>{ sheet.classList.add('hb-collapsed'); const t = sheet.querySelector('#hbToggle'); if (t) t.textContent = '˅'; };
@@ -7310,7 +7324,7 @@ try{
         position:fixed !important; left:16px !important; right:auto !important; top:auto !important;
         bottom:calc(290px + var(--safe-bottom, 0px)) !important; transform:none !important;
         width:52px !important; height:52px !important; border-radius:50% !important;
-        background:rgba(30,41,59,.7) !important; backdrop-filter:blur(10px) !important;
+        background:var(--card) !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
         border:1px solid rgba(255,255,255,.1) !important; color:var(--text) !important;
         z-index:1100 !important;
       }
@@ -7494,7 +7508,7 @@ try{
       html body:not(.navigating):not(.google-nav) #homeBottomSheet{
         left:12px !important; right:12px !important; bottom:calc(12px + var(--safe-bottom, 0px)) !important;
         border-radius:28px !important; border:1px solid var(--border) !important;
-        box-shadow:0 12px 32px rgba(0,0,0,.22) !important; backdrop-filter:blur(12px) !important;
+        box-shadow:0 12px 32px rgba(0,0,0,.22) !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
       }
       html body:not(.navigating):not(.google-nav) #fabClusterLeft,
       html body:not(.navigating):not(.google-nav) #fabClusterRight{
@@ -9432,19 +9446,19 @@ try{ window.dk360 = { setMode: dk360SetMode, toggle: dk360Toggle, jumpTo: dk360J
     if(!document.getElementById('wxStyle')){
       var st=document.createElement('style'); st.id='wxStyle';
       st.textContent =
-      '#wxChip{position:fixed !important;top:calc(68px + var(--safe-top, 0px)) !important;right:16px !important;z-index:1000 !important;align-items:center !important;gap:6px !important;background:transparent !important;border:none !important;border-radius:999px !important;padding:10px 12px !important;min-height:44px !important;font-size:13px !important;font-weight:700 !important;color:var(--text) !important;text-shadow:0 1px 8px rgba(0,0,0,.5),0 0 3px rgba(0,0,0,.4) !important;cursor:pointer !important;}\n' +
-      '#wxChip i{color:var(--primary) !important;text-shadow:0 1px 8px rgba(0,0,0,.5),0 0 3px rgba(0,0,0,.4) !important;}\n' +
-      'body.light-mode #wxChip,body.light-mode #wxChip i{text-shadow:0 1px 8px rgba(255,255,255,.75),0 0 3px rgba(255,255,255,.6) !important;}\n' +
-      '#wxCard{position:fixed !important;top:calc(112px + var(--safe-top, 0px)) !important;right:16px !important;z-index:1001 !important;width:min(300px,calc(100vw - 32px)) !important;background:var(--card) !important;color:var(--text) !important;border:1px solid var(--border) !important;border-radius:16px !important;box-shadow:0 12px 32px rgba(0,0,0,.22) !important;padding:12px 14px !important;}\n' +
-      '#wxCard .wx-card-head{display:flex !important;align-items:center !important;justify-content:space-between !important;font-size:12px !important;font-weight:800 !important;color:var(--text-muted) !important;margin-bottom:6px !important;}\n' +
-      '#wxCard .wx-card-x{border:none !important;background:transparent !important;color:var(--text-muted) !important;font-size:14px !important;cursor:pointer !important;padding:2px 6px !important;}\n' +
+      '#wxChip{position:fixed !important;top:calc(68px + var(--safe-top, 0px)) !important;right:16px !important;z-index:1000 !important;align-items:center !important;gap:6px !important;background:#fff !important;border:1px solid #e2e8f0 !important;border-radius:999px !important;padding:10px 12px !important;min-height:44px !important;font-size:13px !important;font-weight:700 !important;color:#111 !important;text-shadow:none !important;box-shadow:0 4px 14px rgba(0,0,0,.18) !important;cursor:pointer !important;}\n' +
+      '#wxChip i{color:#111 !important;text-shadow:none !important;}\n' +
+      'body.light-mode #wxChip,body.light-mode #wxChip i{text-shadow:none !important;}\n' +
+      '#wxCard{position:fixed !important;top:calc(112px + var(--safe-top, 0px)) !important;right:16px !important;z-index:1001 !important;width:min(300px,calc(100vw - 32px)) !important;background:#fff !important;color:#111 !important;border:1px solid #e2e8f0 !important;border-radius:16px !important;box-shadow:0 12px 32px rgba(0,0,0,.22) !important;padding:12px 14px !important;}\n' +
+      '#wxCard .wx-card-head{display:flex !important;align-items:center !important;justify-content:space-between !important;font-size:12px !important;font-weight:800 !important;color:#475569 !important;margin-bottom:6px !important;}\n' +
+      '#wxCard .wx-card-x{border:none !important;background:transparent !important;color:#111 !important;font-size:14px !important;cursor:pointer !important;padding:2px 6px !important;}\n' +
       '#wxCard .wx-card-main{display:flex !important;align-items:center !important;gap:10px !important;font-size:15px !important;font-weight:700 !important;margin-bottom:8px !important;}\n' +
       '#wxCard .wx-card-main #wxCardTemp{font-size:26px !important;font-weight:900 !important;}\n' +
-      '#wxCard .wx-card-grid{display:grid !important;grid-template-columns:1fr 1fr !important;gap:4px 10px !important;font-size:12px !important;color:var(--text-muted) !important;}\n' +
-      '#wxCard .wx-card-grid b{color:var(--text) !important;}\n' +
-      '#wxCard .wx-card-hours{display:flex !important;gap:10px !important;margin-top:10px !important;padding-top:8px !important;border-top:1px solid var(--border) !important;font-size:11px !important;color:var(--text-muted) !important;overflow-x:auto !important;}\n' +
+      '#wxCard .wx-card-grid{display:grid !important;grid-template-columns:1fr 1fr !important;gap:4px 10px !important;font-size:12px !important;color:#475569 !important;}\n' +
+      '#wxCard .wx-card-grid b{color:#111 !important;}\n' +
+      '#wxCard .wx-card-hours{display:flex !important;gap:10px !important;margin-top:10px !important;padding-top:8px !important;border-top:1px solid #e2e8f0 !important;font-size:11px !important;color:#475569 !important;overflow-x:auto !important;}\n' +
       '#wxCard .wx-card-hours span{white-space:nowrap !important;text-align:center !important;}\n' +
-      '#wxCard .wx-card-hours b{display:block !important;color:var(--text) !important;font-size:12px !important;}\n' +
+      '#wxCard .wx-card-hours b{display:block !important;color:#111 !important;font-size:12px !important;}\n' +
       '#wxDriveStrip{position:fixed !important;top:calc(76px + var(--safe-top, 0px)) !important;left:12px !important;right:12px !important;z-index:1300 !important;align-items:center !important;gap:8px !important;background:rgba(220,38,38,.95) !important;color:#fff !important;border-radius:12px !important;padding:9px 12px !important;font-size:13px !important;font-weight:700 !important;box-shadow:0 6px 18px rgba(0,0,0,.25) !important;}\n' +
       'body.google-nav #wxDriveStrip{top:calc(152px + var(--safe-top, 0px)) !important;}\n' +
       'body.rp-preview-open #wxChip,body.google-nav #wxChip,body.navigating #wxChip,body.dk360-mode-on #wxChip,html.dk360-mode-on #wxChip{display:none !important;}\n' +
@@ -9460,15 +9474,15 @@ try{ window.dk360 = { setMode: dk360SetMode, toggle: dk360Toggle, jumpTo: dk360J
       'body.rp-preview-open #wxSheet,body.google-nav #wxSheet,body.navigating #wxSheet,body.dk360-mode-on #wxSheet,html.dk360-mode-on #wxSheet{display:none !important;}\n' +
       'body.google-nav #wxSheet.wx-open,body.navigating #wxSheet.wx-open{display:block !important;}\n' +
       '.rp-dest-wx.wx-bad{color:#dc2626 !important;font-weight:800 !important;}\n' +
-       '#wxNavBar{position:fixed !important;left:auto !important;right:12px !important;max-width:70vw !important;z-index:1250 !important;background:transparent !important;border:none !important;color:var(--text) !important;text-shadow:0 1px 8px rgba(0,0,0,.5),0 0 3px rgba(0,0,0,.4) !important;font-size:13px !important;font-weight:700 !important;display:none;}\n' +
-       'body.light-mode #wxNavBar{color:#111 !important;text-shadow:0 1px 8px rgba(255,255,255,.75),0 0 3px rgba(255,255,255,.6) !important;}\n' +
+       '#wxNavBar{position:fixed !important;left:auto !important;right:12px !important;max-width:70vw !important;z-index:1250 !important;background:#fff !important;border:1px solid #e2e8f0 !important;border-radius:999px !important;padding:0 6px 0 12px !important;color:#111 !important;text-shadow:none !important;box-shadow:0 4px 14px rgba(0,0,0,.18) !important;font-size:13px !important;font-weight:700 !important;display:none;}\n' +
+       'body.light-mode #wxNavBar{color:#111 !important;text-shadow:none !important;}\n' +
        'body.google-nav #wxNavBar{display:block;}\n' +
        'body.dk360-mode-on #wxNavBar,html.dk360-mode-on #wxNavBar{display:none !important;}\n' +
        '#wxNavBar .wxnb-main{display:flex !important;align-items:center !important;gap:8px !important;min-height:44px !important;}\n' +
        '#wxNavBarToggle{margin-left:auto !important;border:none !important;background:transparent !important;color:inherit !important;font-size:18px !important;font-weight:800 !important;min-width:44px !important;min-height:44px !important;cursor:pointer !important;text-shadow:inherit !important;}\n' +
        '#wxNavBar .wxnb-rows{padding-bottom:6px !important;}\n' +
        '#wxNavBar .wxnb-row{display:flex !important;align-items:center !important;gap:8px !important;padding:3px 0 !important;}\n' +
-       '#wxNavBar .wxnb-label{color:var(--text-muted) !important;font-size:11px !important;font-weight:800 !important;text-transform:uppercase !important;letter-spacing:.04em !important;min-width:74px !important;}\n' +
+       '#wxNavBar .wxnb-label{color:#475569 !important;font-size:11px !important;font-weight:800 !important;text-transform:uppercase !important;letter-spacing:.04em !important;min-width:74px !important;}\n' +
        '#wxNavBar .wxnb-bad{color:#f87171 !important;}\n' +
        'body.light-mode #wxNavBar .wxnb-bad{color:#dc2626 !important;}\n';
       document.head.appendChild(st);
@@ -9696,7 +9710,7 @@ try{ window.dk360 = { setMode: dk360SetMode, toggle: dk360Toggle, jumpTo: dk360J
     try{ wxCardOpen=false; var card=document.getElementById('wxCard'); if(card) card.style.display='none'; }catch(e){}
   }
   function wxCloseCardOnMapTap(){ if(wxCardOpen){ wxCloseCard(); return true; } return false; }
-  var wxSheetOpen=false, wxSheetDragBound=false, wxSheetDragY=null;
+  var wxSheetOpen=false, wxSheetDragBound=false, wxSheetDragY=null, wxSheetDragDy=0, wxSheetDragRaf=0;
   function wxNextKmPoint(){
     try{
       var coords=(typeof currentRouteCoords!=='undefined')?currentRouteCoords:null;
@@ -9758,8 +9772,8 @@ try{ window.dk360 = { setMode: dk360SetMode, toggle: dk360Toggle, jumpTo: dk360J
       if(!h||!sh) return;
       wxSheetDragBound=true;
       h.addEventListener('pointerdown', function(ev){ wxSheetDragY=ev.clientY; try{ h.setPointerCapture(ev.pointerId); }catch(e){} });
-      h.addEventListener('pointermove', function(ev){ if(wxSheetDragY===null) return; var dy=ev.clientY-wxSheetDragY; if(dy>0) sh.style.transform='translateY('+dy+'px)'; });
-      var end=function(ev){ if(wxSheetDragY===null) return; var dy=ev.clientY-wxSheetDragY; wxSheetDragY=null; if(dy>80){ wxCloseSheet(); } else { wxSheetSnapBack(); } };
+      h.addEventListener('pointermove', function(ev){ if(wxSheetDragY===null) return; wxSheetDragDy=ev.clientY-wxSheetDragY; if(wxSheetDragDy<=0 || wxSheetDragRaf) return; wxSheetDragRaf=requestAnimationFrame(function(){ wxSheetDragRaf=0; sh.style.transform='translateY('+wxSheetDragDy+'px)'; }); });
+      var end=function(ev){ if(wxSheetDragY===null) return; if(wxSheetDragRaf){ cancelAnimationFrame(wxSheetDragRaf); wxSheetDragRaf=0; } var dy=ev.clientY-wxSheetDragY; wxSheetDragY=null; if(dy>80){ wxCloseSheet(); } else { wxSheetSnapBack(); } };
       h.addEventListener('pointerup', end);
       h.addEventListener('pointercancel', end);
     }catch(e){}
