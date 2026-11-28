@@ -1052,3 +1052,113 @@ input, textarea{ user-select:text; -webkit-user-select:text; }
   .vps-option-btn{ padding:10px 4px; font-size:13px; }
   #homeBottomSheet .hb-action{ padding:6px 1px 4px; }
 }
+
+/* V11 FIX CHAM MAP KHONG HIEN POPUP (dong bo tu CSS nhung trong map/index.html) */
+.dir-sheet:not(.open){ pointer-events:none !important; visibility:hidden !important; }
+.dir-sheet.open{ pointer-events:auto !important; visibility:visible !important; }
+#routePreviewSheet:not(.open){ pointer-events:none !important; visibility:hidden !important; }
+#vehicleParamsSheet:not(.open){ pointer-events:none !important; visibility:hidden !important; }
+.vps-overlay:not(.open){ pointer-events:none !important; visibility:hidden !important; }
+.poi-sheet:not(.open){ pointer-events:none !important; visibility:hidden !important; }
+.poi-detail-sheet:not(.open){ pointer-events:none !important; visibility:hidden !important; }
+.maplibregl-popup{ z-index: 1200 !important; }
+
+/* =====================================================
+   CLEAN UI - 2026-11-28 (giao dien sach kieu AI Maps, da duyet demo)
+   Chi THEM override visual o cuoi file; khong doi id/class,
+   khong xoa tinh nang, khong sua logic JS.
+   - Thanh tim kiem gon 1 hang, nut menu tron 48px
+   - Cum FAB trai/phai gom thanh pill dung gon
+   - HUD: so toc do TO trong vong tron do-trang (nhu bien bao
+     gioi han toc do), banner re + thanh ETA noi dang card
+   - Dock duoi (homeBottomSheet): gon hon, an phu de tren man hep
+   - Giu mau navy #0f172a + xanh duong #3b82f6 rieng cua DriveKit
+   ===================================================== */
+
+/* --- 1. Thanh tim kiem tren: pill gon, bong mo --- */
+html body #topBarSplit{
+  top:calc(12px + var(--safe-top, 0px)) !important;
+  left:12px !important; right:12px !important; gap:8px !important;
+}
+html body #topBarSplit .floating-search,
+html body #topBarSplit #searchBar{
+  height:48px !important; min-height:48px !important;
+  border-radius:999px !important;
+  box-shadow:0 4px 16px rgba(0,0,0,.12) !important;
+}
+html body #topBarSplit #mainMenuBtn{
+  width:48px !important; height:48px !important; min-width:48px !important;
+  border-radius:50% !important;
+  box-shadow:0 4px 16px rgba(0,0,0,.12) !important;
+}
+
+/* --- 2. Cum FAB trai/phai: 1 pill dung, nut 46px, khong bong rieng --- */
+html body:not(.navigating):not(.google-nav) div#fabClusterLeft,
+html body:not(.navigating):not(.google-nav) div#fabClusterRight{
+  border-radius:26px !important; padding:4px !important; gap:2px !important;
+  box-shadow:0 8px 24px rgba(0,0,0,.16) !important;
+}
+html body:not(.navigating):not(.google-nav) div#fabClusterLeft button,
+html body:not(.navigating):not(.google-nav) div#fabClusterRight button{
+  width:46px !important; height:46px !important;
+}
+
+/* --- 3. HUD luc dan duong: toc do to, vong do-trang --- */
+html body #hud .hud-top{
+  align-items:flex-start !important; gap:10px !important;
+  padding:calc(12px + var(--safe-top, 0px)) 12px 0 !important;
+}
+html body #hud .hud-stat{ border-radius:14px !important; }
+html body #hud .hud-stat .value{ font-size:1.05rem !important; }
+html body #hud .hud-stat.speed{
+  flex:0 0 auto !important; width:112px !important; height:112px !important;
+  min-width:112px !important; border-radius:50% !important;
+  border:5px solid #ef4444 !important; background:#ffffff !important;
+  color:#111111 !important; align-items:center !important;
+  justify-content:center !important; padding:0 !important;
+  box-shadow:0 8px 24px rgba(0,0,0,.35) !important;
+}
+html body #hud .hud-stat.speed .label{
+  color:#64748b !important; font-size:.55rem !important;
+}
+html body #hud .hud-stat.speed .value{
+  color:#111111 !important; font-size:1.25rem !important;
+  line-height:1.1 !important; text-align:center !important;
+  font-family:var(--font-mono) !important;
+}
+html body #hud .hud-end-btn-top{ align-self:center !important; }
+/* Banner re phai lui xuong duoi vong toc do */
+html body #hud .hud-next{
+  top:calc(140px + var(--safe-top, 0px)) !important;
+  border-radius:16px !important; padding:12px 14px !important;
+  box-shadow:0 8px 24px rgba(59,130,246,.35) !important;
+}
+html body #hud .hud-next .instr{ font-size:1.05rem !important; }
+/* Thanh ETA duoi: card noi, khong keo full chieu ngang */
+html body #hud .hud-bottom{
+  left:12px !important; right:12px !important;
+  bottom:calc(12px + var(--safe-bottom, 0px)) !important;
+  border-radius:18px !important; border:1px solid var(--border) !important;
+  box-shadow:0 8px 24px rgba(0,0,0,.25) !important;
+}
+
+/* --- 4. Dock duoi gon hon --- */
+html body:not(.navigating) #homeBottomSheet{
+  padding:10px 14px calc(10px + var(--safe-bottom, 0px)) !important;
+}
+html body:not(.navigating) #homeBottomSheet .hb-icon{
+  width:52px !important; height:52px !important;
+}
+@media (max-width:480px){
+  html body:not(.navigating) #homeBottomSheet .hb-subtitle{
+    display:none !important;
+  }
+  html body #hud .hud-stat.speed{
+    width:96px !important; height:96px !important; min-width:96px !important;
+  }
+  html body #hud .hud-stat.speed .value{ font-size:1.05rem !important; }
+  html body #hud .hud-next{ top:calc(124px + var(--safe-top, 0px)) !important; }
+}
+
+/* --- 5. Menu lop ban do: bo tron mem hon --- */
+html body .layer-menu{ border-radius:16px !important; }
