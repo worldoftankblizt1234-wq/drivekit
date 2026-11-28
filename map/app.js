@@ -2269,6 +2269,7 @@ function initMap() {
     renderReportsOnMap();
     renderAvoidZonesOnMap();
     initMapillarySignsLayer();
+    if (typeof dk360AddCoverage === 'function') dk360AddCoverage();
     if (typeof _trafficOn !== 'undefined' && _trafficOn) addTrafficLayer();
     setTimeout(loadStaticWarnings, 1000);
   });
@@ -9029,6 +9030,8 @@ function dk360InjectCss(){
       '#dk360Bar{height:40px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 14px;background:var(--card-2,#0f172a);color:var(--text,#fff);font-weight:700;font-size:13px;}',
       '#dk360Bar small{opacity:.7;font-weight:500;margin-left:6px;}',
       '#dk360CloseBtn{width:32px;height:32px;border-radius:50%;border:0;background:var(--bg-2,rgba(255,255,255,.16));color:var(--text,#fff);font-size:16px;line-height:1;cursor:pointer;}',
+      '#dk360ExitBtn{position:fixed;right:16px;bottom:calc(20px + var(--safe-bottom,0px));width:44px;height:44px;border-radius:50%;border:0;background:rgba(15,23,42,.88);color:#fff;font-size:20px;line-height:1;cursor:pointer;z-index:70;display:none;box-shadow:0 4px 14px rgba(0,0,0,.35);}',
+      'body.dk360-mode-on #dk360ExitBtn{display:flex;align-items:center;justify-content:center;}',
       '#dk360ViewerBox{flex:1 1 auto;position:relative;min-height:0;}',
       '.dk360-tri{width:30px;height:30px;pointer-events:none;}',
       '.dk360-tri-inner{width:30px;height:30px;display:block;transform-origin:center;}',
@@ -9062,6 +9065,20 @@ function dk360EnsureButton(){
     btn.addEventListener('click', function(){ try{ dk360Toggle(); }catch(_){} });
     grid.insertAdjacentElement('afterend', btn);
     dk360SetRowState();
+  }catch(_){}
+}
+
+function dk360EnsureExitBtn(){
+  try{
+    if (document.getElementById('dk360ExitBtn')) return;
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'dk360ExitBtn';
+    b.title = 'Đóng chế độ 360°';
+    b.setAttribute('aria-label', 'Đóng chế độ 360°');
+    b.textContent = '✕';
+    b.addEventListener('click', function(){ try{ dk360SetMode(false); }catch(_){} });
+    document.body.appendChild(b);
   }catch(_){}
 }
 
@@ -9134,9 +9151,11 @@ function dk360SetMode(on){
     if (dk360Mode){
       dk360CloseOpenPopup();
       try{ if (typeof map !== 'undefined' && map && typeof map.jumpTo === 'function') map.jumpTo({ bearing: 0, pitch: 0 }); }catch(_){}
+      // FIX 2026-11-28: truoc day dk360AddCoverage() khong co ai goi nen duong xanh khong bao gio hien; goi o day khi bat 360 do
+      try{ dk360AddCoverage(); }catch(_){}
     } else {
       dk360CloseViewer();
-      dk360RemoveCoverage();
+      // Coverage luon bat nen khong go layer khi tat 360 do (duong xanh van hien o ban do thuong)
     }
   }catch(_){}
 }
@@ -9146,12 +9165,12 @@ function dk360AddCoverage(){
     if (typeof map === 'undefined' || !map) return;
     if (!dk360StyleHooked){
       dk360StyleHooked = true;
-      try{ map.on('style.load', function(){ try{ if (dk360Mode) dk360AddCoverage(); }catch(_){} }); }catch(_){}
+      try{ map.on('style.load', function(){ try{ dk360AddCoverage(); }catch(_){} }); }catch(_){}
     }
     var ready = true;
     try{ ready = (typeof map.loaded === 'function') ? map.loaded() : true; }catch(_){ ready = true; }
     if (!ready){
-      try{ map.once('load', function(){ try{ if (dk360Mode) dk360AddCoverage(); }catch(_){} }); }catch(_){}
+      try{ map.once('load', function(){ try{ dk360AddCoverage(); }catch(_){} }); }catch(_){}
       return;
     }
     if (typeof map.getSource === 'function' && !map.getSource(DK360_SRC)){
@@ -9483,8 +9502,11 @@ function dk360ApplyTriRotation(){
 dk360InjectCss();
 dk360InjectSearchTextCss();
 dk360EnsureButton();
+dk360EnsureExitBtn();
 document.addEventListener('DOMContentLoaded', dk360EnsureButton);
+document.addEventListener('DOMContentLoaded', dk360EnsureExitBtn);
 setTimeout(dk360EnsureButton, 900);
+setTimeout(dk360EnsureExitBtn, 900);
 try{ window.dk360 = { setMode: dk360SetMode, toggle: dk360Toggle, jumpTo: dk360JumpTo, handleTap: dk360HandleTap }; }catch(_){}
 /* [/STREETVIEW-360] */
 
